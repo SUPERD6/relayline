@@ -271,3 +271,28 @@ details.tflow summary{cursor:pointer;overflow-wrap:anywhere}
 details.tflow summary .cost{display:inline;margin-left:6px}
 .tok-h3{font-size:15px;margin:14px 0 4px}
 .tfilters select{border:1px solid var(--line);background:var(--panel);color:var(--ink);border-radius:999px;padding:3px 10px;font-size:13px}
+/* P2-10: the home page, one project on one map (top spend, middle talk, left memory, right receipts, bottom skills) */
+.mapproj{display:flex;flex-wrap:wrap;gap:6px;margin:4px 0 10px}
+.mapproj .chip{color:var(--ink)}
+.mapproj .chip.cur{border-color:var(--teal);color:var(--teal);font-weight:650}
+.map{display:grid;gap:14px;margin-top:10px;grid-template-columns:minmax(0,1fr) minmax(0,1.35fr) minmax(0,1.25fr);
+  grid-template-areas:"top top top" "left mid right" "bottom bottom bottom"}
+.map>section{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:10px 14px;min-width:0;overflow-wrap:anywhere}
+.map h2{margin-top:2px}
+.m-top{grid-area:top}.m-mid{grid-area:mid}.m-left{grid-area:left}.m-right{grid-area:right}.m-bottom{grid-area:bottom}
+.map .big{font-size:22px}
+.map .rungs{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0}
+.map .rungs i{color:var(--muted);font-style:normal}
+.mgraph{display:block;width:100%;max-width:380px;height:auto;margin:0 auto 4px}
+.mlist{list-style:none;padding:0;margin:6px 0}
+.mlist li{padding:6px 0;border-bottom:1px solid var(--line)}
+.mlist li:last-child{border-bottom:0}
+.map .said{font-size:13px;color:var(--muted)}
+.map .said .warn{color:var(--red);font-weight:650}
+.rcpts{list-style:none;padding:0;margin:6px 0}
+.rcpts li{border-left:4px solid var(--line);padding:6px 10px;margin:0 0 8px;background:var(--soft);border-radius:8px;font-size:14px}
+.rcpts li.o-right{border-left-color:var(--ok)}
+.rcpts li.o-wrong{border-left-color:var(--red)}
+.rcpts code{font-size:12.5px}
+@media (max-width:1100px){.map{grid-template-columns:minmax(0,1fr);grid-template-areas:"top" "mid" "right" "left" "bottom"}}
+.map .rungs .chip{white-space:normal;overflow-wrap:anywhere}

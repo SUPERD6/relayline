@@ -86,7 +86,7 @@ def _attempt(agent: str, model: str, effort: str, secs: float, tin: int, tout: i
 
 def _run(p: Paths, run_id: str, cwd: Path, brief: str, ts: float, *, to: str = "codex", model: str = "gpt-6-luna",
          effort: str = "low", caller: str = "claude", lead: str | None = LEAD_SESSION, secs: float = 140.0,
-         usd: float = 0.004, record: bool = True, tin: int = 9000, tout: int = 1400, **kw) -> dict:
+         usd: float = 0.004, record: bool = True, tin: int = 9000, tout: int = 1400, notes: tuple = (), **kw) -> dict:
     rec = {"run_id": run_id, "label": None, "to": to, "caller": caller, "mode": "write", "cwd": str(cwd), "tier": "T1",
            "session_id": None, "lead_session": lead, "ts": ts, "first_rung": f"{to}:{model}:{effort}",
            "attempts": [_attempt(to, model, effort, secs, tin, tout, usd)],
@@ -96,7 +96,10 @@ def _run(p: Paths, run_id: str, cwd: Path, brief: str, ts: float, *, to: str = "
     d = p.runs / run_id
     d.mkdir(parents=True, exist_ok=True)
     _write(d / "run.json", json.dumps(rec, ensure_ascii=False, indent=1))
-    _write(d / "prompt.md", f"[ccx sub-task {run_id}]\n## Task\n{brief}\n\n## Finish\nReturn the result JSON.\n")
+    # the shared notes the brief carried, as delegate._brief_notes writes them (the home page links note -> run)
+    carried = ("Shared notes that may bear on this task (facts recorded earlier; check before relying on them):\n"
+               + "".join(f"- #{e['seq']} ({e['topic']}): {e['text']}\n" for e in notes) + "\n") if notes else ""
+    _write(d / "prompt.md", f"[ccx sub-task {run_id}]\n## Task\n{brief}\n\n{carried}## Finish\nReturn the result JSON.\n")
     if record and rec["state"] == "finished":
         from . import ledger
         ledger.append(p, rec)
@@ -121,7 +124,7 @@ def _verdict(p: Paths, run_id: str, ok: bool, ts: float, **kw) -> None:
 
 
 # ------------------------------------------------------------------ the two projects
-def _shop(p: Paths, root: Path, now: float) -> dict:
+def _shop(p: Paths, root: Path, now: float, notes: list[dict]) -> dict:
     """shop-api: a Claude lead's runs in every state, a board, a handoff Codex -> Claude two days ago."""
     from . import board, project, workspace
     root.mkdir(parents=True, exist_ok=True)
@@ -136,7 +139,10 @@ def _shop(p: Paths, root: Path, now: float) -> dict:
                      result={"status": "done", "summary": "Added GET /health returning {status, version}.",
                              "files_changed": ["health.py", "tests/test_health.py"],
                              "verification": "pytest -q tests/test_health.py: 2 passed"},
-                     check={"cmd": "pytest -q", "exit": 0, "passed": True, "tail": "6 passed in 0.41s"},
+                     check={"cmd": "pytest -q", "exit": 0, "passed": True, "tail": "6 passed in 0.41s",
+                            "covers": {"files": ["tests/test_health.py", "tests/test_orders.py"], "n_files": 2,
+                                       "dirs": ["."], "written": ["tests/test_health.py"]}},
+                     notes=(notes[0], notes[3]),
                      review={"verdict": "pass", "issues": [], "by": "claude:haiku:low", "usd": 0.0011,
                              "run_id": "demo-rv-r-ok"}, verdict={"ok": True})
     # the receipt's change, from ccx's own snapshots (as a real write run leaves them), then committed: the work
@@ -165,7 +171,12 @@ def _shop(p: Paths, root: Path, now: float) -> dict:
                       "files_changed": ["orders.py", "discounts.py", "tests/test_discounts.py"],
                       "verification": "ran pytest -q: 7 passed; tried code SAVE10 by hand"},
               check={"cmd": "pytest -q", "exit": 0, "passed": True,
-                     "tail": "tests/test_orders.py ..\ntests/test_discounts.py ...\n7 passed in 0.52s"},
+                     "tail": "tests/test_orders.py ..\ntests/test_discounts.py ...\n7 passed in 0.52s",
+                     # P1-10: the check passed on a test file the run itself edited: its own yardstick
+                     "covers": {"files": ["tests/test_discounts.py", "tests/test_orders.py"], "n_files": 2,
+                                "dirs": ["."], "edited": ["tests/test_orders.py"], "basis_changed": True,
+                                "written": ["tests/test_discounts.py"]}},
+              notes=(notes[0], notes[1]),
               review={"verdict": "issues", "by": "claude:sonnet:medium", "usd": 0.0094, "run_id": "demo-rv-r-review",
                       "issues": ["[must] an expired code is still applied for the last hour (local time used in "
                                  "is_expired)", "[should] a 100% code makes the total negative with shipping"]})
@@ -197,6 +208,20 @@ def _shop(p: Paths, root: Path, now: float) -> dict:
     board.post(root, "codex", "all", "Release notes for 0.4 are drafted in RELEASE.md. @person can we ship on "
                "Friday, or wait for the discount fix?", thread="release-0.4")
 
+    # a `ccx discuss` talk before the work started: Codex and DeepSeek gave a view, Claude wrote it up
+    from . import discuss
+    discuss.save(p, {"id": "demo-talk-1", "state": "done", "cwd": str(root), "ts": now - 30 * 3600,
+                     "ended": now - 30 * 3600 + 140, "rounds": 1, "agreed": True, "usd": 0.0062,
+                     "question": "Where should discount codes be checked: in the order form or in the API?",
+                     "roles": ["claude", "codex", "deepseek"],
+                     "result": "In the API: it alone knows the expiry; the form shows the API's reason.",
+                     "turns": [{"round": 1, "role": "view", "agent": "codex", "model": "gpt-6-luna", "usd": 0.0021,
+                                "summary": "The API: the form cannot know when a code expires."},
+                               {"round": 1, "role": "view", "agent": "deepseek", "model": "deepseek-flash",
+                                "usd": 0.0008, "summary": "The API, with an error code the form can map to text."},
+                               {"round": 1, "role": "synth", "agent": "claude", "model": "sonnet", "usd": 0.0033,
+                                "summary": "Agreed: the API checks; 422 with a code and a default message."}]})
+
     # leads over time: Codex led until two days ago, then handed over to Claude (the current lead)
     ts = time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime(now - 50 * 3600))
     doc = (f"<!-- ccx:handoff from=codex to=claude ts={ts} -->\n# Handoff codex -> claude ({ts})\n\n"
@@ -222,7 +247,7 @@ def _shop(p: Paths, root: Path, now: float) -> dict:
     return out
 
 
-def _docs(p: Paths, root: Path, now: float) -> dict:
+def _docs(p: Paths, root: Path, now: float, notes: list[dict]) -> dict:
     """docs-site: a Codex lead's work queue of three pieces, one done and merged, one done in a worktree that is not
     merged yet, one waiting on it."""
     from . import project
@@ -241,7 +266,9 @@ def _docs(p: Paths, root: Path, now: float) -> dict:
               result={"status": "done", "summary": "install.md now holds all three guides; old anchors redirect.",
                       "files_changed": ["install.md", "install-linux.md", "install-mac.md"],
                       "verification": "built the site, clicked every old anchor"},
-              check={"cmd": "python build.py --check-links", "exit": 0, "passed": True, "tail": "0 broken links"})
+              check={"cmd": "python build.py --check-links", "exit": 0, "passed": True, "tail": "0 broken links",
+                     "covers": {"unknown": "not a pytest / unittest command: which tests it ran is not known"}},
+              notes=(notes[2],))
     _verdict(p, "demo-q1", True, now - 6.5 * 3600)
     wq.update(root, "q1", status="done", run="demo-q1", agent="claude", cost_usd=0.0021, verdict=True)
     wt = str(root.parent / ".ccx-worktrees" / root.name / "demo-q2")
@@ -250,12 +277,24 @@ def _docs(p: Paths, root: Path, now: float) -> dict:
          result={"status": "done", "summary": "Search box with a prebuilt JSON index (38 KB); no network calls.",
                  "files_changed": ["search.js", "build.py", "index.md"], "verification": "built, searched 'install'"},
          check={"cmd": "python build.py --check-links", "exit": 0, "passed": True, "tail": "0 broken links"},
-         worktree=wt, tin=30000, tout=5200,
+         worktree=wt, tin=30000, tout=5200, notes=(notes[2],),
          # Codex started one helper of its own (to build the index): the token page lists it under the run
          codex_children={"019a0d3m-0000-7000-8000-00000000c0d1": {"input": 64000, "cached": 51000, "output": 2600}})
     wq.update(root, "q2", status="done", run="demo-q2", agent="codex", cost_usd=0.0064, worktree=wt)
     wq.set_budget(root, 0.05)
     return {"q1": r1}
+
+
+NOTES = (("codex", "shop-api", "shop-api keeps money as integer cents: no float arithmetic on prices"),
+         ("claude", "shop-api", "shop-api: discount codes expire at midnight UTC; compare in UTC, never local time"),
+         ("codex", "docs-site", "docs-site: no external services; the search index is built at build time"),
+         ("user", "general", "Run the whole test suite (pytest -q) before calling a change done"))
+
+
+def _memory(p: Paths) -> list[dict]:
+    """Four shared notes in the hub's memory, as `ccx mem add` writes them; the runs below carry some in their brief."""
+    from . import memory
+    return [memory.add(p, text, by=by, topic=topic, source="ccx demo") for by, topic, text in NOTES]
 
 
 def _ledger_month(p: Paths, now: float, roots: list[Path]) -> None:
@@ -338,8 +377,9 @@ def build(base: Path | None = None, now: float | None = None) -> Paths:
     saved = {k: os.environ.get(k) for k in e}
     os.environ.update(e)                       # project.init / board / queue read nothing else, but be sure
     try:
-        _shop(p, shop, now)
-        _docs(p, docs, now)
+        notes = _memory(p)
+        _shop(p, shop, now, notes)
+        _docs(p, docs, now, notes)
         _ledger_month(p, now, [shop, docs])
         _claude_session(Path(e["CLAUDE_CONFIG_DIR"]), shop, now)
         (projects / QUIET).mkdir(parents=True, exist_ok=True)

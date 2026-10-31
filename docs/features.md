@@ -33,6 +33,17 @@ and a test checks it).
 
 ## See it live: `ccx ui`
 
+**The home page is one project on one map** (P2-10): in the middle the agents and what went between them (who sent
+work to whom, the board threads, `ccx discuss` talks; a thread stopped by the machine-message cap or a message that
+asks you is a to-do); on the left the shared memory, linked to the runs whose brief carried a note (read from the
+brief itself) and how those runs ended (your verdicts); on the right one receipt per run (who sent it to whom, tier
+and rung, cost, what the check covered and whether the run edited its own tests, the review, the verdict); on top
+this week's spend from the records, split by the rung each run used (other ways only as the published table measured
+them, never estimated); at the bottom who is good at what, which says "not enough data yet" until enough work is
+judged. Every page below stays where it was: the overview with every to-do and button is at `#/all`.
+
+<img alt="ccx ui home page: one project on one map — spend on top, shared memory, the agents and their conversation, receipts (demo data)" src="assets/ui/map-en.png" width="100%">
+
 `ccx ui` opens a page on this machine: what waits for you (red = your call, amber = check the result, teal = a question for you),
 who works on what (one column per agent, new agents get their own), and how the quota windows are going. Click a
 block for the reason, the evidence and its buttons (a run stopped by the machine itself, `kind: env`, shows its fix

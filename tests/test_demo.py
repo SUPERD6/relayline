@@ -225,7 +225,15 @@ def test_headless_browser_renders_the_demo(server, tmp_path):
     t = next(t for t in shop["tasks"] if any(pc["run_id"] == "demo-r-ok" for pc in walk(t["pieces"])))
     pc = next(pc for pc in walk(t["pieces"]) if pc["run_id"] == "demo-r-ok")
     pages = {
-        "/": [en["demo_banner"][:40], "Discount codes for the shop API", "docs-site"],
+        # P2-10: the home page is one project's map (the one where most waits for the person); the overview moved
+        "/": [en["demo_banner"][:40], "shop-api: one map", "Discount codes for the shop API", "docs-site",
+              "This week's spend here", "codex:gpt-6-luna:low", "Receipts", "basis changed: the run edited",
+              "tests/test_orders.py", "review by claude · haiku: pass", "Shared memory", "integer cents", "1 right",
+              "discount-errors", "Where should discount codes be checked", "Who is good at what",
+              en["map_skill_none"], *(f"${r['usd_per_success']}" for r in hc1)],
+        "/all": [en["demo_banner"][:40], "Discount codes for the shop API", "docs-site", en["ov_title"]],
+        "/map/" + project(d, demo.DOCS)["id"]: ["docs-site: one map", "which tests it ran is not known",
+                                                "no external services"],
         "/tokens": [*(f"${r['usd_per_success']}" for r in hc1), *(r["right"] for r in hc1), "019a0d3m"],
         f"/{shop['id']}/{t['id']}?sel={pc['id']}": ["Add a /health endpoint", "pytest -q", "6 passed in 0.41s",
                                                    "health.py", "haiku", "$0.0051"],
