@@ -303,6 +303,10 @@ SETTINGS = {   # key -> (type, help). Only these can be set with `ccx config set
     "lead.claude": (str, "model the Claude lead runs on (for savings estimates; with lead.model_by_task also the "
                            "strong lead's name, which passes no --model), e.g. opus"),
     "lead.codex": (str, "model the Codex lead runs on, e.g. gpt-6.1-sol"),
+    "wake.enabled": (_bool, "true | false: a --bg run that finishes sends the lead one line (Claude Code's inbox, "
+                            "else the next turn's hook) instead of the lead polling (default true)"),
+    "wake.trust_socket": (_bool, "true | false: a line delivered to Claude Code's inbox is not also left for the "
+                                 "next turn's hook (default true; false: a held or expired line still arrives)"),
     "lead.model_by_task": (_bool, "true | false: when ccx starts or recommends a NEW lead conversation (ccx fresh, "
                                   "ccx handoff, route/propose `new_lead`), pick its model from the task's difficulty: "
                                   "[lead_by_task] easy model up to easy_max_b, else the lead's own (default false; a "

@@ -101,13 +101,20 @@ def _bg_maybe_wait(argv: list[str], p, wait: float | None) -> int:
     if wait is None:
         _out(bg)
         return 0
-    from .. import recover
-    from .records import POLL_SEC, RunWaiter, _result
+    from .records import RunWaiter
     rid = bg["run_id"]
     print(f"ccx: started {rid} in the background; waiting up to {wait:g} s (else: ccx show {rid} --wait)",
           file=sys.stderr, flush=True)
     proc = procs[0] if procs else None
     waiter = RunWaiter(p, rid)                   # the same polling as `ccx show --wait` (follows a fix round)
+    from ..wake import waiting
+    with waiting(p, rid):                        # the run sends no notice while this call reads its result
+        return _wait_loop(p, rid, bg, proc, waiter, wait)
+
+
+def _wait_loop(p, rid: str, bg: dict, proc, waiter, wait: float) -> int:
+    from .. import recover
+    from .records import POLL_SEC, _result
     deadline = time.time() + max(0.0, wait)
     swept = time.time()
     while True:
@@ -268,6 +275,15 @@ def _preauth_for_run(p, cfg: dict, proposal: str, spec: dict) -> dict | None:
 
 
 def cmd_run(a) -> int:
+    rid = os.environ.get("CCX_RUN_ID")          # the detached child of --bg (run() takes the variable away)
+    if rid:                                      # nobody reads its stdout: tell the lead, however it ends (wake.py)
+        from ..wake import after_bg
+        with after_bg(paths(), rid):
+            return _cmd_run(a)
+    return _cmd_run(a)
+
+
+def _cmd_run(a) -> int:
     p = paths()
     cfg = load_config(p)
     proj = None
@@ -638,6 +654,15 @@ def cmd_namecheck(a) -> int:
 
 
 def cmd_resume(a) -> int:
+    rid = os.environ.get("CCX_RUN_ID")          # the detached child of --bg resume, as cmd_run's
+    if rid:
+        from ..wake import after_bg
+        with after_bg(paths(), rid):
+            return _cmd_resume(a)
+    return _cmd_resume(a)
+
+
+def _cmd_resume(a) -> int:
     p = paths()
     from ..recover import sweep
     if getattr(a, "wait", None) is not None and not getattr(a, "bg", False):

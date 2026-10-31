@@ -35,6 +35,7 @@ class Env(unittest.TestCase):
                   "CHECKPOINT_ROOT", "CLAUDE_CODE_SESSION_ID", "CODEX_THREAD_ID", "CODEX_SESSION_ID",
                   "CCX_LEAD_SESSION", "CLAUDECODE", "CLAUDE_CODE_ENTRYPOINT", "CCX_LEAD", "DSH_SESSION_ID",
                   "ANTHROPIC_BASE_URL", "ANTHROPIC_API_KEY", "CLAUDE_CODE_SIMPLE",
+                  "CLAUDE_CODE_MESSAGING_SOCKET", "CLAUDE_CODE_MESSAGING_TOKEN",
                   "DEEPSEEK_API_KEY", "MOONSHOT_API_KEY", "ZAI_API_KEY", "DASHSCOPE_API_KEY", "OPENROUTER_API_KEY"):
             self.env.pop(k, None)          # no real keys or lead identity from the machine running the tests
         for k in [k for k in self.env if k.startswith("CODEX_") and k != "CODEX_HOME"]:
