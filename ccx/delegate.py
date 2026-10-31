@@ -381,6 +381,9 @@ def _child_env(to: str, run_id: str, extra: dict | None = None, provider: bool =
     env.update(extra or {})
     for k in ("CCX_LEAD", "DSH_SESSION_ID"):    # who the lead is must not pass for the sub-agent's identity
         env.pop(k, None)
+    # the lead's Claude Code inbox (ccx/wake.py): a sub-agent holding it could post into the lead's conversation
+    for k in ("CLAUDE_CODE_MESSAGING_SOCKET", "CLAUDE_CODE_MESSAGING_TOKEN"):
+        env.pop(k, None)
     if to == "claude" and not provider and _provider_url(env.get("ANTHROPIC_BASE_URL")):
         # the lead is Claude Code on a provider's model (DeepSeek): a Claude sub-agent must reach Anthropic, not
         # inherit the lead's endpoint and key

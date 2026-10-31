@@ -104,8 +104,8 @@ itself. `<hub>/ccx/ui-actions.jsonl` gets one line per reply (thread, id, length
 
 ## A background run tells its lead when it is done
 
-`ccx run --bg` / `ccx resume --bg` without `--wait`: when the run (and any review fix round) is finished, ccx sends
-the lead that started it one line, its recap, so the lead does not poll (each poll is a lead request that re-reads its
+`ccx run --bg` / `ccx resume --bg` without `--wait`: when the run (and any review fix round) is finished, or was
+refused, not delegated or crashed, ccx sends the lead that started it one line under the id `--bg` printed, its recap, so the lead does not poll (each poll is a lead request that re-reads its
 whole conversation). The first that works:
 
 1. **Claude Code's inbox** (cross-session messaging, Claude Code 2.1.224+, native Windows 2.1.234+). Claude Code gives
@@ -116,7 +116,8 @@ whole conversation). The first that works:
    once. Used when there is no inbox (a Codex lead; the Codex path is tested with fakes only: experimental).
 3. **Polling** stays: `ccx show <id> --wait` / `--any`.
 
-A lead already waiting (`--bg --wait N`, `ccx show <id> --wait`) gets the result on stdout and no notice. What was
+A lead already waiting (`--bg --wait N`, `ccx show <id> --wait`) gets the result on stdout and no notice. A
+sub-agent never inherits the lead's inbox variables (it could otherwise post into the lead's conversation). What was
 done is in the run's folder (`wake.json`: `claude-inbox`, `hook`, `waiter`, `off`). Off: `ccx config set wake.enabled
 false`. `wake.trust_socket false` also leaves a hook copy of a delivered line (for a session that holds messages).
 

@@ -275,9 +275,17 @@ def _preauth_for_run(p, cfg: dict, proposal: str, spec: dict) -> dict | None:
 
 
 def cmd_run(a) -> int:
+    rid = os.environ.get("CCX_RUN_ID")          # the detached child of --bg (run() takes the variable away)
+    if rid:                                      # nobody reads its stdout: tell the lead, however it ends (wake.py)
+        from ..wake import after_bg
+        with after_bg(paths(), rid):
+            return _cmd_run(a)
+    return _cmd_run(a)
+
+
+def _cmd_run(a) -> int:
     p = paths()
     cfg = load_config(p)
-    bg_child = bool(os.environ.get("CCX_RUN_ID"))   # the detached child of --bg (run() takes the variable away)
     proj = None
     if a.project:                                # into a project from the catalog (ccx/commands/projects.py)
         from .projects import for_run
@@ -413,9 +421,6 @@ def cmd_run(a) -> int:
         # an explicit pick with no size: its verdict reaches the ledger but not routing (seven-cores A/B, PR #30)
         res["route"]["learns"] = "no: give --minutes (or the rubric flags) so this run's verdict can teach routing"
     res["recap"] = recap(rec, res)              # last key: survives `| tail`
-    if bg_child:                                 # nobody reads this stdout: tell the lead (P0-11, ccx/wake.py)
-        from .. import wake
-        wake.notify(p, cfg, rec, res["recap"])
     _out(res)
     human_tail(human_summary(rec, res))
     return 0 if exit_ok(rec) else 2
@@ -649,8 +654,16 @@ def cmd_namecheck(a) -> int:
 
 
 def cmd_resume(a) -> int:
+    rid = os.environ.get("CCX_RUN_ID")          # the detached child of --bg resume, as cmd_run's
+    if rid:
+        from ..wake import after_bg
+        with after_bg(paths(), rid):
+            return _cmd_resume(a)
+    return _cmd_resume(a)
+
+
+def _cmd_resume(a) -> int:
     p = paths()
-    bg_child = bool(os.environ.get("CCX_RUN_ID"))   # the detached child of --bg (run() takes the variable away)
     from ..recover import sweep
     if getattr(a, "wait", None) is not None and not getattr(a, "bg", False):
         raise ValueError("--wait N goes with --bg (a foreground resume already waits until it is done)")
@@ -691,9 +704,6 @@ def cmd_resume(a) -> int:
                 "send the task again as a fresh run with `ccx run --new ...`")
         res["hint"] = f"{res['hint']} Also: {gone}" if res.get("hint") else gone
     res["recap"] = recap(rec, res)
-    if bg_child:                                 # nobody reads this stdout: tell the lead (P0-11, ccx/wake.py)
-        from .. import wake
-        wake.notify(p, load_config(p), rec, res["recap"])
     _out(res)
     human_tail(human_summary(rec, res))
     return 0 if exit_ok(rec) else 2
