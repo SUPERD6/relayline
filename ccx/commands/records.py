@@ -8,7 +8,7 @@ from .. import ledger, recover, report
 from ..config import SETTINGS, daily_cap, load_config, paths, set_setting
 from ..agents import leads
 from ..delegate import compact, recap, undo
-from .common import _out, lead_session_id, provider_agents
+from .common import _out, lead_out, lead_session_id, provider_agents
 
 
 def cmd_report(a) -> int:
@@ -196,7 +196,11 @@ def cmd_show(a) -> int:
         # running: the ids as asked, so the next call still reports the chain (asked -> fix round) and the lead
         # can match them up
         running = [asked for asked, _ in running]
-        out = {"finished": [_result(rec, asked, rid, a.full) for asked, rec, rid in done], "running": running,
+        from .. import leadview
+        cfg = load_config(p)
+        out = {"finished": [_result(rec, asked, rid, True) if a.full else
+                            leadview.render(_result(rec, asked, rid, False), cfg)[0] for asked, rec, rid in done],
+               "running": running,
                "waited_s": round(time.time() - t0, 1)}
         if running:
             out["next"] = f"ccx show {' '.join(running)} --any --wait"
@@ -212,7 +216,10 @@ def cmd_show(a) -> int:
             _out({"run_id": rid, "status": "running", "waited_s": round(time.time() - t0, 1),
                   "next": f"ccx show {rid} --wait"})
             return 0
-        _out(_result(rec, run_id, rid, a.full))
+        if a.full:
+            _out(_result(rec, run_id, rid, True))
+        else:
+            lead_out(_result(rec, run_id, rid, False))     # one line when nothing needs a look (ccx/leadview.py)
         return 0
     recover.sweep(p)                    # a run whose ccx process is gone shows as interrupted, not running
     rec, rid = follow_chain(p, ledger.load_run(p, run_id))
