@@ -6,6 +6,7 @@ import time
 from pathlib import Path
 
 from . import learn, ledger
+from .coverage import reviewed_ok
 from .config import Paths
 from .ledger import write_record as _write_record
 
@@ -66,6 +67,9 @@ def soft_verdicts(p: Paths, min_age_h: float = SOFT_AFTER_H, now: float | None =
         if record.get("kind") in ("check_failed", "check_broken", "review_issues", "review_failed", "needs_write",
                                  "split", "no_changes", "no_answer"):
             continue
+        if record.get("kind") == "ok_self_checked" and not reviewed_ok(record):
+            continue                    # its check is the sub-agent's own tests, no evidence (P0-8), and no review
+            # held it against the task text and passed
         if (record.get("namecheck") or {}).get("hits"):  # a possible NameError (warn mode): the lead looks first
             continue
         check = record.get("check")

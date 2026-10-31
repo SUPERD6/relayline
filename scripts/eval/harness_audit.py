@@ -461,7 +461,7 @@ def c_failures_truthful(u: Unit) -> Result:
         last = att[-1]
         if not last.get("ok") or last.get("error") or r.rec.get("error"):
             ex = True
-            if r.rec.get("ok") and r.rec.get("kind") == "ok":
+            if r.rec.get("ok") and r.rec.get("kind") in ("ok", "ok_self_checked"):
                 fails.append((u.rel(r.dir / "run.json"),
                               f"{r.id}: last attempt {last.get('kind')!r} ({str(last.get('error'))[:80]}) but run ok"))
         if r.rec.get("error") and r.rec.get("ok"):
@@ -835,12 +835,15 @@ def c_review_when_weak(u: Unit) -> Result:
 
 
 def final_claim(u: Unit) -> tuple[Run | None, bool | None]:
-    """ccx's last word on the unit's work: its latest work run, claimed right when ok, kind ok and status done."""
+    """ccx's last word on the unit's work: its latest work run, claimed right when ok, kind ok and status done.
+    kind ok_self_checked (P0-8) still counts as a claim (exit 0, ok): it is a labelled one, so rates stay comparable
+    with audits before it; `self_checked_claims` counts those apart."""
     ws = sorted(u.work_runs(), key=lambda r: float(r.rec.get("ts") or 0))
     if not ws:
         return None, None
     r = ws[-1]
-    ok = bool(r.rec.get("ok")) and r.rec.get("kind") == "ok" and (r.result or {}).get("status") == "done"
+    ok = (bool(r.rec.get("ok")) and r.rec.get("kind") in ("ok", "ok_self_checked")
+          and (r.result or {}).get("status") == "done")
     return r, ok
 
 

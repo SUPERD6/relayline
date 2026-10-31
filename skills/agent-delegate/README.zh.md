@@ -34,6 +34,7 @@
 4. **验收**：已经打印出带 `run_id` 的结果就别再派同一份简报，要补充用 `ccx resume <run_id>`。总结只是说法。
    - 结果里有 `needs_lead`、`edited_tests` 或 `namecheck` 时**先看它们**（`namecheck`：改动的函数里没有任何作用域定义的名字，多半是测试没覆盖到的 NameError）。
    - `check` 通过且跑的是相关测试，再看 `files_changed` / `diffstat` 就够了，**不要自己重跑**（H11 实测 2026-10-24）。只有 check 失败、没有、带 `weak`（这个命令在这里放过过做错的结果），或状态是 partial/blocked 时，才自己跑测试或读完整 diff。`check.covers` 列出它实际跑了哪些测试文件：没测到任务要求的行为，就不算"相关测试"；有 `check.basis_changed` 表示它是在子智能体改过的测试上通过的，先看那几处改动。
+   - **子智能体自写测试通过 ≠ 做对。** check 跑到的测试文件全是子智能体这次新写或改过的，`kind` 就是 `ok_self_checked`（退出码仍是 0；`check.basis` 和 `needs_lead` 写明"未经独立验证"；默认 ccx 会交给审查、要求对照任务原文核对，见 `[escalate] on_self_checked`）。主导要自己对照任务原文验收（任务里写的每个名字、签名、返回值、错误和情形），或给它一个运行前就有的测试做 check，才算做完。外部基准里 18 道隐藏测试失败的题，全都通过了子智能体自己的 `test_own.py`。
    - `check_broken` = 验收命令什么都没测：`ccx resume <run_id> "要测什么" --check "..."`。任务点名了一个入口（命令、CLI）却没有测试把它当真实进程跑：resume 一次，要求补一个。
    - `no_changes` = 写任务说 done/partial，却什么都没改（没有改文件、没有提交；check 是在没改过的代码上跑的；`ccx q` 把这一块记为失败，依赖它的块会等着）：只有任务本来就已满足才接受，否则 resume。`--worktree` 的结果里有 `base`：它从 HEAD 起步，不含你未提交的改动，所以它的 check 没测到这些改动。
    - `env` = 是机器的问题，不是模型的：子智能体的命令行起不了进程（比如 Codex 在 Windows 上的沙箱助手）。ccx 没往上升级、没重试、也没续跑；把 `hint` 转告用户（不是暂时的，别重试），等用户修好再 `ccx resume RID --env-fixed`（不带这个选项会被拒绝）。状态是 `blocked` 或 `failed` 时 `ok` 一律为 false。

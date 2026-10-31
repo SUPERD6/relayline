@@ -303,7 +303,9 @@ def is_final(record: dict) -> bool:
     v = record.get("verdict") or {}
     if v and not v.get("soft"):
         return True
-    if record.get("state") != "finished" or record.get("kind") != "ok" or not record.get("ok"):
+    from .coverage import reviewed_ok
+    if (record.get("state") != "finished" or not record.get("ok")
+            or not (record.get("kind") == "ok" or (record.get("kind") == "ok_self_checked" and reviewed_ok(record)))):
         return False                       # quota, timeout, stop, kill, blocked, failed check, review issues ...
     res = record.get("result") or {}
     if res.get("status") != "done":

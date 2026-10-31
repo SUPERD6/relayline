@@ -498,7 +498,9 @@ def _act(rec: dict, verdict: dict | None, now: float, beat: float | None) -> dic
                 "buttons": [show, _btn("b_retry", ["ccx", "resume", rid, "Try again: " + (
                     res.get("summary") or rec.get("error") or "")[:200]], "primary")]}
     if res.get("status") in ("done", "partial"):
-        return {"kind": "review", "what": "a_review", "why": None, "reasons": True,
+        # P0-8: its check passed only on tests the sub-agent wrote or changed: say so where the person decides
+        return {"kind": "review", "what": "a_review", "why": ["w_self_checked", {}] if kind == "ok_self_checked" else None,
+                "reasons": True,
                 "buttons": [_btn("b_ok", ["ccx", "verify", rid, "--ok", "1"], "good"),
                             _btn("b_bad", ["ccx", "verify", rid, "--ok", "0", "--reason", "{reason}", "--note",
                                            "{note}"], "bad"),
@@ -723,9 +725,10 @@ def hist_of_run(rec: dict, title: str) -> list[dict]:
         k = rec.get("kind")
         st = (rec.get("result") or {}).get("status")
         key = ("h_" + k) if k in ("needs_write", "check_failed", "check_broken", "review_failed", "quota", "timeout",
-                                  "over_budget", "no_changes", "env") \
+                                  "over_budget", "no_changes", "env", "ok_self_checked") \
             else "h_done" if rec.get("ok") and st in ("done", "partial") else "h_failed"
-        out.append({"ts": t, "k": key, "p": {"t": title}, "tone": "ok" if key == "h_done" else "bad"})
+        out.append({"ts": t, "k": key, "p": {"t": title},
+                    "tone": "ok" if key == "h_done" else "" if key == "h_ok_self_checked" else "bad"})
     v = rec.get("verdict") or {}
     if v.get("ok") is not None:
         out.append({"ts": v.get("ts") or t, "k": "h_verdict_ok" if v["ok"] else "h_verdict_bad",

@@ -290,6 +290,10 @@ SETTINGS = {   # key -> (type, help). Only these can be set with `ccx config set
                                       "attempt on the same agent continues its session with the failing command and "
                                       "~2000 characters of its output, told to fix only that (default false: the "
                                       "escalation note with 400 characters, as before)"),
+    "escalate.on_self_checked": (str, "review | rung | off: when ccx's check passed only on tests the sub-agent "
+                                      "wrote or changed in the run (kind ok_self_checked, always labelled): review = "
+                                      "always reviewed against the task text (default); rung = one stronger rung "
+                                      "redoes it first while one is left; off = the label only"),
     "defaults.max_parallel": (int, "parallel sub-agents in ccx batch"),
     "defaults.timeout_sec": (int, "per-attempt timeout"),
     "lanes.default": (int, "warm lanes for ccx batch / q run: small pieces for the same project and agent share at "
@@ -356,6 +360,8 @@ def set_setting(p: Paths, key: str, raw: str) -> dict:
         raise ValueError("sessions.archive must be after_run, hours or off")
     if key == "autonomy.level" and raw not in ("L0", "L1", "L2"):
         raise ValueError("autonomy.level must be L0, L1 or L2")
+    if key == "escalate.on_self_checked" and raw not in ("review", "rung", "off"):
+        raise ValueError("escalate.on_self_checked must be review, rung or off")
     if key == "ui.lang" and raw not in ("zh", "en"):
         raise ValueError("ui.lang must be zh or en")
     try:

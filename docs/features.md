@@ -136,7 +136,11 @@ In Claude Code you say: "make `loader.py` accept a custom delimiter and add test
    filter or a node id runs part of them, and flags `basis changed` when the sub-agent edited one of them or a
    `conftest.py` above them, "tests added by the sub-agent in …" when it only added tests to one, and "written by
    the sub-agent" / "only tests the sub-agent wrote" for new test files. It is shown in the result, the recap line,
-   `ccx show` and the ledger; the verdict rules do not change. A read run that answers nothing (an empty summary) is
+   `ccx show` and the ledger. When every test file the check ran was written or changed by the sub-agent in that
+   run, the run is not plain ok: kind `ok_self_checked` (still exit 0; `check.basis` and `needs_lead` say "not
+   independently verified", `ccx ui` asks the person, it is never auto-judged right). `[escalate] on_self_checked`
+   decides what else happens: `review` (default) has it reviewed against the task text, `rung` has one stronger
+   rung redo it first, `off` only labels it. A read run that answers nothing (an empty summary) is
    not ok: kind `no_answer`, with a hint to ask again on a stronger tier.
 5. **Recover from problems.**
    - Codex reports `blocked`: ccx continues **in the same Codex session** one rung up (high), with no re-briefing.
