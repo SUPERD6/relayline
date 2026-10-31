@@ -82,7 +82,7 @@ agents: the page always shows it as plain text (escaped), never as markup. What 
 threads, the last 80 messages of each, 6000 characters per message (marked as cut; `ccx board --thread` has it
 whole).
 
-Two kinds of to-do join the home page's list, each linking to its thread:
+Two kinds of to-do join the overview's list (`#/all`; the home map shows them too), each linking to its thread:
 
 - a thread **stopped by the machine-message cap**: `board.max_machine_turns` (6) machine messages in a row with no
   person in between (the same count `ccx say` refuses on); it clears once a person speaks, by the board's rules (a
