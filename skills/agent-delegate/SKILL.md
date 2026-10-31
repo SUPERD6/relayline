@@ -153,6 +153,12 @@ A printed result with a `run_id` means that delegation ran: do not send the same
   only when the check failed, was absent or `weak` (that command has passed wrong work here before), or the status
   is partial/blocked. `check.covers` names the test files it ran: if they do not test what the task asked, it is
   not "the relevant tests"; `check.basis_changed` means it passed on tests the sub-agent edited: read those first.
+- **Tests the sub-agent wrote and passed are not evidence it did the task.** When every test the check ran was written
+  or changed by the sub-agent in that run, `kind` is `ok_self_checked` (still exit 0; `check.basis` and `needs_lead`
+  say "not independently verified"; ccx has it reviewed against the task text by default, `[escalate]
+  on_self_checked`). Accept it only after you held the change against the task text yourself (each name, signature,
+  return value, error and case it states), or after a check on tests that existed before the run. On an external
+  benchmark, 18 of 18 hidden-test failures had passed the sub-agent's own `test_own.py`.
 - `check_broken` = the check tested nothing: `ccx resume <run_id> "what to test" --check "..."`. The task names an entry point
   (a command, a CLI) and no test runs it as a real process: resume once asking for one.
 - `no_changes` = a write run said done/partial but changed nothing (no edit, no commit; its check ran on the

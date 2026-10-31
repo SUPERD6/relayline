@@ -60,6 +60,12 @@ exercises it: a passed check proves only what its tests assert, and tests the ag
 are its own yardstick, not evidence the task is met. Read the code hardest where no test covers a requirement, and
 decide from the code; a missing test, or one only the agent wrote, is by itself a [note], not a [must]."""
 NO_COVERAGE_RUBRIC = "; the acceptance tests may cover only some of them."
+# P0-8 ([escalate] on_self_checked, default "review"): every test the check ran was written or changed by the agent
+SELF_CHECKED_LINE = """
+ccx counts this check as self-authored: every test file it ran was written or changed by the agent in this change, so
+its passing is no evidence the task is met. Go through the task text sentence by sentence and hold each name it
+states (function, class, method, file), signature and argument order, return value and type, exception and message,
+and each case it lists against the code. A difference from a quoted task sentence is a [must] (a)."""
 
 
 def coverage_rubric(rc: dict) -> bool:
@@ -579,7 +585,8 @@ def _covers(check: dict | None, cwd: Path, snap: dict | None, edited: list[str],
     try:
         from . import coverage
         return coverage.summarize(check["cmd"], cwd, Path((snap or {}).get("repo") or cwd), edited,
-                                  coverage.new_tests(diff), coverage.added_to_tests(diff))
+                                  coverage.new_tests(diff), coverage.added_to_tests(diff),
+                                  coverage.rewritten_tests(diff))
     except Exception:  # noqa: BLE001 — weak evidence; never stops the review
         return None
 
@@ -587,16 +594,17 @@ def _covers(check: dict | None, cwd: Path, snap: dict | None, edited: list[str],
 def brief(run_id: str, task: str, summary: str, diff: str, max_chars: int, check: dict | None = None,
           edited: list[str] | None = None, static: str = "", cwd: Path | None = None,
           focus: dict | None = None, covers: dict | None = None, rubric: bool = True,
-          repro: bool = False) -> str:
+          repro: bool = False, self_checked: bool = False) -> str:
     """The reviewer's brief. `repro` ([review] must_needs_repro on, ccx's check passed): a [must] needs a `repro:`.
     `edited` (default: found in `diff`) names pre-existing test files the change edited;
     `static`: what ccx's own static checks found (namecheck), as weak evidence under Checks.
     `covers` (coverage.summarize of the acceptance command): which test files it runs, which the agent wrote.
     `cwd` (the reviewed tree): add the code around the change, in what is left of `max_chars` after the diff.
-    `focus` ({issues, delta}: [review] fix_rereview = "focus", a fix round's review): see FOCUS_HEAD."""
+    `focus` ({issues, delta}: [review] fix_rereview = "focus", a fix round's review): see FOCUS_HEAD.
+    `self_checked` (P0-8): the check ran only tests the agent wrote or changed: SELF_CHECKED_LINE under Checks."""
     if focus:
         return _focus_brief(run_id, task, summary, diff, max_chars, check, edited, static, focus, covers, rubric,
-                            repro)
+                            repro, self_checked)
     edited = edited_tests(diff) if edited is None else edited
     ed = (f"\nExisting tests edited: {', '.join(edited[:8])} — check the task requires it; an existing assertion "
           f"changed to fit the new code without the task asking for it is a [must] (b)." if edited else "")
@@ -607,6 +615,7 @@ def brief(run_id: str, task: str, summary: str, diff: str, max_chars: int, check
     if covers and edited and covers.get("edited"):
         covers = {**covers, "edited": [f for f in covers["edited"] if f not in edited]}   # named just above
     ed += _covers_line(covers) if rubric else ""
+    ed += SELF_CHECKED_LINE if self_checked else ""
     cut = f"; cut to {max_chars} characters, open the files for the rest" if len(diff) > max_chars else ""
     ran = (f"ccx ran the acceptance command `{check['cmd']}` after the change: "
            f"{'passed' if check.get('passed') else 'FAILED (exit %s)' % check.get('exit')}." if check
@@ -633,13 +642,13 @@ def brief(run_id: str, task: str, summary: str, diff: str, max_chars: int, check
 
 def _focus_brief(run_id: str, task: str, summary: str, diff: str, max_chars: int, check: dict | None,
                  edited: list[str] | None, static: str, focus: dict, covers: dict | None = None,
-                 rubric: bool = True, repro: bool = False) -> str:
+                 rubric: bool = True, repro: bool = False, self_checked: bool = False) -> str:
     """brief() for a fix round's review with [review] fix_rereview = "focus": the whole change (or, past max_chars,
     a note that only the fix is shown), then the first review's problems and the fix alone, and FOCUS_ANSWER."""
     edited = edited_tests(diff) if edited is None else edited
     too_big = len(diff) > max_chars
     full = brief(run_id, task, summary, FOCUS_TOO_BIG.format(n=max_chars) if too_big else diff, max_chars, check,
-                 edited, static, covers=covers, rubric=rubric, repro=repro)
+                 edited, static, covers=covers, rubric=rubric, repro=repro, self_checked=self_checked)
     delta = focus.get("delta") or ""
     dmax = max_chars if too_big else max(4000, max_chars - len(diff))
     dcut = f"; cut to {dmax} characters, open the files for the rest" if len(delta) > dmax else ""
@@ -824,6 +833,20 @@ def review_run(req: Request, p: Paths, cfg: dict, record: dict, cwd: Path, run_d
     why = rv.reason(mode, req.risk, res, res.get("files_changed") or [], actual, rv.code_lines(diff),
                     int(rc.get("min_lines", 50)))
     weak = False
+    chk = record.get("check") or {}
+    covers = chk.get("covers")
+    from .coverage import on_self_checked, self_checked
+    # P0-8: a check that passed only on tests this run wrote or changed: reviewed against the task text whatever
+    # the daily cap or `weak` say ([escalate] on_self_checked = review | rung; off = only the label). `--review off`
+    # and [review] mode = off still win: then no review runs at all
+    selfc = False
+    if chk.get("passed") and actual and on_self_checked(cfg) != "off":
+        covers = covers or _covers(chk, cwd, snap, edited, diff)
+        selfc = self_checked(covers)
+    if not why and mode == "auto" and actual and selfc:
+        why, weak = "check basis self-authored: every test it ran was written or changed by the sub-agent", True
+    elif why and selfc:
+        why += "; check basis self-authored"
     if not why and mode == "auto" and actual:
         why = rv.weak_reason(p, rc, record, cwd=cwd, actual=actual, diff=diff, edited=edited)
         weak = bool(why)
@@ -853,16 +876,16 @@ def review_run(req: Request, p: Paths, cfg: dict, record: dict, cwd: Path, run_d
         if delta is not None:
             focus = {"issues": list(req.prior_issues), "delta": delta}
     # P1-10: only when ccx's own check passed (the review of a run whose check failed does not count anyway)
-    chk = record.get("check") or {}
-    # off where a passed check is weak evidence: edited pre-existing tests, or a command that passed wrong work before
-    repro_mode = rv.must_needs_repro(rc) if chk.get("passed") and not chk.get("weak") and not edited else "off"
+    # off where a passed check is weak evidence: edited pre-existing tests, a command that passed wrong work before,
+    # or a check on the agent's own tests only (P0-8)
+    repro_mode = (rv.must_needs_repro(rc) if chk.get("passed") and not chk.get("weak") and not edited and not selfc
+                  else "off")
     text = rv.brief(record["run_id"], task_for_review(p, req), res.get("summary", ""), diff,
                     int(rc.get("max_diff_chars", 12000)), record.get("check"), edited, nck.brief_note(nc),
                     cwd=cwd if rc.get("context", False) else None, **({"focus": focus} if focus else {}),
                     repro=repro_mode != "off",
-                    rubric=coverage_rubric(rc),
-                    covers=(record.get("check") or {}).get("covers") or _covers(record.get("check"), cwd, snap, edited,
-                                                                               diff))
+                    rubric=coverage_rubric(rc), self_checked=selfc,
+                    covers=covers or _covers(chk or None, cwd, snap, edited, diff))
     usd, tried = 0.0, []
     for agent, model, effort in cands[:2]:
         if cancel is not None and cancel.is_set():
@@ -905,6 +928,8 @@ def review_run(req: Request, p: Paths, cfg: dict, record: dict, cwd: Path, run_d
         v = rv.downgrade(v)               # whatever still has no repro does not start a fix round
         repro_note["downgraded"] = v.get("downgraded", 0)
     record["review"] = {**v, "reason": why, "by": first_by, "run_id": rev["run_id"], "usd": round(usd, 4)}
+    if selfc:
+        record["review"]["self_checked"] = True       # told to hold the code against the task text (P0-8)
     if repro_note:
         record["review"]["repro"] = repro_note
     if adopted:                           # the verdict is the confirming reviewer's

@@ -26,6 +26,12 @@ Tests and evaluations are marked `test` and the page hides them unless asked ('s
 a project's .ccx folder (unless the hub itself is in one: then it is all scratch), and projects, leads and
 discussions there.
 
+The home page (P2-10, project_map, /api/data `maps`): one project on one map — the agents and what went between them
+(runs sent, board messages, discussions), shared memory linked to the runs whose brief carried a note (read from the
+run's prompt.md, never guessed) and how they ended, one receipt per run (tier, rung, cost, the check's cover and
+whether the run edited its own tests, review, verdict), this week's spend summed from the records by rung (other ways
+only from the published table, never estimated). The overview that was the home page is at #/all.
+
 Grouping: a project = the folder a run worked in (worktrees fold back into their repo). A task = one project's work
 queue (pieces = its items, split items drill down a level, at most 3), or the runs one lead conversation sent out
 (pieces = runs; a fix round or a follow-up stays on its piece). Strings shown to people are keys into
@@ -101,6 +107,7 @@ class Reader:
         self._busy: set[str] = set()
         self._found: dict[str, Path | None] = {}
         self._timed: dict[str, tuple[float, object]] = {}
+        self._notes: dict[Path, tuple] = {}         # prompt.md -> the shared notes its brief carried (P2-10)
 
     def json_file(self, f: Path):
         try:
@@ -498,7 +505,9 @@ def _act(rec: dict, verdict: dict | None, now: float, beat: float | None) -> dic
                 "buttons": [show, _btn("b_retry", ["ccx", "resume", rid, "Try again: " + (
                     res.get("summary") or rec.get("error") or "")[:200]], "primary")]}
     if res.get("status") in ("done", "partial"):
-        return {"kind": "review", "what": "a_review", "why": None, "reasons": True,
+        # P0-8: its check passed only on tests the sub-agent wrote or changed: say so where the person decides
+        return {"kind": "review", "what": "a_review", "why": ["w_self_checked", {}] if kind == "ok_self_checked" else None,
+                "reasons": True,
                 "buttons": [_btn("b_ok", ["ccx", "verify", rid, "--ok", "1"], "good"),
                             _btn("b_bad", ["ccx", "verify", rid, "--ok", "0", "--reason", "{reason}", "--note",
                                            "{note}"], "bad"),
@@ -723,9 +732,10 @@ def hist_of_run(rec: dict, title: str) -> list[dict]:
         k = rec.get("kind")
         st = (rec.get("result") or {}).get("status")
         key = ("h_" + k) if k in ("needs_write", "check_failed", "check_broken", "review_failed", "quota", "timeout",
-                                  "over_budget", "no_changes", "env") \
+                                  "over_budget", "no_changes", "env", "ok_self_checked") \
             else "h_done" if rec.get("ok") and st in ("done", "partial") else "h_failed"
-        out.append({"ts": t, "k": key, "p": {"t": title}, "tone": "ok" if key == "h_done" else "bad"})
+        out.append({"ts": t, "k": key, "p": {"t": title},
+                    "tone": "ok" if key == "h_done" else "" if key == "h_ok_self_checked" else "bad"})
     v = rec.get("verdict") or {}
     if v.get("ok") is not None:
         out.append({"ts": v.get("ts") or t, "k": "h_verdict_ok" if v["ok"] else "h_verdict_bad",
@@ -1203,6 +1213,210 @@ def _queue_pieces(rd: Reader, root: Path, q: dict, recs: dict, verdicts: dict, n
     return [one(items[i]) for i in q["order"] if not items[i].get("parent")]
 
 
+# ------------------------------------------------------------------ P2-10: one project, one map (the home page)
+MAP_RECEIPTS_MAX = 20         # receipts on the map, newest first (the task pages keep every run)
+MAP_THREADS_MAX = 12          # board threads plus discussions in the middle
+MAP_NOTES_MAX = 8             # notes the memory column names
+NOTES_HEAD = "Shared notes that may bear on this task"      # delegate._brief_notes' first line in prompt.md
+_NOTE_LINE = re.compile(r"^- #(\d+) \(")
+
+
+def brief_notes(rd: Reader, run_dir: Path) -> list[int]:
+    """The shared notes a run's brief carried, read from the brief itself (prompt.md: NOTES_HEAD, then one
+    '- #N (topic): text' line per note): which run used which note is never guessed from times or names."""
+    f = run_dir / "prompt.md"
+    try:
+        st = f.stat()
+    except OSError:
+        return []
+    key = (st.st_mtime_ns, st.st_size)
+    hit = rd._notes.get(f)
+    if hit and hit[0] == key:
+        return hit[1]
+    try:
+        text = f.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return []
+    seqs: list[int] = []
+    j = text.find("\n## Task")                 # the notes sit above the task: a brief quoting the line is no note
+    j = j if j >= 0 else len(text)
+    i = text.find(NOTES_HEAD, 0, j)
+    if i >= 0:
+        for line in text[i:j].splitlines()[1:]:
+            if not line.strip() or line.startswith("#"):        # the block ends at a blank line or the next heading
+                break
+            m = _NOTE_LINE.match(line)
+            if m:
+                seqs.append(int(m.group(1)))
+    rd._notes[f] = (key, seqs)
+    return seqs
+
+
+# a run that ended for one of these reasons says nothing about whether the work (or a note it carried) was right
+NOT_WRONG = {"env", "quota", "user_stopped", "over_budget", "policy", "needs_write", "timeout", "no_answer"}
+
+
+def _hard(rec: dict, verdict: dict | None) -> dict | None:
+    """The person's own verdict, or None: an automatic (soft) one is not theirs."""
+    v = verdict if verdict is not None else rec.get("verdict")
+    return v if v and v.get("ok") is not None and not v.get("soft") else None
+
+
+def _outcome(rec: dict, verdict: dict | None) -> str:
+    """right / wrong / open: the person's verdict first, then a run that ended failed; a done run nobody judged, a
+    dismissed one, or one stopped by its machine, quota, budget, policy or the person, is open."""
+    v = _hard(rec, verdict)
+    if v:
+        return "right" if v["ok"] else "wrong"
+    if rec.get("dismissed"):
+        return "open"
+    if rec.get("state") == "finished" and rec.get("ok") is False and rec.get("kind") not in NOT_WRONG:
+        return "wrong"
+    return "open"
+
+
+def receipt_row(rd: Reader, p: Paths, rec: dict, verdict: dict | None, piece_run: dict[str, str]) -> dict:
+    """One run as the map's receipt line: who sent it to whom, the tier and rung it ran on, its spend, what the check
+    covered (P1-10: files, and whether the run edited its own yardstick), the review's answer and the verdict."""
+    atts = rec.get("attempts") or []
+    c = rec.get("check") or {}
+    cov = c.get("covers") or {}
+    rv = rec.get("review") or {}
+    check = None
+    if c:
+        check = {"passed": bool(c.get("passed")), "cmd": _clip(c.get("cmd"), CONV_FIELD)}
+        if cov.get("unknown"):
+            check["unknown"] = True
+        elif cov:
+            check.update(files=[_field(x) for x in (cov.get("files") or [])[:3]], n=cov.get("n_files"),
+                         partial=bool(cov.get("partial")), filtered=bool(cov.get("filtered")),
+                         own_only=bool(cov.get("own_tests_only")))
+            if cov.get("basis_changed"):
+                check["basis_changed"] = [_field(x) for x in (cov.get("edited") or [])[:3]]
+    v = _hard(rec, verdict)
+    last = atts[-1] if atts else {}
+    return {"run_id": rec["run_id"], "piece": piece_run.get(rec["run_id"], rec["run_id"]), "ts": rec.get("ts"),
+            "from": rec.get("caller"), "to": rec.get("to"), "tier": last.get("tier") or rec.get("tier"),
+            "rung": last.get("rung") or rec.get("first_rung"), "rounds": len(atts),
+            "usd": _usd(rec), "running": rec.get("state") == "running", "ok": rec.get("ok"), "kind": rec.get("kind"),
+            "check": check,
+            "review": rv.get("verdict") if rv.get("verdict") not in (None, "not-run") else None,
+            "reviewer": _who_rung(rv.get("by")) if rv.get("verdict") not in (None, "not-run") else None,
+            "verdict": v.get("ok") if v else None, "outcome": _outcome(rec, verdict),
+            "notes": brief_notes(rd, p.runs / rec["run_id"])}
+
+
+def _map_threads(rd: Reader, root: Path, todos: list[dict], since: float) -> tuple[list[dict], dict]:
+    """The board's threads (newest first, from messages since `since`) with who took part and whether one waits for the
+    person, and the messages between agents counted per pair (from -> to; to `all` counts once)."""
+    es = [e for e in board_entries(rd, root) if (_board_ts(e.get("ts")) or 0) >= since]
+    wait = {}
+    for x in todos:
+        wait.setdefault(x["key"], x["kind"])
+    by: dict[str, list[dict]] = {}
+    pairs: dict[tuple, int] = {}
+    for e in es:
+        if not isinstance(e.get("from"), str):
+            continue
+        by.setdefault(str(e.get("thread") or ""), []).append(e)
+        a, b = board.vendor_of(e["from"]), board.vendor_of(str(e.get("to") or "all"))
+        pairs[(a, b)] = pairs.get((a, b), 0) + 1
+    out = []
+    for th, msgs in by.items():
+        last = msgs[-1]
+        out.append({"key": th, "name": _field(th), "n": len(msgs), "last": _board_ts(last.get("ts")),
+                    "who": sorted({board.vendor_of(m["from"]) for m in msgs}),
+                    "text": _short(str(last.get("text") or "")), "wait": wait.get(th)})
+    out.sort(key=lambda x: -(x["last"] or 0))
+    return out, pairs
+
+
+def project_map(rd: Reader, p: Paths, pr: dict, runs: list[dict], verdicts: dict, piece_run: dict[str, str],
+                conv: dict | None, talks: list[dict], week_from: float, since: float = 0) -> dict:
+    """P2-10: one project on one page. Middle: the agents and what they said to each other (board threads, `ccx
+    discuss` talks, who sent work to whom); left: shared memory and the runs whose brief carried a note, with how
+    they ended; right: the receipts; top: this week's actual spend by the rung it ran on. Read only, never a model."""
+    root = Path(pr["path"])
+    runs = sorted(runs, key=lambda r: -float(r.get("ts") or 0))
+    rows = [receipt_row(rd, p, r, verdicts.get(r["run_id"]), piece_run) for r in runs]
+    threads, pairs = _map_threads(rd, root, (conv or {}).get("todos") or [], since)
+    sent: dict[tuple, int] = {}
+    for r in runs:
+        if r.get("caller") and r.get("to"):
+            k = (board.vendor_of(str(r["caller"])), board.vendor_of(str(r["to"])))   # named as the board does
+            sent[k] = sent.get(k, 0) + 1
+    names = {a for k in [*sent, *pairs] for a in k if a not in ("all", "user")}
+    names |= {t["lead"]["agent"] for t in pr["tasks"] if t["lead"].get("agent")}
+    edges = [{"from": a, "to": b, "sent": n, "said": 0} for (a, b), n in sent.items()]
+    for (a, b), n in pairs.items():
+        hit = next((e for e in edges if e["from"] == a and e["to"] == b), None)
+        if hit:
+            hit["said"] = n
+        else:
+            edges.append({"from": a, "to": b, "sent": 0, "said": n})
+    edges.sort(key=lambda e: -(e["sent"] + e["said"]))
+    # memory: the notes the hub has, those about this project, and each run here whose brief carried notes
+    from . import memory
+    try:
+        live = rd.every("mem-live", 30, lambda: memory.live_entries(p))
+    except Exception:  # noqa: BLE001 — an odd journal never breaks the page
+        live = []
+    by_seq = {e.get("seq"): e for e in live}
+    used: dict[int, dict] = {}
+    for r, row in zip(runs, rows):
+        for s in row["notes"]:
+            u = used.setdefault(s, {"seq": s, "runs": 0, "right": 0, "wrong": 0, "open": 0, "last": None,
+                                    "last_run": None})
+            u["runs"] += 1
+            u[row["outcome"]] += 1
+            if u["last"] is None:                 # runs are newest first
+                u["last"], u["last_run"] = r.get("ts"), row["run_id"]
+    notes = []
+    for u in sorted(used.values(), key=lambda u: -(u["last"] or 0))[:MAP_NOTES_MAX]:
+        e = by_seq.get(u["seq"]) or {}
+        notes.append({**u, "text": _short(str(e.get("text") or "")), "by": _field(e.get("by")),
+                      "topic": _field(e.get("topic")), "gone": not e})
+    week = [r for r in runs if float(r.get("ts") or 0) >= week_from]
+    rungs: dict[str, dict] = {}
+    for r in week:
+        for a in r.get("attempts") or []:
+            k = a.get("rung") or "?"
+            x = rungs.setdefault(k, {"rung": k, "tier": a.get("tier") or r.get("tier"), "usd": 0.0, "runs": 0})
+            x["usd"] = round(x["usd"] + float(a.get("ae_usd") or 0), 6)
+        rv = r.get("review") or {}
+        if rv.get("usd"):                         # the review's own spend: a chip of its own beside the rung's
+            by = rv.get("by") or "?"
+            x = rungs.setdefault("review:" + by, {"rung": by, "tier": None, "usd": 0.0, "runs": 0, "review": True})
+            x["usd"] = round(x["usd"] + float(rv["usd"]), 6)
+        for k in {a.get("rung") or "?" for a in r.get("attempts") or []}:
+            rungs[k]["runs"] += 1
+    return {
+        "id": pr["id"], "name": pr["name"],
+        "agents": sorted(names), "edges": edges[:12],
+        "threads": threads[:MAP_THREADS_MAX], "threads_total": len(threads),
+        "todos": (conv or {}).get("todos") or [],
+        "talks": [{k: x.get(k) for k in ("id", "question", "state", "usd", "ts")} | {"turns": len(x.get("turns") or [])}
+                  for x in talks if project_root(x.get("cwd")) == root][:MAP_THREADS_MAX],
+        "memory": {"total": len(live), "here": sum(memory.relevant(e, root.name) for e in live),
+                   "carried": sum(1 for row in rows if row["notes"]), "notes": notes},
+        "receipts": rows[:MAP_RECEIPTS_MAX], "receipts_total": len(rows),
+        "spend": {"usd": round(sum(_usd(r) for r in week), 4), "runs": len(week),
+                  "rungs": sorted(rungs.values(), key=lambda x: -x["usd"])},
+    }
+
+
+def measured_ref(rd: Reader) -> dict | None:
+    """The first published table (docs/measured.md, as shipped in ccx/data/measured.json): the map names the other
+    arms' measured cost beside this week's spend, never an estimate. None when the package has no table."""
+    from . import tokenflow
+    m = rd.every("measured", 300, tokenflow.measured)
+    tb = next(iter((m or {}).get("tables") or []), None)
+    if not tb or not tb.get("rows"):
+        return None
+    return {"id": tb.get("id"), "date": tb.get("date"), "title": tb.get("title"),
+            "rows": [{k: r.get(k) for k in ("arm", "right", "usd_per_success")} for r in tb["rows"]]}
+
+
 def collect(p: Paths, project: Path | None = None, days: float = 7, rd: Reader | None = None,
             now: float | None = None, quota_wait: bool = True) -> dict:
     rd = rd or Reader(p)
@@ -1285,6 +1499,7 @@ def collect(p: Paths, project: Path | None = None, days: float = 7, rd: Reader |
 
     # the rest: one task per lead conversation (or per run when no lead is known)
     chains: dict[str, str] = {}
+    piece_run: dict[str, str] = {}
     for rid, r in sorted(shown.items(), key=lambda x: x[1].get("ts") or 0):
         if rid in in_queue:
             continue
@@ -1308,6 +1523,7 @@ def collect(p: Paths, project: Path | None = None, days: float = 7, rd: Reader |
         for head in heads:
             runs = sorted([rid for rid, h in chains.items() if h == head], key=lambda x: shown[x].get("ts") or 0)
             latest = shown[runs[-1]]
+            piece_run.update({x: latest["run_id"] for x in runs})     # P2-10: a receipt opens its piece
             title = (shown[head].get("label") if shown[head].get("label") and not str(shown[head]["label"]).startswith("q:")
                      else "") or _short(_brief_of(p.runs / head)) or head
             pc = piece_of_run(rd, latest, verdicts.get(latest["run_id"]), now, title)
@@ -1366,7 +1582,7 @@ def collect(p: Paths, project: Path | None = None, days: float = 7, rd: Reader |
               for e in quiet[:12]]
 
     providers = set((cfg.get("providers") or {}).keys())
-    week = [r for r in recs.values() if float(r.get("ts") or 0) >= now - 7 * 86400]
+    week = [r for r in shown.values() if float(r.get("ts") or 0) >= now - 7 * 86400]   # a review is in its run's
     hard = [v for v in verdicts.values() if not v.get("soft")]
     agents = sorted({pc["worker"] for pr in projects for t in pr["tasks"] for pc in _walk(t["pieces"])
                      if pc.get("worker")} | {x["agent"] for x in current})
@@ -1386,6 +1602,19 @@ def collect(p: Paths, project: Path | None = None, days: float = 7, rd: Reader |
         if c:
             convs.append(c)
     convs.sort(key=lambda c: -(c["last"] or 0))
+    maps = []                                                 # P2-10: the home page, one map per project
+    conv_of = {c["id"]: c for c in convs}
+    real_by_root: dict[Path, list[dict]] = {}                 # a test or evaluation run is not the project's work
+    for r in shown.values():
+        if not is_test(r, scratch):
+            real_by_root.setdefault(root_of(r), []).append(r)
+    for pr in projects:
+        root = Path(pr["path"])
+        try:
+            maps.append(project_map(rd, p, pr, real_by_root.get(root, []), verdicts,
+                                    piece_run, conv_of.get(pr["id"]), talks, now - 7 * 86400, since))
+        except Exception:  # noqa: BLE001 — the page still shows the rest
+            continue
     from . import memsuggest
     try:                                                      # H5: notes that wait for the person's yes or no
         ranked = memsuggest.ranked(p)              # the first few only: the rules sift, the person judges
@@ -1399,6 +1628,7 @@ def collect(p: Paths, project: Path | None = None, days: float = 7, rd: Reader |
         "start": start_hint(),                   # what an empty overview tells a new user to do first
         "projects": projects, "running": running, "quota": quota_view(rd, quota_wait), "leads": current,
         "agents": agents,
+        "maps": maps, "measured_ref": measured_ref(rd),
         "discussions": talks, "conversations": convs[:CONV_PROJECTS_MAX], "track": track, "track_min": ways.MIN_JUDGED, "suggestions": sugs,
         "suggestions_total": n_sugs, "others": others, "others_total": len(quiet),
         "month": month_view(rd, quota_wait), "inbox": _inbox(rd),

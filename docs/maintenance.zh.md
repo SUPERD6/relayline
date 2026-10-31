@@ -54,6 +54,7 @@
 | `review.fix_rereview` | `"full"` | `"focus"` 让修复轮的复审对着首轮问题看 | 由用时决定：中位只省 2.4 秒，门槛是 10 秒（漏掉的 `[must]` 24 对 21，共 33，各跑 1 遍，分不出是不是噪声） | 不能 |
 | `review.cache_ttl` | `""` | 设 Claude 审查者的提示缓存时长（`"5m"` / `"1h"`） | 没做 A/B | 不能 |
 | `routing.small_self` | `false` | `ccx route` / `ccx propose` 对最多改 `routing.small_self_files`（1）个源文件的活建议自己做、不派（`ccx run` 不变） | 用 r5 + 留出集已有数据按参考改动的文件数复算：一题不少、墙钟 -14%、成本 +5%；主导自己的估计要等留出集一轮（self / ccx2 / ccx2+small_self） | 能 |
+| `escalate.on_self_checked` | `"review"`（**默认开，尚未实测**） | check 只在子智能体这次新写或改过的测试上通过的运行，一定送审并对照任务原文核对（`"rung"`：先升一档重做；`"off"`：只打 `ok_self_checked` 标记） | 上面规矩的例外，见 [DECISIONS](DECISIONS.md) 2026-10-31：标记只是更诚实的分类，pg1 里旧默认放过了全部 18 个这种通过；审查找出问题时，原来退出 0 的运行可能以 `review_failed`（退出码 2）结束。前后对比用 pg1 的 ccx2 重跑 | 能 |
 | `lead.model_by_task` | `false` | 新开主导对话时按任务难度选模型 | 阈值是暂定的，等 `scripts/eval/r5.py --lead-model auto` 和固定模型比过 | 能 |
 | `subagent.codex_memories` | `true` | `false` 给子智能体关掉 Codex memories | B3：对着用户日常配置做完前后对比再改（[计划](research/2026-10-30-b3-lean-switches-plan.zh.md)） | 不能 |
 | `subagent.clean` | `false` | 子智能体不加载个人技能和用户设置 | 同一个 B3 测量；个人技能带来的正确率可能丢掉 | 不能 |

@@ -26,7 +26,9 @@ python scripts/task_routing.py route --files 3 --coupling cross --clarity goal -
 ```
 
 Use `--not-verifiable` if available checks cannot establish success; it disables cheap-first
-escalation. Add `--lead`, `--ctx-tokens`, `--lead-ctx` (your conversation's size: each of your turns re-reads it;
+escalation. A check made only of tests the sub-agent writes itself does not establish success: a passing own test
+is not a done task (ccx labels such a run `ok_self_checked`). Give the task a check on existing tests, or accept by
+holding the result against the task text; otherwise treat it as not verifiable. Add `--lead`, `--ctx-tokens`, `--lead-ctx` (your conversation's size: each of your turns re-reads it;
 ccx reads it by itself) and `--remaining-turns` when comparing continuation with delegation; an unrequested
 delegation offer is `ccx propose` (agent-delegate section 0). `--agents` restricts providers; `--explain` shows
 alternatives. Judging the tier yourself (`ccx run --tier`): agent-delegate's `references/rubric.md`.

@@ -135,7 +135,7 @@
       `<span class="dot"></span>${D ? t("updated", {a: raw(ago(D.generated))}) : "…"}`;
     let h = `<div class="brand"><b>ccx</b><span style="color:var(--muted)">${t("now")}</span>${D && D.demo ? `<span class="demo-tag">${t("demo_tag")}</span>` : ""}<span class="live">${state}</span></div>
       <input class="search" id="search" placeholder="${esc(t("search"))}" value="${esc(query)}" aria-label="${esc(t("search"))}">
-      <nav class="nav" id="nav"><a href="#/" class="${route.length ? "" : "cur"}">${t("overview")}${all.length ? `<span class="badge">${all.length}</span>` : ""}</a>`;
+      <nav class="nav" id="nav"><a href="#/" class="${!route.length || route[0] === "map" ? "cur" : ""}">${t("map_nav")}</a><a href="#/all" class="${route[0] === "all" ? "cur" : ""}">${t("overview")}${all.length ? `<span class="badge">${all.length}</span>` : ""}</a>`;
     h += `<a href="#/tokens" class="${route[0] === "tokens" ? "cur" : ""}">${t("tok_nav")}</a>`;
     const talks = (D && D.discussions) || [];
     if (talks.length) h += `<a href="#/discuss" class="${route[0] === "discuss" ? "cur" : ""}">${t("disc_nav")}<span class="mini-n">${talks.length}</span></a>`;
@@ -331,6 +331,155 @@
     return demo;
   }
 
+  /* ---------- P2-10: the home page, one project on one map ----------
+     top: this week's spend as the ledger has it, by the rung each run used (other ways only from the published
+     table); middle: the agents and what they said to each other; left: shared memory -> the runs whose brief carried
+     a note -> how they ended; right: the receipts; bottom: who is good at what, once enough work was judged. */
+  function maps() { return ((D && D.maps) || []).filter(m => TESTS || findProject(m.id)); }
+  function mapHref(id) { return "#/map/" + encodeURIComponent(id); }
+  /* the piece (and its task) that shows run `rid`, as a link; "" when it is not on the page */
+  function pieceHref(pid, rid) {
+    const pr = findProject(pid); if (!pr || !rid) return "";
+    for (const tk of pr.tasks) {
+      let hit = null;
+      walk(tk.pieces, (p, ch) => { if (!hit && p.run_id === rid) hit = {p, ch}; });
+      if (hit) return href([pr.id, tk.id].concat(hit.ch.map(c => c.id)), hit.p.id);
+    }
+    return "";
+  }
+  function whoOrYou(w) { return vendorOf(w) === "user" ? `<span class="who you">${t("conv_you")}</span>` : who(vendorOf(w)); }
+  let MAPPID = null;
+  function renderMap(pid) {
+    const ms = maps();
+    if (!ms.length) return renderOverview();          /* nothing worked on yet: the overview's first steps */
+    const m = ms.find(x => x.id === pid) || ms.find(x => x.id === MAPPID) || busiest(ms), pr = findProject(m.id);
+    MAPPID = m.id;                                    /* the next poll keeps this project, it never jumps */
+    let h = banner() + `<h1>${t("map_title", {p: m.name})}</h1><p class="lead">${t("map_intro")}</p>`;
+    if (ms.length > 1) h += `<nav class="mapproj" aria-label="${esc(t("projects"))}">` + ms.map(x =>
+      `<a class="chip${x.id === m.id ? " cur" : ""}" href="${mapHref(x.id)}"${x.id === m.id ? ` aria-current="page"` : ""}>${esc(x.name)}</a>`).join("") + `</nav>`;
+    return h + mapWaitHTML() + `<div class="map"><section class="m-top">${mapSpendHTML(m)}</section>`
+      + `<section class="m-mid">${mapTalkHTML(m, pr)}</section><section class="m-left">${mapMemHTML(m)}</section>`
+      + `<section class="m-right">${mapRcptHTML(m)}</section><section class="m-bottom">${mapSkillHTML()}</section></div>`;
+  }
+  /* with no project named: the one where most waits for the person, then the most recent (the overview's order) */
+  function busiest(ms) {
+    const need = m => { const pr = findProject(m.id); let n = (m.todos || []).length; if (pr) for (const tk of pr.tasks) n += acts(tk.pieces).length; return n; };
+    return ms.reduce((a, b) => need(b) > need(a) ? b : a, ms[0]);
+  }
+  /* what waits for the person anywhere, and what runs: the overview keeps the buttons */
+  function mapWaitHTML() {
+    let n = convTodos().length, running = 0;
+    for (const pr of D.projects) for (const tk of pr.tasks) walk(tk.pieces, p => { if (p.act) n++; if (p.status === "run") running++; });
+    return `<p class="stat">${n ? `<span class="warn">${t("map_wait", {n})}</span>` : `<span class="good">${t("ov_nothing")}</span>`} · ${t("map_running", {n: running})} · <a href="#/all">${t("map_all")}</a></p>`;
+  }
+  function mapSpendHTML(m) {
+    const s = m.spend || {}, ref = D && D.measured_ref;
+    const w = maps().reduce((a, x) => ({usd: a.usd + ((x.spend || {}).usd || 0), runs: a.runs + ((x.spend || {}).runs || 0)}), {usd: 0, runs: 0});
+    let h = `<h2>${t("map_spend")}</h2><p class="stat"><b class="big">${usd(s.usd || 0)}</b> ${t("map_spend_runs", {n: s.runs || 0})}</p>`;
+    if ((s.rungs || []).length) h += `<div class="rungs">` + s.rungs.map(r => `<span class="chip"><span class="mono">${r.review ? t("map_rung_review") + " · " : ""}${esc(r.rung)}</span>${r.tier ? ` <i>${esc(r.tier)}</i>` : ""} · ${usd(r.usd)}${r.runs ? " · " + t("map_runs_n", {n: r.runs}) : ""}</span>`).join("") + `</div>`;
+    h += `<p class="cost">${t("map_spend_all", {u: usd(w.usd || 0), n: w.runs || 0})}</p>`;
+    if (ref && (ref.rows || []).length) h += `<p class="cost">${t("map_ref", {t: inLang(ref.title) || ref.id || "",
+      rows: raw(ref.rows.map(r => `${t("tok_arm_" + String(r.arm || "").replace(/[^a-z0-9]/g, ""))} $${esc(r.usd_per_success)}`).join(" · ")),
+      link: raw(`<a href="#/tokens">${t("tok_nav")}</a>`)})}</p>`;
+    return h;
+  }
+  /* a small picture of who worked with whom: one line per pair, its width by how much went between them */
+  function mapGraph(m) {
+    const names = m.agents || [], n = names.length;
+    if (!n) return "";
+    const W = 360, H = 190, cx = W / 2, cy = H / 2, R = n > 1 ? 66 : 0, pos = {};
+    names.forEach((a, i) => { const ang = (n === 2 ? Math.PI : -Math.PI / 2) + 2 * Math.PI * i / n; pos[a] = [cx + 1.6 * R * Math.cos(ang), cy + R * Math.sin(ang)]; });
+    const pairs = {};
+    for (const e of m.edges || []) {
+      if (!pos[e.from] || !pos[e.to] || e.from === e.to) continue;
+      const k = [e.from, e.to].sort().join("|");
+      pairs[k] = (pairs[k] || 0) + (e.sent || 0) + (e.said || 0);
+    }
+    let g = "";
+    for (const k in pairs) {
+      const [a, b] = k.split("|"), [x1, y1] = pos[a], [x2, y2] = pos[b];
+      g += `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="var(--muted)" stroke-opacity=".55" stroke-width="${Math.min(8, 1.5 + pairs[k])}"/>`
+        + `<text x="${(x1 + x2) / 2}" y="${(y1 + y2) / 2 - 5}" text-anchor="middle" font-size="12" fill="var(--muted)">${pairs[k]}</text>`;
+    }
+    for (const a of names) {
+      const [x, y] = pos[a], c = tone(a);
+      g += `<g><rect x="${x - 44}" y="${y - 15}" width="88" height="30" rx="15" fill="var(--c-${c}-bg)" stroke="var(--line)"/>`
+        + `<text x="${x}" y="${y + 5}" text-anchor="middle" font-size="13" font-weight="650" fill="var(--c-${c}-ink)">${esc(agentName(a))}</text></g>`;
+    }
+    return `<svg class="mgraph" viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(t("map_graph"))}">${g}</svg>`;
+  }
+  function mapTalkHTML(m, pr) {
+    let h = `<h2>${t("map_talk")}</h2>` + mapGraph(m);
+    const edges = (m.edges || []).filter(e => e.sent || e.said);
+    if (edges.length) h += `<ul class="mlist edges">` + edges.map(e => `<li>${whoOrYou(e.from)} → ${e.to === "all" ? t("conv_all") : whoOrYou(e.to)} `
+      + `<span class="cost">${[e.sent ? t("map_sent", {n: e.sent}) : "", e.said ? t("map_said", {n: e.said}) : ""].filter(Boolean).join(" · ")}</span></li>`).join("") + `</ul>`;
+    const leads = pr ? pr.tasks.filter(tk => tk.kind === "lead" && tk.lead && tk.lead.agent).slice(0, 3) : [];
+    if (leads.length) h += `<ul class="mlist">` + leads.map(tk => `<li>${t("map_lead", {w: raw(who(tk.lead.agent, tk.lead.model)),
+      t: raw(`<a href="${href([pr.id, tk.id])}">${esc(taskTitle(tk))}</a>`)})}</li>`).join("") + `</ul>`;
+    const todos = m.todos || [], ths = m.threads || [], talks = m.talks || [];
+    if (todos.length) h += `<div class="todo">` + todos.map(x => todoRow("answer", convHref(m.id, x.key),
+      x.kind === "stuck" ? t("conv_todo_stuck", {n: x.run}) : t("conv_todo_asks", {w: agentName(vendorOf(x.from))}),
+      esc(x.text), esc(x.thread))).join("") + `</div>`;
+    if (ths.length) h += `<h3 class="tok-h3">${t("map_threads", {n: m.threads_total || ths.length})}</h3><ul class="mlist">` + ths.map(th =>
+      `<li><a href="${convHref(m.id, th.key)}">${esc(th.name)}</a> ${(th.who || []).map(whoOrYou).join("")} <span class="cost">${t("conv_msgs", {n: th.n})}${th.last ? " · " + ago(th.last) : ""}</span>`
+      + `${th.wait ? ` <span class="kchip k-answer">${t(th.wait === "stuck" ? "map_stuck" : "conv_asks_badge")}</span>` : ""}<div class="said">${esc(th.text)}</div></li>`).join("") + `</ul>`;
+    if (talks.length) h += `<h3 class="tok-h3">${t("disc_nav")}</h3><ul class="mlist">` + talks.map(x =>
+      `<li><a href="#/discuss/${encodeURIComponent(x.id)}">${esc(x.question)}</a> <span class="cost">${t("disc_state_" + (x.state || "running"))} · ${x.turns} ${t("disc_turns")} · ${usd(x.usd || 0)}</span></li>`).join("") + `</ul>`;
+    if (!ths.length && !talks.length) h += `<p class="cost">${t("map_talk_none")}</p>`;
+    return h;
+  }
+  function receiptOf(m, rid) { return (m.receipts || []).find(r => r.run_id === rid); }
+  function mapMemHTML(m) {
+    const mm = m.memory || {};
+    let h = `<h2>${t("map_mem")}</h2><p class="stat">${t("map_mem_counts", {n: mm.total || 0, h: mm.here || 0, c: mm.carried || 0})}</p>`;
+    if (!(mm.notes || []).length) return h + `<p class="cost">${t("map_mem_none")}</p><p class="cost">${t("map_mem_how")}</p>`;
+    h += `<ul class="mlist notes">` + mm.notes.map(n => {
+      const rc = receiptOf(m, n.last_run), link = rc ? pieceHref(m.id, rc.piece) : "";
+      const last = n.last_run ? " · " + t("map_note_last", {r: raw(link ? `<a href="${link}">${esc(n.last_run)}</a>` : `<span class="mono">${esc(n.last_run)}</span>`)}) : "";
+      return `<li><b>#${esc(n.seq)}</b> ${n.gone ? `<i class="cost">${t("map_note_gone")}</i>` : esc(n.text)}`
+        + `<div class="said">${n.by ? t("map_note_by", {w: toName(n.by)}) + " · " : ""}${t("map_note_used", {n: n.runs})}: `
+        + `<span class="good">${t("map_right", {n: n.right})}</span> · <span class="${n.wrong ? "warn" : ""}">${t("map_wrong", {n: n.wrong})}</span> · ${t("map_open_n", {n: n.open})}${last}</div></li>`;
+    }).join("") + `</ul>`;
+    return h + `<p class="cost">${t("map_mem_how")}</p>`;
+  }
+  function checkLine(c) {
+    if (!c) return t("map_chk_none");
+    let s = t(c.passed ? "map_chk_ok" : "map_chk_bad", {c: raw(`<code>${esc(c.cmd)}</code>`)});
+    if (c.unknown) s += " · " + t("map_cov_unknown");
+    else if (c.n != null) s += " · " + t("map_cov", {n: c.n + (c.partial ? "+" : ""), f: (c.files || []).join(", ")}) + (c.filtered ? " · " + t("map_cov_part") : "");
+    if ((c.basis_changed || []).length) s += ` · <span class="warn">${t("map_basis", {f: c.basis_changed.join(", ")})}</span>`;
+    if (c.own_only) s += ` · <span class="warn">${t("map_own")}</span>`;
+    return s;
+  }
+  function mapRcptHTML(m) {
+    const rs = m.receipts || [];
+    let h = `<h2>${t("map_rcpt")}</h2>`;
+    if (!rs.length) return h + `<p class="cost">${t("map_rcpt_none")}</p>`;
+    h += `<ul class="rcpts">` + rs.map(r => {
+      const link = pieceHref(m.id, r.piece);
+      const v = r.running ? "map_v_run" : r.verdict === true ? "map_v_ok" : r.verdict === false ? "map_v_bad" : r.outcome === "wrong" ? "map_v_wrong" : "map_v_open";
+      const rv = r.review ? t("map_rv_" + r.review, {w: r.reviewer || "?"}) : t("map_rv_none");
+      return `<li class="o-${esc(r.outcome)}"><div>${whoOrYou(r.from)} → ${who(r.to)} <b>${usd(r.usd || 0)}</b> `
+        + `<span class="mono cost">${esc([r.tier, r.rung].filter(Boolean).join(" · "))}${r.rounds > 1 ? " · " + t("map_rounds", {n: r.rounds}) : ""}</span></div>`
+        + `<div class="said">${checkLine(r.check)}</div><div class="said">${rv} · <span class="${v === "map_v_bad" || v === "map_v_wrong" ? "warn" : v === "map_v_ok" ? "good" : ""}">${t(v)}</span>`
+        + `${link ? ` · <a href="${link}">${t("map_open")}</a>` : ""}${r.ts ? ` · ${ago(r.ts)}` : ""}</div></li>`;
+    }).join("") + `</ul>`;
+    return h + ((m.receipts_total || 0) > rs.length ? `<p class="cost">${t("map_rcpt_more", {n: m.receipts_total - rs.length})}</p>` : "");
+  }
+  /* who is right the first time per kind of work (H9's judged pieces): rates only where there is enough; until
+     then it says so (P0-12 will feed a fuller table here) */
+  function mapSkillHTML() {
+    const tr = (D && D.track) || {}, rows = [];
+    let most = 0;
+    for (const kind of Object.keys(tr).sort()) for (const a of Object.keys(tr[kind]).sort()) {
+      const s = tr[kind][a]; most = Math.max(most, s.judged || 0);
+      if (s.enough) rows.push(`<tr><td>${esc(t("kind_" + kind))}</td><td>${who(a)}</td><td>${s.judged}</td><td>${Math.round(100 * s.first_right)}%</td><td>${Math.round(100 * s.rework)}%</td></tr>`);
+    }
+    const h = `<h2>${t("map_skill")}</h2>`, need = `<p class="cost">${t("map_skill_need", {n: (D && D.track_min) || 5, k: most})}</p>`;
+    if (!rows.length) return h + `<p class="stat"><b>${t("map_skill_none")}</b></p>` + need;
+    return h + `<div class="twrap"><table class="track"><thead><tr><th>${t("track_kind")}</th><th>${t("track_who")}</th><th>${t("track_judged")}</th><th>${t("track_first")}</th><th>${t("track_rework")}</th></tr></thead><tbody>${rows.join("")}</tbody></table></div>` + need;
+  }
+
   /* ---------- K6: this month, the other projects, optional slots (autonomy level, inbox) ---------- */
   function monthSpentHTML() {
     const m = D && D.month;
@@ -469,7 +618,7 @@
   function discHTML(id) {
     const talks = (D && D.discussions) || [];
     const x = talks.find(d => d.id === id) || (!id ? talks[0] : null);
-    let h = banner() + `<div class="crumbs"><a href="#/">${t("overview")}</a> › ${t("disc_nav")}</div><h1>${t("disc_title")}</h1>`;
+    let h = banner() + `<div class="crumbs"><a href="#/all">${t("overview")}</a> › ${t("disc_nav")}</div><h1>${t("disc_title")}</h1>`;
     if (!x) return h + discListHTML();
     const rl = x.roles || {};
     h += `<p class="lead"><b>${esc(x.question)}</b><br>${["proposer", "critic", "judge"].map(r => `${t("role_" + r)} ${who(rl[r])}`).join(" ")}${x.judge_independent === false ? " · " + t("disc_two") : ""}</p><div class="chat">`;
@@ -557,7 +706,7 @@
   }
   function renderConv(pid, th) {
     const c = convs().find(x => x.id === pid), name = c ? c.name : CONV && CONVKEY === pid ? CONV.project.name : "";
-    let h = banner() + `<div class="crumbs"><a href="#/">${t("overview")}</a> › ${name ? esc(name) + " › " : ""}${th ? `<a href="${convHref(pid)}">${t("conv_title")}</a> › ${esc(th)}` : t("conv_title")}</div>`;
+    let h = banner() + `<div class="crumbs"><a href="#/all">${t("overview")}</a> › ${name ? esc(name) + " › " : ""}${th ? `<a href="${convHref(pid)}">${t("conv_title")}</a> › ${esc(th)}` : t("conv_title")}</div>`;
     h += `<h1>${t("conv_title")}${name ? " · " + esc(name) : ""}</h1><p class="lead">${t("conv_lead", {n: (CONV && CONV.max_machine) || 6})}</p>`;
     if (SNAP) {
       if (c && (c.todos || []).length) h += `<div class="todo">${convTodoHTML(convTodos().filter(z => z.c.id === pid))}</div>`;
@@ -736,7 +885,7 @@
     return h;
   }
   function renderTokens() {
-    let h = banner() + `<div class="crumbs"><a href="#/">${t("overview")}</a> › ${t("tok_nav")}</div><h1>${t("tok_title")}</h1><p class="lead">${t("tok_lead")}</p>`;
+    let h = banner() + `<div class="crumbs"><a href="#/all">${t("overview")}</a> › ${t("tok_nav")}</div><h1>${t("tok_title")}</h1><p class="lead">${t("tok_lead")}</p>`;
     if (SNAP) return h + `<p class="lead">${t("tok_snap")}</p>`;
     h += `<div class="filters tfilters">` + ["today", "7d", "all"].map(x => `<button data-tperiod="${x}" class="${TOKPERIOD === x ? "on" : ""}" aria-pressed="${TOKPERIOD === x}">${t("tok_p_" + x)}</button>`).join("");
     const ps = (TOK && TOK.projects) || [];
@@ -780,7 +929,7 @@
 
   /* ---------- a project page ---------- */
   function renderProject(pr) {
-    let h = banner() + `<div class="crumbs"><a href="#/">${t("overview")}</a> › ${esc(pr.name)}</div><h1>${esc(pr.name)}${levelHTML(pr)}</h1><p class="lead mono" style="font-size:13px">${esc(pr.path)}</p>${convLinkHTML(pr.id)}${rulesHTML(pr)}${leadPanelHTML(pr)}<h2>${t("tasks")}</h2><div class="grid">`;
+    let h = banner() + `<div class="crumbs"><a href="#/all">${t("overview")}</a> › ${esc(pr.name)}</div><h1>${esc(pr.name)}${levelHTML(pr)}</h1><p class="lead mono" style="font-size:13px">${esc(pr.path)}</p>${convLinkHTML(pr.id)}${rulesHTML(pr)}${leadPanelHTML(pr)}<h2>${t("tasks")}</h2><div class="grid">`;
     for (const tk of pr.tasks) {
       const s = stats(tk.pieces), k = acts(tk.pieces).length, ws = new Set();
       walk(tk.pieces, p => { if (p.worker) ws.add(p.worker); });
@@ -840,7 +989,7 @@
     const s = stats(list);
     const sep = LANG === "zh" ? "、" : ", ";
     const parts = cols.map(([w, ps]) => t("sum_part", {who: w === "_wait" ? t("notyet") : agentName(w), n: ps.length})).join(sep);
-    let h = banner() + `<div class="crumbs"><a href="#/">${t("overview")}</a> › <a href="${href([pr.id])}">${esc(pr.name)}</a> › `
+    let h = banner() + `<div class="crumbs"><a href="#/all">${t("overview")}</a> › <a href="${href([pr.id])}">${esc(pr.name)}</a> › `
       + (node ? `<a href="${href([pr.id, tk.id])}">${esc(taskTitle(tk))}</a> › ` + chain.map((x, i) => i === chain.length - 1 ? esc(x.title) : `<a href="${href([pr.id, tk.id].concat(chain.slice(0, i + 1).map(c => c.id)))}">${esc(x.title)}</a>`).join(" › ") : esc(taskTitle(tk))) + `</div>`;
     h += `<h1>${esc(node ? node.title : taskTitle(tk))}${node ? `<span class="lvl">${t("level", {l: chain.length + 1})}</span>` : ""}</h1>`;
     h += `<p class="lead">${node ? t("sub_sum", {parent: agentName(node.worker), n: list.length, parts}) : t("sum", {n: list.length, parts})} ${t("pieces", {d: s.d, n: s.n})}.</p>`;
@@ -1060,7 +1209,7 @@
     document.body.appendChild(ta); ta.select(); let ok = false; try { ok = document.execCommand("copy"); } catch (e) { ok = false; } ta.remove(); return ok;
   }
 
-  /* ---------- routing: #/  #/project  #/project/task  #/project/task/piece/... ---------- */
+  /* ---------- routing: #/ (the map)  #/map/project  #/all (overview)  #/project  #/project/task  #/project/task/piece/... ---------- */
   function route() {
     const [path, qs] = (location.hash.replace(/^#\/?/, "") || "").split("?");
     const r = path ? path.split("/").map(decodeURIComponent).filter(Boolean) : [];
@@ -1084,7 +1233,8 @@
     if (r[0] === "tokens") { drawTokens(); return; }
     const pr = r.length ? findProject(r[0]) : null;
     const tk = pr && r[1] ? findTask(pr, r[1]) : null;
-    if (!pr) { main.innerHTML = renderOverview(); paintAct(); return; }
+    if (r[0] === "all") { main.innerHTML = renderOverview(); paintAct(); return; }
+    if (!pr) { main.innerHTML = renderMap(r[0] === "map" ? r[1] : null); paintAct(); return; }   /* P2-10: #/ and #/map/<project> */
     if (!tk) {
       main.innerHTML = renderProject(pr); paintAct();
       if (r[1] === "_lead" && LEADJUMP !== key) { LEADJUMP = key; const lp = $("leadpanel"); if (lp) lp.scrollIntoView({block: "start"}); }

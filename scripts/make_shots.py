@@ -56,7 +56,7 @@ def routes(d: dict) -> dict[str, str]:
             yield from walk(pc.get("children") or [])
     task = next(t for t in shop["tasks"] if any(pc["run_id"] == "demo-r-ok" for pc in walk(t["pieces"])))
     sel = {pc["run_id"]: pc["id"] for pc in walk(task["pieces"])}
-    return {"overview": "/", "tokens": "/tokens", "project": f"/{shop['id']}",
+    return {"map": "/", "overview": "/all", "tokens": "/tokens", "project": f"/{shop['id']}",
             "task": f"/{shop['id']}/{task['id']}?sel={sel['demo-r-ok']}",
             "judge": f"/{shop['id']}/{task['id']}?sel={sel['demo-r-review']}"}
 
@@ -66,6 +66,8 @@ def routes(d: dict) -> dict[str, str]:
 # top of the sidebar put back (as the page looks scrolled: the demo's content is the same every time). Needs Pillow.
 SIDEBAR_W = 270
 SHOTS = {
+    "map-en": ("map", "en", "light", 0),
+    "map-zh": ("map", "zh", "light", 0),
     "overview-en": ("overview", "en", "light", 0),
     "task-en": ("task", "en", "light", 0),
     "judge-en": ("judge", "en", "light", 0),

@@ -652,7 +652,7 @@ def _locked_run(a, root: Path) -> tuple[dict, int]:
                 spent = sum(_cost(r) for r in runs)                      # never reached the item: run() didn't return
                 cost = round(float(it.get("cost_usd") or 0) + spent, 6)
                 last = runs[-1] if runs else {}
-                if (last.get("ok") and last.get("kind") in (None, "ok") and last.get("state") == "finished"
+                if (last.get("ok") and last.get("kind") in (None, "ok", "ok_self_checked") and last.get("state") == "finished"
                         and (last.get("result") or {}).get("status") == "done"):
                     # it finished; only writing it back to the queue was cut off. In a worktree: commit it there
                     # and keep its branch, so what waits on it still waits for the lead's merge (as in _one)

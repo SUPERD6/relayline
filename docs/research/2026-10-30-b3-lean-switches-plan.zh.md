@@ -71,3 +71,37 @@ python scripts/eval/r5.py run --taskset holdout --rounds 3 --arms ccx2daily,ccx2
 - **均衡的组顺序：** `run --arm-order balanced` 在一个带种子的组顺序上按题目和轮次依次取 Williams 设计（平衡拉丁方）的各行：每走完一整轮行，每组在每个位置出现的次数相同，并且排在其他每组（包括基线）前面的次数正好一半（10 题 × 2 轮、4 组时，不论种子都是每组 20 次里 10 次）。`--dry-run` 会打印这些“基线在前”的次数。行里记 `arm_order` 和 `arm_pos`。默认仍是 `shuffle`，以前各次运行的排程不变。第二半应带 `--arm-order balanced` 跑。
 - **失败单元的证据：** 没做对的单元记 `hidden_failed`（没通过的隐藏测试 id），并把完整的隐藏 pytest 输出和最终 diff（在放入隐藏测试之前取）保存在 `<结果文件名>-artifacts/<标签>-<单元>/`；diff 保留 git 的原始字节（包括 CRLF 行），可以直接 apply。2026-10-31 起每次运行有自己的子目录 `<结果文件名>-artifacts/<UTC 开跑时间>Z/<标签>-<单元>/`，行里记为 `artifacts.run`；没有这个字段的旧行是平铺布局。
 - **事后归因：** 如果运行期间用户真实 hub 的账本变大了，报告列出每条新行的 type、run_id、ts，以及 run_id 是否属于某个单元的 `ccx_run_ids`（评测泄漏），不属于的多半是同时在跑的真实会话；`preflight.json` 里存为 `postflight_ledger`。
+
+## 少跑几趟：M4 / M3 / M5 对照组（2026-10-31 登记，在任何一个单元开跑之前）
+
+B3 的第二批开关（M4 `ccx batch --merge`、M3 `[subagents] fork_turns`、M5 `[shared_context] dedupe`）目标是少发请求，三个都默认关。默认开之前要先测到"做对不低于基线"。评测脚本是 `scripts/eval/b3_arms.py`，每个实验两组：基线 = 今天出厂的做法，另一组只改这一个开关。
+
+| 实验 | 基线 | 开关组 | 题 | 模型 |
+|---|---|---|---|---|
+| m4 | `ccx batch <plan>` | `ccx batch --merge <plan>` | 4 个 plan，每个 = round 2 十模块题的 4 个小块（`minutes` 2）+ 1 个 TRAPS2 陷阱块（`minutes` 5），每块带 `paths` 和自己的 `--check` | Codex gpt-6.1-sol medium，`--from user`，审查照出厂（auto） |
+| m3 | `fork_turns = "all"` | `fork_turns = "none"` | round 2 的 4 道三文件修复（COMPOUND）+ 2 组各 4 个模块 | Codex gpt-6.1-sol medium，`ccx run --parallel`，审查关、不升档、不换家 |
+| m5 | `dedupe = false` | `dedupe = true` | 2026-10-25 共享上下文 A/B 的 7 题 + 新题 t8（人重开问题、主导换个说法重申：去重删人的那句、保留主导的） | Codex gpt-6-luna low，`--context on`，审查关，只看第一次 |
+
+公平性：两组的 hub 文件只差开关那一行（基线也显式写 `false` / `"all"`），开跑前按 ccx 自己的读法读回来核对；两组都 `[sessions] archive = "off"`（子会话 rollout 事后要读），单元结束后统一 `ccx archive --apply`。同一对的两组背靠背跑，谁先跑按题目和轮次交替。每个单元有自己的干净环境（`scripts/eval/preflight.py`：独立 TMP、git 身份、CCX_CONFIG、新 hub、评测专用 CODEX_HOME + `CCX_CODEX_ISOLATE=1`，Job Object 收尾）。m4 两组都让 ccx 自己决定 worktree（五个写入块、干净仓库 → 每块/每组一个 worktree），每块在它的运行留下的目录里只跑它自己的隐藏测试。
+
+开关有没有生效，看 ccx 记下来的东西：m4 看 batch 输出的 `merged`；m3 看 run.json 的 `parallel_fork_turns`，以及发给子智能体的 prompt.md 里有没有 fork_turns 那句（换了家的运行 `parallel_fork_turns_moved` 剔除）；m5 看 run.json `shared_context` 有没有 `deduped`，并且确实附上了共享上下文。没生效的单元记 `switch_ok: false`，不进规则。
+
+每个单元记：做对（块数或隐藏测试）、ccx 运行数（账本所有行：子智能体运行、审查、修复轮、拆出去的块）、审查次数和费用、请求数、`first_input` 之和（m3 再加每个子会话的首请求输入，从 rollout 读）、总 prompt token（每次运行的 fresh + cache 写 + cache 读；m3 的账本 usage 已含子会话，不再另加）、$、墙钟；m4 另记每块状态、修复轮、拆出数；m5 记 `est_tokens`、`deduped_chars`。
+
+**判定规则（先登记）**，每个实验只在两组都跑完且开关都生效的配对上算：
+
+1. 开关组做对数不低于基线（m4：全部块和陷阱块分别都不低于）；
+2. 开关组的 ccx 运行数或 `first_input` 之和更低；
+3. 开关组的总 prompt token 不更高（m5 只报告不判：去重每次请求只省几十 token，多一轮就多约 2 万前缀，而且后面每次请求都带着前面的轮次，总量和均值都由轮数决定；m5 的节省按第 2 条的 `first_input` 之和判）；
+4. 只对 m3：不能有"开关组错、基线对、开关组的运行开过子会话"的配对（子会话缺上下文、父会话没兜住）。
+
+全部满足 = 通过；任何一条不满足 = 不通过。完成的配对不到计划的 80%（计划对数由 `run` 写进每行），有单元开关没生效，或（m3）超过一半的配对两组都没开子会话（开关没机会起作用）= Unknown。单元运行失败（行里有 error）算缺失，不算开关没生效，再跑一次 `run` 会重跑它；预算只在一对开始前检查，不会停在一对中间。墙钟只报告，不判（M4 合并后预期更慢）。拆出去的块会从低档重新升档，比基线多一次机会，报告时注明。通过只说明可以考虑默认开，开不开另行决定。
+
+**三条正式命令**（`--dry-run` 先看排程）。预估：m4 16 单元约 $3.8、m3 12 单元约 $2.8、m5 32 单元约 $0.6，合计约 $7.2。依据：2026-10-31 预跑 1 单元（m4 mp1 合并组，标签 b3pre，不计入正式结果）5/5 做对、2 次运行（合并 + 1 次审查）、$0.10、129 s、开关生效、无残留；其余是按 round 2 的估计。`--arms` 只用于预跑，要用单独的标签。
+
+```bash
+python scripts/eval/b3_arms.py run --exp m4 --tag b3m4 --codex-home <评测 codex home> --budget 5
+python scripts/eval/b3_arms.py run --exp m3 --tag b3m3 --codex-home <评测 codex home> --budget 4
+python scripts/eval/b3_arms.py run --exp m5 --tag b3m5 --codex-home <评测 codex home> --budget 1.5
+python scripts/eval/b3_arms.py summary --tag b3m4   # 每个标签各看一次
+```

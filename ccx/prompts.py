@@ -116,6 +116,14 @@ ESCALATE = """[ccx escalation {run_id}] The previous attempt ended with status={
 You now run on a stronger model. Re-check the earlier reasoning, finish the original task, and return the JSON result."""
 
 
+# P0-8, [escalate] on_self_checked = "rung": the summary ESCALATE carries when ccx's check passed only on tests the
+# sub-agent wrote or changed in this run (pg1: 18 hidden-test failures behind a passing test_own.py)
+SELF_CHECKED_RETRY = ("ccx's acceptance check passed, but every test it ran was written or changed by you in this run, "
+                      "so it is no evidence the task is met. Re-read the original task sentence by sentence and hold "
+                      "each name, signature, argument order, return value, exception and case it states against your "
+                      "code; fix what differs. Do not change tests to fit the code.")
+
+
 # [defaults] focused_retry (default off): after ccx's own check failed on an attempt that said done, the next attempt
 # on the same agent resumes the same session (as ESCALATE does) but is told exactly what failed and to fix only that.
 # r6a (2026-10-29): such a retry got 400 characters and "re-check the earlier reasoning", and took longer than the

@@ -35,8 +35,9 @@ from .agents.codex import _add_children, _codex_growth, _codex_seen, _codex_tota
 from .ledger import write_record as _write_record  # noqa: F401
 from .plan import _fallback_plan, _plan, _provider_envs, _rung_spec, _usable, _within_budget, other  # noqa: F401
 from .prompts import (CLEAN_LANG, CHECK_RETRY, CHECK_RETRY_SAME, CHECK_RETRY_STRONGER, CHECK_TAIL_CHARS, CONTINUE, ESCALATE, FOLLOWUP, LEAD_NOTE, NEEDS_WRITE, POLICY_MARKERS, POLICY_RETRY, PROMPT,  # noqa: F401
-                      REVIEW_CALLER, REVIEW_FINISH, REVIEW_PERMISSION, SELFCHECK, SELFCHECK_CMD, _policy_rejections,
+                      REVIEW_CALLER, REVIEW_FINISH, REVIEW_PERMISSION, SELF_CHECKED_RETRY, SELFCHECK, SELFCHECK_CMD, _policy_rejections,
                       is_policy_line, review_permission)
+from .coverage import SELF_CHECKED, SELF_CHECKED_NOTE, on_self_checked, self_checked as coverage_self_checked
 from .merge import REVIEW_LINE
 from .review import review_run as _review  # noqa: F401
 from .verdicts import (REASONS, SOFT_AFTER_H, _hard_verdict, _soft_verdict, soft_verdicts, verify,  # noqa: F401
@@ -892,6 +893,23 @@ def run(req: Request, p: Paths) -> dict:
                     prompt, session = first_prompt, None
                 i += 1
                 continue
+            if (chk["passed"] and req.mode == "write" and left is not True and on_self_checked(cfg) == "rung"
+                    and not any(a.get("kind") == SELF_CHECKED for a in record["attempts"][:-1])
+                    and _self_checked_now(p, record, cwd, chk)):
+                # P0-8, [escalate] on_self_checked = "rung": it passed only on tests this attempt wrote or changed,
+                # which is no evidence: one rung up, told to hold the code against the task text, not its own tests.
+                # Once per run: its tests stay in the chain's diff, so every later rung would match too
+                if bg_review is not None:
+                    _finish_review(bg_review, record, p, keep=False)
+                    bg_review = None
+                record["attempts"][-1]["kind"] = SELF_CHECKED
+                _write_record(run_dir, record)
+                if plan[i + 1]["agent"] == to and session:
+                    prompt = ESCALATE.format(run_id=run_id, status=SELF_CHECKED, summary=SELF_CHECKED_RETRY)
+                else:
+                    prompt, session = first_prompt, None
+                i += 1
+                continue
         stuck = (not oc.ok and oc.kind == "error") or status in ("blocked", "failed")
         if stuck and i + 1 < len(plan) and plan[i + 1]["agent"] == to and session and not oc.auth_problem:
             prompt = ESCALATE.format(run_id=run_id, status=status or "error",
@@ -1016,9 +1034,15 @@ def run(req: Request, p: Paths) -> dict:
                 try:
                     from . import coverage
                     chk["covers"] = coverage.summarize(chk["cmd"], cwd, Path(snap.get("repo") or cwd), ed,
-                                                       coverage.new_tests(diff), coverage.added_to_tests(diff))
+                                                       coverage.new_tests(diff), coverage.added_to_tests(diff),
+                                                       coverage.rewritten_tests(diff))
                 except Exception:  # noqa: BLE001 — display only; the run's result stands without it
                     pass
+                if (coverage_self_checked(chk.get("covers")) and chk.get("passed") and not chk.get("unchanged_tree")
+                        and record.get("kind") in (None, "ok")):
+                    # P0-8: a pass on tests this run wrote or changed is not called plain ok (pg1: 18/18 hidden-test
+                    # failures; audit: 7 of 8 false "ok"s). Still a pass (exit 0), labelled for the lead to check
+                    record["kind"] = SELF_CHECKED
             if ed:
                 record["edited_tests"] = ed
     beat.set()
@@ -1245,6 +1269,23 @@ def _left_unchanged(p: Paths, record: dict) -> bool | None:
         return None
 
 
+def _self_checked_now(p: Paths, record: dict, cwd: Path, chk: dict) -> bool:
+    """Whether every test file the check just ran is one this run wrote or changed (coverage.summarize, P0-8);
+    False when that cannot be told (no git, not pytest / unittest)."""
+    try:
+        from . import coverage
+        from .review import changes, edited_tests
+        snap = run_snapshot(p, record)
+        if not snap or not chk.get("cmd") or chk.get("reason") == "namecheck":
+            return False
+        diff = changes(cwd, snap)[1]
+        return coverage.self_checked(coverage.summarize(chk["cmd"], cwd, Path(snap.get("repo") or cwd),
+                                                        edited_tests(diff), coverage.new_tests(diff),
+                                                        coverage.added_to_tests(diff), coverage.rewritten_tests(diff)))
+    except Exception:  # noqa: BLE001 — not known: no climb
+        return False
+
+
 def exit_ok(record: dict) -> bool:
     """What decides `ccx run` / `resume`'s exit code (0 or 2), as before `ok` also said no for status blocked/failed:
     exit codes of existing commands stay as they were."""
@@ -1315,6 +1356,17 @@ def compact(record: dict) -> dict:
                             "yourself" if record.get("ephemeral") else
                             f"ask again on a stronger tier (`ccx resume {record['run_id']} \"answer the question\" "
                             f"--tier T2`) or read it yourself"))
+        if record["kind"] == SELF_CHECKED:
+            # P0-8: passed, but on the sub-agent's own yardstick (still ok, exit 0): the lead checks it against the task.
+            # A review told to do just that, which passed, leaves a hint only (the label stays)
+            from .coverage import reviewed_ok
+            if not reviewed_ok(record):
+                out["needs_lead"] = ("ok_self_checked: the check ran only tests the sub-agent wrote or changed in this "
+                                     "run, not independently verified")
+            out["hint"] = (("the review held it against the task text and passed; " if reviewed_ok(record) else "") +
+                           "hold the change against the task text yourself (each name, signature, return value, error "
+                           "and case it states), or give it a check on tests that existed before the run: "
+                           f"`ccx resume {record['run_id']} \"...\" --check \"...\"`")
         if record["kind"] == "needs_write":
             out["hint"] = ("read-only run: the sub-agent says it needs to edit files (see summary). If you agree, "
                            f"run it again with --mode write")
@@ -1360,6 +1412,8 @@ def compact(record: dict) -> dict:
                 out["check"]["covers_unknown"] = True
             if c["covers"].get("basis_changed"):
                 out["check"]["basis_changed"] = c["covers"]["edited"]
+            if c["covers"].get("self_authored"):
+                out["check"]["basis"] = SELF_CHECKED_NOTE
         if c.get("unchanged_tree") and c.get("passed"):
             # it passed on the tree as it was before the run: no evidence about this run's work
             out["check"].update(passed=None, status=NO_CHANGES_NOTE)
@@ -1425,6 +1479,8 @@ def human_summary(record: dict, res: dict) -> list[str]:
     said = " ".join(str(res.get("summary") or "").split())
     said = said if len(said) <= 160 else said[:157] + "..."
     head = "done" if res.get("ok") else f"not done (status {status}" + (f", {res['kind']}" if res.get("kind") else "") + ")"
+    if res.get("ok") and res.get("kind") == SELF_CHECKED:
+        head = "done, but its check is not independent: every test it ran was written or changed by the sub-agent"
     cost = f"Cost: ~${_usd(record, res):.4f} on {res.get('agent')} {res.get('model')}"
     if res.get("escalated"):
         cost += f" (escalated {res['escalated']})"

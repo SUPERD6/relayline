@@ -66,6 +66,22 @@ def _runner(toks: list[str]) -> tuple[str, list[str]] | None:
     return None
 
 
+# commands that only show or pass on a test run's output (`pytest ... | tail -5`): no evidence of their own
+_SHOW_ONLY = {"tail", "head", "tee", "cat", "echo", "true", "set", "export"}
+
+
+def only_tests(cmd: str) -> bool:
+    """Every simple command in `cmd` is a pytest / unittest run, a `cd`, or only shows output: nothing else (a
+    script, a build, another checker) adds evidence of its own."""
+    for toks in _parts(cmd):
+        if not toks or _runner(toks) is not None or (toks[0] == "cd" and len(toks) == 2):
+            continue
+        if toks[0].rsplit("/", 1)[-1].lower().removesuffix(".exe") in _SHOW_ONLY:
+            continue
+        return False
+    return True
+
+
 def _drop_redirects(args: list[str]) -> list[str]:
     """Without shell redirections: _parts() splits `2>&1` into '2', '>&', '1' and `> out.txt` into '>', 'out.txt'."""
     out, skip = [], False
@@ -275,15 +291,36 @@ def added_to_tests(diff: str) -> list[str]:
     return [f for f in out if f not in edited]
 
 
+_REWRITE = re.compile(r"\bassert|\bdef test|\.assert[A-Z]|pytest\.raises|self\.fail|\bexpected\b")
+
+
+def rewritten_tests(diff: str) -> list[str]:
+    """Test files that existed before the run and lost or changed a line that tests something: an assertion, a test
+    function's head, an expected value. Edits only to imports or set-up (a new name imported for a test added below)
+    leave the earlier tests in force, so such a file is no sign the check's basis is the sub-agent's own (P0-8)."""
+    out: list[str] = []
+    old = None
+    for ln in diff.splitlines():
+        if ln.startswith("--- "):
+            old = ln[4:].strip()
+            old = None if old == "/dev/null" else old[2:] if old.startswith("a/") else old
+        elif ln.startswith("+++ "):
+            continue
+        elif old and ln.startswith("-") and is_test_file(old) and old not in out and _REWRITE.search(ln):
+            out.append(old)
+    return out
+
+
 def _key(f: str) -> str:
     return f.replace("\\", "/").lstrip("./").lower()
 
 
 def summarize(cmd: str, cwd: Path, repo: Path, edited: list[str], written: list[str],
-              added: list[str] | None = None) -> dict:
+              added: list[str] | None = None, rewritten: list[str] | None = None) -> dict:
     """The record's check["covers"]: {"files" (at most SHOWN), "n_files", "dirs"?, "partial"?, "filtered"?,
-    "edited"?, "basis_changed"?, "added_to"?, "written"?, "own_tests_only"?}, or {"unknown": why} when the command is
-    not pytest / unittest."""
+    "edited"?, "basis_changed"?, "added_to"?, "written"?, "own_tests_only"?, "self_authored"?}, or {"unknown": why} when
+    the command is not pytest / unittest. `rewritten` (rewritten_tests; default: all of `edited`): the edited files
+    that count as the sub-agent's own yardstick for self_authored."""
     r = parse(cmd)
     if r is None:
         return {"unknown": "not a pytest / unittest command: which tests it ran is not known"}
@@ -319,7 +356,36 @@ def summarize(cmd: str, cwd: Path, repo: Path, edited: list[str], written: list[
         out["written"] = wr
     if files and {_key(f) for f in written} >= keys and not ed:
         out["own_tests_only"] = True       # every test the check runs is one the sub-agent wrote
+    own = [f for f in ed if rewritten is None or _key(f) in {_key(x) for x in rewritten}]
+    if files and complete and {_key(f) for f in [*written, *own]} >= keys and only_tests(cmd):
+        # P0-8: every test file the check ran is one this run wrote or changed: its pass is the sub-agent's own
+        # yardstick (pg1: 18/18 hidden-test failures passed a test_own.py). added_to is left out: the tests those
+        # files had before the run still ran; so is a command that also runs something else (only_tests)
+        out["self_authored"] = True
     return out
+
+
+def self_checked(cov: dict | None) -> bool:
+    """The check's basis is the sub-agent's own (coverage.summarize's self_authored)."""
+    return bool((cov or {}).get("self_authored"))
+
+
+SELF_CHECKED = "ok_self_checked"     # the run's kind: passed, but only on its own tests
+ON_SELF_CHECKED = ("off", "review", "rung")
+SELF_CHECKED_NOTE = ("check basis self-authored: every test the check ran was written or changed by the sub-agent "
+                     "in this run, not independently verified")
+
+
+def reviewed_ok(record: dict) -> bool:
+    """An ok_self_checked run whose review was told to hold it against the task text, and passed (not downgraded)."""
+    rv = record.get("review") or {}
+    return bool(rv.get("self_checked") and rv.get("verdict") == "pass" and not rv.get("downgraded"))
+
+
+def on_self_checked(cfg: dict) -> str:
+    """[escalate] on_self_checked: "review" (default; an unknown value too), "off" or "rung"."""
+    v = str((cfg.get("escalate") or {}).get("on_self_checked", "review")).strip().lower()
+    return v if v in ON_SELF_CHECKED else "review"
 
 
 def text(cov: dict | None, limit: int = 3) -> str:

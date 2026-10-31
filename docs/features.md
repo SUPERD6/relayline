@@ -33,6 +33,17 @@ and a test checks it).
 
 ## See it live: `ccx ui`
 
+**The home page is one project on one map** (P2-10): in the middle the agents and what went between them (who sent
+work to whom, the board threads, `ccx discuss` talks; a thread stopped by the machine-message cap or a message that
+asks you is a to-do); on the left the shared memory, linked to the runs whose brief carried a note (read from the
+brief itself) and how those runs ended (your verdicts; a run that failed counts wrong, one stopped by you, a budget or the machine stays open); on the right one receipt per run (who sent it to whom, tier
+and rung, cost, what the check covered and whether the run edited its own tests, the review, the verdict); on top
+this week's API-equivalent spend (the recorded tokens × the price table, not a bill; tests and evaluations left out), split by the rung each run used (other ways only as the published table measured
+them, never estimated); at the bottom who is good at what, which says "not enough data yet" until enough work is
+judged. Every page below stays where it was: the overview with every to-do and button is at `#/all`.
+
+<img alt="ccx ui home page: one project on one map — spend on top, shared memory, the agents and their conversation, receipts (demo data)" src="assets/ui/map-en.png" width="100%">
+
 `ccx ui` opens a page on this machine: what waits for you (red = your call, amber = check the result, teal = a question for you),
 who works on what (one column per agent, new agents get their own), and how the quota windows are going. Click a
 block for the reason, the evidence and its buttons (a run stopped by the machine itself, `kind: env`, shows its fix
@@ -51,11 +62,11 @@ A review card shows, side by side, what the agent says (its summary and how it s
 diff, computed from ccx's own snapshots of the run (the tree before it, `undo.json`, to the tree it left, `end.json`
 or `undo.json`'s `after`), never from the folder as it is now; when the files the agent named and the files actually
 changed differ, a red box lists the difference. Long diffs are cut with a visible "truncated" note; runs from before
-these snapshots show the agent's own list with a note. The home page lists every run going on now (agent, time so
+these snapshots show the agent's own list with a note. The overview (`#/all`) lists every run going on now (agent, time so
 far, tokens when known) with its stop button, which asks for the same second click. A background tab says so in its
 "still open" signal, and the server then waits 5 minutes instead of one before it exits. To-do chips are buttons
 (keyboard reachable) and new to-dos are announced to screen readers.
-Each to-do on the home page starts with what you need to do (a coloured chip: your call, check the result, a
+Each to-do on the overview (`#/all`) starts with what you need to do (a coloured chip: your call, check the result, a
 question for you), then the agent's own words, then where it is. A finished write run's card has **Undo this run**
 next to the diff (`ccx undo <id> --apply`: puts back the files from ccx's snapshot, moves new files aside, starts
 nothing, and is not a verdict by itself; the confirm box lists the files, and when `ccx undo`'s dry run would also
@@ -136,7 +147,11 @@ In Claude Code you say: "make `loader.py` accept a custom delimiter and add test
    filter or a node id runs part of them, and flags `basis changed` when the sub-agent edited one of them or a
    `conftest.py` above them, "tests added by the sub-agent in …" when it only added tests to one, and "written by
    the sub-agent" / "only tests the sub-agent wrote" for new test files. It is shown in the result, the recap line,
-   `ccx show` and the ledger; the verdict rules do not change. A read run that answers nothing (an empty summary) is
+   `ccx show` and the ledger. When every test file the check ran was written or changed by the sub-agent in that
+   run, the run is not plain ok: kind `ok_self_checked` (still exit 0; `check.basis` and `needs_lead` say "not
+   independently verified", `ccx ui` asks the person, it is never auto-judged right). `[escalate] on_self_checked`
+   decides what else happens: `review` (default) has it reviewed against the task text, `rung` has one stronger
+   rung redo it first, `off` only labels it. A read run that answers nothing (an empty summary) is
    not ok: kind `no_answer`, with a hint to ask again on a stronger tier.
 5. **Recover from problems.**
    - Codex reports `blocked`: ccx continues **in the same Codex session** one rung up (high), with no re-briefing.
