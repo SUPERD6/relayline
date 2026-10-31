@@ -17,7 +17,7 @@
     <a class="mark" href="./">relayline</a>
     <nav aria-label="主导航">
       <a href="#numbers" class="hide-s">实测</a>
-      <a href="#seven" class="hide-s">七件事</a>
+      <a href="#layers" class="hide-s">八层</a>
       <a href="#ui" class="hide-s">界面</a>
       <a href="#faq" class="hide-s">常见问题</a>
       <a href="https://github.com/SUPERD6/relayline">GitHub</a>
@@ -60,6 +60,7 @@
     </table></div>
     <ul class="limits">
       <li><b>未见更差</b>——用的是逐点规则，不是统计意义上的非劣检验。我们不说它更准。</li>
+      <li><b>小题方向相反：</b>polyglot 30 道没有自带测试的练习题（pg1，2026-10-31）上，ccx 做对 12/30，自己做 25/30，每次成功贵 3.1 倍、用时约 5 倍；和 hc1 是不同的题和 ccx 版本，不是配对比较。小而接口严格的题自己做（<a href="https://github.com/SUPERD6/relayline/blob/main/docs/research/2026-10-31-polyglot-pg1.zh.md">报告</a>）。</li>
       <li><b>每次成功比自己做便宜约 30%</b>（差值的 95% 区间 −$0.054 到 −$0.004）；只看 5 个外部仓库任务（干净的那一半：本仓库的任务答案可能就在 ccx 的代码里）约便宜 15%。</li>
       <li><b>用时约是自己做的 3 倍。</b>不是更快。</li>
       <li>内置子智能体是默认用法；精简用法的内置子智能体在开发集上比 ccx 便宜。只有 10 个任务、一种主导模型，金额是 API 等价价；只在一台 Windows 电脑上真跑（macOS、Linux 只在 CI 里跑）。</li>
@@ -77,16 +78,17 @@
     </ol>
   </section>
 
-  <h2 id="seven">七件事</h2>
+  <h2 id="layers">八层</h2>
+  <p class="note">一次派活走过全部八层。每层：ccx 做什么、一个实测数字、一个限制（<a href="https://github.com/SUPERD6/relayline/blob/main/docs/measured.zh.md">实测</a>）。全部命令和选项（含 <code>ccx ask</code>、<code>ccx send</code>、<code>ccx batch</code>、<code>ccx agents</code>、<code>--review</code> 和推断判断）见<a href="https://github.com/SUPERD6/relayline/blob/main/docs/features.zh.md">功能说明</a>。子智能体不能再经 ccx 往下派活；改配置前先预演、先备份。</p>
   <section class="feat four">
-    <div><h3>1 · 互为主子</h3><p>Claude Code、Codex、DeepSeek（<code>dsh</code>，或经 Claude Code）谁当主都行，三家也都能接活。Gemini CLI 有子智能体适配器，没真跑过。每家一个适配器，<code>ccx agents</code> 列出能力和测过的版本。</p></div>
-    <div><h3>2 · 两个模型直接对话</h3><p><code>ccx ask</code> 问另一家第二意见，<code>ccx resume</code> 在同一个子会话追问，<code>ccx send</code> 发消息进正在跑的 Codex 会话；<code>ccx discuss</code> 让 2–3 家不同厂商讨论选错代价高的决定（两家和三家都真跑过）。</p></div>
-    <div><h3>3 · 共享记忆</h3><p>个人层（hub）和项目层（<code>.ccx/</code>）；开局只推对方新写的几行；<code>ccx handoff</code> 换主接力，<code>ccx fresh</code> 换新对话。</p></div>
-    <div><h3>4 · 分工合作</h3><p>5 个问题打出难度 → 选智能体、模型、强度；自己做更划算或该先拆就直说。<code>ccx batch</code>、<code>ccx q</code> 并行，断了能续。</p></div>
-    <div><h3>5 · 少重读</h3><p>子智能体精简启动；<code>ccx lead</code>（<code>--breakdown</code> / <code>--cache</code> / <code>--suggest</code>）看主导每轮重读什么；<code>ccx sum</code> 压缩大段输出。</p></div>
-    <div><h3>6 · 验收与审查</h3><p>ccx 自己重跑验收（<code>--check</code>）；另一家模型独立审查（<code>--review</code>）；每次记对错（<code>--reason</code>），没人判的按证据记“大概对/错”；<code>ccx trial</code> 一周对比。</p></div>
-    <div><h3>7 · 不丢可控</h3><p>改配置先预演、先备份；<code>ccx undo</code> 撤回；<code>--mode read</code>、<code>--worktree</code> 不动工作区；子智能体不能再派；<code>ccx ui</code> 只读看全局。</p></div>
-    <div><h3>有账可查</h3><p>每次运行的 token 和花费；<code>ccx report</code> 生成看板。<a href="../demo/">看示例看板</a>（假数据）。</p></div>
+    <div><h3>① 对话</h3><p><code>ccx discuss</code> 让两三家各给意见；对话板（<code>ccx say</code>、<code>ccx reply</code>）让开着的会话互相留言。还没实测；Claude Code 当主导时要到下一轮才看到消息。</p></div>
+    <div><h3>② 共享记忆</h3><p>你的 hub 和项目的 <code>.ccx/</code>；跟任务有关的便签自动写进每份说明；<code>ccx handoff</code> 交接。项目便签被遵守 9/9，没有便签 0/9；3 个任务 × 3。</p></div>
+    <div><h3>③ 拆分与流水线</h3><p><code>ccx q</code>：持久的工作队列，每块一个 worktree，按依赖合并。小任务交给 Codex 的对照里，主导每个任务都少发一次请求，21/21，但总花费基本持平、token 3.3 倍。</p></div>
+    <div><h3>④ 派活与选人</h3><p><code>ccx route</code> 选派给谁、什么模型和 effort，或者直说自己做更便宜。仓库任务每次成功 $0.063，自己做 $0.090；小题贵 3.1 倍。</p></div>
+    <div><h3>⑤ 验收与收据</h3><p>ccx 自己重跑你的 <code>--check</code>，另一家审查改动，你给结论；收据写明 check 覆盖了什么。隐藏测试下做对 29/30；跑子智能体自写测试的 check 把 pg1 做错的 18 题全判过。</p></div>
+    <div><h3>⑥ 控制与恢复</h3><p><code>ccx stop</code>、<code>ccx resume</code>、<code>ccx undo</code>、<code>--worktree</code>、自主度 L0&ndash;L2。只靠交接文件，下一个智能体接上 3/3（受控运行）；一个真实长会话起初失败。</p></div>
+    <div><h3>⑦ 测量与诚实</h3><p>跨厂商一本账、评测前查干净环境、公开基准、负结果也发布。一次运行上 API 等价花费与 Claude 自报差 1.5%；订阅用户付的是额度。</p></div>
+    <div><h3>⑧ 界面与上手</h3><p><code>ccx ui</code>：一个项目一张图；<code>ccx demo</code> 不用账号；<code>ccx setup</code>、<code>ccx doctor</code>。还没做用户研究；我们自己测试之外的真实使用还很少。</p></div>
   </section>
 
   <section id="how">
@@ -106,7 +108,11 @@
 
   <section id="ui">
     <h2>本机界面：<code>ccx ui</code></h2>
-    <p class="note">只读页面，只监听 127.0.0.1，不调用模型：有什么等你拍板（红框）或 review（橙框）、每个智能体在干什么、额度按现在的速度够不够。截图用 <code>ccx demo</code> 编好的数据（<code>scripts/make_shots.py</code>）。</p>
+    <p class="note">只监听 127.0.0.1；显示页面只读文件、不调用模型，会改东西的按钮先显示完整的 <code>ccx</code> 命令，再点一次才运行。首页是一个项目一张图：智能体和它们说了什么、共享记忆连到收据、收据、本周花费。其他页面：有什么等你拍板（红框）或 review（橙框）、每个智能体在干什么、额度按现在的速度够不够。截图用 <code>ccx demo</code> 编好的数据（<code>scripts/make_shots.py</code>）。</p>
+    <div class="figure shot">
+      <img src="../assets/ui/map-zh.png" width="1440" height="1000" loading="lazy"
+           alt="ccx ui 首页：一个项目一张图；本周按档位分开的花费、共享记忆连到带了便签的派活、智能体和对话、每次派活一张收据（演示数据）">
+    </div>
     <div class="figure shot">
       <img class="for-light" src="../assets/ui/task-zh.png" width="1440" height="1000" loading="lazy"
            alt="ccx ui 任务页：一件任务画成组织图，每个干活的一列；右边是一次派活的收据：花费、ccx 重跑的验收、审查（演示数据）">

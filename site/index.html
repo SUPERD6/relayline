@@ -17,7 +17,7 @@
     <a class="mark" href="./">relayline</a>
     <nav aria-label="main">
       <a href="#numbers" class="hide-s">Measured</a>
-      <a href="#seven" class="hide-s">What it does</a>
+      <a href="#layers" class="hide-s">Eight layers</a>
       <a href="#ui" class="hide-s">Live page</a>
       <a href="#faq" class="hide-s">Questions</a>
       <a href="https://github.com/SUPERD6/relayline">GitHub</a>
@@ -60,6 +60,7 @@
     </table></div>
     <ul class="limits">
       <li><b>Not seen to be less right</b> &mdash; by a pointwise rule, not a statistical non-inferiority test. We don't claim it is more accurate.</li>
+      <li><b>Small exercises go the other way:</b> on 30 polyglot exercises with no tests of their own (pg1, 2026-10-31), ccx was right 12/30 against 25/30 doing it yourself, at 3.1&times; the cost per success and about 5&times; the wall time; a different task set and ccx version from hc1, not paired. Small strict-interface tasks: do them yourself (<a href="https://github.com/SUPERD6/relayline/blob/main/docs/research/2026-10-31-polyglot-pg1.md">report</a>).</li>
       <li><b>About 30&nbsp;% cheaper per success than doing it yourself</b> (95&nbsp;% CI of the difference &minus;$0.054 to &minus;$0.004); about 15&nbsp;% on the 5 external-repository tasks, the clean half (this repository's own tasks may have their answers in ccx's code).</li>
       <li><b>About 3&times;&nbsp;slower</b> than doing it yourself. Not faster.</li>
       <li>The built-in arm is its default usage; a leaner built-in recipe was cheaper than ccx on the dev set. 10 tasks, one lead model, API-equivalent prices; real runs on one Windows machine (macOS and Linux: CI only).</li>
@@ -77,16 +78,17 @@
     </ol>
   </section>
 
-  <h2 id="seven">Seven things it does</h2>
+  <h2 id="layers">Eight layers</h2>
+  <p class="note">One delegation walks through all eight. Each: what ccx does, one measured number, one limit (<a href="https://github.com/SUPERD6/relayline/blob/main/docs/measured.md">Measured</a>). Every command and option, including <code>ccx ask</code>, <code>ccx send</code>, <code>ccx batch</code>, <code>ccx agents</code>, <code>--review</code> and probable verdicts: <a href="https://github.com/SUPERD6/relayline/blob/main/docs/features.md">features</a>. A sub-agent cannot delegate again through ccx; config changes are shown as a dry run first, with a backup.</p>
   <section class="feat four">
-    <div><h3>1 · Each other's lead and sub-agent</h3><p>Claude Code, Codex or DeepSeek (as <code>dsh</code>, or through Claude Code) leads; any of the three takes work. Gemini CLI has a sub-agent adapter that has not run for real. One adapter per CLI; <code>ccx agents</code> lists what each can do.</p></div>
-    <div><h3>2 · Two models talking</h3><p><code>ccx ask</code> for the other vendor's second opinion, <code>ccx resume</code> to follow up in the same sub-session, <code>ccx send</code> into a live Codex session. <code>ccx discuss</code>: 2–3 vendors talk a costly decision through (ran for real with two and with three vendors).</p></div>
-    <div><h3>3 · Shared memory</h3><p>A personal layer (your hub) and a project layer (<code>.ccx/</code>); only the other side's new lines arrive at start; <code>ccx handoff</code> passes the baton, <code>ccx fresh</code> starts a fresh conversation.</p></div>
-    <div><h3>4 · Splitting the work</h3><p>Five questions → agent, model, effort and the odds; it says so when doing it yourself is cheaper or the task should be split. <code>ccx batch</code>, <code>ccx q</code>, resumable.</p></div>
-    <div><h3>5 · Less to re-read</h3><p>Slim sub-agent start-up; <code>ccx lead</code> (<code>--breakdown</code> / <code>--cache</code> / <code>--suggest</code>) shows what the lead re-reads each turn; <code>ccx sum</code> trims big outputs.</p></div>
-    <div><h3>6 · Checked and reviewed</h3><p>ccx reruns the check (<code>--check</code>); another vendor reviews the diff (<code>--review</code>); every run gets a verdict (<code>--reason</code>), unjudged ones a probable one; <code>ccx trial</code> for a week-long comparison.</p></div>
-    <div><h3>7 · You stay in control</h3><p>Dry run and backups before config changes; <code>ccx undo</code>; <code>--mode read</code>, <code>--worktree</code>; sub-agents can't delegate further; <code>ccx ui</code> shows everything, read-only.</p></div>
-    <div><h3>Receipts</h3><p>Tokens and cost of every run; <code>ccx report</code> builds a dashboard. <a href="demo/">See a sample</a> (stand-in data).</p></div>
+    <div><h3>① Conversation</h3><p><code>ccx discuss</code> gets two or three vendors' views; the board (<code>ccx say</code>, <code>ccx reply</code>) lets open sessions write to each other. Not measured yet; a Claude Code lead sees a message only on its next turn.</p></div>
+    <div><h3>② Shared memory</h3><p>Your hub and the project's <code>.ccx/</code>; the notes a task is about go into every brief; <code>ccx handoff</code> passes the baton. A project note was followed 9/9 vs 0/9; 3 tasks × 3.</p></div>
+    <div><h3>③ Splitting and pipeline</h3><p><code>ccx q</code>: a durable queue, one worktree per piece, merged by dependency. Handing small tasks to Codex (A/B): one lead request fewer on every task, 21/21, but total spend about even and 3.3× the tokens.</p></div>
+    <div><h3>④ Delegation and choosing</h3><p><code>ccx route</code> picks who, which model and effort, or says doing it yourself is cheaper. Repository tasks: $0.063 vs $0.090 per success; small exercises: 3.1× the cost.</p></div>
+    <div><h3>⑤ Checks and receipts</h3><p>ccx re-runs your <code>--check</code>, another vendor reviews the diff, you give the verdict; the receipt says what the check covered. Right 29/30 on hidden tests; a check on the sub-agent's own tests passed all 18 of pg1's failures .</p></div>
+    <div><h3>⑥ Control and recovery</h3><p><code>ccx stop</code>, <code>ccx resume</code>, <code>ccx undo</code>, <code>--worktree</code>, autonomy L0&ndash;L2. From a handoff alone the next agent picked up 3/3 in controlled runs; one real long session failed at first.</p></div>
+    <div><h3>⑦ Measurement and honesty</h3><p>One ledger across vendors, clean-environment checks, a public benchmark, negative results published. API-equivalent cost was 1.5&nbsp;% from Claude's own on one run; on a subscription you pay in quota.</p></div>
+    <div><h3>⑧ Interface and first steps</h3><p><code>ccx ui</code>: one project on one map; <code>ccx demo</code> with no account; <code>ccx setup</code>, <code>ccx doctor</code>. No user study yet; real use outside our own tests is thin.</p></div>
   </section>
 
   <section id="how">
@@ -106,7 +108,11 @@
 
   <section id="ui">
     <h2>The live page: <code>ccx ui</code></h2>
-    <p class="note">Read-only, on 127.0.0.1 only, never calls a model: what waits for your call (red) or review (amber), what each agent is doing, and whether the quota lasts at this pace. Screenshots: <code>ccx demo</code>'s made-up data (<code>scripts/make_shots.py</code>).</p>
+    <p class="note">On 127.0.0.1 only; showing it reads files and never calls a model, and a button that changes something shows the exact <code>ccx</code> command and runs it only on a second click. The home page is one project on one map: the agents and what they said, shared memory linked to the receipts, the receipts, this week's spend. Elsewhere: what waits for your call (red) or review (amber), what each agent is doing, and whether the quota lasts at this pace. Screenshots: <code>ccx demo</code>'s made-up data (<code>scripts/make_shots.py</code>).</p>
+    <div class="figure shot">
+      <img src="assets/ui/map-en.png" width="1440" height="1000" loading="lazy"
+           alt="ccx ui home page: one project on one map; this week's spend by rung, shared memory linked to the runs that carried a note, the agents and their conversation, one receipt per run (demo data)">
+    </div>
     <div class="figure shot">
       <img class="for-light" src="assets/ui/task-en.png" width="1440" height="1000" loading="lazy"
            alt="ccx ui task page: a task as an org chart, one column per worker; the side panel is one hand-off's receipt: cost, the check ccx ran again, the review (demo data)">
