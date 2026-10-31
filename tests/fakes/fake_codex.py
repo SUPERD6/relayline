@@ -1,6 +1,7 @@
 """Stand-in for `codex exec` used by tests. Mimics codex-cli 0.163 JSONL events.
 
-FAKE_STATUS: done | blocked | blocked_then_done | policy_then_done | policy | env | auth | quota | hang
+FAKE_STATUS: done | blocked | blocked_then_done | policy_then_done | policy | env | env_uac |
+             cmd_1223_then_done | auth | quota | hang
 FAKE_LOG:    file to append argv (json) for assertions
 """
 import json
@@ -123,6 +124,29 @@ if mode == "env":     # Codex's Windows sandbox helper could not start (2026-10-
     status = "blocked"
     print("ERROR codex_core::exec: orchestrator_helper_launch_canceled: ShellExecuteExW failed to launch setup "
           "helper: 1223", file=sys.stderr)
+UAC_LINE = ("Failed to create unified exec process: orchestrator_helper_launch_canceled: ShellExecuteExW failed to "
+            "launch setup helper: 1223")
+if mode == "env_uac":
+    # codex-cli 0.164.0 on Windows, 2026-10-31 eval pg1 (the elevated sandbox account's prompt cancelled): every
+    # shell command fails before it starts; the router's stderr line wraps the launcher's error in Rejected(...)
+    status = "blocked"
+    cmd = "\"powershell.exe\" -Command 'Get-Content -Encoding UTF8 two_bucket.py'"
+    print(json.dumps({"type": "item.completed", "item": {"id": "c1", "type": "command_execution", "command": cmd,
+                                                         "aggregated_output": UAC_LINE, "exit_code": -1,
+                                                         "status": "failed"}}))
+    print('2026-10-31T14:45:29.121877Z ERROR codex_core::tools::router: error=exec_command failed: CreateProcess '
+          '{ message: "Rejected(\\"' + UAC_LINE + '\\")" }', file=sys.stderr)
+if mode == "cmd_1223_then_done" and not resuming:
+    # the model's own command failed and printed 1223 (its output, on stdout), and the router logged that program
+    # as one that could not start: the task's problem, not the machine's; it still climbs
+    status = "blocked"
+    print(json.dumps({"type": "item.completed", "item": {"id": "c1", "type": "command_execution",
+                                                         "command": "installer.exe /quiet",
+                                                         "aggregated_output": "Windows error 1223: ShellExecuteExW "
+                                                         "failed to launch setup helper",
+                                                         "exit_code": 1, "status": "failed"}}))
+    print('ERROR codex_core::tools::router: error=exec_command failed: CreateProcess { message: "program not '
+          'found: rg" }', file=sys.stderr)
 if mode == "policy" or (mode == "policy_then_done" and not resuming):   # as codex-cli 0.164 on Windows
     status = "blocked"
     print('ERROR codex_core::tools::router: error=exec_command failed: CreateProcess { message: "Rejected('

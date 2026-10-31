@@ -33,6 +33,15 @@ class TestLanes(AdapterEnv):
         self.assertEqual(len({self.sid(r["run_id"]) for r in out["results"]}), 3)    # a session each, as before
         self.assertFalse(any(c["argv"][:2] == ["exec", "resume"] for c in self.codex_calls()))
 
+    def test_an_environment_failure_starts_no_later_piece(self):
+        # every later piece meets the same wall on this machine (2026-10-31 eval pg1): one attempt, then none
+        self.env["FAKE_STATUS"] = "env_uac"
+        out = self.batch(self.pieces(3), "--lanes", "1", code=2)
+        res = out["results"]
+        self.assertEqual(len(self.codex_calls()), 1, res)
+        self.assertEqual(res[0]["kind"], "env")
+        self.assertTrue(all("environment problem" in r["skipped"] for r in res[1:]), res)
+
     def test_lanes_share_sessions_in_order(self):
         out = self.batch(self.pieces(5), "--lanes", "2", code=0)
         self.assertEqual(out["lanes"], 2)

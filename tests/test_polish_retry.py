@@ -193,15 +193,19 @@ class TestUiEnvAndStart(Env):
         p = pieces(ui.collect(Paths(self.hub)))[0]
         act = p["act"]
         self.assertEqual(act["what"], "a_env")
-        self.assertEqual(act["why"][0], "w_env_codex")                             # codex's own fix, localised
+        self.assertEqual(act["why"][0], "w_env_codex_uac")             # codex's own fix for 1223, localised
         self.assertEqual(act["why"][1], {"agent": "codex", "err": "ShellExecuteExW failed: 1223", "rid": "r-env"})
         strings = json.loads((STATIC / "strings.json").read_text(encoding="utf-8"))
         for lg in ("zh", "en"):                     # no English hint inside the zh sentence; it ends in ccx resume
-            for k in ("w_env", "w_env_codex"):
+            for k in ("w_env", "w_env_codex", "w_env_codex_uac"):
                 self.assertIn("{err}", strings[lg][k])
                 self.assertIn("ccx resume {rid}", strings[lg][k])
                 self.assertIn("ccx doctor", strings[lg][k])
         self.assertNotIn("Fix:", strings["zh"]["w_env_codex"])
+        put_run(self.hub, "r-env3", self.work, kind="env", ok=False, env_error="CreateProcessWithLogonW failed: 267",
+                result={"status": "blocked", "summary": "x"})
+        acts = {x["run_id"]: x["act"] for x in pieces(ui.collect(Paths(self.hub)))}
+        self.assertEqual(acts["r-env3"]["why"][0], "w_env_codex")                  # not 1223: the general codex fix
         put_run(self.hub, "r-env2", self.work, kind="env", ok=False, to="claude", env_error="spawn failed",
                 result={"status": "blocked", "summary": "x"})
         acts = {x["run_id"]: x["act"] for x in pieces(ui.collect(Paths(self.hub)))}

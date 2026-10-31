@@ -487,6 +487,9 @@ def _act(rec: dict, verdict: dict | None, now: float, beat: float | None) -> dic
             err = f"exit {ex}" if ex not in (None, "") else ""
         why = (("w_env_codex" if agent == "codex" else "w_env") if err else
                ("w_env_codex_noerr" if agent == "codex" else "w_env_noerr"))
+        from .delegate import env_cause
+        if env_cause(err, agent):                   # Codex's sandbox UAC prompt cancelled: named as the hint names it
+            why = "w_env_codex_uac"
         return {"kind": "decide", "what": "a_env",
                 "why": [why, {"agent": agent, "err": err, "rid": rid}],
                 "buttons": [show, _btn("b_doctor", "ccx doctor", "primary")]}

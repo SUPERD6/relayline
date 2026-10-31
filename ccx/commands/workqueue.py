@@ -253,7 +253,7 @@ def _tree_fields(rec: dict) -> tuple[dict, str | None]:
 
 def restored(old_run: str, rec: dict) -> str:
     """How an interrupted piece came back (OpenRig's taxonomy): resumed | fresh | decide | failed."""
-    if rec.get("kind") in ("quota", "auth", "needs_write", "over_budget", "user_stopped", "interrupted",
+    if rec.get("kind") in ("quota", "auth", "env", "needs_write", "over_budget", "user_stopped", "interrupted",
                                "check_broken", "no_changes", "no_answer"):
         return "decide"                 # something only the user or the lead can settle
     if not rec.get("ok") or rec.get("kind") in ("check_failed", "timeout", "error"):
@@ -359,11 +359,13 @@ def _run_record(p, run_id: str) -> dict | None:
         return None
 
 
-PRESSURE_KINDS = ("quota", "auth")   # an attempt that hit these (runners.py: rate limits are `quota`): start nothing new
+# an attempt that hit these (runners.py: rate limits are `quota`; delegate.env_failure: the sub-agent could not
+# start a process on this machine, which every later item meets too): start nothing new
+PRESSURE_KINDS = ("quota", "auth", "env")
 
 
 def _pressure(rec: dict | None) -> str | None:
-    """The quota/auth kind any attempt of this run hit (a fallback to another agent included), else None."""
+    """The quota/auth/env kind any attempt of this run hit (a fallback to another agent included), else None."""
     for x in (rec or {}).get("attempts") or []:
         if x.get("kind") in PRESSURE_KINDS:
             return x["kind"]
@@ -379,7 +381,13 @@ def _over_budget(root: Path) -> dict | None:
 
 
 def _backpressure(kind: str, rec: dict | None) -> dict:
-    return {"stopped": "backpressure", "kind": kind, "run": (rec or {}).get("run_id"),
+    rid = (rec or {}).get("run_id")
+    if kind == "env":
+        return {"stopped": "backpressure", "kind": kind, "run": rid,
+                "ask": "a run's sub-agent could not start a process on this machine (an environment problem, see "
+                       f"`ccx show {rid}`): nothing new was started; tell the person, and once they fixed it run "
+                       "`ccx q run --max 1`"}
+    return {"stopped": "backpressure", "kind": kind, "run": rid,
             "ask": "a run hit a quota/auth limit (its fallback may have finished the item): nothing new was "
                    "started; run `ccx q run --max 1` when it has reset"}
 
@@ -429,7 +437,8 @@ def _waves(a, root: Path, caller: str, p, cfg, width: int, n: int, done: list,
 
         def step(it, warm):
             if hit:
-                return {"id": it["id"], "skipped": "backpressure: a run hit a quota/auth limit"}, None
+                return {"id": it["id"], "skipped": "backpressure: a run hit a quota/auth limit or an environment "
+                        "problem"}, None
             got: dict = {}
             kw = {"worktree": True} if tree.get(it["id"]) else {}
             res = _one(it, root, caller, p, cfg, warm=warm, got=got, **kw)

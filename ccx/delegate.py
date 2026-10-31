@@ -36,7 +36,7 @@ from .ledger import write_record as _write_record  # noqa: F401
 from .plan import _fallback_plan, _plan, _provider_envs, _rung_spec, _usable, _within_budget, other  # noqa: F401
 from .prompts import (CLEAN_LANG, CHECK_RETRY, CHECK_RETRY_SAME, CHECK_RETRY_STRONGER, CHECK_TAIL_CHARS, CONTINUE, ESCALATE, FOLLOWUP, LEAD_NOTE, NEEDS_WRITE, POLICY_MARKERS, POLICY_RETRY, PROMPT,  # noqa: F401
                       REVIEW_CALLER, REVIEW_FINISH, REVIEW_PERMISSION, SELFCHECK, SELFCHECK_CMD, _policy_rejections,
-                      review_permission)
+                      is_policy_line, review_permission)
 from .merge import REVIEW_LINE
 from .review import review_run as _review  # noqa: F401
 from .verdicts import (REASONS, SOFT_AFTER_H, _hard_verdict, _soft_verdict, soft_verdicts, verify,  # noqa: F401
@@ -1090,25 +1090,80 @@ def env_failure(status: str | None, ok: bool, kind: str | None, *texts: str | No
         return None
     for text in texts:
         for line in (text or "").splitlines():
-            low = line.lower()
-            # "exec_command failed: CreateProcess { ... rejected: blocked by policy }" is the sandbox's policy saying
-            # no (a policy retry below), not a process that could not start
-            if "rejected" in low or "blocked by policy" in low:
+            # "exec_command failed: CreateProcess { ... `cmd` rejected: blocked by policy }" (or "... `rg x` rejected:
+            # policy forbids commands starting with `rg`") is the sandbox's policy saying no, not a process that could
+            # not start. "Rejected(" alone is no such refusal (2026-10-31 eval pg1, codex-cli 0.164.0: the launcher's
+            # own failure comes wrapped the same way, 'CreateProcess { message: "Rejected(\"Failed to create unified
+            # exec process: orchestrator_helper_launch_canceled: ShellExecuteExW failed to launch setup helper:
+            # 1223\")" }'; skipping every "Rejected" let 13 units climb and be resumed)
+            if is_policy_line(line) or _POLICY_SHAPE.search(line):
                 continue
-            if any(m in low for m in ENV_MARKERS):
-                return line.strip()[:240]
+            # the refused command's own text is the model's words (`rg CreateProcessWithLogonW src`): never a marker
+            hit = _ENV_RE.search(_QUOTED_CMD.sub("``", line))
+            if hit:
+                # a long router line (timestamp, CreateProcess wrapper) would lose its error code at 240 characters:
+                # keep from just before the launcher's own words, so "... setup helper: 1223" survives. Located on
+                # the line itself (case-insensitive regex), not on a lower-cased copy whose length may differ
+                found = _ENV_RE.search(line.strip())
+                line = line.strip()
+                start = max(0, found.start() - 60) if found and len(line) > 240 else 0
+                return line[start:start + 240]
     return None
+
+
+_ENV_RE = re.compile("|".join(re.escape(m) for m in ENV_MARKERS), re.IGNORECASE)
+_QUOTED_CMD = re.compile(r"`[^`\n]*`")
+_POLICY_SHAPE = re.compile(r"`\s*rejected:\s", re.IGNORECASE)    # "`<command>` rejected: <the policy's reason>"
+# 1223 = Windows' ERROR_CANCELLED; named only as the launcher's code ("... setup helper: 1223", "ShellExecuteExW
+# failed: 1223": after a colon, on a line with a launcher marker), never a date, run id or timestamp holding it
+_UAC_CODE = re.compile(r":\s*1223(?![\w.])")
+
+
+def env_cause(err: str | None, agent: str | None = "codex") -> str:
+    """The receipt's name for a known environment failure ("" when ccx knows no name for it): Codex's sandbox setup
+    helper cancelled (orchestrator_helper_launch_canceled / "setup helper: 1223", Windows' "the operation was
+    cancelled by the user"), i.e. its elevation (UAC) prompt was cancelled. Codex's own launcher words, so other
+    agents get no such name (the hint, needs_lead and `ccx ui` agree on this)."""
+    err = err or ""
+    if agent != "codex" or not ("launch_canceled" in err.lower() or (_UAC_CODE.search(err) and _ENV_RE.search(err))):
+        return ""
+    return "sub-agent environment problem: sandbox authorization was cancelled (Windows error 1223)"
 
 
 def env_hint(record: dict) -> str:
     agent, rid = record.get("to") or "the agent", record["run_id"]
     why = record.get("env_error") or "a process could not be started"
-    fix = (f"run `{agent}` once yourself in this folder and let it finish setting up its Windows sandbox (error "
-           "1223 means its permission prompt was cancelled; 267, a working folder it cannot use), and keep "
-           "CODEX_HOME outside a temp folder" if agent == "codex" else
-           f"check that `{agent}` can run shell commands in this folder on its own")
-    return (f"{agent} could not start a process on this machine ({why}): an environment problem, not the task, so "
-            f"ccx did not move up to a pricier model or retry. Fix: {fix}; then `ccx resume {rid}`")
+    cause = env_cause(record.get("env_error"), agent)
+    if cause:
+        fix = ("the current (elevated) Windows sandbox mode needs one UAC approval: run `codex` once yourself in this "
+               "folder and allow the prompt, or switch Codex to `[windows] sandbox = \"unelevated\"`; keep CODEX_HOME "
+               "outside a temp folder")
+    elif agent == "codex":
+        fix = ("run `codex` once yourself in this folder and let it finish setting up its Windows sandbox (error 1223 "
+               "means its permission prompt was cancelled; 267, a working folder it cannot use), and keep CODEX_HOME "
+               "outside a temp folder")
+    else:
+        fix = f"check that `{agent}` can run shell commands in this folder on its own"
+    return ((cause[0].upper() + cause[1:] + ". " if cause else "") +
+            f"{agent} could not start a process on this machine ({why}): an environment problem, not the task, so "
+            f"ccx did not move up to a pricier model, retry or resume. Tell the person; once they fixed it: "
+            f"{fix}; then `ccx resume {rid} --env-fixed`")
+
+
+def env_refusal(prev: dict) -> dict | None:
+    """`ccx resume` of a run that stopped on an environment failure (kind env), without --env-fixed: what it prints
+    instead of paying for another attempt that meets the same wall (2026-10-31 eval pg1: the lead resumed twice on
+    "the shell failure may be transient. Retry."). None for any other run."""
+    if prev.get("kind") != "env":
+        return None
+    rid = prev["run_id"]
+    cause = env_cause(prev.get("env_error"), prev.get("to")) or "the sub-agent could not start a process here"
+    return {"run_id": rid, "ok": False, "kind": "env", "resumed": False, "env_error": prev.get("env_error"),
+            "needs_lead": f"env: {cause}; not resumed (nothing was spent): tell the person, and once they fixed "
+                          f"it, `ccx resume {rid} --env-fixed`",
+            "hint": env_hint(prev),
+            "recap": f"ccx resume {rid}: refused, its run stopped on an environment problem (kind env); "
+                     f"next: tell the person, after their fix `ccx resume {rid} --env-fixed`"}
 
 
 def focused_retry(cfg: dict) -> bool:
@@ -1265,6 +1320,11 @@ def compact(record: dict) -> dict:
                            f"run it again with --mode write")
         if record["kind"] == "env":
             out["hint"] = env_hint(record)
+            # the lead's cue to stop (2026-10-31 eval pg1: the lead resumed "the shell failure may be transient"
+            # twice, each meeting the same wall): the person fixes the machine first
+            out["needs_lead"] = ("env: " + (env_cause(record.get("env_error"), record.get("to")) or "the sub-agent "
+                                 "could not start a process here") + "; tell the person, and only after they fixed it "
+                                 f"`ccx resume {record['run_id']} --env-fixed`")
         if record["kind"] in ("quota", "timeout", "user_stopped", "interrupted"):
             why = "ccx stop" if record["kind"] == "user_stopped" else record["kind"]
             out["hint"] = f"stopped by {why}; continue later with `ccx resume {record['run_id']}`"
@@ -1354,7 +1414,7 @@ def _next(record: dict) -> str:
     if record.get("auth_problem"):
         return f"run `{record.get('to')} login` (see hint)"
     if record.get("kind") == "env":
-        return f"fix the environment (see hint), then ccx resume {record['run_id']}"
+        return f"tell the person to fix the environment (see hint); after their fix ccx resume {record['run_id']} --env-fixed"
     return f"ccx show {record['run_id']}"
 
 

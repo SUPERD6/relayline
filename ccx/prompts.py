@@ -134,5 +134,12 @@ Do the same task with a different command or tool (e.g. a short python one-liner
 POLICY_MARKERS = ("blocked by policy",)
 
 
+def is_policy_line(line: str) -> bool:
+    """A line of the CLI's own output saying its sandbox policy refused a command (any case: the policy retry and
+    delegate.env_failure read the same lines the same way)."""
+    low = line.lower()
+    return any(m in low for m in POLICY_MARKERS)
+
+
 def _policy_rejections(text: str) -> list[str]:
-    return [ln.strip()[:300] for ln in text.splitlines() if any(m in ln for m in POLICY_MARKERS)][:3]
+    return [ln.strip()[:300] for ln in text.splitlines() if is_policy_line(ln)][:3]

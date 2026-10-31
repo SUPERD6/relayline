@@ -36,7 +36,7 @@
    - `check` 通过且跑的是相关测试，再看 `files_changed` / `diffstat` 就够了，**不要自己重跑**（H11 实测 2026-10-24）。只有 check 失败、没有、带 `weak`（这个命令在这里放过过做错的结果），或状态是 partial/blocked 时，才自己跑测试或读完整 diff。`check.covers` 列出它实际跑了哪些测试文件：没测到任务要求的行为，就不算"相关测试"；有 `check.basis_changed` 表示它是在子智能体改过的测试上通过的，先看那几处改动。
    - `check_broken` = 验收命令什么都没测：`ccx resume <run_id> "要测什么" --check "..."`。任务点名了一个入口（命令、CLI）却没有测试把它当真实进程跑：resume 一次，要求补一个。
    - `no_changes` = 写任务说 done/partial，却什么都没改（没有改文件、没有提交；check 是在没改过的代码上跑的；`ccx q` 把这一块记为失败，依赖它的块会等着）：只有任务本来就已满足才接受，否则 resume。`--worktree` 的结果里有 `base`：它从 HEAD 起步，不含你未提交的改动，所以它的 check 没测到这些改动。
-   - `env` = 是机器的问题，不是模型的：子智能体的命令行起不了进程（比如 Codex 在 Windows 上的沙箱助手）。ccx 没往上升级、也没重试；把 `hint` 转告用户，等用户修好再 resume。状态是 `blocked` 或 `failed` 时 `ok` 一律为 false。
+   - `env` = 是机器的问题，不是模型的：子智能体的命令行起不了进程（比如 Codex 在 Windows 上的沙箱助手）。ccx 没往上升级、没重试、也没续跑；把 `hint` 转告用户（不是暂时的，别重试），等用户修好再 `ccx resume RID --env-fixed`（不带这个选项会被拒绝）。状态是 `blocked` 或 `failed` 时 `ok` 一律为 false。
    - `verification: not-run` 就照实说“没验证”。
    - `review` 是独立审查：`pass` 或 `issues`（带文件:行）。ccx 自己会跑一轮修改（`show --wait` 会等它）；之后的 `needs_lead` 由你决定，`review_failed` 见下一条。`kind` 只按最终结果判断：打印出结果的 `ccx run ... --bg --wait`，或 `ccx show <run_id>`（带不带 `--wait` 都会跟到修改轮；显示 `fix_round: starting` 或 `finishing` 说明还不是最终结果：用 `ccx show <run_id> --wait`，不要续跑）。最终仍是 `review_issues`，说明修改轮没跑成（没有可续的会话，或没能启动）：自己改，或重新派。有修改轮时，`cost_chain` 是整条链的花费（tokens 和美元）。
    - `review_failed`（修改轮之后审查仍不过）：对着 diff 逐条核对 `[must]` 项，属实的自己修，不属实的放下。不要为此 `ccx resume`，除非用户要求再改一轮（要多花一次运行）。

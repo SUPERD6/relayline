@@ -642,6 +642,9 @@ def cmd_resume(a) -> int:
     from ..recover import sweep
     if getattr(a, "wait", None) is not None and not getattr(a, "bg", False):
         raise ValueError("--wait N goes with --bg (a foreground resume already waits until it is done)")
+    refused = _env_refused(p, a)                     # before --bg detaches anything: nothing is spent
+    if refused is not None:
+        return refused
     if getattr(a, "bg", False):
         if not a.brief and not a.brief_file:
             raise ValueError("--bg needs the follow-up as text or --brief-file (stdin is not passed on)")
@@ -679,6 +682,20 @@ def cmd_resume(a) -> int:
     _out(res)
     human_tail(human_summary(rec, res))
     return 0 if exit_ok(rec) else 2
+
+
+def _env_refused(p, a) -> int | None:
+    """A run that stopped on an environment failure (kind env) is not resumed unless the person fixed the machine
+    and said so with --env-fixed: the same attempt would meet the same wall and be paid for again (2026-10-31 eval
+    pg1). Prints the needs_lead record and returns exit 2; None when the resume may go on."""
+    if getattr(a, "env_fixed", False):
+        return None
+    from ..delegate import env_refusal
+    out = env_refusal(ledger.load_run(p, a.run_id))
+    if out is None:
+        return None
+    _out(out)
+    return 2
 
 
 def _session_gone(rec: dict) -> bool:
@@ -763,8 +780,13 @@ def cmd_batch(a) -> int:
                 r.worktree = lane[0].worktree
 
         bad: list[bool] = []                     # exit code as before compact's ok also said no to blocked/failed
+        env_hit: list[str] = []                  # a piece whose sub-agent could not start a process on this machine
 
         def step(r, warm):
+            if env_hit:                          # every later piece meets the same wall: start none (as `ccx q run`)
+                bad.append(True)
+                return {"label": r.label, "ok": False, "skipped": f"environment problem in run {env_hit[0]}: "
+                        "nothing new was started; tell the person, and after their fix run these pieces again"}, None
             if warm:
                 r.resume_run, r.continued = warm, True
             try:
@@ -773,6 +795,8 @@ def cmd_batch(a) -> int:
                 bad.append(True)
                 return {"label": r.label, "ok": False, "error": f"{type(e).__name__}: {e}"[:300]}, None
             bad.append(not exit_ok(rec))
+            if rec.get("kind") == "env":
+                env_hit.append(rec["run_id"])
             return compact(rec), rec
         results = lanes.run_lanes(lane_list, step, lanes.limits(cfg), threads)
         _out({"results": results, "do_yourself": skipped, "lanes": len(lane_list), **extra})
@@ -1250,6 +1274,8 @@ def register(sub) -> None:
                     "--brief-file); wait for it with `ccx show <run_id> --wait`")
     rs.add_argument("--wait", type=float, metavar="SECONDS", help="with --bg: wait up to this long in the same call "
                     "and print the final result, as ccx run --bg --wait")
+    rs.add_argument("--env-fixed", action="store_true", help="resume a run that stopped on an environment problem "
+                    "(kind env) after the person fixed it; without it such a resume is refused and nothing is spent")
     radv = rs.add_argument_group("advanced (routing, caller and limits; most follow-ups need none)")
     radv.add_argument("--tier", choices=["auto", *TIER_ORDER], default="auto")
     radv.add_argument("--from", dest="caller", choices=[*DELEGATE_AGENTS, *PROVIDER_AGENTS, "user"])

@@ -160,7 +160,8 @@ A printed result with a `run_id` means that delegation ran: do not send the same
   met, else resume it. `base` on a `--worktree` run: it
   started from HEAD without your uncommitted changes, so its check did not test them.
 - `env` = the machine, not the model: the sub-agent's CLI could not start a process (e.g. Codex's Windows sandbox
-  helper). ccx did not climb or retry; pass its `hint` to the person and resume only after they fixed it. A
+  helper). ccx did not climb, retry or resume; pass its `hint` to the person (it is not transient: do not retry), and
+  only after they fixed it run `ccx resume RID --env-fixed` (without the flag the resume is refused). A
   `blocked` or `failed` status is never `ok`.
 - `verification: not-run` = unverified — say so.
 - A `review` field is the independent review: `pass` (its notes are optional reading) or `issues` with
