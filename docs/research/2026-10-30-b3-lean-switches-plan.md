@@ -160,3 +160,64 @@ runs, `scripts/eval/r5.py` gives more evidence without changing the registered r
 - **Postflight attribution:** when the person's real hub ledger grew during the run, the report lists each new row's
   type, run_id and ts and whether the run_id is one of the units' `ccx_run_ids` (an eval leak) or not (most likely a
   real session running at the same time); `preflight.json` keeps it as `postflight_ledger`.
+
+## Fewer runs: M4 / M3 / M5 arms (registered 2026-10-31, before any unit ran)
+
+B3's second batch of switches (M4 `ccx batch --merge`, M3 `[subagents] fork_turns`, M5 `[shared_context] dedupe`)
+aims at fewer requests; all three ship off. Before one is turned on by default it has to be measured right at least as
+often as the baseline. The script is `scripts/eval/b3_arms.py`; each experiment has two arms: the baseline is today's
+shipped behaviour, the other changes only that switch.
+
+| exp | baseline | switch arm | tasks | model |
+|---|---|---|---|---|
+| m4 | `ccx batch <plan>` | `ccx batch --merge <plan>` | 4 plans, each 4 small pieces of round 2's ten-module task (`minutes` 2) + 1 TRAPS2 trap (`minutes` 5), every piece with `paths` and its own `--check` | Codex gpt-6.1-sol medium, `--from user`, review as shipped (auto) |
+| m3 | `fork_turns = "all"` | `fork_turns = "none"` | round 2's 4 three-file fixes (COMPOUND) + 2 groups of 4 modules | Codex gpt-6.1-sol medium, `ccx run --parallel`, review off, no escalation or fallback |
+| m5 | `dedupe = false` | `dedupe = true` | the 7 tasks of the 2026-10-25 shared-context A/B + new t8 (the person reopened the question, the lead settled it again in other words: dedupe drops the person's sentence, keeps the lead's) | Codex gpt-6-luna low, `--context on`, review off, first try only |
+
+Fairness: both arms' hub files differ only in the switch line (the baseline writes `false` / `"all"` explicitly), read
+back the way ccx reads it before the unit starts; both arms have `[sessions] archive = "off"` (the children's
+rollouts are read afterwards) and are archived with `ccx archive --apply` after the unit. The two arms of a pair run
+back to back, which goes first alternating by task and repeat. Every unit has its own clean room
+(`scripts/eval/preflight.py`: own TMP, git identity, CCX_CONFIG, a fresh hub, the dedicated eval CODEX_HOME with
+`CCX_CODEX_ISOLATE=1`, a Job Object). In m4 both arms let ccx decide worktrees (five writers in a clean repository: a
+worktree per piece / group), and each piece runs only its own hidden test in the folder its run left.
+
+Whether the switch took is read from what ccx recorded: m4 the batch output's `merged`; m3 run.json
+`parallel_fork_turns` and the fork_turns line in the prompt.md the sub-agent was sent (a run moved to another agent,
+`parallel_fork_turns_moved`, is dropped); m5 run.json `shared_context.deduped`, with the context actually attached. A
+unit whose switch did not take is `switch_ok: false` and stays out of the rule.
+
+Per unit: right (pieces or the hidden test), ccx runs (every ledger row: sub-agent runs, reviews, fix rounds, spun-off
+pieces), reviews and their $, requests, the `first_input` sum (m3: plus each child's first request input, from its
+rollout), total prompt tokens (fresh + cache writes + cache reads of every run; for m3 the ledger's usage already holds the
+children's), $, wall; m4
+also each piece's state, follow-ups and spun-off pieces; m5 `est_tokens` and `deduped_chars`.
+
+**The rule (registered first)**, per experiment on the pairs both arms finished with the switch recorded:
+
+1. the switch arm's right count is not below the baseline's (m4: over all pieces and over the trap pieces alone);
+2. its ccx runs or its `first_input` sum is lower;
+3. its total prompt tokens are not higher (m5: reported, not judged: dedupe saves tens of tokens a request, while
+   one more turn adds a ~20k prefix and every later request carries the earlier turns, so totals and means follow
+   the number of turns; m5's saving is judged by condition 2's `first_input` sum);
+4. m3 only: no pair where the switch arm is wrong, the baseline right and the switch arm's run spawned children (a
+   child that lacked the context it was not given, not caught by its parent).
+
+All hold = Pass; any fails = Fail. Fewer than 80% of the planned pairs finished (`run` writes the planned count into each
+row), a unit whose switch did not take, or (m3) more than half of the pairs spawning no
+child in either arm (the switch had nothing to act on) = Unknown. A unit that failed (an error in its row) is missing, not a switch
+that did not take, and `run` again retries it; the budget is checked before a pair starts, never between its units. Wall time is reported, not judged (M4 is expected to be slower). A spun-off piece climbs again from the low
+rung, one more chance than the baseline had; the report says so. A pass only makes a default-on change a candidate;
+whether to turn it on is decided separately.
+
+**The three runs** (`--dry-run` shows the schedule first). Estimate: m4 16 units about $3.8, m3 12 units about
+$2.8, m5 32 units about $0.6, about $7.2 in all. From the 2026-10-31 pre-run of one unit (m4 mp1, merge arm, tag
+b3pre, not part of the results): 5/5 right, 2 runs (the merged run and one review), $0.10, 129 s, the switch took,
+nothing left behind; the rest are round-2 guesses. `--arms` is for a pre-run only, under a tag of its own.
+
+```bash
+python scripts/eval/b3_arms.py run --exp m4 --tag b3m4 --codex-home <eval codex home> --budget 5
+python scripts/eval/b3_arms.py run --exp m3 --tag b3m3 --codex-home <eval codex home> --budget 4
+python scripts/eval/b3_arms.py run --exp m5 --tag b3m5 --codex-home <eval codex home> --budget 1.5
+python scripts/eval/b3_arms.py summary --tag b3m4   # once per tag
+```
