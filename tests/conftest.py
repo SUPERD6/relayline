@@ -26,7 +26,8 @@ def _own_hub(tmp_path, monkeypatch):
     monkeypatch.setenv("CCX_HOOK_TIMEOUT_S", "0")
     for var in ("CCX_DEPTH", "CCX_ROLE", "CCX_RUN_ID", "CCX_PARENT_RUN"):     # never inherit a live ccx run
         monkeypatch.delenv(var, raising=False)
-    for var in ("CCX_LEAD", "DSH_SESSION_ID", "ANTHROPIC_BASE_URL", "CLAUDE_CODE_SIMPLE"):   # nor a lead's identity
+    for var in ("CCX_LEAD", "DSH_SESSION_ID", "ANTHROPIC_BASE_URL", "CLAUDE_CODE_SIMPLE",   # nor a lead's identity
+                "CLAUDE_CODE_MESSAGING_SOCKET", "CLAUDE_CODE_MESSAGING_TOKEN"):   # nor its inbox (ccx/wake.py)
         monkeypatch.delenv(var, raising=False)
     for var in [k for k in os.environ if k.endswith(("_API_KEY", "_AUTH_TOKEN"))]:
         # the machine's own provider keys (DEEPSEEK_API_KEY ...): a test sets the fake one it needs, and a key

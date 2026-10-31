@@ -140,6 +140,15 @@ def wait_any(p, run_ids: list[str], seconds: float) -> tuple[list[tuple[str, dic
     Returns ([(asked id, last record, last id)] for every finished one, [(asked id, id being waited on)] for the
     ones still running: a fix round's id, when its first run has handed over to one)."""
     waiters = [RunWaiter(p, r) for r in dict.fromkeys(run_ids)]        # unknown id -> FileNotFoundError up front
+    from contextlib import ExitStack
+    from ..wake import waiting
+    with ExitStack() as marks:
+        for w in waiters:                            # a run waited on sends the lead no notice (ccx/wake.py)
+            marks.enter_context(waiting(p, w.run_id))
+        return _wait_any(p, waiters, seconds)
+
+
+def _wait_any(p, waiters: list, seconds: float) -> tuple[list[tuple[str, dict, str]], list[tuple[str, str]]]:
     deadline = time.time() + max(0.0, seconds)
     swept = 0.0
     while True:

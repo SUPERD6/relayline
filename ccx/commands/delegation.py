@@ -101,13 +101,20 @@ def _bg_maybe_wait(argv: list[str], p, wait: float | None) -> int:
     if wait is None:
         _out(bg)
         return 0
-    from .. import recover
-    from .records import POLL_SEC, RunWaiter, _result
+    from .records import RunWaiter
     rid = bg["run_id"]
     print(f"ccx: started {rid} in the background; waiting up to {wait:g} s (else: ccx show {rid} --wait)",
           file=sys.stderr, flush=True)
     proc = procs[0] if procs else None
     waiter = RunWaiter(p, rid)                   # the same polling as `ccx show --wait` (follows a fix round)
+    from ..wake import waiting
+    with waiting(p, rid):                        # the run sends no notice while this call reads its result
+        return _wait_loop(p, rid, bg, proc, waiter, wait)
+
+
+def _wait_loop(p, rid: str, bg: dict, proc, waiter, wait: float) -> int:
+    from .. import recover
+    from .records import POLL_SEC, _result
     deadline = time.time() + max(0.0, wait)
     swept = time.time()
     while True:
@@ -270,6 +277,7 @@ def _preauth_for_run(p, cfg: dict, proposal: str, spec: dict) -> dict | None:
 def cmd_run(a) -> int:
     p = paths()
     cfg = load_config(p)
+    bg_child = bool(os.environ.get("CCX_RUN_ID"))   # the detached child of --bg (run() takes the variable away)
     proj = None
     if a.project:                                # into a project from the catalog (ccx/commands/projects.py)
         from .projects import for_run
@@ -405,6 +413,9 @@ def cmd_run(a) -> int:
         # an explicit pick with no size: its verdict reaches the ledger but not routing (seven-cores A/B, PR #30)
         res["route"]["learns"] = "no: give --minutes (or the rubric flags) so this run's verdict can teach routing"
     res["recap"] = recap(rec, res)              # last key: survives `| tail`
+    if bg_child:                                 # nobody reads this stdout: tell the lead (P0-11, ccx/wake.py)
+        from .. import wake
+        wake.notify(p, cfg, rec, res["recap"])
     _out(res)
     human_tail(human_summary(rec, res))
     return 0 if exit_ok(rec) else 2
@@ -639,6 +650,7 @@ def cmd_namecheck(a) -> int:
 
 def cmd_resume(a) -> int:
     p = paths()
+    bg_child = bool(os.environ.get("CCX_RUN_ID"))   # the detached child of --bg (run() takes the variable away)
     from ..recover import sweep
     if getattr(a, "wait", None) is not None and not getattr(a, "bg", False):
         raise ValueError("--wait N goes with --bg (a foreground resume already waits until it is done)")
@@ -679,6 +691,9 @@ def cmd_resume(a) -> int:
                 "send the task again as a fresh run with `ccx run --new ...`")
         res["hint"] = f"{res['hint']} Also: {gone}" if res.get("hint") else gone
     res["recap"] = recap(rec, res)
+    if bg_child:                                 # nobody reads this stdout: tell the lead (P0-11, ccx/wake.py)
+        from .. import wake
+        wake.notify(p, load_config(p), rec, res["recap"])
     _out(res)
     human_tail(human_summary(rec, res))
     return 0 if exit_ok(rec) else 2

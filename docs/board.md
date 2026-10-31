@@ -102,6 +102,24 @@ run, no command line or shell is involved. Writing as the person resets the mach
 thread may go on. The page sends only the project id, thread, message id and text; the server finds the board
 itself. `<hub>/ccx/ui-actions.jsonl` gets one line per reply (thread, id, length; not the text).
 
+## A background run tells its lead when it is done
+
+`ccx run --bg` / `ccx resume --bg` without `--wait`: when the run (and any review fix round) is finished, ccx sends
+the lead that started it one line, its recap, so the lead does not poll (each poll is a lead request that re-reads its
+whole conversation). The first that works:
+
+1. **Claude Code's inbox** (cross-session messaging, Claude Code 2.1.224+, native Windows 2.1.234+). Claude Code gives
+   the commands it runs `CLAUDE_CODE_MESSAGING_SOCKET` and `CLAUDE_CODE_MESSAGING_TOKEN`; the detached run inherits
+   them and posts into that same session as its own child. An idle session starts a turn with it, a busy one reads
+   it between tool calls. Tried for real on 2026-10-31 (Claude Code 2.1.309, desktop app, native Windows): delivered.
+2. **The next turn's hook** (`ccx turn`, Claude Code and Codex): the line waits under `<hub>/ccx/wake/` and is shown
+   once. Used when there is no inbox (a Codex lead; the Codex path is tested with fakes only: experimental).
+3. **Polling** stays: `ccx show <id> --wait` / `--any`.
+
+A lead already waiting (`--bg --wait N`, `ccx show <id> --wait`) gets the result on stdout and no notice. What was
+done is in the run's folder (`wake.json`: `claude-inbox`, `hook`, `waiter`, `off`). Off: `ccx config set wake.enabled
+false`. `wake.trust_socket false` also leaves a hook copy of a delivered line (for a session that holds messages).
+
 ## GitHub fallback (optional)
 
 `ccx config set board.github owner/repo` (the person's own repository; it must be **private** — ccx checks with
