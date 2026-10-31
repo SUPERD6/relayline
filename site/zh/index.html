@@ -85,7 +85,7 @@
     <div><h3>② 共享记忆</h3><p>你的 hub 和项目的 <code>.ccx/</code>；跟任务有关的便签自动写进每份说明；<code>ccx handoff</code> 交接。项目便签被遵守 9/9，没有便签 0/9；3 个任务 × 3。</p></div>
     <div><h3>③ 拆分与流水线</h3><p><code>ccx q</code>：持久的工作队列，每块一个 worktree，按依赖合并。小任务交给 Codex 的对照里，主导每个任务都少发一次请求，21/21，但总花费基本持平、token 3.3 倍。</p></div>
     <div><h3>④ 派活与选人</h3><p><code>ccx route</code> 选派给谁、什么模型和 effort，或者直说自己做更便宜。仓库任务每次成功 $0.063，自己做 $0.090；小题贵 3.1 倍。</p></div>
-    <div><h3>⑤ 验收与收据</h3><p>ccx 自己重跑你的 <code>--check</code>，另一家审查改动，你给结论；收据写明 check 覆盖了什么。隐藏测试下做对 29/30；跑子智能体自写测试的 check 把 pg1 做错的 18 题全判过。</p></div>
+    <div><h3>⑤ 验收与收据</h3><p>ccx 自己重跑你的 <code>--check</code>，另一家审查改动，你给结论；收据写明 check 覆盖了什么。隐藏测试下做对 29/30；跑子智能体自写测试的 check 把 pg1 做错的 18 题全判过；现在这种通过记为自写测试通过并送审（还没重测）。</p></div>
     <div><h3>⑥ 控制与恢复</h3><p><code>ccx stop</code>、<code>ccx resume</code>、<code>ccx undo</code>、<code>--worktree</code>、自主度 L0&ndash;L2。只靠交接文件，下一个智能体接上 3/3（受控运行）；一个真实长会话起初失败。</p></div>
     <div><h3>⑦ 测量与诚实</h3><p>跨厂商一本账、评测前查干净环境、公开基准、负结果也发布。一次运行上 API 等价花费与 Claude 自报差 1.5%；订阅用户付的是额度。</p></div>
     <div><h3>⑧ 界面与上手</h3><p><code>ccx ui</code>：一个项目一张图；<code>ccx demo</code> 不用账号；<code>ccx setup</code>、<code>ccx doctor</code>。还没做用户研究；我们自己测试之外的真实使用还很少。</p></div>
