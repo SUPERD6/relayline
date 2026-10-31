@@ -24,7 +24,7 @@
     },
     "summary": {
       "type": "string",
-      "description": "What was done and the outcome, at most ~120 words. Facts only."
+      "description": "What was done and the outcome, at most ~120 words. Facts only. For a question or a summary task: the answer itself."
     },
     "files_changed": {
       "type": "array",
