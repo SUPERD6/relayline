@@ -96,10 +96,11 @@ def _run(p: Paths, run_id: str, cwd: Path, brief: str, ts: float, *, to: str = "
     d = p.runs / run_id
     d.mkdir(parents=True, exist_ok=True)
     _write(d / "run.json", json.dumps(rec, ensure_ascii=False, indent=1))
-    # the shared notes the brief carried, as delegate._brief_notes writes them (the home page links note -> run)
+    # the shared notes the brief carried, where delegate._brief_notes puts them: above the task (the home page links
+    # note -> run)
     carried = ("Shared notes that may bear on this task (facts recorded earlier; check before relying on them):\n"
                + "".join(f"- #{e['seq']} ({e['topic']}): {e['text']}\n" for e in notes) + "\n") if notes else ""
-    _write(d / "prompt.md", f"[ccx sub-task {run_id}]\n## Task\n{brief}\n\n{carried}## Finish\nReturn the result JSON.\n")
+    _write(d / "prompt.md", f"[ccx sub-task {run_id}]\n{carried}## Task\n{brief}\n\n## Finish\nReturn the result JSON.\n")
     if record and rec["state"] == "finished":
         from . import ledger
         ledger.append(p, rec)

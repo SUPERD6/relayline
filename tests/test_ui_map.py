@@ -64,10 +64,13 @@ def test_brief_notes_reads_only_the_notes_block(tmp_path):
     rd = ui.Reader(Paths(tmp_path / "hub"))
     d = tmp_path / "run"
     d.mkdir()
-    (d / "prompt.md").write_text("## Task\nfix - #9 (x): not a note\n\n" + ui.NOTES_HEAD + " (facts):\n"
-                                 "- #3 (shop-api): money in cents\n- #12 (general): run pytest\n\n## Finish\n"
+    (d / "prompt.md").write_text("Run x\n" + ui.NOTES_HEAD + " (facts):\n- #3 (shop-api): money in cents\n"
+                                 "- #12 (general): run pytest\n\n## Task\nfix - #9 (x): not a note\n\n## Finish\n"
                                  "- #44 (later): not in the block\n", encoding="utf-8")
     assert ui.brief_notes(rd, d) == [3, 12]
+    # the person's brief quoting the notes line (below "## Task") is not a note the brief carried
+    (d / "prompt.md").write_text("Run x\n## Task\n" + ui.NOTES_HEAD + ":\n- #7 (x): quoted\n", encoding="utf-8")
+    assert ui.brief_notes(rd, d) == []
     (d / "prompt.md").write_text("## Task\nno notes\n", encoding="utf-8")
     assert ui.brief_notes(rd, d) == []
     assert ui.brief_notes(rd, tmp_path / "missing") == []
@@ -127,3 +130,45 @@ def test_page_keeps_every_old_entry_and_has_both_languages():
     import re
     used = {k for k in re.findall(r'"(map_[a-z_]+)"', js) if not k.endswith("_")}      # "map_rv_" + verdict: a prefix
     assert used <= keys | {k[:-2] for k in keys if k.endswith("_1")}, used - keys
+
+
+def test_only_the_persons_own_verdict_and_a_real_failure_count():
+    """An automatic (soft) verdict is not the person's; a dismissed run, or one stopped by the person, a budget, a
+    policy or its machine, says nothing about whether the work was right."""
+    done = {"run_id": "r", "state": "finished", "ok": False, "kind": "check_failed"}
+    assert ui._outcome(done, None) == "wrong"
+    assert ui._outcome({**done, "ok": True}, {"ok": True, "soft": True}) == "open"
+    assert ui._outcome(done, {"ok": True}) == "right"
+    assert ui._outcome({**done, "dismissed": True}, None) == "open"
+    for kind in ("user_stopped", "over_budget", "policy", "needs_write", "timeout", "no_answer", "env", "quota"):
+        assert ui._outcome({**done, "kind": kind}, None) == "open", kind
+
+
+def test_receipt_takes_the_last_attempts_tier_and_ignores_a_soft_verdict(tmp_path):
+    p = Paths(tmp_path / "hub")
+    rec = {"run_id": "r", "state": "finished", "ok": True, "tier": "T1",
+           "attempts": [{"rung": "codex:a:low", "tier": "T1"}, {"rung": "codex:b:high", "tier": "T3"}]}
+    row = ui.receipt_row(ui.Reader(p), p, rec, {"ok": True, "soft": True}, {})
+    assert row["verdict"] is None and row["outcome"] == "open"
+    assert (row["tier"], row["rung"]) == ("T3", "codex:b:high")          # the tier the last attempt really ran on
+
+
+def test_map_leaves_out_test_runs_and_the_week_counts_a_review_once():
+    """An evaluation run in a real project is not on its map; a review (an ephemeral run of its own) is counted in
+    its run's spend only, so the week line is the maps' sum here."""
+    base = demo.new_base()
+    try:
+        p = demo.build(base)
+        with mock.patch.dict(os.environ, demo.env(base)):
+            src = json.loads((p.runs / "demo-r-ok" / "run.json").read_text(encoding="utf-8"))
+            ev = {**src, "run_id": "eval-x", "label": "eval-hc1-x", "ts": src["ts"] + 1,
+                  "attempts": [{**src["attempts"][0], "ae_usd": 5.0}]}
+            (p.runs / "eval-x").mkdir()
+            (p.runs / "eval-x" / "run.json").write_text(json.dumps(ev), encoding="utf-8")
+            assert ui.is_test(ev, ui.scratch_roots(p))
+            d = ui.collect(p, quota_wait=False)
+    finally:
+        demo.remove(base)
+    m = the_map(d, demo.SHOP)
+    assert "eval-x" not in {r["run_id"] for r in m["receipts"]} and m["spend"]["usd"] < 1
+    assert round(d["week"]["usd"] - ui._usd(ev), 4) == round(sum(x["spend"]["usd"] for x in d["maps"]), 4)

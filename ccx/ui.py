@@ -1235,9 +1235,11 @@ def brief_notes(rd: Reader, run_dir: Path) -> list[int]:
     except OSError:
         return []
     seqs: list[int] = []
-    i = text.find(NOTES_HEAD)
+    j = text.find("\n## Task")                 # the notes sit above the task: a brief quoting the line is no note
+    j = j if j >= 0 else len(text)
+    i = text.find(NOTES_HEAD, 0, j)
     if i >= 0:
-        for line in text[i:].splitlines()[1:]:
+        for line in text[i:j].splitlines()[1:]:
             if not line.strip() or line.startswith("#"):        # the block ends at a blank line or the next heading
                 break
             m = _NOTE_LINE.match(line)
@@ -1247,13 +1249,26 @@ def brief_notes(rd: Reader, run_dir: Path) -> list[int]:
     return seqs
 
 
-def _outcome(rec: dict, verdict: dict | None) -> str:
-    """right / wrong / open: the person's verdict first, then a run that ended failed; a done run nobody judged is open."""
+# a run that ended for one of these reasons says nothing about whether the work (or a note it carried) was right
+NOT_WRONG = {"env", "quota", "user_stopped", "over_budget", "policy", "needs_write", "timeout", "no_answer"}
+
+
+def _hard(rec: dict, verdict: dict | None) -> dict | None:
+    """The person's own verdict, or None: an automatic (soft) one is not theirs."""
     v = verdict if verdict is not None else rec.get("verdict")
-    if v and v.get("ok") is not None:
+    return v if v and v.get("ok") is not None and not v.get("soft") else None
+
+
+def _outcome(rec: dict, verdict: dict | None) -> str:
+    """right / wrong / open: the person's verdict first, then a run that ended failed; a done run nobody judged, a
+    dismissed one, or one stopped by its machine, quota, budget, policy or the person, is open."""
+    v = _hard(rec, verdict)
+    if v:
         return "right" if v["ok"] else "wrong"
-    if rec.get("state") == "finished" and rec.get("ok") is False and rec.get("kind") not in ("env", "quota"):
-        return "wrong"                            # a run its machine or quota stopped says nothing about the notes
+    if rec.get("dismissed"):
+        return "open"
+    if rec.get("state") == "finished" and rec.get("ok") is False and rec.get("kind") not in NOT_WRONG:
+        return "wrong"
     return "open"
 
 
@@ -1275,10 +1290,11 @@ def receipt_row(rd: Reader, p: Paths, rec: dict, verdict: dict | None, piece_run
                          own_only=bool(cov.get("own_tests_only")))
             if cov.get("basis_changed"):
                 check["basis_changed"] = [_field(x) for x in (cov.get("edited") or [])[:3]]
-    v = verdict if verdict is not None else rec.get("verdict")
+    v = _hard(rec, verdict)
+    last = atts[-1] if atts else {}
     return {"run_id": rec["run_id"], "piece": piece_run.get(rec["run_id"], rec["run_id"]), "ts": rec.get("ts"),
-            "from": rec.get("caller"), "to": rec.get("to"), "tier": rec.get("tier"),
-            "rung": (atts[-1].get("rung") if atts else None) or rec.get("first_rung"), "rounds": len(atts),
+            "from": rec.get("caller"), "to": rec.get("to"), "tier": last.get("tier") or rec.get("tier"),
+            "rung": last.get("rung") or rec.get("first_rung"), "rounds": len(atts),
             "usd": _usd(rec), "running": rec.get("state") == "running", "ok": rec.get("ok"), "kind": rec.get("kind"),
             "check": check,
             "review": rv.get("verdict") if rv.get("verdict") not in (None, "not-run") else None,
@@ -1287,10 +1303,10 @@ def receipt_row(rd: Reader, p: Paths, rec: dict, verdict: dict | None, piece_run
             "notes": brief_notes(rd, p.runs / rec["run_id"])}
 
 
-def _map_threads(rd: Reader, root: Path, todos: list[dict]) -> tuple[list[dict], dict]:
-    """The board's threads (newest first) with who took part and whether one waits for the person, and the
-    messages between agents counted per pair (from -> to; to `all` counts once)."""
-    es = board_entries(rd, root)
+def _map_threads(rd: Reader, root: Path, todos: list[dict], since: float) -> tuple[list[dict], dict]:
+    """The board's threads (newest first, from messages since `since`) with who took part and whether one waits for the
+    person, and the messages between agents counted per pair (from -> to; to `all` counts once)."""
+    es = [e for e in board_entries(rd, root) if (_board_ts(e.get("ts")) or 0) >= since]
     wait = {}
     for x in todos:
         wait.setdefault(x["key"], x["kind"])
@@ -1313,18 +1329,18 @@ def _map_threads(rd: Reader, root: Path, todos: list[dict]) -> tuple[list[dict],
 
 
 def project_map(rd: Reader, p: Paths, pr: dict, runs: list[dict], verdicts: dict, piece_run: dict[str, str],
-                conv: dict | None, talks: list[dict], week_from: float) -> dict:
+                conv: dict | None, talks: list[dict], week_from: float, since: float = 0) -> dict:
     """P2-10: one project on one page. Middle: the agents and what they said to each other (board threads, `ccx
     discuss` talks, who sent work to whom); left: shared memory and the runs whose brief carried a note, with how
     they ended; right: the receipts; top: this week's actual spend by the rung it ran on. Read only, never a model."""
     root = Path(pr["path"])
     runs = sorted(runs, key=lambda r: -float(r.get("ts") or 0))
     rows = [receipt_row(rd, p, r, verdicts.get(r["run_id"]), piece_run) for r in runs]
-    threads, pairs = _map_threads(rd, root, (conv or {}).get("todos") or [])
+    threads, pairs = _map_threads(rd, root, (conv or {}).get("todos") or [], since)
     sent: dict[tuple, int] = {}
     for r in runs:
         if r.get("caller") and r.get("to"):
-            k = (str(r["caller"]), str(r["to"]))
+            k = (board.vendor_of(str(r["caller"])), board.vendor_of(str(r["to"])))   # named as the board does
             sent[k] = sent.get(k, 0) + 1
     names = {a for k in [*sent, *pairs] for a in k if a not in ("all", "user")}
     names |= {t["lead"]["agent"] for t in pr["tasks"] if t["lead"].get("agent")}
@@ -1362,12 +1378,12 @@ def project_map(rd: Reader, p: Paths, pr: dict, runs: list[dict], verdicts: dict
     for r in week:
         for a in r.get("attempts") or []:
             k = a.get("rung") or "?"
-            x = rungs.setdefault(k, {"rung": k, "tier": r.get("tier"), "usd": 0.0, "runs": 0})
+            x = rungs.setdefault(k, {"rung": k, "tier": a.get("tier") or r.get("tier"), "usd": 0.0, "runs": 0})
             x["usd"] = round(x["usd"] + float(a.get("ae_usd") or 0), 6)
         rv = r.get("review") or {}
-        if rv.get("usd"):                         # the review's own spend, under the rung that reviewed
-            k = rv.get("by") or "review"
-            x = rungs.setdefault(k, {"rung": k, "tier": None, "usd": 0.0, "runs": 0, "review": True})
+        if rv.get("usd"):                         # the review's own spend: a chip of its own beside the rung's
+            by = rv.get("by") or "?"
+            x = rungs.setdefault("review:" + by, {"rung": by, "tier": None, "usd": 0.0, "runs": 0, "review": True})
             x["usd"] = round(x["usd"] + float(rv["usd"]), 6)
         for k in {a.get("rung") or "?" for a in r.get("attempts") or []}:
             rungs[k]["runs"] += 1
@@ -1563,7 +1579,7 @@ def collect(p: Paths, project: Path | None = None, days: float = 7, rd: Reader |
               for e in quiet[:12]]
 
     providers = set((cfg.get("providers") or {}).keys())
-    week = [r for r in recs.values() if float(r.get("ts") or 0) >= now - 7 * 86400]
+    week = [r for r in shown.values() if float(r.get("ts") or 0) >= now - 7 * 86400]   # a review is in its run's
     hard = [v for v in verdicts.values() if not v.get("soft")]
     agents = sorted({pc["worker"] for pr in projects for t in pr["tasks"] for pc in _walk(t["pieces"])
                      if pc.get("worker")} | {x["agent"] for x in current})
@@ -1585,11 +1601,15 @@ def collect(p: Paths, project: Path | None = None, days: float = 7, rd: Reader |
     convs.sort(key=lambda c: -(c["last"] or 0))
     maps = []                                                 # P2-10: the home page, one map per project
     conv_of = {c["id"]: c for c in convs}
+    real_by_root: dict[Path, list[dict]] = {}                 # a test or evaluation run is not the project's work
+    for r in shown.values():
+        if not is_test(r, scratch):
+            real_by_root.setdefault(root_of(r), []).append(r)
     for pr in projects:
         root = Path(pr["path"])
         try:
-            maps.append(project_map(rd, p, pr, [r for r in shown.values() if root_of(r) == root], verdicts,
-                                    piece_run, conv_of.get(pr["id"]), talks, now - 7 * 86400))
+            maps.append(project_map(rd, p, pr, real_by_root.get(root, []), verdicts,
+                                    piece_run, conv_of.get(pr["id"]), talks, now - 7 * 86400, since))
         except Exception:  # noqa: BLE001 — the page still shows the rest
             continue
     from . import memsuggest

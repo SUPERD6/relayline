@@ -348,10 +348,12 @@
     return "";
   }
   function whoOrYou(w) { return vendorOf(w) === "user" ? `<span class="who you">${t("conv_you")}</span>` : who(vendorOf(w)); }
+  let MAPPID = null;
   function renderMap(pid) {
     const ms = maps();
     if (!ms.length) return renderOverview();          /* nothing worked on yet: the overview's first steps */
-    const m = ms.find(x => x.id === pid) || busiest(ms), pr = findProject(m.id);
+    const m = ms.find(x => x.id === pid) || ms.find(x => x.id === MAPPID) || busiest(ms), pr = findProject(m.id);
+    MAPPID = m.id;                                    /* the next poll keeps this project, it never jumps */
     let h = banner() + `<h1>${t("map_title", {p: m.name})}</h1><p class="lead">${t("map_intro")}</p>`;
     if (ms.length > 1) h += `<nav class="mapproj" aria-label="${esc(t("projects"))}">` + ms.map(x =>
       `<a class="chip${x.id === m.id ? " cur" : ""}" href="${mapHref(x.id)}"${x.id === m.id ? ` aria-current="page"` : ""}>${esc(x.name)}</a>`).join("") + `</nav>`;
@@ -371,7 +373,8 @@
     return `<p class="stat">${n ? `<span class="warn">${t("map_wait", {n})}</span>` : `<span class="good">${t("ov_nothing")}</span>`} · ${t("map_running", {n: running})} · <a href="#/all">${t("map_all")}</a></p>`;
   }
   function mapSpendHTML(m) {
-    const s = m.spend || {}, w = (D && D.week) || {}, ref = D && D.measured_ref;
+    const s = m.spend || {}, ref = D && D.measured_ref;
+    const w = maps().reduce((a, x) => ({usd: a.usd + ((x.spend || {}).usd || 0), runs: a.runs + ((x.spend || {}).runs || 0)}), {usd: 0, runs: 0});
     let h = `<h2>${t("map_spend")}</h2><p class="stat"><b class="big">${usd(s.usd || 0)}</b> ${t("map_spend_runs", {n: s.runs || 0})}</p>`;
     if ((s.rungs || []).length) h += `<div class="rungs">` + s.rungs.map(r => `<span class="chip"><span class="mono">${r.review ? t("map_rung_review") + " · " : ""}${esc(r.rung)}</span>${r.tier ? ` <i>${esc(r.tier)}</i>` : ""} · ${usd(r.usd)}${r.runs ? " · " + t("map_runs_n", {n: r.runs}) : ""}</span>`).join("") + `</div>`;
     h += `<p class="cost">${t("map_spend_all", {u: usd(w.usd || 0), n: w.runs || 0})}</p>`;
