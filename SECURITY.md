@@ -5,6 +5,9 @@ English · [中文](SECURITY.zh.md)
 ccx runs AI coding agents on your machine and wires them into each other. This page says what it runs, what it
 can change, and where the limits are, so you can decide what to allow.
 
+For where untrusted text can reach an agent (repository files, issues, board messages, memory notes) and what is
+left to you, see the [threat model](docs/threat-model.md).
+
 ## What ccx runs and changes
 
 | Part | What happens | Limit |
