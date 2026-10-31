@@ -894,9 +894,11 @@ def run(req: Request, p: Paths) -> dict:
                 i += 1
                 continue
             if (chk["passed"] and req.mode == "write" and left is not True and on_self_checked(cfg) == "rung"
+                    and not any(a.get("kind") == SELF_CHECKED for a in record["attempts"][:-1])
                     and _self_checked_now(p, record, cwd, chk)):
                 # P0-8, [escalate] on_self_checked = "rung": it passed only on tests this attempt wrote or changed,
-                # which is no evidence: one rung up, told to hold the code against the task text, not its own tests
+                # which is no evidence: one rung up, told to hold the code against the task text, not its own tests.
+                # Once per run: its tests stay in the chain's diff, so every later rung would match too
                 if bg_review is not None:
                     _finish_review(bg_review, record, p, keep=False)
                     bg_review = None
@@ -1032,7 +1034,8 @@ def run(req: Request, p: Paths) -> dict:
                 try:
                     from . import coverage
                     chk["covers"] = coverage.summarize(chk["cmd"], cwd, Path(snap.get("repo") or cwd), ed,
-                                                       coverage.new_tests(diff), coverage.added_to_tests(diff))
+                                                       coverage.new_tests(diff), coverage.added_to_tests(diff),
+                                                       coverage.rewritten_tests(diff))
                 except Exception:  # noqa: BLE001 — display only; the run's result stands without it
                     pass
                 if (coverage_self_checked(chk.get("covers")) and chk.get("passed") and not chk.get("unchanged_tree")
@@ -1278,7 +1281,7 @@ def _self_checked_now(p: Paths, record: dict, cwd: Path, chk: dict) -> bool:
         diff = changes(cwd, snap)[1]
         return coverage.self_checked(coverage.summarize(chk["cmd"], cwd, Path(snap.get("repo") or cwd),
                                                         edited_tests(diff), coverage.new_tests(diff),
-                                                        coverage.added_to_tests(diff)))
+                                                        coverage.added_to_tests(diff), coverage.rewritten_tests(diff)))
     except Exception:  # noqa: BLE001 — not known: no climb
         return False
 
@@ -1354,10 +1357,14 @@ def compact(record: dict) -> dict:
                             f"ask again on a stronger tier (`ccx resume {record['run_id']} \"answer the question\" "
                             f"--tier T2`) or read it yourself"))
         if record["kind"] == SELF_CHECKED:
-            # P0-8: passed, but on the sub-agent's own yardstick (still ok, exit 0): the lead checks it against the task
-            out["needs_lead"] = ("ok_self_checked: the check ran only tests the sub-agent wrote or changed in this run, "
-                                 "not independently verified")
-            out["hint"] = ("hold the change against the task text yourself (each name, signature, return value, error "
+            # P0-8: passed, but on the sub-agent's own yardstick (still ok, exit 0): the lead checks it against the task.
+            # A review told to do just that, which passed, leaves a hint only (the label stays)
+            from .coverage import reviewed_ok
+            if not reviewed_ok(record):
+                out["needs_lead"] = ("ok_self_checked: the check ran only tests the sub-agent wrote or changed in this "
+                                     "run, not independently verified")
+            out["hint"] = (("the review held it against the task text and passed; " if reviewed_ok(record) else "") +
+                           "hold the change against the task text yourself (each name, signature, return value, error "
                            "and case it states), or give it a check on tests that existed before the run: "
                            f"`ccx resume {record['run_id']} \"...\" --check \"...\"`")
         if record["kind"] == "needs_write":

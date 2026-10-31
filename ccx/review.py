@@ -585,7 +585,8 @@ def _covers(check: dict | None, cwd: Path, snap: dict | None, edited: list[str],
     try:
         from . import coverage
         return coverage.summarize(check["cmd"], cwd, Path((snap or {}).get("repo") or cwd), edited,
-                                  coverage.new_tests(diff), coverage.added_to_tests(diff))
+                                  coverage.new_tests(diff), coverage.added_to_tests(diff),
+                                  coverage.rewritten_tests(diff))
     except Exception:  # noqa: BLE001 — weak evidence; never stops the review
         return None
 
@@ -833,11 +834,15 @@ def review_run(req: Request, p: Paths, cfg: dict, record: dict, cwd: Path, run_d
                     int(rc.get("min_lines", 50)))
     weak = False
     chk = record.get("check") or {}
-    covers = chk.get("covers") or _covers(chk or None, cwd, snap, edited, diff)
+    covers = chk.get("covers")
     from .coverage import on_self_checked, self_checked
     # P0-8: a check that passed only on tests this run wrote or changed: reviewed against the task text whatever
-    # the daily cap or `weak` say ([escalate] on_self_checked = review | rung; off = only the label)
-    selfc = bool(chk.get("passed") and self_checked(covers) and on_self_checked(cfg) != "off")
+    # the daily cap or `weak` say ([escalate] on_self_checked = review | rung; off = only the label). `--review off`
+    # and [review] mode = off still win: then no review runs at all
+    selfc = False
+    if chk.get("passed") and actual and on_self_checked(cfg) != "off":
+        covers = covers or _covers(chk, cwd, snap, edited, diff)
+        selfc = self_checked(covers)
     if not why and mode == "auto" and actual and selfc:
         why, weak = "check basis self-authored: every test it ran was written or changed by the sub-agent", True
     elif why and selfc:
@@ -879,7 +884,8 @@ def review_run(req: Request, p: Paths, cfg: dict, record: dict, cwd: Path, run_d
                     int(rc.get("max_diff_chars", 12000)), record.get("check"), edited, nck.brief_note(nc),
                     cwd=cwd if rc.get("context", False) else None, **({"focus": focus} if focus else {}),
                     repro=repro_mode != "off",
-                    rubric=coverage_rubric(rc), self_checked=selfc, covers=covers)
+                    rubric=coverage_rubric(rc), self_checked=selfc,
+                    covers=covers or _covers(chk or None, cwd, snap, edited, diff))
     usd, tried = 0.0, []
     for agent, model, effort in cands[:2]:
         if cancel is not None and cancel.is_set():
