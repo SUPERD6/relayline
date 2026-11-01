@@ -238,6 +238,9 @@ def turn_output(agent: str, data: dict, threshold: int) -> str:
             if context_share.setting(load_config(paths()), "turn", True):
                 parts.append(context_share.turn_delta(paths(), root, reader))   # what the other tools just did
             sync_in_background(root)                             # the private GitHub copy, when configured
+    if lead:                                                     # background runs that finished (ccx/wake.py)
+        from .. import wake
+        parts.extend(wake.take(paths(), agent, data.get("session_id"), Path(data.get("cwd") or Path.cwd())))
     if lead and agent == "claude":                               # the context hint is advice for the lead only
         parts.append(context.hint(paths(), agent, data, threshold))
     return "\n\n".join(x for x in parts if x)
