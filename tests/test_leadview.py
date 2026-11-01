@@ -15,7 +15,7 @@ from ccx import leadview  # noqa: E402
 PASSED = {"run_id": "r1", "agent": "codex", "tier": "T1", "model": "m/low", "ok": True, "status": "done",
           "summary": "added x", "files_changed": ["a.py"], "verification": "pytest ok", "open_questions": [],
           "next_step": "", "tokens": {"input": 1, "cached": 2, "output": 3}, "diffstat": "1 file changed",
-          "review": {"verdict": "pass", "by": "claude:sonnet", "notes": ["[note] fine"], "usd": 0.01},
+          "review": {"verdict": "pass", "by": "claude:sonnet", "usd": 0.01},
           "check": {"cmd": "pytest -q", "passed": True, "exit": 0}, "route": {"rung": "T1"},
           "recap": "ccx run r1: status=done ok=true check=passed review=pass cost=~$0.01; next: ccx show r1"}
 
@@ -26,12 +26,12 @@ class TestClean(unittest.TestCase):
             os.environ.pop("CCX_LEAD_VIEW", None)
             obj, one = leadview.render(PASSED, {})
         self.assertTrue(one)
-        self.assertEqual(set(obj), {"run_id", "ok", "status", "summary", "files_changed", "diffstat", "check", "view",
-                                    "recap"})
+        self.assertEqual(set(obj), {"run_id", "agent", "model", "ok", "status", "summary", "files_changed",
+                                    "diffstat", "check", "review", "view", "recap"})
         self.assertEqual(list(obj)[-1], "recap")                     # last key: survives `| tail`
         s = leadview.dumps(obj, one)
         self.assertNotIn("\n", s)
-        self.assertLess(len(s), len(json.dumps(PASSED, indent=2)) / 2)
+        self.assertLess(len(s), len(json.dumps(PASSED, indent=2)) * 0.7)
 
     def test_anything_for_the_lead_keeps_the_whole_result(self):
         cases = [dict(PASSED, ok=False), dict(PASSED, status="partial"), dict(PASSED, hint="see"),
@@ -42,7 +42,12 @@ class TestClean(unittest.TestCase):
                  dict(PASSED, check={"passed": None, "status": "unchanged tree"}),
                  dict(PASSED, check={"passed": False, "exit": 1}),
                  {k: v for k, v in PASSED.items() if k != "check"},       # no check: nothing was verified
-                 dict(PASSED, review={"verdict": "issues"}), dict(PASSED, review={"verdict": "pass", "error": "e"})]
+                 dict(PASSED, review={"verdict": "issues"}), dict(PASSED, review={"verdict": "pass", "error": "e"}),
+                 dict(PASSED, review={"verdict": "pass", "notes": ["[should] add a test for y"]}),
+                 dict(PASSED, next_step="run the migration first"),
+                 dict(PASSED, autonomy={"level": "L2", "merge": {"merged": False, "why_not": "x"}}),
+                 dict(PASSED, project={"name": "p"}),
+                 dict(PASSED, check={"passed": True, "covers": "x", "covers_unknown": True})]
         for c in cases:
             obj, one = leadview.render(c, {})
             self.assertFalse(one, c)
@@ -78,6 +83,17 @@ class TestRunOutput(Env):
         self.assertEqual(whole["check"]["passed"], True)
         waited = self.ccx("show", out["run_id"], "--wait", "5").stdout.strip()
         self.assertEqual(json.loads(waited)["view"], "line")
+
+    def test_bg_wait_hands_the_lead_one_line_and_logs_the_whole(self):
+        r = self.ccx("run", "--from", "claude", "--to", "codex", "--model", "gpt-6-luna", "--effort", "low",
+                     "--no-ab", "--review", "off", "--check", "python -c pass", "--bg", "--wait", "90",
+                     "implement thing")
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        out = json.loads(r.stdout.strip())
+        self.assertEqual(len(r.stdout.strip().splitlines()), 1)
+        self.assertEqual(out["view"], "line")
+        log = (self.hub / "ccx" / "runs" / out["run_id"] / "bg.log").read_text(encoding="utf-8", errors="replace")
+        self.assertIn('  "tokens"', log)                      # the child's log keeps the whole result
 
     def test_output_lead_full_is_as_before(self):
         r = self.ccx("run", "--from", "claude", "--to", "codex", "--model", "gpt-6-luna", "--effort", "low",

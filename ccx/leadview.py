@@ -1,10 +1,10 @@
 """What the lead is handed when nothing needs its eyes (P0-11 item 3): one line instead of the whole result.
 
 A lead re-reads everything it was handed on every later request of its conversation, so the result of a run is paid
-for again and again: a passed run's compact JSON was ~1.0-2.3 KB (median ~1.3 KB over 62 real runs with a check and
-a review, 2026-10-24..31), most of it tokens, the review's notes, the route and empty fields. When the check passed
-and the review passed (or none ran) and nothing asks for the lead (no needs_lead, hint, kind, edited tests,
-namecheck hits, policy blocks, weak or unchanged-tree check, changed yardstick), the lead gets one JSON line:
+for again and again (129 passed write runs of a real hub, 2026-10: median 860 bytes whole, 509 as one line). When
+the check passed and the review passed (or none ran) and nothing asks for the lead (no needs_lead, hint, kind,
+edited tests, namecheck hits, policy blocks, open questions, next step, review notes, L2 merge or project answer;
+no weak, unchanged-tree, unknown-coverage or changed-yardstick check), the lead gets one JSON line:
 what was done (summary, files, diffstat), the check as it was (cmd, passed, exit, what it covers), and the recap (status, check, review, cost, `ccx show <id>` for the rest).
 Everything else is as before, whole. `ccx show <id>` always gives the whole result.
 
@@ -18,14 +18,15 @@ import os
 SUMMARY_CHARS = 300
 # any of these in a result means the lead has something to look at: the whole result goes out
 ATTENTION = ("needs_lead", "hint", "kind", "edited_tests", "namecheck", "policy_blocked", "cost_chain_error",
-             "base", "fix_round", "retry_after")
+             "base", "retry_after", "open_questions", "next_step",
+             "autonomy", "project")      # an L2 merge's outcome (merged, why not, undo), a project's approval rules
 
 
 def mode(cfg: dict) -> str:
-    env = os.environ.get("CCX_LEAD_VIEW")
+    env = (os.environ.get("CCX_LEAD_VIEW") or "").strip().lower()
     if env in ("full", "line"):
         return env
-    return "full" if str((cfg.get("output") or {}).get("lead", "line")) == "full" else "line"
+    return "full" if str((cfg.get("output") or {}).get("lead", "line")).strip().lower() == "full" else "line"
 
 
 def clean(res: dict) -> bool:
@@ -38,21 +39,24 @@ def clean(res: dict) -> bool:
             or c.get("basis_changed") or c.get("covers_unknown"):
         return False
     rv = res.get("review") or {}
-    if rv and (rv.get("verdict") != "pass" or rv.get("error") or rv.get("downgraded")):
-        return False
-    return not res.get("open_questions")
+    if rv and (rv.get("verdict") != "pass" or rv.get("error") or rv.get("downgraded") or rv.get("notes")
+               or rv.get("edited_tests")):
+        return False                  # a pass with [should] / [note] items: the lead reads them
+    return True                       # route (and its "learns" tip about routing, not this result) stays out
 
 
 def line(res: dict) -> dict:
     said = " ".join(str(res.get("summary") or "").split())
     if len(said) > SUMMARY_CHARS:
         said = said[: SUMMARY_CHARS - 3] + "..."
-    out = {"run_id": res["run_id"], "ok": True, "status": "done", "summary": said,
-           "files_changed": res.get("files_changed", [])}
+    out = {"run_id": res["run_id"], "agent": res.get("agent"), "model": res.get("model"), "ok": True,
+           "status": "done", "summary": said, "files_changed": res.get("files_changed", [])}
     for k in ("diffstat", "worktree", "continued_from", "chain", "escalated"):
         if res.get(k):
             out[k] = res[k]
     out["check"] = res["check"]       # as it was (cmd, passed, exit, covers): leads, scripts and the receipt read it
+    if res.get("review"):
+        out["review"] = {k: res["review"][k] for k in ("verdict", "by") if res["review"].get(k)}
     out["view"] = "line"              # the rest: `ccx show <run_id>`
     out["recap"] = res.get("recap", "")
     return out

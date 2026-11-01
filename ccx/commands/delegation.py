@@ -63,7 +63,9 @@ def _background(argv: list[str], p, procs: list | None = None) -> dict:
     from .common import detach
     run_id = ledger.new_run_id(p)                # its folder made here: no other run can draw the same id
     log = p.runs / run_id / "bg.log"
-    proc = detach(_without_wait(argv), log, {"CCX_RUN_ID": run_id})
+    # its stdout is a log the waiting parent reads (_child_extras): always the whole result there; the parent hands
+    # the lead the one line (ccx/leadview.py)
+    proc = detach(_without_wait(argv), log, {"CCX_RUN_ID": run_id, "CCX_LEAD_VIEW": "full"})
     if procs is not None:
         procs.append(proc)
     # peek: a look now, without waiting (it follows a review fix round too). Named `check` earlier: renamed so it
