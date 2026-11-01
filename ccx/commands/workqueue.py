@@ -16,6 +16,7 @@ from ..config import load_config, paths
 from ..delegate import Request, compact, run, verify
 from ..gitstate import SHARED_WHY, clean as _clean, in_git as _in_git
 from ..modes import resolve_mode
+from ..workspace import canonical, worktree_repo
 from .common import _caller, _out, resolve
 
 
@@ -228,14 +229,14 @@ def _top(root: str) -> str | None:
 def _here(cwd: Path, root: Path) -> bool:
     """A run in this project: in its folder, or in a ccx worktree of it (workspace.make_worktree's layout, named
     after the repository's top folder, which is not the project folder when the queue lives in a subfolder)."""
-    cwd, root = cwd.resolve(), root.resolve()
+    cwd, root = canonical(cwd), canonical(root)
     if cwd == root:
         return True
     tops = {root}
     top = _top(str(root))
     if top:
-        tops.add(Path(top).resolve())
-    return any(cwd.parent == t.parent / ".ccx-worktrees" / t.name for t in tops)
+        tops.add(canonical(top))
+    return worktree_repo(cwd) in tops
 
 
 def _mode(it: dict) -> dict:
@@ -251,8 +252,9 @@ def _tree_fields(rec: dict) -> tuple[dict, str | None]:
     (`ccx q done <id> --ok 1`; queue.accepted). In the project folder the fields are cleared, so a worktree or a
     verdict left from an earlier run of the item does not stick."""
     cwd = str(rec.get("cwd") or "")
-    if "/.ccx-worktrees/" not in cwd.replace("\\", "/"):
+    if worktree_repo(cwd) is None:
         return {"worktree": None, "branch": None, "verdict": None}, None
+    cwd = str(canonical(cwd))
     from ..lanes import commit_block
     from ..workspace import _git
     sha = commit_block(rec)

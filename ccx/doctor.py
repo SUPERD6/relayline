@@ -7,7 +7,7 @@ import subprocess
 import sys
 
 from . import memory
-from .config import Paths, claude_home, codex_home, load_config
+from .config import Paths, claude_home, codex_home, load_config, worktree_location
 from .runners import bin_argv, find_bin
 from .sync import BEGIN, PLUGIN, codex_hook_needs_call_operator, plugin_tools
 
@@ -135,7 +135,8 @@ def codex_lead_sandbox(config_text: str, hub, windows: bool | None = None, rule:
     ws = cfg.get("sandbox_workspace_write") or {}
 
     def norm(x) -> str:
-        return str(Path(x).expanduser().resolve()).rstrip("\\/").lower()
+        from .workspace import canonical
+        return str(canonical(Path(x).expanduser())).rstrip("\\/").lower()
     roots = {norm(r) for r in ws.get("writable_roots") or []}
     hub_ok = any(norm(hub) == r or norm(hub).startswith(r + ("\\" if "\\" in r else "/")) for r in roots)
     missing = [w for w, ok in (("the hub is not a writable root", hub_ok),
@@ -280,6 +281,21 @@ def config_row(p: Paths) -> tuple[str, str]:
     return "ok", f"hub {p.hub}{env}; " + (", ".join(str(f) for f in files) or "no config file (defaults)")
 
 
+def worktree_row(p: Paths) -> tuple[str, str]:
+    """Placement for new worktrees; existing runs keep the cwd saved in their records."""
+    from .workspace import SIBLING_WORKTREE_DIR
+    try:
+        location = worktree_location(load_config(p))
+    except (OSError, ValueError, TypeError, AttributeError) as e:
+        return "FAIL", str(e)
+    if location == "inside":
+        return "ok", ("inside: <repo>/.ccx/worktrees/<run_id>, within the project folder; "
+                      "ignore .ccx/ in .gitignore (ccx warns before creating one if it is not ignored)")
+    sibling = f"<repo parent>/{SIBLING_WORKTREE_DIR}/<repo name>/<run_id>"
+    return "ok", (f"sibling: {sibling}, beside the repository "
+                  "(default, keeps the existing directory layout)")
+
+
 # Rows about ccx's own workings, not something a person acts on while they are fine: shown with --verbose, or when
 # their state is not ok (then they say what to do). Walkthrough 2026-10-29: a new user asked what "routing prior"
 # and "tier policy" meant and whether to do something about them.
@@ -306,6 +322,7 @@ def doctor(p: Paths, codex_lead: bool = False, verbose: bool = False) -> bool:
     except Exception as e:  # noqa: BLE001
         add("tiers.toml", "FAIL", str(e))
     add("ccx config", *config_row(p))
+    add("worktree location", *worktree_row(p))
     try:                                   # a broken layout.toml: keep the table, skip the rows that read it
         lay = p.layout
     except ValueError as e:

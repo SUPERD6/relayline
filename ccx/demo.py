@@ -31,7 +31,7 @@ import tempfile
 import time
 from pathlib import Path
 
-from .config import Paths
+from .config import Paths, load_config, set_setting, worktree_location
 
 DEMO_MARK = "ccx-demo.json"
 DEMO_DIRS = ("hub", "projects", "homes")          # all build() writes under its folder
@@ -248,11 +248,12 @@ def _shop(p: Paths, root: Path, now: float, notes: list[dict]) -> dict:
     return out
 
 
-def _docs(p: Paths, root: Path, now: float, notes: list[dict]) -> dict:
+def _docs(p: Paths, root: Path, now: float, notes: list[dict], location: str = "sibling") -> dict:
     """docs-site: a Codex lead's work queue of three pieces, one done and merged, one done in a worktree that is not
     merged yet, one waiting on it."""
     from . import project
     from . import queue as wq
+    from .workspace import worktree_path
     root.mkdir(parents=True, exist_ok=True)
     _write(root / "index.md", "# Docs\n\nDemo pages (ccx demo data).\n")
     project.init(root)
@@ -272,7 +273,7 @@ def _docs(p: Paths, root: Path, now: float, notes: list[dict]) -> dict:
               notes=(notes[2],))
     _verdict(p, "demo-q1", True, now - 6.5 * 3600)
     wq.update(root, "q1", status="done", run="demo-q1", agent="claude", cost_usd=0.0021, verdict=True)
-    wt = str(root.parent / ".ccx-worktrees" / root.name / "demo-q2")
+    wt = str(worktree_path(root, "demo-q2", location))
     _run(p, "demo-q2", root, "Add a search box (client side, no service)", now - 2 * 3600, to="codex",
          model="gpt-6-luna", effort="medium", caller="codex", lead=None, label="q:q2", usd=0.0064,
          result={"status": "done", "summary": "Search box with a prebuilt JSON index (38 KB); no network calls.",
@@ -327,7 +328,8 @@ def _claude_session(home: Path, root: Path, now: float) -> None:
     """One fake Claude Code lead conversation in shop-api: the page shows it as the current lead, and the switch-lead
     button builds its handoff from it (`ccx handoff --from-transcript claude`), as with a real session file."""
     from .transcript import CLAUDE_SLUG_MAX, long_path
-    slug = re.sub(r"[^A-Za-z0-9]", "-", str(root.resolve()))
+    from .workspace import canonical
+    slug = re.sub(r"[^A-Za-z0-9]", "-", str(canonical(root)))
     if len(slug) > CLAUDE_SLUG_MAX:              # as Claude Code names a long folder: cut, plus a suffix
         slug = slug[:CLAUDE_SLUG_MAX] + "-demo"
     f = long_path(home / "projects", len(slug) + 60) / slug / f"{LEAD_SESSION}.jsonl"   # Windows: past 260 chars
@@ -353,7 +355,8 @@ def _claude_session(home: Path, root: Path, now: float) -> None:
 
 
 def build(base: Path | None = None, now: float | None = None) -> Paths:
-    """Write the demo under `base` (default: a new folder in the system's temporary folder) and return its hub."""
+    """Write the demo under `base` (default: a new folder in the system's temporary folder) and return its hub.
+    CCX_DEMO_WORKTREE_LOCATION seeds this demo's own config without reading the caller's hub."""
     base = Path(base).resolve() if base else new_base()
     now = now or time.time()
     e = env(base)
@@ -379,9 +382,13 @@ def build(base: Path | None = None, now: float | None = None) -> Paths:
     saved = {k: os.environ.get(k) for k in e}
     os.environ.update(e)                       # project.init / board / queue read nothing else, but be sure
     try:
+        demo_location = os.environ.get("CCX_DEMO_WORKTREE_LOCATION")
+        if demo_location is not None:
+            set_setting(p, "worktree.location", demo_location)
+        location = worktree_location(load_config(p))
         notes = _memory(p)
         _shop(p, shop, now, notes)
-        _docs(p, docs, now, notes)
+        _docs(p, docs, now, notes, location)
         _ledger_month(p, now, [shop, docs])
         _claude_session(Path(e["CLAUDE_CONFIG_DIR"]), shop, now)
         (projects / QUIET).mkdir(parents=True, exist_ok=True)
@@ -414,7 +421,8 @@ def _rmtree(d: Path) -> None:
     260 characters (the fake session file is written through the Windows long-path prefix; the tree is removed
     through it too)."""
     if os.name == "nt" and not str(d).startswith("\\\\"):
-        d = Path("\\\\?\\" + str(Path(d).resolve()))
+        from .workspace import canonical
+        d = Path("\\\\?\\" + str(canonical(d)))
     def again(fn, path, _exc):
         try:
             os.chmod(path, stat.S_IWRITE)

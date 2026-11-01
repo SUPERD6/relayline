@@ -43,7 +43,7 @@ from .review import review_run as _review  # noqa: F401
 from .verdicts import (REASONS, SOFT_AFTER_H, _hard_verdict, _soft_verdict, soft_verdicts, verify,  # noqa: F401
                        verify_builtin)
 from .workspace import (_git, chain_snapshot, diffstat, make_worktree, mark_run_end, run_check,  # noqa: F401
-                        run_snapshot, undo, undo_snapshot, write_end_tree)
+                        run_snapshot, undo, undo_snapshot, worktree_repo, write_end_tree)
 
 AGENTS = DELEGATE_AGENTS
 
@@ -1488,7 +1488,7 @@ def compact(record: dict) -> dict:
         out["namecheck"] = [line(h) for h in record["namecheck"]["hits"][:5]]
     if record.get("edited_tests") and "edited_tests" not in out:
         out["edited_tests"] = record["edited_tests"]
-    if record["cwd"] and "/.ccx-worktrees/" in record["cwd"].replace("\\", "/"):
+    if worktree_repo(record["cwd"]) is not None:
         out["worktree"] = record["cwd"]
     if record.get("base_note"):                     # --worktree on a dirty project: its check ran on HEAD's code
         out["base"] = record["base_note"]
