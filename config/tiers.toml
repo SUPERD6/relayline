@@ -225,6 +225,12 @@ max_machine_turns = 6
 # ccx 检查它是私人的、不是项目本身的仓库；对话板同步到该仓库的一个 issue，最多每 10 分钟拉一次。
 github = ""
 
+[run]
+# 一次派活（含升级重试、审查、修复轮）累计花到这么多（API 等价美元）就停，收据写"budget cap reached"；0 = 不限（默认）。
+# 每次可用 ccx run/resume --max-usd 覆盖（只有 run/resume 读它）。正在跑的那一步不会被中途掐断：在两步之间检查，
+# 所以最多超出一步（一趟尝试，或一次审查）。
+max_usd = 0
+
 [wake]
 # 后台派活（ccx run --bg）跑完时主动告诉主导一行结论，主导不用轮询（ccx/wake.py）：Claude Code 主导走它自己的收件箱
 # （跨会话消息，ccx 后台进程继承了它的 CLAUDE_CODE_MESSAGING_SOCKET），否则留给下一轮的钩子。主导正用 --wait 等着时不发。
