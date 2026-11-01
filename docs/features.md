@@ -2,6 +2,37 @@
 
 English · [中文](features.zh.md) · back to the [README](../README.md)
 
+## See delegated work
+
+`ccx ui` links to **Runs** (`/runs` or `/#/runs`). All saved runs, including live ones, have project/status/date
+filters, sender, agent:model:effort, task, API-equivalent cost, wall time and receipt. Lists and details refresh
+every five seconds. Each `/runs/<id>` page has five open sections:
+
+- Brief, shared context and a collapsible final prompt.
+- Activity from Codex exec JSON/rollout or Claude stream-json: reads, commands with recorded exits, changes and
+  messages. While exec stdout is buffered, running runs use their native session file when available. Missing
+  times/exits remain unknown; at most 1200 recent events are shown. Artifact truncation is marked.
+- Checks, `covers`, `basis_changed`, `added_to`, and the last 800 output characters.
+- Reviewer, verdict, original `[must]`/`[should]` items and linked repair rounds.
+- Receipt: request count, first input prefix, cost, recorded quota units, wall time and `ccx show` kind. Snapshot
+  diff reuses the decision-card reader. Undo and verdict actions open the existing two-step card.
+
+The home and conversation pages include a command composer. Plain text previews a read-only `ccx run`; explicit
+commands are limited to `ccx run`, `say`, `review`, `discuss`, `show`, with an option allowlist. `ccx review ID` is
+a UI shorthand that previews an actual read-only run; there is no CLI review verb. Its full brief, result and
+snapshot diff are saved as a review artifact inside the source run, and argv passes only `--brief-file <path>`
+so a large diff does not exceed Windows' command-line limit. Select a project, read the
+exact argv and cost estimate (unknown when unavailable), then confirm with a separate click. Its nonce expires
+after 60 seconds and works once. Editing the draft clears the preview. Input is capped at 4000 characters.
+No shell is involved; arbitrary cwd/file-input options and shell checks are refused. Stop, undo and resume stay
+on decision cards. Ledger audit events and board messages carry `via=ui`, without duplicating spending rows.
+Demo spending actions confirm as a simulation and start no agents.
+
+While the UI server is open, its observer writes deduplicated `kind: run` start/end board notices, shown beside
+ordinary threads with links to details. Finished historical runs are not backfilled; notices are not emitted
+while the UI is closed. The delegation engine is unchanged. `ccx demo` enriches its isolated fixtures on opening
+the live UI; static export remains read-only.
+
 ## Seven things it does
 
 | | What | Where it stands |
