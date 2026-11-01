@@ -1,5 +1,7 @@
 {
   "zh": {
+    "runs_pages": "运行分页", "runs_previous": "上一页", "runs_next": "下一页", "runs_page": "第 {n} 页，共 {total} 次运行",
+    "chat_not_delegated": "路由决定：不派活",
     "runs_nav": "运行", "runs_open": "查看运行 →", "runs_lead": "所有保存的运行，包含正在跑的；每 5 秒刷新。",
     "runs_all": "全部", "runs_project": "项目", "runs_status": "状态", "runs_from": "开始日期", "runs_until": "结束日期",
     "runs_time": "时间", "runs_who": "谁派给谁（智能体:模型:推理）", "runs_task": "任务", "runs_cost": "API 等价费用", "runs_wall": "墙钟", "runs_receipt": "收据",
@@ -292,6 +294,8 @@
     "tok_col_rewritten": "重写"
   },
   "en": {
+    "runs_pages": "Run pages", "runs_previous": "Previous", "runs_next": "Next", "runs_page": "Page {n}, {total} runs total",
+    "chat_not_delegated": "Routing decision: not delegated",
     "runs_nav": "Runs", "runs_open": "View run →", "runs_lead": "All saved runs, including live ones; refreshed every 5 seconds.",
     "runs_all": "All", "runs_project": "Project", "runs_status": "Status", "runs_from": "From date", "runs_until": "Until date",
     "runs_time": "Time", "runs_who": "From → agent:model:effort", "runs_task": "Task", "runs_cost": "API-equivalent cost", "runs_wall": "Wall time", "runs_receipt": "Receipt",

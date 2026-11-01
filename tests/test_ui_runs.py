@@ -49,7 +49,8 @@ def fixture_run(tmp_path):
     rec = put_run(p.hub, "run-one", root, check={"cmd": "pytest -q tests/test_one.py", "exit": 0,
         "passed": True, "tail": "x" * 1000, "covers": {"files": ["tests/test_one.py"],
         "basis_changed": True, "edited": ["tests/test_one.py"], "added_to": ["tests/test_two.py"]}},
-        review={"by": "claude:sonnet:medium", "verdict": "issues", "issues": ["[must] <bad>", "[should] clarity"]})
+        review={"by": "claude:sonnet:medium", "verdict": "issues", "issues": ["[must] <bad>"],
+                "notes": ["[should] clarity"]})
     d = p.runs / "run-one"
     (d / "brief.md").write_text("Read <script> literally", encoding="utf-8")
     (d / "shared-context.md").write_text("Project context", encoding="utf-8")
@@ -140,6 +141,74 @@ def test_running_incremental_append_waits_for_complete_lines(fixture_run):
     assert b["cursor"] == 2
 
 
+@pytest.mark.parametrize("rewrite", ["same_length", "shorter", "longer", "replace"])
+def test_activity_rewrite_restarts_reader_and_client_cursor(fixture_run, rewrite):
+    p, _, _ = fixture_run
+    d = p.runs / "run-one"
+    f = d / "events.0.log"
+    def line(text):
+        return json.dumps({"type": "item.completed", "item": {"type": "agent_message", "text": text}}) + "\n"
+    old = "old-long" if rewrite == "shorter" else "old"
+    new = "new-long" if rewrite == "longer" else "new"
+    f.write_text(line(old), encoding="utf-8")
+    rd = ui.Reader(p)
+    first = ui.full_run(rd, "run-one")["activity"]
+    before = f.stat()
+    if rewrite == "replace":
+        replacement = d / "replacement.log"
+        replacement.write_text(line(new), encoding="utf-8")
+        os.utime(replacement, ns=(before.st_atime_ns, before.st_mtime_ns))
+        replacement.replace(f)                    # equal length and preserved mtime, different file identity
+    else:
+        f.write_text(line(new), encoding="utf-8")
+        os.utime(f, ns=(before.st_atime_ns, before.st_mtime_ns + 1_000_000))
+    fresh = ui.full_run(rd, "run-one", first["cursor"], first["source"])["activity"]
+    assert fresh["reset"] and fresh["source"] != first["source"]
+    assert [e["text"] for e in fresh["events"]] == [new]
+    assert ui.full_run(rd, "run-one", fresh["cursor"], fresh["source"])["activity"]["events"] == []
+
+
+def test_deep_json_line_does_not_hide_the_next_activity(fixture_run):
+    p, _, _ = fixture_run
+    valid = json.dumps({"type": "item.completed", "item": {"type": "agent_message", "text": "after deep JSON"}})
+    (p.runs / "run-one" / "events.0.log").write_text("[" * 3000 + "0" + "]" * 3000 + "\n" + valid + "\n", encoding="utf-8")
+    activity = ui.full_run(ui.Reader(p), "run-one")["activity"]
+    assert [e["text"] for e in activity["events"]] == ["after deep JSON"]
+
+
+def test_review_should_notes_are_preserved_separately_from_must_issues(fixture_run):
+    p, _, _ = fixture_run
+    review = ui.full_run(ui.Reader(p), "run-one")["review"]
+    assert review["issues"] == ["[must] <bad>"]
+    assert review["notes"] == ["[should] clarity"]
+
+
+def test_runs_page_is_bounded_and_refresh_reads_only_changed_runs(fixture_run, monkeypatch):
+    p, root, _ = fixture_run
+    now = time.time()
+    for i in range(205):
+        put_run(p.hub, f"page-{i}", root, ts=now + i)
+    rd = ui.Reader(p)
+    calls = []
+    original = ui._visible_brief
+    def read_brief(d):
+        calls.append(d.name)
+        return original(d)
+    monkeypatch.setattr(ui, "_visible_brief", read_brief)
+    first = ui.runs_view(rd)
+    assert len(first["runs"]) == 200 and first["total"] == 206 and first["has_next"]
+    assert len(calls) == 206
+    calls.clear()
+    second = ui.runs_view(rd, page=1)
+    assert len(second["runs"]) == 6 and second["has_previous"] and not second["has_next"]
+    assert not ({r["run_id"] for r in first["runs"]} & {r["run_id"] for r in second["runs"]})
+    assert calls == []
+    put_run(p.hub, "page-204", root, ts=now + 204, kind="review_failed")
+    updated = ui.runs_view(rd)
+    assert calls == ["page-204"] and updated["runs"][0]["status"] == "review_failed"
+    assert len(ui.runs_view(rd, limit=1000)["runs"]) == 200
+
+
 def test_running_uses_live_tool_session_before_buffered_exec_is_saved(fixture_run, monkeypatch, tmp_path):
     p, root, rec = fixture_run
     rec.update(state="running", session_id="session-one")
@@ -150,6 +219,25 @@ def test_running_uses_live_tool_session_before_buffered_exec_is_saved(fixture_ru
     monkeypatch.setattr(ui, "_session_file", lambda *a: f)
     activity = ui.full_run(ui.Reader(p), "run-one")["activity"]
     assert activity["events"][0]["text"] == "rg test"
+
+
+def test_resumed_live_activity_contains_only_this_runs_session_events(fixture_run, monkeypatch, tmp_path):
+    p, _, rec = fixture_run
+    since = time.time()
+    rec.update(state="running", resumed_from="previous-run", session_id="shared-session", ts=since)
+    (p.runs / "run-one" / "run.json").write_text(json.dumps(rec), encoding="utf-8")
+    def event(text, ts=None):
+        return json.dumps({"timestamp": ts, "type": "item.completed", "item": {"type": "agent_message", "text": text}}) + "\n"
+    session = tmp_path / "shared-session.jsonl"
+    session.write_text(event("old history", since - 10) + event("undated history") + event("this run", since + 1), encoding="utf-8")
+    monkeypatch.setattr(ui, "_session_file", lambda *a: session)
+    rd = ui.Reader(p)
+    first = ui.full_run(rd, "run-one")["activity"]
+    assert [e["text"] for e in first["events"]] == ["this run"]
+    with session.open("a", encoding="utf-8") as fh:
+        fh.write(event("new action", since + 2))
+    second = ui.full_run(rd, "run-one", first["cursor"], first["source"])["activity"]
+    assert not second["reset"] and [e["text"] for e in second["events"]] == ["new action"]
 
 
 @pytest.mark.parametrize("text", ["ccx stop run-one", "ccx undo run-one", "ccx resume run-one", "ccx config set x y",
@@ -242,6 +330,31 @@ def test_execute_chat_is_argv_no_shell_and_audits_without_duplicate_cost(fixture
     assert all(r["via"] == "ui" and r.get("ae_usd") is None for r in ledger.rows(p))
 
 
+def test_t0_dialogue_refusal_exposes_route_and_reason_without_a_dead_link(server, monkeypatch):
+    """The real ccx entry point runs in the fixture project, outside the repository; every agent binary is fake."""
+    srv, p, root = server
+    for name in ("codex", "claude", "gemini"):
+        monkeypatch.setenv(f"CCX_{name.upper()}_BIN", str(ROOT / "tests" / "fakes" / f"fake_{name}.py"))
+    monkeypatch.setenv("CCX_NO_QUOTA_PROBE", "1")
+    monkeypatch.setenv("CCX_NO_BENCH_REFRESH", "1")
+    monkeypatch.setenv("CCX_AB_RATE", "0")
+    code, prep = request(srv, "/api/chat/prepare", {"project": ui._pid(root), "text": "ccx run --tier T0 read README"})
+    assert code == 200
+    code, started = request(srv, "/api/chat/run", {"nonce": prep["nonce"]})
+    assert code == 200 and started["pending"] and not started.get("href")
+    end = time.monotonic() + 20
+    result = started
+    while result.get("pending") and time.monotonic() < end:
+        time.sleep(0.05)
+        code, result = request(srv, started["result_url"])
+        assert code == 200
+    assert not result["pending"] and result["delegated"] is False, result
+    assert result["decision"] == "self" and result["reason"]
+    assert result["route"] and not result.get("href")
+    record = json.loads((p.runs / started["run_id"] / "run.json").read_text(encoding="utf-8"))
+    assert record["kind"] == "not_delegated" and record["attempts"] == []
+
+
 def test_observer_writes_two_deduplicated_lifecycle_messages(server):
     srv, p, root = server
     put_run(p.hub, "live", root, state="running", ok=False, result=None)
@@ -264,6 +377,26 @@ def test_page_escapes_events_and_keeps_five_sections_and_existing_entries():
         assert field in js
     assert 'data-chat="preview"' in js and 'data-chat="confirm"' in js
     assert 'runHref(r.run_id)' in js and '#/tokens' in js
+
+
+@pytest.mark.parametrize("date", [(2026, 11, 1), (2027, 1, 1), (2027, 1, 15)])
+def test_demo_token_page_keeps_complete_runs_at_month_boundary(tmp_path, monkeypatch, date):
+    from ccx import demo
+    from ccx.tokenflow import Flow
+
+    now = time.mktime((*date, 0, 5, 0, 0, 0, -1))
+    base = tmp_path / "month-demo"
+    p = demo.build(base, now=now)
+    for k, v in demo.env(base).items():
+        monkeypatch.setenv(k, v)
+    rows = list(ledger.rows(p))
+    assert sum(str(r.get("run_id", "")).startswith("demo-m") and not r.get("type") for r in rows) == 36
+    tokens = Flow(p).tokens(rows, period="7d", now=now)
+    runs = {r["run_id"]: r for task in tokens["tasks"] for r in task["runs"]}
+    assert runs["demo-r-ok"]["requests"] == 5
+    assert len(runs["demo-q2"]["children"]) == 1
+    assert len(tokens["tasks"]) <= tokens["caps"]["tasks"] == 40
+    assert tokens["cut"]["tasks"] == 0
 
 
 def test_demo_cli_wiring_from_outside_repository(tmp_path):
@@ -432,3 +565,53 @@ def test_headless_run_pages_board_and_two_click_demo_composer(tmp_path, monkeypa
             browser.close()
         srv.stop()
         t.join(5)
+
+
+@pytest.mark.skipif(not os.environ.get("CCX_UI_BROWSER"), reason="set CCX_UI_BROWSER for the project-switch regression")
+def test_headless_project_switch_discards_preview_and_notes_and_route_are_visible(server, monkeypatch, tmp_path):
+    srv, p, root = server
+    srv.project = None
+    other = tmp_path / "other-project"
+    (other / ".git").mkdir(parents=True)
+    put_run(p.hub, "other-run", other)
+    board.post(root, "user", "all", "Project A conversation")
+    board.post(other, "user", "all", "Project B conversation")
+    for name in ("codex", "claude", "gemini"):
+        monkeypatch.setenv(f"CCX_{name.upper()}_BIN", str(ROOT / "tests" / "fakes" / f"fake_{name}.py"))
+    monkeypatch.setenv("CCX_NO_QUOTA_PROBE", "1")
+    monkeypatch.setenv("CCX_NO_BENCH_REFRESH", "1")
+    browser = HeadlessBrowser(os.environ["CCX_UI_BROWSER"], tmp_path / "project-browser")
+    a, b = ui._pid(root), ui._pid(other)
+    def switch(pid):
+        browser.evaluate("location.hash = " + json.dumps("#/conv/" + pid))
+        browser.wait_for("!!document.querySelector('#chat-project') && document.querySelector('#chat-project').value === " + json.dumps(pid))
+    def preview(text):
+        browser.evaluate("document.querySelector('#chat-input').value = " + json.dumps(text) + "; document.querySelector('#chat-input').dispatchEvent(new Event('input', {bubbles:true})); document.querySelector('[data-chat=preview]').click();")
+        browser.wait_for("!!document.querySelector('[data-chat=confirm]')")
+    try:
+        browser.call("Page.navigate", {"url": srv.url})
+        browser.wait_for("!!document.querySelector('#chat-input')")
+        switch(a)
+        preview("Read project A")
+        first_nonce = next(iter(srv.chats))
+        assert srv.chats[first_nonce]["root"] == root
+        switch(b)                                # hash navigation keeps the existing JS closure and old draft
+        browser.wait_for("!document.querySelector('[data-chat=confirm]') && !document.querySelector('.ui-chat .cmd')")
+        preview("Read project B")
+        second_nonce = next(n for n in srv.chats if n != first_nonce)
+        assert srv.chats[second_nonce]["root"] == other
+        browser.evaluate("document.querySelector('#chat-project').value = " + json.dumps(a) + "; document.querySelector('#chat-project').dispatchEvent(new Event('change', {bubbles:true}));")
+        browser.wait_for("!document.querySelector('[data-chat=confirm]') && !document.querySelector('.ui-chat .cmd')")
+        assert not p.ledger.exists()              # neither project's preview ran
+        browser.evaluate("location.hash = '#/runs/run-one'")
+        browser.wait_for("!!document.querySelector('#run-review') && document.querySelector('#run-review').textContent.includes('[should] clarity')")
+        assert browser.evaluate("document.querySelector('#run-review').textContent.includes('[must] <bad>')")
+        assert not browser.evaluate("!!document.querySelector('#run-review bad')")
+        switch(a)
+        preview("ccx run --tier T0 read README")
+        browser.evaluate("document.querySelector('[data-chat=confirm]').click()")
+        browser.wait_for("!!document.querySelector('.ui-chat [role=status]') && document.querySelector('.ui-chat [role=status]').textContent.includes('delegating costs more')")
+        assert browser.evaluate("document.querySelector('.ui-chat [role=status]').textContent.includes('self')")
+        assert not browser.evaluate("!!document.querySelector('.ui-chat [role=status] a')")
+    finally:
+        browser.close()

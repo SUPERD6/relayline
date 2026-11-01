@@ -312,7 +312,10 @@ def _ledger_month(p: Paths, now: float, roots: list[Path]) -> None:
         ts = start + span * (i + rnd.random()) / 36
         tin, tout = rnd.randint(6000, 40000), rnd.randint(800, 6000)
         ok = rnd.random() > 0.15
-        rec = {"run_id": f"demo-m{i:02d}", "label": None, "to": agent, "caller": "claude" if i % 3 else "codex",
+        # Group the background samples by project so even at month start they cannot crowd the complete
+        # example runs out of the token page's task limit. Keep every sample and its original cost.
+        rec = {"run_id": f"demo-m{i:02d}", "label": f"{roots[i % 2].name}: monthly maintenance",
+               "to": agent, "caller": "claude" if i % 3 else "codex",
                "mode": "write", "ok": ok, "ts": ts, "kind": None if ok else "check_failed", "cwd": str(roots[i % 2]),
                "attempts": [_attempt(agent, model, effort, rnd.uniform(40, 400), tin, tout,
                                      round(usd * rnd.uniform(0.5, 2.0), 5))],

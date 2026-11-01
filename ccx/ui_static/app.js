@@ -13,7 +13,9 @@
   let LEADJUMP = "";                /* #/<project>/_lead: scroll to the project's lead panel once */
   let RUNLIST = null, RUNPAGE = null, RUNERR = "", RUNBUSY = false, RUNSTAMP = 0, RUNDIFF = null;
   let RUNFILTER = {project: "", status: "", date: "", until: ""};
+  let RUNPAGE_NO = 0;
   let CHATDRAFT = "", CHATPROJECT = "", CHATPREP = null, CHATRESULT = null;
+  let CHATGEN = 0;
   /* DeepSeek's own agent is shown with its command name (ccx handoff --to dsh, or deepseek); `deepseek` alone is
      the deepseek provider (Claude Code on DeepSeek's API) in run records, the DeepSeek session on the board */
   const KNOWN = {claude: "Claude", codex: "Codex", deepseek: "DeepSeek", dsh: "DeepSeek (dsh)", gemini: "Gemini"};
@@ -740,7 +742,7 @@
   function drawConv(pid, th) {
     const ta = $("saytext"), focused = ta && document.activeElement === ta, a = focused ? ta.selectionStart : 0, b = focused ? ta.selectionEnd : 0;
     const keep = window.scrollY;
-    $("main").innerHTML = renderConv(pid, th) + chatPanel(pid);
+    $("main").innerHTML = renderConv(pid, th) + chatPanel();
     const nt = $("saytext");
     if (focused && nt) { nt.focus(); try { nt.setSelectionRange(a, b); } catch (e) { /* ok */ } }
     window.scrollTo(0, keep);
@@ -1230,7 +1232,9 @@
         RUNPAGE = data;
       } else {
         const qs = new URLSearchParams(RUNFILTER);
+        qs.set("page", RUNPAGE_NO);
         RUNLIST = await api("/api/runs?" + qs);
+        RUNPAGE_NO = RUNLIST.page;
       }
       RUNERR = ""; RUNSTAMP = Date.now(); return true;
     } catch (e) { RUNERR = e.message; return true; }
@@ -1246,7 +1250,8 @@
       + ["date", "until"].map(k => `<label>${t(k === "date" ? "runs_from" : "runs_until")}<input type="date" data-runfilter="${k}" value="${esc(RUNFILTER[k])}"></label>`).join("") + `</div>`
       + (RUNERR ? `<p role="alert">${esc(RUNERR)}</p>` : "")
       + `<div class="run-table"><table><thead><tr>${["runs_time", "runs_who", "runs_task", "runs_status", "runs_cost", "runs_wall", "runs_receipt"].map(k => `<th>${t(k)}</th>`).join("")}</tr></thead><tbody>`
-      + ((RUNLIST && RUNLIST.runs) || []).map(r => `<tr><td>${clock(r.ts)}</td><td>${esc(r.from)} → ${esc(r.rung || r.to)}</td><td><a href="${runHref(r.run_id)}">${esc(r.task || r.run_id)}</a><small>${esc(r.project_name)}</small></td><td>${esc(r.status)}</td><td>${usd(r.usd)}</td><td>${dur(r.seconds)}</td><td>${esc(r.summary)}</td></tr>`).join("") + `</tbody></table></div>`;
+      + ((RUNLIST && RUNLIST.runs) || []).map(r => `<tr><td>${clock(r.ts)}</td><td>${esc(r.from)} → ${esc(r.rung || r.to)}</td><td><a href="${runHref(r.run_id)}">${esc(r.task || r.run_id)}</a><small>${esc(r.project_name)}</small></td><td>${esc(r.status)}</td><td>${usd(r.usd)}</td><td>${dur(r.seconds)}</td><td>${esc(r.summary)}</td></tr>`).join("") + `</tbody></table></div>`
+      + (RUNLIST ? `<nav class="acts" aria-label="${esc(t("runs_pages"))}"><button class="btn" data-run-page="${RUNLIST.page - 1}"${RUNLIST.has_previous ? "" : " disabled"}>${t("runs_previous")}</button><span>${t("runs_page", {n: RUNLIST.page + 1, total: RUNLIST.total})}</span><button class="btn" data-run-page="${RUNLIST.page + 1}"${RUNLIST.has_next ? "" : " disabled"}>${t("runs_next")}</button></nav>` : "");
   }
   function runPageHTML(rid) {
     if ((!RUNPAGE || RUNPAGE.run_id !== rid) && !RUNBUSY && !RUNERR && !SNAP) loadRuns(rid, true).then(render);
@@ -1259,7 +1264,7 @@
     h += `<section class="card run-section" id="run-dispatch"><h2>${t("runs_dispatch")}</h2>${runText(r.dispatch.brief)}<h3>${t("runs_context")}</h3>${runText(r.dispatch.context)}<details><summary>${t("runs_prompt")}</summary>${runText(r.dispatch.prompt)}</details></section>`;
     h += `<section class="card run-section" id="run-activity"><h2>${t("runs_activity")}</h2><p class="cost">${t("runs_event_note")}</p><ol class="run-events">${r.activity.events.map(e => `<li><span class="cost">${esc(e.ts || t("runs_unknown"))} · ${esc(e.kind)} · ${esc(e.phase || "")}</span><pre>${esc(e.text)}</pre>${e.kind === "command" ? `<small>${t("runs_exit")}: ${esc(runValue(e.exit_code))}</small>` : ""}${e.output ? `<details><summary>${t("runs_output")}</summary><pre>${esc(e.output)}</pre></details>` : ""}</li>`).join("")}</ol></section>`;
     h += `<section class="card run-section" id="run-checks"><h2>${t("runs_checks")}</h2><pre>${esc(c.cmd || t("runs_unknown"))}</pre><p>${t("runs_exit")}: ${esc(runValue(c.exit))}</p><h3>${t("runs_covers")}</h3><pre>${esc(runValue(c.covers))}</pre><p>basis_changed: ${esc(runValue(c.basis_changed))} · added_to: ${esc(runValue(c.added_to))}</p><pre>${esc(c.tail || "")}</pre></section>`;
-    h += `<section class="card run-section" id="run-review"><h2>${t("runs_review")}</h2><p>${esc(rv.by || t("runs_unknown"))} · ${esc(rv.verdict || t("runs_unknown"))}</p><pre>${esc(rv.summary || "")}</pre>${rv.issues.map(i => `<pre>${esc(runValue(i))}</pre>`).join("")}<h3>${t("runs_fixes")}</h3><p>${t("runs_round")}: ${esc(runValue(rv.round))}</p>${rv.fixes.map(f => `<p>${f.run_id ? `<a href="${runHref(f.run_id)}">${esc(f.run_id)}</a>` : t("runs_round") + " " + esc(runValue(f.round))} · ${esc(f.kind)}<br>${esc(f.summary)}</p>`).join("")}</section>`;
+    h += `<section class="card run-section" id="run-review"><h2>${t("runs_review")}</h2><p>${esc(rv.by || t("runs_unknown"))} · ${esc(rv.verdict || t("runs_unknown"))}</p><pre>${esc(rv.summary || "")}</pre>${rv.issues.map(i => `<pre>${esc(runValue(i))}</pre>`).join("")}${(rv.notes || []).map(n => `<pre>${esc(runValue(n))}</pre>`).join("")}<h3>${t("runs_fixes")}</h3><p>${t("runs_round")}: ${esc(runValue(rv.round))}</p>${rv.fixes.map(f => `<p>${f.run_id ? `<a href="${runHref(f.run_id)}">${esc(f.run_id)}</a>` : t("runs_round") + " " + esc(runValue(f.round))} · ${esc(f.kind)}<br>${esc(f.summary)}</p>`).join("")}</section>`;
     h += `<section class="card run-section" id="run-receipt"><h2>${t("runs_receipt")}</h2><p>${t("runs_cost")}: ${usd(receipt.usd)} · ${t("runs_wall")}: ${dur(receipt.seconds)}</p><pre>${esc(JSON.stringify(receipt, null, 2))}</pre><button class="btn" data-run-diff="${esc(rid)}">${t("runs_diff")}</button> <a href="${judgeHref(rid)}">${t("runs_decide")}</a>${RUNDIFF && RUNDIFF.run_id === rid ? `<pre>${esc(RUNDIFF.diff || t(RUNDIFF.note || "runs_unknown"))}</pre>` : ""}</section>`;
     return h;
   }
@@ -1270,31 +1275,48 @@
     }
     return "/#/all";
   }
-  function chatPanel(pid) {
+  function selectChatProject(pid) {
+    if (pid !== CHATPROJECT) { CHATPROJECT = pid; CHATGEN++; CHATPREP = null; CHATRESULT = null; }
+  }
+  function chatOutcome() {
+    if (!CHATRESULT) return "";
+    const body = CHATRESULT.delegated === false ? `${t("chat_not_delegated")} · ${esc(CHATRESULT.decision)}<pre>${esc(CHATRESULT.reason)}</pre>`
+      : esc(CHATRESULT.error || (CHATRESULT.demo ? t("act_demo") : t("chat_sent")));
+    return `<div role="status">${body} ${CHATRESULT.href ? `<a href="${esc(CHATRESULT.href)}">${t("runs_open")}</a>` : ""}</div>`;
+  }
+  async function refreshChatResult() {
+    if (!CHATRESULT || !CHATRESULT.pending || !CHATRESULT.result_url || SNAP) return false;
+    const old = CHATRESULT, generation = CHATGEN;
+    const result = await api(old.result_url);
+    if (CHATGEN !== generation || CHATRESULT !== old) return false;
+    CHATRESULT = Object.assign({}, old, result); return true;
+  }
+  function chatPanel() {
     if (SNAP) return "";
     const projects = D.projects || [];
-    if (pid) CHATPROJECT = pid;
-    if (!CHATPROJECT && projects.length) CHATPROJECT = projects[0].id;
+    if (!CHATPROJECT && projects.length) selectChatProject(projects[0].id);
     return `<section class="card ui-chat"><h2>${t("chat_title")}</h2><p>${t("chat_rule")}</p><label for="chat-project">${t("runs_project")}</label><select id="chat-project">${projects.map(p => `<option value="${esc(p.id)}"${p.id === CHATPROJECT ? " selected" : ""}>${esc(p.name)}</option>`).join("")}</select><label for="chat-input">${t("chat_input")}</label><textarea id="chat-input" maxlength="4000" rows="4">${esc(CHATDRAFT)}</textarea><button class="btn" data-chat="preview">${t("chat_preview")}</button>`
       + (CHATPREP ? `<div class="cmd"><p>${t("chat_will")}</p><pre>${esc(CHATPREP.cmd)}</pre><p>${t("chat_estimate")}: ${CHATPREP.estimate === "unknown" ? t("runs_unknown") : usd(CHATPREP.estimate)} · ${t("chat_ttl")}</p><button class="btn primary" data-chat="confirm">${t("chat_confirm")}</button></div>` : "")
-      + (CHATRESULT ? `<p role="status">${esc(CHATRESULT.error || (CHATRESULT.demo ? t("act_demo") : t("chat_sent")))} ${CHATRESULT.href ? `<a href="${esc(CHATRESULT.href)}">${t("runs_open")}</a>` : ""}</p>` : "") + `</section>`;
+      + chatOutcome() + `</section>`;
   }
   function repaintChat() {
     const el = document.querySelector(".ui-chat"); if (el) el.outerHTML = chatPanel();
   }
   document.addEventListener("input", e => { if (e.target.id === "chat-input") { CHATDRAFT = e.target.value; CHATPREP = null; const cmd = document.querySelector(".ui-chat .cmd"); if (cmd) cmd.remove(); } });
   document.addEventListener("change", e => {
-    if (e.target.id === "chat-project") { CHATPROJECT = e.target.value; CHATPREP = null; repaintChat(); }
-    if (e.target.dataset.runfilter) { RUNFILTER[e.target.dataset.runfilter] = e.target.value; RUNLIST = null; RUNERR = ""; loadRuns(null, true).then(render); }
+    if (e.target.id === "chat-project") { selectChatProject(e.target.value); repaintChat(); }
+    if (e.target.dataset.runfilter) { RUNFILTER[e.target.dataset.runfilter] = e.target.value; RUNPAGE_NO = 0; RUNLIST = null; RUNERR = ""; loadRuns(null, true).then(render); }
   });
   document.addEventListener("click", async e => {
+    const page = e.target.closest("[data-run-page]");
+    if (page) { if (!page.disabled && !RUNBUSY) { RUNPAGE_NO = Math.max(0, Number(page.dataset.runPage)); loadRuns(null, true).then(render); } return; }
     const diff = e.target.closest("[data-run-diff]");
     if (diff) { try { RUNDIFF = await api("/api/judge/" + encodeURIComponent(diff.dataset.runDiff)); render(); } catch (err) { RUNERR = err.message; render(); } return; }
     const btn = e.target.closest("[data-chat]"); if (!btn || btn.disabled) return;
     btn.disabled = true;
     try {
-      if (btn.dataset.chat === "preview") { CHATRESULT = null; const project = CHATPROJECT, text = CHATDRAFT; const prep = await post("/api/chat/prepare", {project, text}); CHATPREP = project === CHATPROJECT && text === CHATDRAFT ? prep : null; }
-      else if (CHATPREP) { const nonce = CHATPREP.nonce; CHATPREP = null; CHATRESULT = await post("/api/chat/run", {nonce}); }
+      if (btn.dataset.chat === "preview") { CHATRESULT = null; const project = CHATPROJECT, text = CHATDRAFT, generation = CHATGEN; const prep = await post("/api/chat/prepare", {project, text}); CHATPREP = generation === CHATGEN && project === CHATPROJECT && text === CHATDRAFT ? prep : null; }
+      else if (CHATPREP) { const nonce = CHATPREP.nonce, generation = CHATGEN; CHATPREP = null; const result = await post("/api/chat/run", {nonce}); if (generation === CHATGEN) CHATRESULT = result; }
     } catch (err) { CHATRESULT = {error: err.message}; CHATPREP = null; }
     repaintChat();
   });
@@ -1315,7 +1337,7 @@
     const {r, s} = route();
     const key = r.join("/");
     const sameRoute = key === lastRoute;
-    if (key !== lastRoute) { lastRoute = key; filt = "all"; sel = s || null; RUNERR = ""; RUNSTAMP = 0; }
+    if (key !== lastRoute) { if (r[0] === "conv" && r[1]) selectChatProject(r[1]); lastRoute = key; filt = "all"; sel = s || null; RUNERR = ""; RUNSTAMP = 0; }
     else if (s && pending !== s) { sel = s; }
     pending = s;
     renderSide(r);
@@ -1487,6 +1509,7 @@
   async function poll() {
     try {
       let changed = await refresh();
+      changed = (await refreshChatResult()) || changed;
       const rt = route().r;
       if (rt[0] === "runs") changed = (await loadRuns(rt[1], true)) || changed;
       if (rt[0] === "conv" && rt[1] && !SNAP) { try { changed = (await loadConv(rt[1])) || changed; } catch (e) { /* shown on the page */ } }

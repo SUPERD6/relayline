@@ -114,13 +114,16 @@ class Reader:
         self._found: dict[str, Path | None] = {}
         self._timed: dict[str, tuple[float, object]] = {}
         self._notes: dict[Path, tuple] = {}         # prompt.md -> the shared notes its brief carried (P2-10)
+        self._run_rows: dict[Path, tuple] = {}      # list rows: unchanged records/briefs are not re-read
+        self._briefs: dict[Path, tuple] = {}        # the sidebar/overview shares the five-second refresh
+        self._line_generation = 0
 
     def json_file(self, f: Path):
         try:
             st = f.stat()
         except OSError:
             return None
-        key = (st.st_mtime_ns, st.st_size)
+        key = (st.st_mtime_ns, st.st_size, st.st_ino, st.st_ctime_ns)
         hit = self._json.get(f)
         if hit and hit[0] == key:
             return hit[1]
@@ -134,20 +137,41 @@ class Reader:
     def lines(self, f: Path, fold, start):
         """Fold each new complete line into a running state (fold(state, line) -> state); returns the state."""
         try:
-            size = f.stat().st_size
+            st = f.stat()
+            size = st.st_size
         except OSError:
             return start
         key = (f, fold.__name__)                     # one file can be read for different things
         t = self._tail.get(key)
-        if t is None or size < t["pos"]:            # new, or rewritten (e.g. ccx repair): start over
-            t = self._tail[key] = {"pos": 0, "state": start, "rest": b""}
-        if size > t["pos"]:
-            try:
-                with open(f, "rb") as fh:
-                    fh.seek(t["pos"])
-                    chunk = fh.read(size - t["pos"])
-            except OSError:
-                return t["state"]
+        stamp = (st.st_dev, st.st_ino, size, st.st_mtime_ns, st.st_ctime_ns)
+        if t is not None and t["stamp"] == stamp:
+            return t["state"]
+        # A growing file is an append only if the bytes at both ends of the previous read still match.
+        # Same-length writes, replacement files and changed prefixes start a new cursor generation.
+        reset = t is None or size <= t["pos"] or stamp[:2] != t["stamp"][:2]
+        try:
+            with open(f, "rb") as fh:
+                if not reset:
+                    head = fh.read(min(t["pos"], 4096))
+                    fh.seek(max(0, t["pos"] - 4096))
+                    tail = fh.read(min(t["pos"], 4096))
+                    reset = (hashlib.sha256(head).digest(), hashlib.sha256(tail).digest()) != t["edges"]
+                if reset:
+                    self._line_generation += 1
+                    identity = json.dumps([str(f), stamp, self._line_generation]).encode()
+                    t = self._tail[key] = {"pos": 0, "state": start, "rest": b"",
+                                           "source": hashlib.sha256(identity).hexdigest()[:20]}
+                fh.seek(t["pos"])
+                chunk = fh.read(size - t["pos"])
+                fh.seek(0)
+                head = fh.read(min(size, 4096))
+                fh.seek(max(0, size - 4096))
+                tail = fh.read(min(size, 4096))
+                t["edges"] = (hashlib.sha256(head).digest(), hashlib.sha256(tail).digest())
+                t["stamp"] = stamp
+        except OSError:
+            return t["state"] if t else start
+        if chunk:
             t["pos"] = size
             data = t["rest"] + chunk
             *full, t["rest"] = data.split(b"\n")
@@ -249,15 +273,22 @@ def _sid(text: str) -> str:
     return re.sub(r"[^A-Za-z0-9_-]", "_", text)[:64]
 
 
-def _brief_of(run_dir: Path) -> str:
+def _brief_of(run_dir: Path, rd: Reader | None = None) -> str:
+    f = run_dir / "prompt.md"
     try:
-        text = (run_dir / "prompt.md").read_text(encoding="utf-8", errors="replace")
+        st = f.stat()
+        key = st.st_ino, st.st_size, st.st_mtime_ns, st.st_ctime_ns
+        hit = rd._briefs.get(f) if rd else None
+        if hit and hit[0] == key:
+            return hit[1]
+        text = f.read_text(encoding="utf-8", errors="replace")
     except OSError:
         return ""
     m = re.search(r"## Task\n(.*?)(?:\n## Finish|\Z)", text, re.S)
-    if m:
-        return m.group(1).strip()
-    return "\n".join(text.splitlines()[1:]).strip()       # a follow-up: the brief follows its first line
+    brief = m.group(1).strip() if m else "\n".join(text.splitlines()[1:]).strip()
+    if rd:
+        rd._briefs[f] = key, brief
+    return brief
 
 
 def _short(text: str) -> str:
@@ -1531,7 +1562,7 @@ def collect(p: Paths, project: Path | None = None, days: float = 7, rd: Reader |
             latest = shown[runs[-1]]
             piece_run.update({x: latest["run_id"] for x in runs})     # P2-10: a receipt opens its piece
             title = (shown[head].get("label") if shown[head].get("label") and not str(shown[head]["label"]).startswith("q:")
-                     else "") or _short(_brief_of(p.runs / head)) or head
+                     else "") or _short(_brief_of(p.runs / head, rd)) or head
             pc = piece_of_run(rd, latest, verdicts.get(latest["run_id"]), now, title)
             pc["id"] = _sid(head)
             pc["test"] = any(is_test(shown[x], scratch) for x in runs)
@@ -1758,13 +1789,31 @@ def _run_row(rd: Reader, rec: dict) -> dict:
             "kind": rec.get("kind"), "href": f"/runs/{rec['run_id']}"}
 
 
-def runs_view(rd: Reader, project: str = "", status: str = "", date: str = "", until: str = "") -> dict:
+def _cached_run_row(rd: Reader, f: Path) -> dict:
+    def stamp(path):
+        try:
+            st = path.stat()
+            return st.st_ino, st.st_size, st.st_mtime_ns, st.st_ctime_ns
+        except OSError:
+            return None
+    key = tuple(stamp(path) for path in (f, f.parent / "brief.md", f.parent / "prompt.md"))
+    hit = rd._run_rows.get(f)
+    if hit is None or hit[0] != key:
+        _, rec = _run_record(rd, f.parent.name)
+        hit = rd._run_rows[f] = key, _run_row(rd, rec)
+    row = dict(hit[1])
+    if row["running"] and row["ts"]:
+        row["seconds"] = max(row["seconds"], time.time() - row["ts"])
+    return row
+
+
+def runs_view(rd: Reader, project: str = "", status: str = "", date: str = "", until: str = "",
+              page: int = 0, limit: int = 200) -> dict:
     """All saved runs, including live and internal ones. Filters never hide a running record by age."""
     rows, projects = [], {}
     for f in rd.p.runs.glob("*/run.json"):
         try:
-            _, rec = _run_record(rd, f.parent.name)
-            row = _run_row(rd, rec)
+            row = _cached_run_row(rd, f)
         except (OSError, ValueError, KeyError, TypeError):
             continue
         projects[row["project"]] = row["project_name"]
@@ -1775,7 +1824,12 @@ def runs_view(rd: Reader, project: str = "", status: str = "", date: str = "", u
             continue
         rows.append(row)
     rows.sort(key=lambda r: (r["ts"], r["run_id"]), reverse=True)
-    return {"runs": rows, "projects": [{"id": k, "name": v} for k, v in projects.items() if k], "poll_s": 5}
+    limit = max(1, min(200, limit))
+    total = len(rows)
+    page = max(0, min(page, max(0, (total - 1) // limit)))
+    return {"runs": rows[page * limit:(page + 1) * limit], "total": total, "page": page, "page_size": limit,
+            "has_next": (page + 1) * limit < total, "has_previous": page > 0,
+            "projects": [{"id": k, "name": v} for k, v in projects.items() if k], "poll_s": 5}
 
 
 def _activity_lines(state: dict, line: str) -> dict:
@@ -1789,7 +1843,7 @@ def _activity_lines(state: dict, line: str) -> dict:
                 state["count"] += 1
             state["events"].extend(added)
             state["events"] = state["events"][-RUN_EVENTS_MAX:]
-    except (ValueError, TypeError, AttributeError):
+    except (ValueError, TypeError, AttributeError, RecursionError):
         pass                                  # incomplete / non-JSON stderr is not an invented event
     return state
 
@@ -1798,6 +1852,7 @@ def run_activity(rd: Reader, d: Path, rec: dict, after: int = 0, source: str = "
     files = sorted({*d.glob("events.*.log"), *d.glob("stream*.jsonl"), *d.glob("stderr.*.log")})
     files = [f for f in files if f.resolve().parent == d]
     # ccx buffers exec stdout until an attempt ends. The tool's own session is the live source meanwhile.
+    session_source = False
     if rec.get("state") == "running" and rec.get("session_id"):
         cli = cli_of(rec.get("to"), rd.cfg())
         sid = str(rec["session_id"])
@@ -1805,16 +1860,25 @@ def run_activity(rd: Reader, d: Path, rec: dict, after: int = 0, source: str = "
             f = _session_file(rd, cli, sid)
             if f:
                 files = [f]
+                session_source = True
     events = []
+    generations = []
     for f in files:
         st = rd.lines(f, _activity_lines, {"events": [], "tools": {}, "count": 0})
+        generations.append([str(f), (rd._tail.get((f, _activity_lines.__name__)) or {}).get("source")])
         for e in st["events"]:
+            if session_source:
+                event_time, since = _activity_ts(e.get("ts")), _activity_ts(rec.get("ts"))
+                if event_time is not None and since is not None and event_time < since:
+                    continue
+                if event_time is None and (rec.get("resumed_from") or rec.get("continued")):
+                    continue                    # an undated historical session row cannot be assigned to this run
             events.append({**e, "id": f"{f.name}:{e['seq']}", "source": f.name})
     # Timestamps are absent in some exec versions. Keep source order there and say unknown in the page.
     if events and all(_activity_ts(e.get("ts")) is not None for e in events):
         events.sort(key=lambda e: _activity_ts(e["ts"]))
     events = events[-RUN_EVENTS_MAX:]
-    key = hashlib.sha1(json.dumps([str(f) for f in files]).encode()).hexdigest()[:16]
+    key = hashlib.sha1(json.dumps([generations, rec.get("ts") if session_source else None]).encode()).hexdigest()[:16]
     # Include the first retained id so a capped/replaced file resets a client's cursor instead of losing rows.
     key += ":" + (events[0]["id"] if events else "empty")
     reset = source != key or after < 0 or after > len(events)
@@ -1866,6 +1930,7 @@ def full_run(rd: Reader, rid: str, after: int = 0, source: str = "") -> dict:
                        "added_to": check.get("added_to", (check.get("covers") or {}).get("added_to"))},
             "review": {"by": review.get("by"), "verdict": review.get("verdict"),
                        "summary": review.get("summary"), "issues": review.get("issues_full") or review.get("issues") or [],
+                       "notes": review.get("notes") or [],
                        "fixes": fixes, "round": rec.get("review_round")},
             "receipt": {"requests": None, "prefix_tokens": None, "first_input": None,
                         **run_fields(rec.get("attempts") or []), "usd": _usd(rec), "quota_units": units,
@@ -2403,8 +2468,11 @@ def execute_chat(p: Paths, argv: list[str], root: Path) -> dict:
         raise ValueError("not a confirmed dialogue command")
     rid = ledger.new_run_id(p) if argv[1] == "run" else None
     ident = rid or secrets.token_hex(8)
-    log = p.state / "ui-actions" / f"chat-{ident}.log"
+    # The CLI's detached-refusal path needs bg.log to persist a not_delegated record before any agent starts.
+    log = p.runs / rid / "bg.log" if rid else p.state / "ui-actions" / f"chat-{ident}.log"
     log.parent.mkdir(parents=True, exist_ok=True)
+    status_file = p.state / "ui-actions" / f"chat-{ident}.json"
+    status_file.parent.mkdir(parents=True, exist_ok=True)
     env = {**os.environ, "CCX_HUB": str(p.hub), "PYTHONUTF8": "1"}
     env.pop("CCX_RUN_ID", None)
     if rid:
@@ -2414,6 +2482,9 @@ def execute_chat(p: Paths, argv: list[str], root: Path) -> dict:
         from .discuss import new_id
         did = new_id()
         env["CCX_DISCUSS_ID"] = did
+    status = {"action": ident, "command": argv[1], "run_id": rid, "discussion_id": did,
+              "log": str(log), "state": "starting", "show_run": argv[2] if argv[1] == "show" else None}
+    status_file.write_text(json.dumps(status), encoding="utf-8")
     try:
         with open(log, "wb") as fh:
             proc = subprocess.Popen([*ccx_argv(), *argv[1:]], cwd=str(root), env=env, stdin=subprocess.DEVNULL,
@@ -2427,11 +2498,58 @@ def execute_chat(p: Paths, argv: list[str], root: Path) -> dict:
 
     def finish():
         rc = proc.wait()
+        tmp = status_file.with_suffix(".tmp")
+        tmp.write_text(json.dumps({**status, "state": "finished", "exit": rc}), encoding="utf-8")
+        ledger.replace(tmp, status_file)
         ledger.append_event(p, {"type": "ui_command_done", "via": "ui", "ts": time.time(),
                                 "run_id": rid, "command": argv[1], "exit": rc, "log": str(log)})
     threading.Thread(target=finish, daemon=True).start()
-    return {"ok": True, "started": True, "pid": proc.pid, "run_id": rid, "log": str(log),
-            "href": f"/runs/{rid}" if rid else f"/runs/{argv[2]}" if argv[1] == "show" else f"/#/discuss/{did}", "action": ident}
+    return {"ok": True, "started": True, "pending": True, "pid": proc.pid, "run_id": rid, "log": str(log),
+            "href": None, "action": ident, "result_url": f"/api/chat/result/{ident}"}
+
+
+def chat_result(rd: Reader, ident: str) -> dict:
+    """A started command is not a delegated run until its record exists. Expose routing refusals as advice."""
+    if not re.fullmatch(r"[A-Za-z0-9_-]{1,64}", ident or ""):
+        raise ValueError("bad action id")
+    status = rd.json_file(rd.p.state / "ui-actions" / f"chat-{ident}.json")
+    if not isinstance(status, dict):
+        raise FileNotFoundError("no UI command")
+    done = status.get("state") == "finished"
+    out = {"ok": status.get("exit", 0) == 0, "pending": not done, "action": ident,
+           "result_url": f"/api/chat/result/{ident}", "href": None}
+    rid = status.get("run_id")
+    def decision(route):
+        return ((route.get("policy") or {}).get("mode") or (route.get("choice") or {}).get("recommend")
+                or ("self" if route.get("tier") == "T0" else "not_delegated"))
+    if rid:
+        rec = rd.json_file(rd.p.runs / rid / "run.json")
+        if isinstance(rec, dict):
+            if rec.get("kind") in ("not_delegated", "refused"):
+                route = rec.get("route") or {}
+                return {**out, "pending": False, "delegated": False, "route": route,
+                        "decision": decision(route),
+                        "reason": rec.get("error") or route.get("advice") or (rec.get("result") or {}).get("summary")}
+            out["href"] = f"/runs/{rid}"
+        elif done:
+            # Foreground CLI output is also understood for older/refusing entry points without a record.
+            text = _run_text(rd.p.runs / rid, "bg.log")["text"]
+            try:
+                result = json.loads(text)
+            except (ValueError, RecursionError):
+                result = {}
+            if isinstance(result, dict) and result.get("delegated") is False:
+                route = result.get("route") or {}
+                out.update(delegated=False, route=route, decision=decision(route),
+                           reason=result.get("advice") or route.get("advice"))
+            else:
+                out.update(ok=False, error=text[-1500:] or "command ended without a run record")
+    elif status.get("command") == "show":
+        if (rd.p.runs / str(status.get("show_run")) / "run.json").is_file():
+            out["href"] = f"/runs/{status['show_run']}"
+    elif status.get("discussion_id"):
+        out["href"] = f"/#/discuss/{status['discussion_id']}"
+    return out
 
 
 def seed_run_visibility(p: Paths, run_ids: list[str] | None = None) -> None:
@@ -2569,8 +2687,13 @@ class UI:
                         q = {k: v[0] for k, v in parse_qs(urlsplit(self.path).query).items() if v}
                         with ui.lock:
                             out = (runs_view(ui.reader, q.get("project", ""), q.get("status", ""),
-                                             q.get("date", ""), q.get("until", "")) if path == "/api/runs" else
+                                             q.get("date", ""), q.get("until", ""), int(q.get("page", "0")),
+                                             int(q.get("limit", "200"))) if path == "/api/runs" else
                                    full_run(ui.reader, path[len("/api/runs/"):], int(q.get("after", "0")), q.get("source", "")))
+                        return self._send(200, json.dumps(out, ensure_ascii=False).encode("utf-8"))
+                    if path.startswith("/api/chat/result/"):
+                        with ui.lock:
+                            out = chat_result(ui.reader, path[len("/api/chat/result/"):])
                         return self._send(200, json.dumps(out, ensure_ascii=False).encode("utf-8"))
                     if path.startswith("/api/run/"):
                         return self._send(200, json.dumps(run_detail(ui.p, path[len("/api/run/"):]),
