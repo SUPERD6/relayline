@@ -230,10 +230,10 @@ def check_key(cmd: str, cwd: str | None) -> tuple[str, str, str]:
     are one place) and a ccx worktree counted as its repository."""
     import hashlib
     import re
-    from .workspace import worktree_repo
+    from .workspace import canonical, worktree_repo
     norm = " ".join((cmd or "").split())
     repo = worktree_repo(cwd, root_only=True)
-    place_path = str(repo) if repo is not None else (str(Path(cwd).resolve()) if cwd else "")
+    place_path = str(repo) if repo is not None else (str(canonical(cwd)) if cwd else "")
     parts = [x for x in re.split(r"[\\/]+", place_path.lower()) if x]
     place = re.sub(r"\d+", "#", parts[-1]) if parts else ""
     return hashlib.sha1(f"{norm}\0{place}".encode("utf-8")).hexdigest()[:12], norm, place

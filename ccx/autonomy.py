@@ -156,8 +156,9 @@ def _git(cwd, *args, env=None) -> tuple[int, str]:
 
 
 def _repo_of(wt: Path) -> Path | None:
+    from .workspace import canonical
     rc, common = _git(wt, "rev-parse", "--path-format=absolute", "--git-common-dir")
-    return Path(common).resolve().parent if rc == 0 and common else None
+    return canonical(common).parent if rc == 0 and common else None
 
 
 def protected(repo: Path, branch: str, patterns: list[str]) -> bool:

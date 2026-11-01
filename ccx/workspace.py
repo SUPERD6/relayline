@@ -27,12 +27,22 @@ _WT_LOCKS_GUARD = threading.Lock()
 SIBLING_WORKTREE_DIR = ".ccx-worktrees"
 
 
+def canonical(path: str | Path) -> Path:
+    """Resolve aliases while keeping paths usable by Git (Windows can return an extended-length prefix)."""
+    resolved = str(Path(path).resolve())
+    if resolved.startswith("\\\\?\\UNC\\"):
+        resolved = "\\\\" + resolved[8:]
+    elif resolved.startswith("\\\\?\\"):
+        resolved = resolved[4:]
+    return Path(resolved)
+
+
 def worktree_path(root: Path, run_id: str, location: str = "sibling") -> Path:
     """The configured layout for a new worktree, with one spelling for symlinks and Windows short names."""
-    root = root.resolve()
+    root = canonical(root)
     if location == "inside":
-        return (root / ".ccx" / "worktrees" / run_id).resolve()
-    return (root.parent / SIBLING_WORKTREE_DIR / root.name / run_id).resolve()
+        return canonical(root / ".ccx" / "worktrees" / run_id)
+    return canonical(root.parent / SIBLING_WORKTREE_DIR / root.name / run_id)
 
 
 def worktree_repo(cwd: str | Path | None, *, root_only: bool = False) -> Path | None:
@@ -41,22 +51,22 @@ def worktree_repo(cwd: str | Path | None, *, root_only: bool = False) -> Path | 
     root_only preserves check statistics' historic treatment of a worktree's subdirectories."""
     if not cwd:
         return None
-    parts = Path(str(cwd).replace("\\", "/")).resolve().parts
+    parts = canonical(str(cwd).replace("\\", "/")).parts
     compared = tuple(p.casefold() for p in parts) if os.name == "nt" else parts
     for i in range(len(parts) - 2, -1, -1):
         if root_only and i + 3 != len(parts):
             continue
         if compared[i] == SIBLING_WORKTREE_DIR and i + 2 < len(parts):
-            return (Path(*parts[:i]) / parts[i + 1]).resolve()
+            return canonical(Path(*parts[:i]) / parts[i + 1])
         if compared[i:i + 2] == (".ccx", "worktrees") and i + 2 < len(parts):
-            return Path(*parts[:i]).resolve()
+            return canonical(Path(*parts[:i]))
     return None
 
 
 def _worktree_lock(root: Path) -> threading.Lock:
     """One lock per repository: keyed by its common git folder, which every linked worktree of it shares."""
     rc, common = _git(root, "rev-parse", "--path-format=absolute", "--git-common-dir")
-    key = os.path.normcase(os.path.realpath(common if rc == 0 and common else str(root)))
+    key = os.path.normcase(str(canonical(common if rc == 0 and common else root)))
     with _WT_LOCKS_GUARD:
         return _WT_LOCKS.setdefault(key, threading.Lock())
 
@@ -67,11 +77,12 @@ def make_worktree(cwd: Path, run_id: str, tries: int = 3) -> Path:
     or `ccx batch`) add theirs one at a time, so they never meet git's race above. Another process (a second ccx, a
     `ccx run --bg --worktree` beside it) still can: then this one tries again, up to `tries` times, on the branch git
     already made for it (deleting it first would read the worktrees again and meet the same race)."""
+    cwd = canonical(cwd)
     top = subprocess.run(["git", "rev-parse", "--show-toplevel"], cwd=cwd,
                          capture_output=True, text=True, encoding="utf-8", errors="replace")
     if top.returncode != 0:
         raise RuntimeError("--worktree needs a git repository")
-    root = Path(top.stdout.strip()).resolve()
+    root = canonical(top.stdout.strip())
     location = worktree_location(load_config())
     wt = worktree_path(root, run_id, location)
     if location == "inside":

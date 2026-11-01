@@ -135,7 +135,8 @@ def codex_lead_sandbox(config_text: str, hub, windows: bool | None = None, rule:
     ws = cfg.get("sandbox_workspace_write") or {}
 
     def norm(x) -> str:
-        return str(Path(x).expanduser().resolve()).rstrip("\\/").lower()
+        from .workspace import canonical
+        return str(canonical(Path(x).expanduser())).rstrip("\\/").lower()
     roots = {norm(r) for r in ws.get("writable_roots") or []}
     hub_ok = any(norm(hub) == r or norm(hub).startswith(r + ("\\" if "\\" in r else "/")) for r in roots)
     missing = [w for w, ok in (("the hub is not a writable root", hub_ok),

@@ -5,7 +5,7 @@ from pathlib import Path
 import pytest
 
 from ccx import ledger, ui
-from ccx.workspace import worktree_repo
+from ccx.workspace import canonical, worktree_repo
 
 
 def _main_check_key(cmd, cwd):
@@ -43,7 +43,7 @@ def test_check_trust_groups_both_saved_layouts_with_the_project():
 
 
 def test_ui_groups_both_removed_worktree_layouts_with_the_project(tmp_path):
-    tmp_path = tmp_path.resolve()
+    tmp_path = canonical(tmp_path)
     repo = tmp_path / "app"
     repo.mkdir()
     (repo / ".git").mkdir()
@@ -77,8 +77,8 @@ def test_recent_runs_includes_inside_worktrees_of_the_project(tmp_path):
     from ccx.workspace import worktree_path
 
     p = Paths(tmp_path / "hub")
-    root = (tmp_path / "app").resolve()
-    other = (tmp_path / "other").resolve()
+    root = canonical(tmp_path / "app")
+    other = canonical(tmp_path / "other")
     for rid, repo, location in (("inside", root, "inside"), ("sibling", root, "sibling"),
                                 ("other-inside", other, "inside"), ("other-sibling", other, "sibling")):
         rec = {"run_id": rid, "to": "codex", "cwd": str(worktree_path(repo, rid, location)),
@@ -141,7 +141,7 @@ def test_windows_worktree_consumers_recognize_uppercase_layouts(tmp_path, layout
     from ccx.commands.workqueue import _here
     from ccx.config import Paths
 
-    tmp_path = tmp_path.resolve()
+    tmp_path = canonical(tmp_path)
     root = tmp_path / "app"
     root.mkdir()
     (root / ".git").mkdir()
@@ -196,7 +196,7 @@ def test_worktree_aliases_share_paths_and_project_keys(tmp_path, path_alias, loc
     from ccx.commands import workqueue
     from ccx.config import Paths
 
-    root = tmp_path.resolve() / "project-with-a-long-name"
+    root = canonical(tmp_path) / "project-with-a-long-name"
     root.mkdir()
     (root / ".git").mkdir()
     wt = workspace.worktree_path(root, "run-with-a-long-name", location)
@@ -232,7 +232,7 @@ def test_demo_reads_config_only_after_isolating_its_hub(tmp_path, monkeypatch):
     from ccx import demo, queue as wq
     from ccx.config import Paths
 
-    tmp_path = tmp_path.resolve()
+    tmp_path = canonical(tmp_path)
     base = tmp_path / "demo"
     own_hub = Path(os.environ["CCX_HUB"])
     real_load = demo.load_config

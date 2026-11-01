@@ -7,12 +7,13 @@ from test_ccx import FAKES
 from test_stop import StopEnv, wait_for
 
 from ccx.config import Paths, load_config
+from ccx.workspace import canonical
 
 
 class TestWorktreeLocation(StopEnv):
     def setUp(self):
         super().setUp()
-        self.work = self.work.resolve()
+        self.work = canonical(self.work)
         self.env.update({"CCX_GEMINI_BIN": str(FAKES / "fake_gemini.py"),
                          "CCX_DSH_BIN": str(FAKES / "fake_dsh.py")})
         self.git("init", "-q")
@@ -29,10 +30,10 @@ class TestWorktreeLocation(StopEnv):
         self._bg = []
         for line in self.git("worktree", "list", "--porcelain").splitlines():
             if line.startswith("worktree "):
-                wt = Path(line[9:]).resolve()
-                if wt != self.work.resolve():
+                wt = canonical(line[9:])
+                if wt != canonical(self.work):
                     # Only remove test worktrees within this test's temporary directory.
-                    self.assertTrue(wt.is_relative_to(Path(self.tmp.name).resolve()))
+                    self.assertTrue(wt.is_relative_to(canonical(self.tmp.name)))
                     self.git("worktree", "remove", "--force", str(wt))
         super().tearDown()
 

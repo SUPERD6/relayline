@@ -328,7 +328,8 @@ def _claude_session(home: Path, root: Path, now: float) -> None:
     """One fake Claude Code lead conversation in shop-api: the page shows it as the current lead, and the switch-lead
     button builds its handoff from it (`ccx handoff --from-transcript claude`), as with a real session file."""
     from .transcript import CLAUDE_SLUG_MAX, long_path
-    slug = re.sub(r"[^A-Za-z0-9]", "-", str(root.resolve()))
+    from .workspace import canonical
+    slug = re.sub(r"[^A-Za-z0-9]", "-", str(canonical(root)))
     if len(slug) > CLAUDE_SLUG_MAX:              # as Claude Code names a long folder: cut, plus a suffix
         slug = slug[:CLAUDE_SLUG_MAX] + "-demo"
     f = long_path(home / "projects", len(slug) + 60) / slug / f"{LEAD_SESSION}.jsonl"   # Windows: past 260 chars
@@ -420,7 +421,8 @@ def _rmtree(d: Path) -> None:
     260 characters (the fake session file is written through the Windows long-path prefix; the tree is removed
     through it too)."""
     if os.name == "nt" and not str(d).startswith("\\\\"):
-        d = Path("\\\\?\\" + str(Path(d).resolve()))
+        from .workspace import canonical
+        d = Path("\\\\?\\" + str(canonical(d)))
     def again(fn, path, _exc):
         try:
             os.chmod(path, stat.S_IWRITE)

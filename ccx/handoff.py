@@ -20,12 +20,12 @@ from pathlib import Path
 
 from . import ledger, memory, project
 from .config import Paths
-from .workspace import worktree_repo
+from .workspace import canonical, worktree_repo
 
 
 def _recent_runs(p: Paths, root: Path, hours: float = 24, limit: int = 12) -> list[dict]:
     since = time.time() - hours * 3600
-    root = root.resolve()
+    root = canonical(root)
     verdicts = {r["run_id"]: r["ok"] for r in ledger.rows(p) if r.get("type") == "verify"}
     out = []
     for r in ledger.rows(p):
@@ -33,7 +33,7 @@ def _recent_runs(p: Paths, root: Path, hours: float = 24, limit: int = 12) -> li
             continue
         if not r.get("cwd"):
             continue
-        cwd = Path(r["cwd"]).resolve()
+        cwd = canonical(r["cwd"])
         if not (cwd.is_relative_to(root) or worktree_repo(cwd) == root):
             continue
         try:
