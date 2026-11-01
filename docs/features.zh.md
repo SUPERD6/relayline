@@ -255,7 +255,7 @@ Fail（做对 29 对 30），事后解读为未定。按配对看，三个都没
 原因停下的（额度、登录、`ccx stop`、超时、机器问题、预算），就不再起任何运行，这些块标 `not_run`，用 `ccx resume` 续那次停下的运行。如果审查（修复轮之后）或 ccx 否决了整个合并改动（`review_issues`、
 `review_failed`、`no_changes`、`check_broken`），哪一块都不算做完，不管它自己的 check 怎样。修复轮或拆出去的运行跑过之后，之前通过的 check
 会再跑一次，以最后一次为准。`results` 仍然每块
-一项（多了 `merged_run`、`merged_with`、`piece_state`），`ccx undo <运行> --piece <id>` 只还原这一块声明的路径（不记对错；只适用于在项目目录里跑的合并运行：干净仓库里并行写入会各开 worktree，worktree 运行没有 undo 快照）。修复和拆出去的
+一项（多了 `merged_run`、`merged_with`、`piece_state`），`ccx undo <运行> --piece <id>` 只还原这一块声明的路径（不记对错；只适用于在项目目录里跑的合并运行；独立 worktree 运行各有自己的 undo 快照）。修复和拆出去的
 运行在 run.json 和账本里带 `merge_of`，账本另有一条 `merge` 事件列出每块的结果。代价：审查按整个改动判（50 行门槛按所有块合计；修复和拆出去
 的运行可能再审一次）、墙钟变长；只要有合并的块没做完，退出码就是 2（单独跑的块仍按 `ccx run` 原来的退出码）。命令行上的 `--merge` 优先于
 `[lanes] default`，命令行上的 `--lanes` 优先于 `[merge] default`；两个都写在命令行上会报错。
@@ -263,6 +263,16 @@ Fail（做对 29 对 30），事后解读为未定。按配对看，三个都没
 ## 安全边界
 
 - 子智能体默认**可以改文件**（Codex `workspace-write` 沙箱；Claude `acceptEdits` 加工具白名单，只放行 git/python/pytest/npm/node 命令）。只想让它分析时加 `--mode read`。多个并行写任务自动放进不同 git worktree。
+- Worktree 位置：`[worktree] location = "sibling"` 保留原默认目录
+  `<repo 父目录>/.ccx-worktrees/<repo 名>/<run_id>`。用 `ccx config set worktree.location inside` 把新 worktree 放到
+  `<repo>/.ccx/worktrees/<run_id>`，位于项目文件夹内；设回 `sibling` 即恢复默认。复用 hub 的覆盖顺序
+  `ccx/tiers.toml`、`ccx/settings.toml`；没有项目级 `.ccx/config.toml` 覆盖。请在仓库的 `.gitignore` 忽略 `.ccx/`：
+  Git 未忽略它时，ccx 在创建 inside worktree 前发出警告，不自动修改 `.gitignore`。忽略后，主仓库的 `git status`
+  看不到里面的 worktree。智能体参数和权限不变（Codex 仍带 `--skip-git-repo-check`）；`ccx doctor` 显示当前选择。
+  改设置不会移动已有运行；undo、stop、resume 和会话归档仍使用运行记录里的路径。确认改动可丢弃后，可用
+  `git worktree remove <路径>` 清理已完成的 worktree。
+  运行结果、队列跟踪与接收、lane 提交、自动合并、验收可信度分组和 UI 项目归类同时识别两种布局，改设置后也能识别已有运行。
+  inside 仍为实验性：已用假智能体 CLI 和 Git 验证，尚未用真实智能体 CLI 或 Codex 项目信任继承验证。
 - 子智能体不能再派子智能体（`CCX_DEPTH`）。
 - `ccx sync` 默认只预演。真改时每个被改的文件当天先备份一次。Codex 的 `config.toml` 只追加一个带标记的 hook 块，写入前先用 TOML 解析器检查。MCP 一律通过两边官方 CLI 添加。
 - 不读取、不复制任何账号凭据。

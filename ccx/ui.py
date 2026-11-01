@@ -182,17 +182,14 @@ def _verdict_rows(state: dict, line: str) -> dict:
 def project_root(cwd: str | None) -> Path | None:
     """The project a run worked in: worktrees fold back into their repo, then the nearest folder with a .ccx
     folder or a .git; else the folder itself. No subprocess, no writes."""
+    from .workspace import worktree_repo
     if not cwd:
         return None
     try:
         c = Path(cwd).resolve()                     # one spelling per folder (Windows short names, symlinks)
     except OSError:
         c = Path(cwd)
-    parts = c.parts
-    if ".ccx-worktrees" in parts:                   # <parent>/.ccx-worktrees/<repo>/<run_id> (delegate.make_worktree)
-        i = parts.index(".ccx-worktrees")
-        if i + 1 < len(parts):
-            c = Path(*parts[:i]) / parts[i + 1]
+    c = worktree_repo(c) or c
     home = Path.home()
     for d in (c, *c.parents):
         if d == home and c != home:                 # ~/.ccx is ccx's own settings, not a project

@@ -156,8 +156,9 @@ def _git(cwd, *args, env=None) -> tuple[int, str]:
 
 
 def _repo_of(wt: Path) -> Path | None:
+    from .workspace import canonical
     rc, common = _git(wt, "rev-parse", "--path-format=absolute", "--git-common-dir")
-    return Path(common).parent if rc == 0 and common else None
+    return canonical(common).parent if rc == 0 and common else None
 
 
 def protected(repo: Path, branch: str, patterns: list[str]) -> bool:
@@ -188,6 +189,7 @@ def merge(p: Paths, run_id: str, info: dict, cfg: dict | None = None, rules: lis
           apply: bool = False) -> dict:
     """L2: merge run `run_id`'s worktree branch (ccx/<run_id>) into the branch the project is on, if every
     condition holds. Dry run unless apply. Any condition that fails is listed and nothing is merged."""
+    from .workspace import worktree_repo
     cfg = cfg if cfg is not None else load_config(p)
     st = settings(cfg)
     rec = ledger.load_run(p, run_id)
@@ -217,7 +219,7 @@ def merge(p: Paths, run_id: str, info: dict, cfg: dict | None = None, rules: lis
     if rec.get("risk") in ("visible", "critical"):
         no.append(f"risk is {rec['risk']}")
     out = {"run_id": run_id, "branch": branch, "merged": False}
-    repo = _repo_of(wt) if "/.ccx-worktrees/" in str(wt).replace("\\", "/") and wt.exists() else None
+    repo = _repo_of(wt) if worktree_repo(wt) is not None and wt.exists() else None
     if not repo:
         no.append("not a --worktree run (nothing separate to merge)")
         return {**out, "can_merge": False, "why_not": no}
