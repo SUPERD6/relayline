@@ -100,7 +100,7 @@ def _run(p: Paths, run_id: str, cwd: Path, brief: str, ts: float, *, to: str = "
     # note -> run)
     carried = ("Shared notes that may bear on this task (facts recorded earlier; check before relying on them):\n"
                + "".join(f"- #{e['seq']} ({e['topic']}): {e['text']}\n" for e in notes) + "\n") if notes else ""
-    _write(d / "prompt.md", f"[ccx sub-task {run_id}]\n{carried}## Task\n{brief}\n\n## Finish\nReturn the result JSON.\n")
+    _write(d / "prompt.md", f"[ccx sub-task] ...\nccx run id: {run_id}; lead: claude\n{carried}## Task\n{brief}\n\n## Finish\nReturn the result JSON.\n")
     if record and rec["state"] == "finished":
         from . import ledger
         ledger.append(p, rec)

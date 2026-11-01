@@ -33,7 +33,7 @@ def put_run(hub: Path, run_id: str, cwd: Path, **kw) -> dict:
     d = hub / "ccx" / "runs" / run_id
     d.mkdir(parents=True, exist_ok=True)
     (d / "run.json").write_text(json.dumps(rec), encoding="utf-8")
-    (d / "prompt.md").write_text(f"[ccx sub-task {run_id}] ...\n## Task\n{kw.get('brief', 'Add a parser')}\n\n## Finish\n...",
+    (d / "prompt.md").write_text(f"[ccx sub-task] ...\nccx run id: {run_id}; lead: claude\n## Task\n{kw.get('brief', 'Add a parser')}\n\n## Finish\n...",
                                  encoding="utf-8")
     return rec
 
