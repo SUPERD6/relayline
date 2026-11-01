@@ -96,6 +96,7 @@ def task_sized(u: dict, agent: str | None = None) -> dict:
 def collect(p: Paths, days: int = 30, include_lead: bool = True) -> dict:
     since = time.time() - days * 86400
     cfg = load_config(p)
+    billing = ledger.billing_config(cfg)
     rows = [r for r in ledger.rows(p) if (r.get("ts") or 0) >= since]
     runs = [r for r in rows if not r.get("type")]
     verdicts = {r["run_id"]: r["ok"] for r in rows if r.get("type") == "verify"}      # the last one wins
@@ -106,9 +107,9 @@ def collect(p: Paths, days: int = 30, include_lead: bool = True) -> dict:
             reasons[r["reason"]] = reasons.get(r["reason"], 0) + 1
     selfruns = [r for r in rows if r.get("type") == "selfrun"]
     sub_sessions = {s for r in ledger.rows(p) if not r.get("type") for s in r.get("sessions", [])}
-    lead_ev, quota = usage.lead_events(since, sub_sessions) if include_lead else ([], [])
+    lead_ev, quota = usage.lead_events(since, sub_sessions, cfg) if include_lead else ([], [])
 
-    events = []
+    events, quota_events = [], []
     for r in runs:
         model = (r.get("rungs") or ["::"])[-1].split(":")[1] if r.get("rungs") else "?"
         u = r.get("usage4") or {"input_tokens": r["usage"].get("input", 0) - r["usage"].get("cache_write", 0),
@@ -119,20 +120,26 @@ def collect(p: Paths, days: int = 30, include_lead: bool = True) -> dict:
         if ae is None:
             ae = _ae(p, r["to"], model, u, ts=r.get("ts"))
         by = r.get("ae_by_agent") or {}
-        if len(by) > 1:     # escalated across agents (e.g. DeepSeek -> Claude): each agent's share in its stream;
-            for ag, v in by.items():          # the tokens stay with the agent that finished
+        qby = r.get("quota_by_agent") or {r["to"]: ledger.row_quota(r)}
+        quota_events.extend({"ts": r["ts"], "agent": ag, "role": "sub", "quota_units": units}
+                            for ag, units in qby.items())
+        if len(by) > 1:     # each agent's dollar share; preserve the existing run/token accounting
+            for ag, v in by.items():
                 events.append({"ts": r["ts"], "agent": ag, "role": "sub", "model": model, "ae": v, "run": r,
+                               "quota_units": qby.get(ag, 0),
                                "usage": u if ag == r["to"] else {}})
             continue
         events.append({"ts": r["ts"], "agent": r["to"], "role": "sub", "model": model, "usage": u, "ae": ae,
-                       "run": r})
+                       "quota_units": ledger.row_quota(r), "run": r})
     for e in lead_ev:
         e["ae"] = _ae(p, e["agent"], e["model"], e["usage"], ts=e.get("ts"))
         events.append(e)
-    return {"since": since, "days": days, "events": events, "runs": runs, "verdicts": verdicts, "soft": soft,
+        quota_events.append(e)
+    return {"since": since, "days": days, "events": events, "quota_events": quota_events,
+            "runs": runs, "verdicts": verdicts, "soft": soft,
             "soft_trust": ledger.soft_trust(ledger.rows(p)), "reasons": reasons,
             "selfruns": selfruns, "quota": quota, "lead_models": cfg.get("lead", {}),
-            "lead_seen": include_lead}
+            "lead_seen": include_lead, "billing": {"mode": billing["mode"]}}
 
 
 def _trial(p: Paths) -> dict | None:
@@ -163,9 +170,11 @@ def _stream(e: dict, cfg: dict) -> tuple[str, str]:
 
 
 def summarize(p: Paths, data: dict) -> dict:
-    by_stream = {s: {"ae": 0.0, "n": 0, **{k: 0 for k, _ in BUCKETS}} for s in STREAMS}
+    by_stream = {s: {"ae": 0.0, "quota_units": 0.0, "n": 0, **{k: 0 for k, _ in BUCKETS}} for s in STREAMS}
     by_day: dict[str, dict] = defaultdict(lambda: {s: 0.0 for s in STREAMS})
+    quota_by_day: dict[str, dict] = defaultdict(lambda: {s: 0.0 for s in STREAMS})
     cfg = load_config(p)
+    billing = ledger.billing_config(cfg)
     for e in data["events"]:
         s = _stream(e, cfg)
         if s not in by_stream:
@@ -176,10 +185,29 @@ def summarize(p: Paths, data: dict) -> dict:
         for k, _ in BUCKETS:
             b[k] += e["usage"].get(k, 0)
         by_day[_day(e["ts"])][s] += e["ae"]
+    for e in data.get("quota_events", data["events"]):
+        s = _stream(e, cfg)
+        if s not in by_stream:
+            continue
+        units = e.get("quota_units")
+        if units is None:
+            units = ledger.quota_units(cfg, e["agent"], e.get("model") or "", e.get("usage") or {})
+        by_stream[s]["quota_units"] += units
+        quota_by_day[_day(e["ts"])][s] += units
+
+    sub_runs = {}
+    for e in (x for x in data["events"] if x["role"] == "sub"):
+        rid = e["run"]["run_id"]
+        if rid not in sub_runs:
+            sub_runs[rid] = {**e, "ae": 0.0, "usage": {}, "quota_units": ledger.row_quota(e["run"])}
+        run = sub_runs[rid]
+        run["ae"] += e["ae"]
+        for k, v in e["usage"].items():
+            run["usage"][k] = run["usage"].get(k, 0) + v
 
     savings, uppers, run_rows = [], [], []
     done = verified_ok = 0
-    for e in (x for x in data["events"] if x["role"] == "sub"):
+    for e in sub_runs.values():
         r = e["run"]
         verdict = data["verdicts"].get(r["run_id"])
         ok = verdict if verdict is not None else (r.get("status") == "done")
@@ -205,6 +233,7 @@ def summarize(p: Paths, data: dict) -> dict:
                          "task": r.get("task") or "", "caller": caller, "agent": r["to"],
                          "rungs": r.get("rungs") or [], "status": r.get("status"), "kind": r.get("kind"),
                          "verdict": verdict, "tokens": sum(e["usage"].values()), "ae": round(e["ae"], 5),
+                         "quota_units": e.get("quota_units", ledger.row_quota(r)),
                          "saving": None if saving is None else round(saving, 5), "b": r.get("b")})
 
     tot_in = sum(by_stream[s][k] for s in STREAMS for k in ("input_tokens", "cache_write_tokens",
@@ -212,6 +241,8 @@ def summarize(p: Paths, data: dict) -> dict:
     cached = sum(by_stream[s]["cached_input_tokens"] for s in STREAMS)
     sub_ae = sum(by_stream[s]["ae"] for s in STREAMS if s[1] == "sub")
     lead_ae = sum(by_stream[s]["ae"] for s in STREAMS if s[1] == "lead")
+    sub_units = sum(by_stream[s]["quota_units"] for s in STREAMS if s[1] == "sub")
+    lead_units = sum(by_stream[s]["quota_units"] for s in STREAMS if s[1] == "lead")
     nsub = len(run_rows)
     # the lead's own turns (H10): every turn re-reads the whole conversation, so this is where most spend goes
     from .context import turn_tokens
@@ -267,7 +298,11 @@ def summarize(p: Paths, data: dict) -> dict:
 
     return {
         "generated": time.strftime("%Y-%m-%d %H:%M"), "days": data["days"], "lead_seen": data["lead_seen"],
+        "billing": {"mode": billing["mode"]},
         "totals": {"ae": round(sub_ae + lead_ae, 4), "sub_ae": round(sub_ae, 4), "lead_ae": round(lead_ae, 4),
+                   "quota_units": round(sub_units + lead_units, 6),
+                   "sub_quota_units": round(sub_units, 6), "lead_quota_units": round(lead_units, 6),
+                   "quota_units_per_success": round(sub_units / done, 6) if done else None,
                    "codex_credits": round(sum(by_stream[s]["ae"] for s in STREAMS if s[0] == "codex")
                                           * CREDITS_PER_USD, 1),
                    "runs": nsub, "done_rate": round(done / nsub, 3) if nsub else None,
@@ -293,13 +328,28 @@ def summarize(p: Paths, data: dict) -> dict:
                    "lead_turn_ae_median": round(mid[1], 4) if mid else None,
                    "lead_one_rung_down_saving": round(down_saving, 2) if lead_turns else None},
         "streams": [{"agent": s[0], "role": s[1], "label": STREAM_LABEL[s], "ae": round(v["ae"], 5),
+                     "quota_units": round(v["quota_units"], 6),
                      "events": v["n"], **{k: v[k] for k, _ in BUCKETS}} for s, v in by_stream.items()],
         "days_series": [{"day": d, **{f"{a}:{r}": round(v[(a, r)], 5) for a, r in STREAMS}}
                         for d, v in sorted(by_day.items())],
+        "quota_days_series": [{"day": d, **{f"{a}:{r}": round(v[(a, r)], 6) for a, r in STREAMS}}
+                              for d, v in sorted(quota_by_day.items())],
         "runs": sorted(run_rows, key=lambda r: r["run_id"], reverse=True),
         "ab": ab, "trial": tr, "quota": list(quota.values()), "compare": compare,
         "accuracy": accuracy.summary(p, include_evals=bool(data.get("include_evals"))),
     }
+
+
+def output_summary(s: dict) -> dict:
+    """API-mode JSON retains its original schema; internal summaries still carry both accounting bases."""
+    if (s.get("billing") or {}).get("mode") == "subscription":
+        return s
+    out = {k: v for k, v in s.items() if k not in ("billing", "quota_days_series")}
+    quota_keys = ("quota_units", "sub_quota_units", "lead_quota_units", "quota_units_per_success")
+    out["totals"] = {k: v for k, v in s["totals"].items() if k not in quota_keys}
+    for key in ("streams", "runs"):
+        out[key] = [{k: v for k, v in r.items() if k != "quota_units"} for r in s[key]]
+    return out
 
 
 # ------------------------------------------------------------------ HTML
@@ -366,7 +416,7 @@ def _shown(days: list[dict]) -> list[int]:
             if i < BASE_STREAMS or any(d.get(f"{a}:{r}", 0) for d in days)]
 
 
-def _daily_chart(days: list[dict]) -> str:
+def _daily_chart(days: list[dict], subscription: bool = False) -> str:
     if not days:
         return '<p class="note">No usage in this window yet.</p>'
     W, H, L, B, T = 960, 240, 56, 28, 10
@@ -376,11 +426,13 @@ def _daily_chart(days: list[dict]) -> str:
     peak = max(sum(d[k] for k in keys) for d in days) or 1
     step = (W - L - 8) / len(days)
     bw = max(3, min(28, step * 0.62))
-    out = [f'<svg viewBox="0 0 {W} {H}" role="img" aria-label="API-equivalent dollars per day by stream">']
+    fmt = _num if subscription else _usd
+    label = "Quota units" if subscription else "API-equivalent dollars"
+    out = [f'<svg viewBox="0 0 {W} {H}" role="img" aria-label="{label} per day by stream">']
     for i in range(5):
         y = T + (H - T - B) * i / 4
         out.append(f'<line x1="{L}" x2="{W - 8}" y1="{y:.1f}" y2="{y:.1f}" stroke="var(--grid)" stroke-width="1"/>')
-        out.append(f'<text x="{L - 6}" y="{y + 4:.1f}" text-anchor="end">{_usd(peak * (1 - i / 4))}</text>')
+        out.append(f'<text x="{L - 6}" y="{y + 4:.1f}" text-anchor="end">{fmt(peak * (1 - i / 4))}</text>')
     out.append(f'<line x1="{L}" x2="{W - 8}" y1="{H - B}" y2="{H - B}" stroke="var(--axis)" stroke-width="1"/>')
     every = max(1, len(days) // 8)
     for i, d in enumerate(days):
@@ -399,10 +451,10 @@ def _daily_chart(days: list[dict]) -> str:
                 yt = y0 - h
                 out.append(f'<path d="M{x:.1f},{y0 - gap:.1f} V{yt + rr:.1f} Q{x:.1f},{yt:.1f} {x + rr:.1f},{yt:.1f} '
                            f'H{x + bw - rr:.1f} Q{x + bw:.1f},{yt:.1f} {x + bw:.1f},{yt + rr:.1f} V{y0 - gap:.1f} Z" '
-                           f'fill="{c}" data-tip="{d["day"]} · {label}: {_usd(v)}"/>')
+                           f'fill="{c}" data-tip="{d["day"]} · {label}: {fmt(v)}"/>')
             else:
                 out.append(f'<rect x="{x:.1f}" y="{y0 - h:.1f}" width="{bw:.1f}" height="{path_h:.1f}" fill="{c}" '
-                           f'data-tip="{d["day"]} · {label}: {_usd(v)}"/>')
+                           f'data-tip="{d["day"]} · {label}: {fmt(v)}"/>')
             y0 -= h
         if i % every == 0:
             out.append(f'<text x="{x + bw / 2:.1f}" y="{H - 8}" text-anchor="middle">{d["day"][5:]}</text>')
@@ -437,6 +489,8 @@ def _bucket_chart(streams: list[dict]) -> str:
 
 def render_html(s: dict) -> str:
     t = s["totals"]
+    subscription = (s.get("billing") or {}).get("mode") == "subscription"
+    days = s["quota_days_series"] if subscription else s["days_series"]
     ci = t.get("saving_ci95")
     saving_note = (f"95% CI {_usd(ci[0])} … {_usd(ci[1])} · n={t['saving_n']}" if ci else
                    f"n={t['saving_n']} (CI needs ≥3 runs)")
@@ -470,18 +524,27 @@ def render_html(s: dict) -> str:
         ("Saving", "not measured yet", "`ccx trial start` measures it (the lead does a share of the tasks itself); "
          "measured totals so far about even (docs/measured.md)"),
     ]
+    if subscription:
+        tiles[:2] = [
+            ("Total usage (quota units)", _num(t["quota_units"]),
+             f"last {s['days']} days · API-equivalent USD {_usd(t['ae'])}"),
+            ("Sub-agent usage (quota units)", _num(t["sub_quota_units"]),
+             f"{t['runs']} runs · units/success {_num(t['quota_units_per_success'])} · AE$ {_usd(t['sub_ae'])}"),
+        ]
     tiles_html = "".join(f'<div class="tile"><div class="k">{_esc(k)}</div><div class="v">{_esc(v)}</div>'
                          f'<div class="n">{_esc(n)}</div></div>' for k, v, n in tiles)
-    shown = _shown(s["days_series"])
+    shown = _shown(days)
     legend1 = "".join(f'<span><i style="background:var(--s{i + 1})"></i>{_esc(STREAM_LABEL[STREAMS[i]])}</span>'
                       for i in shown)
     legend2 = "".join(f'<span><i style="background:var(--t{i + 1})"></i>{_esc(n)}</span>'
                       for i, (_, n) in enumerate(BUCKETS))
     day_rows = "".join(f"<tr><td>{d['day']}</td>" + "".join(
-        f'<td class="r">{_usd(d[f"{STREAMS[i][0]}:{STREAMS[i][1]}"])}</td>' for i in shown) + "</tr>"
-        for d in s["days_series"])
+        f'<td class="r">{(_num if subscription else _usd)(d[f"{STREAMS[i][0]}:{STREAMS[i][1]}"])}</td>'
+        for i in shown) + "</tr>" for d in days)
+    quota_head = '<th class="r">quota units</th>' if subscription else ""
     stream_rows = "".join(
         f"<tr><td>{_esc(x['label'])}</td>" + "".join(f'<td class="r">{_num(x[k])}</td>' for k, _ in BUCKETS)
+        + (f'<td class="r">{_num(x["quota_units"])}</td>' if subscription else "")
         + f'<td class="r">{_usd(x["ae"])}</td></tr>' for x in s["streams"] if x["events"])
 
     def verdict(r):
@@ -494,7 +557,9 @@ def render_html(s: dict) -> str:
         f"<tr><td>{r['day']}</td><td>{_esc(r['label'] or r['task'] or r['run_id'])}</td><td>{_esc(r['caller'])} → "
         f"{_esc(r['agent'])}</td><td>{_esc(' → '.join(x.split(':', 1)[1] for x in r['rungs'] if x))}</td>"
         f"<td>{verdict(r)}{'' if r['kind'] in (None, 'ok') else ' · ' + _esc(r['kind'])}</td>"
-        f'<td class="r">{_num(r["tokens"])}</td><td class="r">{_usd(r["ae"])}</td></tr>' for r in s["runs"][:200])
+        f'<td class="r">{_num(r["tokens"])}</td>'
+        + (f'<td class="r">{_num(r["quota_units"])}</td>' if subscription else "")
+        + f'<td class="r">{_usd(r["ae"])}</td></tr>' for r in s["runs"][:200])
     ab_html = ""
     if s["ab"]:
         ab_html = ('<div class="card"><h2>A/B check — lead did it itself vs delegated (same difficulty b)</h2>'
@@ -541,24 +606,29 @@ def render_html(s: dict) -> str:
                           f'</td><td class="r">{q["used_percent"]:.0f}%</td></tr>' for q in s["quota"]) + "</table></div>")
     lead_note = ("" if s["lead_seen"] else
                  '<p class="note">Lead-side usage not read (run with transcripts available to include it).</p>')
+    basis = ("quota units are a configured token proxy, not remaining subscription quota; secondary amounts are "
+             "API-equivalent USD (AE$)" if subscription else
+             "amounts are API-equivalent USD (AE$), not your subscription bill")
+    day_title = "Quota units per day, by who spent them" if subscription else "Spend per day, by who spent it"
+    empty_run = '<tr><td colspan="8">No runs yet.</td></tr>' if subscription else '<tr><td colspan="7">No runs yet.</td></tr>'
     return f"""<!doctype html><html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1"><title>ccx Usage Dashboard</title>
 <style>{CSS}</style></head><body><div class="viz-root"><div class="wrap">
 <h1>Token and quota usage</h1><p class="sub">Claude Code ⇄ Codex ⇄ DeepSeek via ccx · generated {s['generated']} ·
-last {s['days']} days · amounts are API-equivalent USD (AE$), not your subscription bill</p>
+last {s['days']} days · {basis}</p>
 <div class="tiles">{tiles_html}</div>
-<div class="card"><h2>Spend per day, by who spent it</h2><div class="legend">{legend1}</div><div class="chart">{_daily_chart(s['days_series'])}</div>
+<div class="card"><h2>{day_title}</h2><div class="legend">{legend1}</div><div class="chart">{_daily_chart(days, subscription)}</div>
 <details><summary>Table view</summary><div class="scroll"><table class="tbl"><tr><th>day</th>
 {''.join(f'<th class="r">{_esc(STREAM_LABEL[STREAMS[i]])}</th>' for i in shown)}</tr>{day_rows}</table></div></details>{lead_note}</div>
 <div class="card"><h2>Tokens by type</h2><div class="legend">{legend2}</div><div class="chart">{_bucket_chart(s['streams'])}</div>
 <details open><summary>Table view</summary><div class="scroll"><table class="tbl"><tr><th>stream</th>
-{''.join(f'<th class="r">{_esc(n)}</th>' for _, n in BUCKETS)}<th class="r">AE$</th></tr>{stream_rows}</table></div></details>
+{''.join(f'<th class="r">{_esc(n)}</th>' for _, n in BUCKETS)}{quota_head}<th class="r">AE$</th></tr>{stream_rows}</table></div></details>
 <p class="note">Cache reads bill at about 0.1× input; Claude's headless start-up is written to a 1-hour cache (2× input) on
 first use, so delegations close together are cheaper.</p></div>
 {ab_html}{cmp_html}{quota_html}{accuracy.card_html(s.get('accuracy'))}
 <div class="card"><h2>Delegated runs</h2><div class="scroll"><table class="tbl"><tr><th>day</th><th>task</th><th>who</th>
-<th>model → escalation</th><th>result</th><th class="r">tokens</th><th class="r">AE$</th></tr>
-{run_rows or '<tr><td colspan="7">No runs yet.</td></tr>'}</table></div>
+<th>model → escalation</th><th>result</th><th class="r">tokens</th>{quota_head}<th class="r">AE$</th></tr>
+{run_rows or empty_run}</table></div>
 <p class="note">What each run cost. No per-run saving is shown: a saving is only reported once `ccx trial` has
 measured one (measured totals so far were about even, docs/measured.md).</p></div>
 </div></div><div id="tip" role="tooltip"></div><script>{JS}</script></body></html>"""
@@ -570,8 +640,12 @@ def write(p: Paths, days: int = 30, out: Path | None = None, include_lead: bool 
     out = out or p.state / "report" / "index.html"
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(render_html(s), encoding="utf-8")
+    s = output_summary(s)
     (out.parent / "summary.json").write_text(json.dumps(s, ensure_ascii=False, indent=1), encoding="utf-8")
-    return {"report": str(out), "summary": str(out.parent / "summary.json"), "totals": s["totals"]}
+    result = {"report": str(out), "summary": str(out.parent / "summary.json"), "totals": s["totals"]}
+    if "billing" in s:
+        result["billing"] = s["billing"]
+    return result
 
 
 def publish(p: Paths, report_dir: Path) -> dict:

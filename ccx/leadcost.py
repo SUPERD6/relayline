@@ -194,6 +194,11 @@ def _codex_parts(evs: list[dict]) -> tuple[list[dict], int | None, str]:
 
 
 def breakdown(p, agent: str, path: Path) -> dict:
+    from . import ledger
+    from .config import load_config
+    cfg = load_config(p)
+    mode = ledger.billing_config(cfg)["mode"]
+    subscription = mode == "subscription"
     evs = _lines(path)
     parts, measured, model = (_claude_parts if agent == "claude" else _codex_parts)(evs)
     est = sum(x["est"] for x in parts)
@@ -210,23 +215,29 @@ def breakdown(p, agent: str, path: Path) -> dict:
     calls = _mcp_calls(agent, evs)
     for x in parts:
         x["share"] = round(x["tokens"] / total, 3) if total else None
-        x["usd_per_100_turns"] = round(100 * _price_read(p, agent, model, x["tokens"]), 3)
+        usd = {"usd_per_100_turns": round(100 * _price_read(p, agent, model, x["tokens"]), 3)}
+        units = ledger.quota_units(cfg, agent, model, {"cached_input_tokens": x["tokens"]})
+        quota = {"quota_units": units, "quota_units_per_100_turns": round(100 * units, 6)}
+        x.update({**quota, **usd} if subscription else {**usd, **quota})
         m = MCP_PART.match(x["part"])
         if m:
             x["calls"] = calls.get(m.group(1), 0)
     return {"agent": agent, "session_file": str(path), "model": model, "first_turn_tokens": measured,
-            "estimated": True, "parts": parts, "advice": _advice(parts)}
+            "estimated": True, "parts": parts, "advice": _advice(parts, subscription), "billing": {"mode": mode}}
 
 
 MCP_PART = re.compile(r"MCP server (.+) \(tool definitions\)$")
 
 
-def _advice(parts: list[dict]) -> list[str]:
+def _advice(parts: list[dict], subscription: bool = False) -> list[str]:
     out = []
     for x in parts:
         if x["tokens"] < BIG_PART:
             continue
         cost = f"~{x['tokens']:,} tokens every turn (≈ ${x['usd_per_100_turns']:.2f} per 100 turns)"
+        if subscription:
+            cost = (f"~{x['tokens']:,} tokens every turn (≈ {x['quota_units_per_100_turns']:,} quota units "
+                    f"per 100 turns; API-equivalent ${x['usd_per_100_turns']:.2f})")
         if x["part"] == "MCP server instructions":
             # The servers' own usage notes, not one server: only worth acting on when some server is unused.
             unused = [m.group(1) for y in parts if (m := MCP_PART.match(y["part"])) and y.get("calls") == 0]
