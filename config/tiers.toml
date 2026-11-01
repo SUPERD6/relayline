@@ -271,6 +271,11 @@ enabled = true
 # true：已投进 Claude Code 收件箱的就不再给钩子留一份；false：也留一份（被暂存或过期的消息下一轮仍能看到，代价是可能看到两次）
 trust_socket = true
 
+[output]
+# 主导拿到的结果（ccx/leadview.py）：check 和审查都过、没有要主导看的东西时，只给一行 JSON（做了什么、改了哪些文件、recap 里的
+# 花费和 `ccx show <id>`）；line = 默认，full = 每次都给完整结果（以前的样子）。`ccx show <id>` 永远是完整结果。
+lead = "line"
+
 [shared_context]
 # 共享工作上下文（docs/shared-context.zh.md）：ccx 用代码从主导会话记录里摘“最近在聊什么”，不调模型。
 # 派活时附上：auto = 只给可写任务；on = 所有任务；off = 不附（ccx run --context 每次可改）。

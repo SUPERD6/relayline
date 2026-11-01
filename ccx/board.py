@@ -209,12 +209,47 @@ def post(root: Path, frm: str, to: str, text: str, thread: str | None = None, re
 
 
 def for_me(e: dict, reader: str) -> bool:
-    """Is this message addressed to `reader` (vendor or vendor:session), and not written by it?"""
+    """Is this message addressed to `reader` (vendor or vendor:session), and not written by it? A run notice
+    (post_run) is for `ccx board` and `ccx ui` only: it never takes a session's turn budget."""
     v, frm = vendor_of(reader), e["from"]
-    if frm == reader or (":" not in reader and vendor_of(frm) == v):
+    if e.get("kind") == "run" or frm == reader or (":" not in reader and vendor_of(frm) == v):
         return False
     to = e["to"]
     return to == "all" or to == v or (":" in to and to == reader)
+
+
+def post_run(root: Path, record: dict, phase: str, *, via: str = "ccx") -> dict:
+    """Append a deduplicated lifecycle notice, retaining the board's ordinary message fields.
+
+    Called by the UI's run observer (and demo seed), never by a GET request. System notices use their own thread,
+    so they cannot reset or bypass an agents' conversation limit. `kind` and run metadata are additive fields.
+    """
+    rid = str(record.get("run_id") or "")
+    if not re.fullmatch(r"[A-Za-z0-9_-]{1,64}", rid) or phase not in ("started", "finished"):
+        raise ValueError("a run id and started/finished phase are required")
+    with _lock(root):
+        es = entries(root)
+        old = next((e for e in es if e.get("kind") == "run" and e.get("run_id") == rid
+                    and e.get("phase") == phase), None)
+        if old:
+            return old
+        frm = str(record.get("caller") or "user")
+        frm = frm if vendor_of(frm) in (*VENDORS, "user") else "user"
+        brief = str(record.get("label") or (record.get("result") or {}).get("summary") or rid).splitlines()[0][:200]
+        usd = sum(float(a.get("ae_usd") or 0) for a in record.get("attempts") or [])
+        usd += float((record.get("review") or {}).get("usd") or 0)
+        status = record.get("kind") or ("ok" if record.get("ok") else (record.get("result") or {}).get("status") or "finished")
+        text = (f"{frm} → {record.get('to')}: {brief}" if phase == "started" else
+                f"Completed: {status}, ${usd:.4f} → /runs/{rid}")
+        e = {"id": max([x["id"] for x in es] or [0]) + 1, "ts": time.strftime("%Y-%m-%dT%H:%M:%S"),
+             "from": frm, "via": via, "to": "all", "thread": f"run:{rid}", "text": text, "reply_to": None,
+             "kind": "run", "run_id": rid, "phase": phase}
+        with open(_file(root), "a", encoding="utf-8") as fh:
+            fh.write(json.dumps(e, ensure_ascii=False) + "\n")
+            fh.flush()
+            os.fsync(fh.fileno())
+    _ensure_ignored(root)
+    return e
 
 
 def read(root: Path, reader: str, advance: bool = True) -> list[dict]:
@@ -259,7 +294,7 @@ _CODE = re.compile(r"```.*?```|`[^`\n]*`", re.S)
 def asks_person(e: dict) -> bool:
     """A machine message that asks the person: `@person` (or @user / @human) in its text outside code, or addressed
     to `user` (a record written by other means: `post` itself refuses that address)."""
-    if vendor_of(str(e.get("from") or "")) == "user":
+    if vendor_of(str(e.get("from") or "")) == "user" or e.get("kind") == "run":   # a brief may say @person
         return False
     text = _CODE.sub(" ", str(e.get("text") or ""))
     return vendor_of(str(e.get("to") or "")) == "user" or bool(ASK_PERSON.search(text))
@@ -392,7 +427,7 @@ def sync(root: Path, repo: str, host: str, force: bool = False) -> dict:
             num = int(r.stdout.strip().rstrip("/").rsplit("/", 1)[-1])
     pushed_upto = int(st.get("pushed", 0))
     es = entries(root)
-    mine = [e for e in es if e["id"] > pushed_upto and not e.get("remote")]
+    mine = [e for e in es if e["id"] > pushed_upto and not e.get("remote") and e.get("kind") != "run"]
     for e in mine:
         body = f"<!-- ccx:board host={host} id={e['id']} -->\n" + json.dumps(e, ensure_ascii=False)
         ghpriv.comment(repo, num, body)

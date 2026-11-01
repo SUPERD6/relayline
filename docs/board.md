@@ -102,6 +102,17 @@ run, no command line or shell is involved. Writing as the person resets the mach
 thread may go on. The page sends only the project id, thread, message id and text; the server finds the board
 itself. `<hub>/ccx/ui-actions.jsonl` gets one line per reply (thread, id, length; not the text).
 
+## Delegations on the board
+
+`ccx run` and `ccx resume` themselves write a delegation's start and end to its project's board (`kind: "run"`,
+thread `run:<run_id>`: who gave what to whom; then the status, the API-equivalent cost and `/runs/<run_id>`), so
+`ccx board` and `ccx ui` show it although no UI was open. A review fix round is a run of its own and gets its own
+pair; the reviewer's run and other ephemeral runs (`ccx ask`, `ccx discuss`, quota probes) do not. Written only where
+that touches nothing in the project: its `.gitignore` has `.ccx/` (or the board's lines). Each run and phase is written
+once (`board.post_run`), whoever writes it first. These notices are for `ccx ui`, `ccx board --all` and `ccx board --thread run:<run_id>`: no session's turn
+(nor a plain `ccx board --as <agent>`) gets them, and the GitHub fallback does not push them. Covered ends: a normal end, an interrupt while the sub-agent
+runs, a run another `ccx` closed first; a process killed outright leaves only the start until the UI catches up.
+
 ## A background run tells its lead when it is done
 
 `ccx run --bg` / `ccx resume --bg` without `--wait`: when the run (and any review fix round) is finished, or was

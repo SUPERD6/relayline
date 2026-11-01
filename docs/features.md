@@ -216,6 +216,10 @@ In Claude Code you say: "make `loader.py` accept a custom delimiter and add test
 3. **Run headless.** ccx runs `codex exec -m gpt-6.1-sol -c model_reasoning_effort="medium" …`. The session id is
    saved the moment it appears. Codex reads the files, edits and runs the tests on Codex's own quota.
 4. **Return a summary.** Codex must answer in a JSON schema (`status / summary / files_changed / verification / …`).
+   When the check passed, the review passed (or none ran) and nothing needs the lead (no hint, open question, next step, review
+   note, L2 merge or project answer, weak or unknown-coverage check, ...), the lead is handed one JSON line (summary,
+   files, diffstat, check, recap; `"view": "line"`) instead of the whole result, which it re-reads on every later
+   turn; `ccx show <run_id>` gives the whole one, and `ccx config set output.lead full` restores it everywhere.
    Claude reads only that, glances at `git diff`, and records its verdict with `ccx verify <run_id> --ok 1`.
    A passed check says what it passed on: `check passed (covers: tests/test_x.py)` lists the test files the
    pytest / unittest command names (folders expanded; "not known" for other commands), adds `(only -k …)` when a
