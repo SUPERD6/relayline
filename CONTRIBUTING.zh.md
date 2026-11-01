@@ -19,11 +19,16 @@ python -m pip install -e . pytest
 python -m pytest -q tests            # 每次提交前都必须全部通过
 ```
 
-测试从不调用真正的智能体：`tests/fakes/` 里有替身版的 `codex`、`claude` 和 `gemini` 命令行，输出的事件格式和真的一样。CI 在 Linux、Windows、macOS × Python 3.11–3.13 上跑这些测试，还会打出 wheel、装好后运行装好的 `ccx`（`tests/smoke_installed.py`）。
+测试从不调用真正的智能体：`tests/fakes/` 里有替身版的 `codex`、`claude` 和 `gemini` 命令行，输出的事件格式和真的一样。PR 在 Windows 3.11 和 Ubuntu 3.13 上跑这些测试，并在 Ubuntu 上检查 wheel。推到 main 且不只改了文档时，以及打版本标签时，跑 Linux、Windows、macOS × Python 3.11–3.13，三个系统都检查 wheel（装好后运行装好的 `ccx`，`tests/smoke_installed.py`）。没开 PR 的分支什么都不跑，可以用 `gh workflow run tests --ref <分支>` 手动跑全矩阵。
 
 ## 规则
 
 - **每个改动都带测试。** 修 bug 要附一个没有这个修复就会失败的测试。
+- **测试不依赖时钟、日期和时机。**
+  - 新写的读时间的代码接收一个 `now` 参数（像 `tokenflow.since_of(period, now)` 那样），测试传一个固定值。有个测试拿“现在 − 60 秒”当今天，零点后一分钟内就会失败（#193）。
+  - 不写死要和时间窗口比的日期，用被测代码用的同一个 now 算出来。有个测试写死了 2026-10-24 的时间戳，过了 7 天窗口就失败（#190）。
+  - 并发代码：mock 掉慢的调用，在测试里固定事件的先后，像 `tests/test_worktree_race.py` 里的 `test_the_race_with_another_process_is_tried_again` 那样。sleep 只能放在 mock 里用来拉大竞态窗口；不靠睡眠或加长等待来等结果、掩盖竞态。
+  - 断言发生了什么，不断言花了多久；测试不能假设机器上没有别的进程在跑，自己启动的后台进程在测试结束前收掉。
 - **核心功能不丢。** 不删命令或选项；改到某个命令的 PR 用一行写清保留了什么、怎么验证的。没真跑过的路径在说明处标“实验性”。
 - **仓库里不放个人内容**：不放名字、本机路径、邮箱、机器名或数据。个人的东西放在用户自己的 hub 里。每次 push 都会用 `tests/test_repo_hygiene.py` 检查所有跟踪的文件（文本，以及图片里的字符串）；截图还要自己看一眼，画在像素里的路径查不出来。
 - **文档两种语言**：`x.md`（英文）和 `x.zh.md`（中文），互相链接。真正的决定写进 `docs/DECISIONS.md`。
@@ -44,5 +49,7 @@ python -m pytest -q tests            # 每次提交前都必须全部通过
 6. 对真的命令行跑一次，在 PR 里写清楚（版本、跑了什么、得到了什么）。
 
 ## 提交 PR
+
+PR 只跑两格（Windows 3.11、Ubuntu 3.13），全矩阵在合进 main 之后才跑。维护者会看 main 上那次运行（`gh run list --branch main --workflow tests -L 3`）；main 变红时，先修好或者撤回那个 PR，再合别的。改到和平台有关的代码（路径、进程、信号、worktree、编码）的 PR，合并前先跑一次全矩阵：`gh workflow run tests --ref <分支>`。
 
 写明改了什么、为什么改、怎么测的，以及没能测到的部分——PR 模板问的就是这些。提交贡献即表示你同意以 [MIT 许可](LICENSE) 发布你的工作，并遵守[行为准则](CODE_OF_CONDUCT.md)。

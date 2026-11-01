@@ -24,12 +24,24 @@ python -m pytest -q tests            # must pass before every commit
 ```
 
 The tests never call a real agent: `tests/fakes/` holds stand-in `codex`, `claude` and `gemini` CLIs that speak the
-same event formats. CI runs them on Linux, Windows and macOS × Python 3.11–3.13, and also builds the wheel and runs
-the installed `ccx` (`tests/smoke_installed.py`).
+same event formats. A pull request runs them on Windows 3.11 and Ubuntu 3.13 and checks the wheel on Ubuntu. A push
+to main that changes more than docs, and every version tag, runs Linux, Windows and macOS × Python 3.11–3.13 and
+checks the wheel on all three (it installs the wheel and runs the installed `ccx`, `tests/smoke_installed.py`).
+A branch without a pull request runs nothing; start the full matrix by hand with `gh workflow run tests --ref <branch>`.
 
 ## Rules
 
 - **Tests with every change.** A fix comes with a test that fails without it.
+- **Tests don't depend on the clock, the date or timing.**
+  - New code that reads the time takes a `now` parameter (as `tokenflow.since_of(period, now)` does), and the test
+    passes a fixed one. A test that used "now − 60 s" as today failed in the first minute after midnight (#193).
+  - Don't hard-code a date that a time window is measured against; compute it from the same now the code uses. A
+    test with a written-out 2026-10-24 timestamp failed once it fell out of a 7-day window (#190).
+  - Concurrent code: mock the slow call, and fix the order of events in the test, as
+    `test_the_race_with_another_process_is_tried_again` in `tests/test_worktree_race.py` does. A sleep may only sit
+    inside a mock to widen a race window. Never sleep or raise a timeout to wait for a result or hide a race.
+  - Assert on what happened, not on how long it took. A test may not assume nothing else runs on the machine,
+    and it stops any background process it started before it ends.
 - **Keep the core.** Commands and options are not removed; a PR that changes one says in a line what it kept and how
   that was checked. Paths not run for real are called experimental where they are described.
 - **Nothing personal in the repo**: no names, local paths, e-mail addresses, machine names or data. Personal things live in the
@@ -62,6 +74,11 @@ Copy `ccx/agents/_template.py` (a working skeleton with notes) and `tests/fakes/
 6. Run it once against the real CLI and say so in the PR (version, what you ran, what came back).
 
 ## Pull requests
+
+A pull request runs two cells (Windows 3.11, Ubuntu 3.13); the full matrix runs after it lands on main. The
+maintainer checks main's run (`gh run list --branch main --workflow tests -L 3`). A red main is fixed, or the pull
+request reverted, before anything else is merged. A change to platform-specific code (paths, processes, signals,
+worktrees, encodings) runs the full matrix before it is merged: `gh workflow run tests --ref <branch>`.
 
 Describe what changed and why, how you tested it, and anything you could not test. The template asks for exactly
 that. By contributing you agree that your work is released under the [MIT license](LICENSE) and that you follow the
