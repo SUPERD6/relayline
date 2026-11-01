@@ -72,6 +72,8 @@ def soft_verdicts(p: Paths, min_age_h: float = SOFT_AFTER_H, now: float | None =
             # held it against the task text and passed
         if (record.get("namecheck") or {}).get("hits"):  # a possible NameError (warn mode): the lead looks first
             continue
+        if record.get("max_usd"):       # P0-15: the cap stopped a step (a review, say): the lead decides
+            continue
         check = record.get("check")
         rev = (record.get("review") or {}).get("verdict")
         if rev == "pass" and (record.get("review") or {}).get("downgraded"):

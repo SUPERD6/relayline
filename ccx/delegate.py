@@ -35,7 +35,7 @@ from .agents.codex import _add_children, _codex_growth, _codex_seen, _codex_tota
 from .ledger import write_record as _write_record  # noqa: F401
 from .plan import _fallback_plan, _plan, _provider_envs, _rung_spec, _usable, _within_budget, other  # noqa: F401
 from .prompts import (CLEAN_LANG, CHECK_RETRY, CHECK_RETRY_SAME, CHECK_RETRY_STRONGER, CHECK_TAIL_CHARS, CONTINUE, ESCALATE, FOLLOWUP, LEAD_NOTE, NEEDS_WRITE, POLICY_MARKERS, POLICY_RETRY, PROMPT,  # noqa: F401
-                      REVIEW_CALLER, REVIEW_FINISH, REVIEW_PERMISSION, SELF_CHECKED_RETRY, SELFCHECK, SELFCHECK_CMD, _policy_rejections,
+                      REVIEW_CALLER, REVIEW_FINISH, REVIEW_PERMISSION, SELF_CHECKED_RETRY, SELFCHECK, SELFCHECK_CMD, SELFCHECK_WRITE, _policy_rejections,
                       is_policy_line, review_permission)
 from .coverage import SELF_CHECKED, SELF_CHECKED_NOTE, on_self_checked, self_checked as coverage_self_checked
 from .merge import REVIEW_LINE
@@ -92,6 +92,8 @@ class Request:
     progress: bool = False          # a foreground `ccx run`/`resume`: one stderr line every ~30 s while it waits
     finish_note: str | None = None  # `ccx batch --merge`: the merged run's own Finish text (ccx/merge.py FINISH)
     merge_of: str | None = None     # a follow-up / spun-off run of a merged run (`ccx batch --merge`): that run's id
+    max_usd: float | None = None    # P0-15 --max-usd: cap on this whole delegation (attempts, review, fix round)
+    chain_usd: float = 0.0          # what the chain spent before this run (a fix round: its first run + review)
 
 
 def _busy(p: Paths, prev: dict, scan: int = 300) -> str | None:
@@ -128,6 +130,24 @@ def refuse_if_busy(p: Paths, prev: dict) -> None:
             f"run {busy} is still working in that session (its check, review or fix round included): wait for it "
             f"with `ccx show {busy} --wait`, or stop it with `ccx stop {busy}`, then resume. Starting another run "
             "in the same session now would fail (Codex: 'thread already has an active writer').")
+
+
+def slim_prompt(cfg: dict) -> bool:
+    """[prompt] slim (default true): no answer-only sentence for a `--mode write` run without --check (P0-11 item 2)."""
+    v = (cfg.get("prompt") or {}).get("slim", True)
+    return v if isinstance(v, bool) else str(v).strip().lower() not in ("false", "0", "no", "off")
+def _capped(req: Request, record: dict, before: str) -> bool:
+    """P0-15 --max-usd: the chain has spent its cap, so `before` (the next attempt, the review, the fix round) does
+    not start; record["max_usd"] says so. Called only where that step would really start (the review: in review_run,
+    once it decided to review). A running step is never cut: the cap is checked between steps, so the chain can end
+    one step over it (an attempt, or one review with its reviewers). API-equivalent $ (ae_usd), as the receipt's."""
+    if getattr(req, "max_usd", None) is None:
+        return False
+    spent = getattr(req, "chain_usd", 0.0) + _spent(record)
+    if spent < req.max_usd:
+        return False
+    record["max_usd"] = {"cap": req.max_usd, "spent": round(spent, 4), "stopped_before": before}
+    return True
 
 
 def _start_review(req: Request, p: Paths, cfg: dict, record: dict, cwd: Path, run_dir: Path, result: dict | None) -> dict:
@@ -175,7 +195,7 @@ def _finish_review(bg: dict, record: dict, p: Paths, keep: bool, wait: float = 1
     t, shadow = bg["thread"], bg["shadow"]
     if keep:
         t.join()
-        for k in ("review", "edited_tests"):
+        for k in ("review", "edited_tests", "max_usd"):
             if k in shadow:
                 record[k] = shadow[k]
         if shadow.get("kind") in ("review_issues", "review_failed"):
@@ -514,7 +534,10 @@ def run(req: Request, p: Paths) -> dict:
         mode_text += "; do not start sub-agents of your own (no spawn_agent / Agent tool)"
     selfcheck = (REVIEW_FINISH if reviewer
                  else req.finish_note if req.finish_note
-                 else SELFCHECK_CMD.format(check=req.check) if req.check else SELFCHECK)
+                 else SELFCHECK_CMD.format(check=req.check) if req.check
+                 else SELFCHECK_WRITE if (req.mode == "write" and req.mode_why == "--mode given"   # the lead said so
+                                          and slim_prompt(cfg))
+                 else SELFCHECK)
     switches = subagent_switches(cfg)
     # a fork run keeps the lead's own start on every Claude attempt (the forked session is resumed with the same
     # flags and prompt; its cache is the point): clean's Claude side and its prompt line stay out of it
@@ -653,6 +676,12 @@ def run(req: Request, p: Paths) -> dict:
     while i < len(plan):
         if stop_file.exists():                    # stopped between attempts: start nothing more
             oc = Outcome(ok=False, kind="user_stopped", error="stopped by `ccx stop`") if not (oc and oc.ok) else oc
+            break
+        if record["attempts"] and _capped(req, record, "attempt"):   # --max-usd: no further attempt, the lead decides
+            if not (oc and oc.ok):
+                last = (oc.error if oc else None) or ""
+                oc = Outcome(ok=False, kind="max_usd", error=("budget cap reached before the next attempt"
+                                                              + (f"; the last one: {last}" if last else ""))[:400])
             break
         spec = plan[i]
         to = spec["agent"]
@@ -1003,7 +1032,7 @@ def run(req: Request, p: Paths) -> dict:
     # `ccx verify` (the lead's verdict) adds or corrects this later.
     verified = check_passed is not None or (oc.result or {}).get("verification", "not-run") not in ("", "not-run")
     if oc.kind not in ("quota", "auth", "timeout", "model", "needs_write", "split", "over_budget", "user_stopped",
-                       "review_issues", "review_failed", "env") and record.get("kind") not in ("check_broken", "no_changes", "no_answer") and (status in ("blocked", "failed") or not oc.ok
+                       "max_usd", "review_issues", "review_failed", "env") and record.get("kind") not in ("check_broken", "no_changes", "no_answer") and (status in ("blocked", "failed") or not oc.ok
                                                         or (status == "done" and verified)):
         try:
             learn.record_outcomes(p, record, final_ok=oc.ok and status == "done" and check_passed is not False)
@@ -1065,6 +1094,10 @@ def run(req: Request, p: Paths) -> dict:
         record["archived"] = bool(archive.after_run(p, record))
     except Exception:  # noqa: BLE001 — housekeeping never fails the work
         pass
+    if (record.get("kind") == "review_issues" and record.get("session_id")
+            and _capped(req, record, "fix round")):
+        _write_record(run_dir, record)     # --max-usd: the issues go to the lead instead of a fix round
+        return record
     if record.get("kind") == "review_issues" and record.get("session_id"):
         # hand the problems back to the same sub-session once; its fix is reviewed again, against the same task
         # the reviewer's own text, up to review.ISSUE_FULL_CHARS an item: its fix and test notes reach the fixer
@@ -1087,7 +1120,8 @@ def run(req: Request, p: Paths) -> dict:
                           prior_issues=list(record["review"].get("issues_full") or record["review"].get("issues")
                                             or []),
                           merge_of=req.merge_of or (run_id if req.finish_note else None),
-                          finish_note=req.finish_note), p)
+                          finish_note=req.finish_note, max_usd=req.max_usd,
+                          chain_usd=req.chain_usd + _spent(record)), p)
         fix["review_of"], fix["first_review"] = run_id, record["review"]
         try:                               # the lead sees what the whole chain cost, not only its last run
             fix["cost_chain"] = ledger.chain_cost(p, [run_id, *((fix.get("cost_chain") or {}).get("runs")
@@ -1433,6 +1467,15 @@ def compact(record: dict) -> dict:
         out["base"] = record["base_note"]
     if record.get("auth_problem"):
         out["hint"] = f"{record['to']} looks logged out: run `{record['to']} login` on this machine."
+    if record.get("max_usd"):                     # P0-15: --max-usd stopped the chain before its next step
+        m = record["max_usd"]
+        out["max_usd"] = {**m, "note": "budget cap reached"}
+        out["needs_lead"] = (f"max_usd: budget cap reached, the {m['stopped_before']} did not run"
+                             + (f"; {out['needs_lead']}" if out.get("needs_lead") else ""))
+        out["hint"] = (f"budget cap reached (${m['spent']:.4f} of ${m['cap']:g}): the {m['stopped_before']} did not "
+                       "run; check the work yourself, or go on with "
+                       f"`ccx resume {record['run_id']} \"...\" --max-usd <USD for the follow-up>`"
+                       + (f"; {out['hint']}" if out.get("hint") else ""))
     return out
 
 
@@ -1456,6 +1499,11 @@ def recap(record: dict, res: dict) -> str:
             f"check={check} review={review}{lead} cost=~${usd:.4f}"
             + (f" ({len(cc['runs'])} runs + {cc.get('reviews', 0)} reviews)" if cc.get("ae_usd") is not None else "")
             + f"; next: {_next(record)}")
+
+
+def _spent(record: dict) -> float:
+    """This run's own $: its attempts and its review (no fix round)."""
+    return sum(a.get("ae_usd") or 0 for a in record.get("attempts") or []) + ((record.get("review") or {}).get("usd") or 0)
 
 
 def _usd(record: dict, res: dict) -> float:
