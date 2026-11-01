@@ -230,6 +230,7 @@ def summarize(p: Paths, data: dict) -> dict:
                 savings.append(saving)
                 uppers.append((upper or 0.0) - e["ae"] - overhead)
         run_rows.append({"run_id": r["run_id"], "day": _day(r["ts"]), "label": r.get("label") or "",
+                         **({"role": r["role"]} if r.get("role") else {}),
                          "task": r.get("task") or "", "caller": caller, "agent": r["to"],
                          "rungs": r.get("rungs") or [], "status": r.get("status"), "kind": r.get("kind"),
                          "verdict": verdict, "tokens": sum(e["usage"].values()), "ae": round(e["ae"], 5),
@@ -295,9 +296,16 @@ def summarize(p: Paths, data: dict) -> dict:
     measured = tr and tr.get("enough") and tr.get("saving_per_task_usd") is not None
     # delegated runs that held up (a failed run saved nothing), the same rule as the model estimate above
     n_delegated = sum(1 for r in run_rows if (r["verdict"] if r["verdict"] is not None else r["status"] == "done"))
+    by_role = {}
+    if any(r.get("role") for r in run_rows):
+        for r in run_rows:
+            group = by_role.setdefault(r.get("role"), {"role": r.get("role"), "runs": 0, "ae": 0.0})
+            group["runs"] += 1
+            group["ae"] = round(group["ae"] + r["ae"], 5)
 
     return {
         "generated": time.strftime("%Y-%m-%d %H:%M"), "days": data["days"], "lead_seen": data["lead_seen"],
+        **({"roles": sorted(by_role.values(), key=lambda r: r["role"] or "")} if by_role else {}),
         "billing": {"mode": billing["mode"]},
         "totals": {"ae": round(sub_ae + lead_ae, 4), "sub_ae": round(sub_ae, 4), "lead_ae": round(lead_ae, 4),
                    "quota_units": round(sub_units + lead_units, 6),
@@ -553,13 +561,17 @@ def render_html(s: dict) -> str:
         if r["verdict"] is False:
             return '<span class="bad">✗ rejected</span>'
         return _esc(r["status"] or "")
+    has_roles = any(r.get("role") for r in s["runs"])
     run_rows = "".join(
         f"<tr><td>{r['day']}</td><td>{_esc(r['label'] or r['task'] or r['run_id'])}</td><td>{_esc(r['caller'])} → "
         f"{_esc(r['agent'])}</td><td>{_esc(' → '.join(x.split(':', 1)[1] for x in r['rungs'] if x))}</td>"
         f"<td>{verdict(r)}{'' if r['kind'] in (None, 'ok') else ' · ' + _esc(r['kind'])}</td>"
         f'<td class="r">{_num(r["tokens"])}</td>'
         + (f'<td class="r">{_num(r["quota_units"])}</td>' if subscription else "")
-        + f'<td class="r">{_usd(r["ae"])}</td></tr>' for r in s["runs"][:200])
+        + f'<td class="r">{_usd(r["ae"])}</td>'
+        + (f'<td>{_esc(r.get("role") or "")}</td>' if has_roles else "")
+        + '</tr>' for r in s["runs"][:200])
+    role_head = '<th>role</th>' if has_roles else ""
     ab_html = ""
     if s["ab"]:
         ab_html = ('<div class="card"><h2>A/B check — lead did it itself vs delegated (same difficulty b)</h2>'
@@ -627,7 +639,7 @@ last {s['days']} days · {basis}</p>
 first use, so delegations close together are cheaper.</p></div>
 {ab_html}{cmp_html}{quota_html}{accuracy.card_html(s.get('accuracy'))}
 <div class="card"><h2>Delegated runs</h2><div class="scroll"><table class="tbl"><tr><th>day</th><th>task</th><th>who</th>
-<th>model → escalation</th><th>result</th><th class="r">tokens</th>{quota_head}<th class="r">AE$</th></tr>
+<th>model → escalation</th><th>result</th><th class="r">tokens</th>{quota_head}<th class="r">AE$</th>{role_head}</tr>
 {run_rows or empty_run}</table></div>
 <p class="note">What each run cost. No per-run saving is shown: a saving is only reported once `ccx trial` has
 measured one (measured totals so far were about even, docs/measured.md).</p></div>

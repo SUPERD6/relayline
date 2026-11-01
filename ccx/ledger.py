@@ -123,6 +123,7 @@ def _slim(record: dict, cfg: dict | None = None) -> dict:
     slim = {k: record.get(k) for k in ("run_id", "label", "to", "caller", "caller_vendor", "tier", "start_tier",
                                        "mode", "ok", "ts", "kind", "task", "step", "cwd", "session_id",
                                        "lead_session", "continue_depth", "ephemeral", "mode_source")}
+    slim["role"] = record.get("role") or (record.get("route") or {}).get("role")
     if record.get("merge_of"):        # a follow-up / spun-off run of a `ccx batch --merge` run: count it with that plan
         slim["merge_of"] = record["merge_of"]
     slim["rungs"] = [a.get("rung") for a in record["attempts"]]
@@ -513,6 +514,7 @@ def claim_final(run_dir: Path, by: str) -> bool:
 
 
 def write_record(run_dir: Path, record: dict) -> None:
+    record["role"] = record.get("role") or (record.get("route") or {}).get("role")
     tmp = run_dir / "run.json.tmp"
     tmp.write_text(json.dumps(record, ensure_ascii=False, indent=2), encoding="utf-8")
     replace(tmp, run_dir / "run.json")      # ccx's own file: atomic replace is fine here

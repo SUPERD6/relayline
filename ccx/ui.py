@@ -2425,7 +2425,7 @@ def chat_argv(text: str, root: Path, rd: Reader) -> list[str]:
         brief_file.write_text(material, encoding="utf-8")
         return ["ccx", "run", "--from", "user", "--cwd", str(root), "--mode", "read", "--review", "off",
                 "--brief-file", str(brief_file)]
-    allowed = {"run": {"--to", "--tier", "--model", "--effort", "--mode", "--review", "--budget", "--label"},
+    allowed = {"run": {"--to", "--tier", "--model", "--effort", "--mode", "--review", "--budget", "--label", "--role"},
                "say": {"--to", "--thread"}, "discuss": {"--with", "--rounds", "--tier"}}[op]
     flags, body, used = [], [], set()
     i = 0
@@ -2442,6 +2442,9 @@ def chat_argv(text: str, root: Path, rd: Reader) -> list[str]:
                 raise ValueError(f"a value for {arg}")
             if arg == "--to" and val not in (*agents.NAMES, "auto", "all", *_ui_providers(rd)):
                 raise ValueError("unknown destination")
+            if arg == "--role":
+                from . import roles
+                roles.get(rd.p, root, val, load_config(rd.p))
             if arg == "--to" and op == "say":
                 board.norm(val, allow_all=True)
             enums = {"--mode": ("read", "write"), "--review": ("auto", "on", "off"),
@@ -2472,7 +2475,12 @@ def chat_argv(text: str, root: Path, rd: Reader) -> list[str]:
         if "--to" in used and flags[flags.index("--to") + 1] == "all":
             raise ValueError("run: one destination")
         if "--mode" not in used:
-            flags.extend(["--mode", "read"])
+            mode = "read"
+            if "--role" in used:
+                from . import roles
+                row = roles.get(rd.p, root, flags[flags.index("--role") + 1], load_config(rd.p))
+                mode = row["defaults"].get("mode", "read")
+            flags.extend(["--mode", mode])
     return ["ccx", op, "--from", "user", "--cwd", str(root), *flags,
             *(["--confirmed"] if op == "discuss" else []), "--", " ".join(body)]
 
@@ -2725,7 +2733,17 @@ class UI:
                     if path == "/api/ability":
                         from .ability import table
                         q = {k: v[0] for k, v in parse_qs(urlsplit(self.path).query).items() if v}
-                        data = table(ui.p, vendor=q.get("vendor"), task=q.get("task"), persist=False)
+                        if q.get("role") or q.get("by_role") == "1":
+                            from .roles import ability_table
+                            data = ability_table(ui.p, role=q.get("role"), vendor=q.get("vendor"), task=q.get("task"))
+                        else:
+                            data = table(ui.p, vendor=q.get("vendor"), task=q.get("task"), persist=False)
+                        return self._send(200, json.dumps(data, ensure_ascii=False).encode("utf-8"))
+                    if path == "/api/roles":
+                        from .roles import table
+                        q = {k: v[0] for k, v in parse_qs(urlsplit(self.path).query).items() if v}
+                        root = ui.chat_root(q.get("project", ""))
+                        data = table(ui.p, root)
                         return self._send(200, json.dumps(data, ensure_ascii=False).encode("utf-8"))
                     if path.startswith("/api/run/"):
                         return self._send(200, json.dumps(run_detail(ui.p, path[len("/api/run/"):]),
@@ -2935,15 +2953,31 @@ class UI:
             raise ValueError("the selected project no longer exists")
         with self.lock:
             argv = chat_argv(want.get("text"), root, self.reader)
+            role_preview = self.role_preview(root, argv)
             now = time.time()
             self.chats = {k: v for k, v in self.chats.items() if v["until"] > now}
             if len(self.chats) >= 20:
                 raise LookupError("too many unconfirmed commands")
             nonce = secrets.token_urlsafe(18)
-            self.chats[nonce] = {"argv": argv, "root": root, "until": now + CHAT_TTL_S}
+            self.chats[nonce] = {"argv": argv, "root": root, "until": now + CHAT_TTL_S,
+                                 **({"role_preview": role_preview} if role_preview else {})}
         return {"nonce": nonce, "argv": argv, "cmd": "ccx " + " ".join(json.dumps(x, ensure_ascii=False) for x in argv[1:]),
                 "estimate": "unknown" if argv[1] in ("run", "discuss") else 0, "ttl_s": CHAT_TTL_S,
+                **({"role": role_preview["role"], "brief": role_preview["brief"]} if role_preview else {}),
                 "demo": self.demo, "spends": argv[1] in ("run", "discuss")}
+
+    def role_preview(self, root: Path, argv: list[str]) -> dict | None:
+        if argv[1] != "run" or "--role" not in argv:
+            return None
+        from . import roles
+        # Read afresh at both clicks: a changed model, check, permission or template invalidates confirmation.
+        cfg = load_config(self.p)
+        name = argv[argv.index("--role") + 1]
+        role = roles.get(self.p, root, name, cfg)
+        text = roles.brief(self.p, root, name, argv[-1], cfg)
+        if len(text) > SAY_MAX:
+            raise ValueError(f"role template and task exceed {SAY_MAX} characters; shorten the template or use CLI")
+        return {"role": role, "brief": text, "configuration": roles.table(self.p, root, cfg)}
 
     def run_chat(self, nonce: str) -> dict:
         from . import ledger
@@ -2952,6 +2986,8 @@ class UI:
         if not job or job["until"] < time.time():
             raise LookupError("this confirmation has expired or was used: preview again")
         argv, root = job["argv"], job["root"]
+        if job.get("role_preview") and self.role_preview(root, argv) != job["role_preview"]:
+            raise LookupError("role configuration or template changed: preview again")
         op = argv[1]
         if self.demo and op in ("run", "discuss"):
             return {"ok": True, "demo": True, "executed": False, "href": "/runs/demo-r-ok"}

@@ -552,3 +552,99 @@ check; no improvement in task success or savings has been measured here.
   - Codex's `config.toml` only gets one marked hook block, validated with a TOML parser before writing.
   - MCP servers are added only through each tool's own CLI.
 - ccx never reads or copies account credentials. Provider keys are read from your environment and never stored.
+
+## Role table: assign once, delegate in one sentence
+
+[中文](features.zh.md#角色表一次指定一句话派活). Roles are opt-in; the shipped `[roles]` is empty. No role flag
+means the existing routing and output stay unchanged. Use any simple role name, including `plan`, `build`,
+`review`, `test`, `lead`, `fix` or `analyze`:
+
+```toml
+[roles]
+build = "codex:gpt-6.1-sol:auto"
+review = "other:auto:auto"
+
+[roles.defaults.build]
+mode = "write"
+worktree = true
+review = "on"
+check = "python -m pytest -q tests/test_parser.py"
+```
+
+Put global assignments in `<hub>/ccx/tiers.toml`; `.ccx/roles.toml` uses the same `[roles]` format and overrides
+individual assignments and defaults per key for this checkout. Names use letters, digits, `_` or `-`, starting
+with a letter. `defaults` is reserved. Supported defaults: `mode`, `worktree`, `review`, `check`; none are enabled
+implicitly. Explicit CLI flags win, including `--no-worktree`, `--review off`, `--mode read`, and `--check`.
+`--to` naming another agent also releases the role's old model assignment unless `--model` is given.
+Argparse's accepted abbreviations (such as `--che`) have the same precedence; `route.explicit_flags` records
+their full option names. `roles set/unset` preserve every byte outside role sections, including array tables.
+
+**Check authority:** a check executes in ccx's host shell, outside the worker's sandbox. Project `check` values
+remain visible with their source in `defaults`, but are not adopted automatically. `effective_defaults` keeps
+only a global check (if configured); the CLI notice/receipt and UI preview identify the ignored project source.
+After reviewing a project command, pass it explicitly with `--check` or put a trusted default in the hub.
+Templates include only the effective check. UI confirmation alone does not authorize a project-supplied check.
+
+- `agent:model:effort`: each part may be `auto`. With a named model and `effort=auto`, route the original task
+  by the existing rubric/minutes or keyword sizing; use that agent's selected effort (the configured T1–T4
+  effort for tier routing), then replace only the model. No rubric flags still uses the existing text heuristic.
+  The receipt marks this as “按难度”. Escalation keeps a named role model and raises its effort.
+- `model=auto` keeps the ordinary model routing and do-it-yourself advice within the selected agent. A named
+  effort overrides its initial effort. Tier-based escalation still advances to the next tier (T1 → T2 changes
+  Luna to Sol), rather than pinning the initial model. `auto:auto:auto` uses ordinary routing throughout.
+- `other` means a different vendor from the latest `build` run in this checkout, or the configured build agent
+  when there is no such run. Build history includes sibling/inside worktrees after removal; role run records
+  retain `source_cwd`, and the last executed attempt identifies the builder after a quota fallback, rather than
+  its initial dispatch target. `other:auto` is shorthand for `other:auto:auto`. Only installed, quota-eligible
+  other-vendor CLIs qualify. If none qualify, use the build vendor with a different configured model and say why
+  in the receipt; refuse if no different model/CLI exists. No role bypasses `routing.mode`, budget or autonomy.
+
+```text
+ccx roles
+ccx roles set build codex:gpt-6.1-terra:auto --project
+ccx roles unset build --project
+ccx route --role build --b 5 "Implement the parser"
+ccx run --role build "Implement the parser"
+```
+
+`roles` / `roles show` list the merged values and each source file. `set` / `unset` target the global file unless
+`--project` is supplied; unsetting an override reveals the lower-priority assignment. Defaults remain available
+for later reuse. Remove assignments at both scopes to turn roles off.
+
+An optional `.ccx/briefs/templates/build.md` can contain `Implement: {task}` and an explicit “Only change” scope.
+Only literal `{task}` is substituted, so JSON/code braces survive. The expanded brief includes the project's
+`AGENTS.md` path, a scope reminder and the effective check. Explicit `--brief-file` supplies a complete brief and
+skips templating. With no template the task is passed unchanged. Templates are sized after the original task is
+routed, so their boilerplate does not inflate difficulty.
+
+The UI composer shows one **By role** button per merged role. It prefills `ccx run --role <name>`; preview then
+shows the template and defaults. The existing second confirmation, 60-second one-use nonce, 4000-character
+limits, same-origin/token checks and `via=ui` audit remain. Changing a role or template invalidates the preview.
+`GET /api/roles?project=<server-known-id>` is read-only; change configuration through CLI or the TOML files.
+
+Records and ledger rows carry `role` (null for ordinary runs). Role runs add a first receipt line such as
+`角色 build → codex gpt-6.1-sol high（按难度）`. Reports append a role column and role totals only when there are
+role runs. `ccx roles --ability` and `GET /api/ability?by_role=1` (or `?role=build`) add role as a fourth optional
+ability grouping dimension. They reuse #230's verdict exclusions, medians and Unknown values; workflow seeds
+stay separate, with no assigned role. The ability table remains advisory; a user's role assignment takes priority
+over its suggestions, and quota eligibility still gates the choice.
+Route explanations state the chain **角色 > 配额 > 难度 > 能力表（建议）**. Fixed-model difficulty sizing does not
+mark a real task as `no_ab`; an explicit `--no-ab` keeps its existing evaluation exclusion.
+
+### Reference assignments (examples, not shipped configuration)
+
+These are the maintainer's reported workflow observations in the **2026-11-01 P0-16 brief**, not fresh model
+evaluations performed for this feature. “Measured” means the listed workflow was used; it does not compare
+models on held-out tasks. The role feature itself is checked offline with fake CLIs.
+
+| Role | Assignment | Evidence / source |
+|---|---|---|
+| lead | `claude:opus:medium` | Measured: coordinating this project; maintainer P0-16 brief, 2026-11-01 |
+| build | `codex:gpt-6.1-sol:auto` | Measured: T2/T3 work in [#230](https://github.com/SUPERD6/relayline/pull/230)–[#233](https://github.com/SUPERD6/relayline/pull/233); same brief |
+| review | `other:auto:auto` | Measured: Claude's second-round review found real bugs; Codex found P1s in all four 11-01 assignments; same brief, observational reports |
+| test | `codex:gpt-6-luna:low` | Measured: T1 workflow; [published measurements](measured.md), same brief |
+| fix | `claude:fable:high` | **Unmeasured**: brief reports $10 input / $50 output per 1M tokens and 2× Claude quota; reserve for the final escalation rung; not independently verified here |
+| analyze | `codex:gpt-6-astra:medium` | **Unmeasured** workflow. [Official model page](https://developers.openai.com/api/docs/models/gpt-6-astra), checked 2026-11-01: 1,050,000-token context, 128,000 max output |
+
+`gpt-6.1-terra` is an accepted Codex model name; documented prices and verification limits are in
+[Measured](measured.md#role-model-source-check-2026-11-01).

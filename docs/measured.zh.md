@@ -2,6 +2,20 @@
 
 [English](measured.md) · 中文 · 回到 [README](../README.zh.md) · 全部[研究报告](research/README.zh.md)
 
+## 角色模型来源核对（2026-11-01）
+
+本机 `codex-cli 0.164.0 --help` 接受 `-m/--model MODEL`，不枚举模型。2026-11-01 实际打开官方模型页核对；
+这只证明文档内容，不证明当前账号可调用，也没有发起真实模型运行。
+
+| 模型 | 输入 / 缓存读 / 输出，美元每百万 token（标准短上下文） | 来源 |
+|---|---|---|
+| `gpt-6.1-terra` | $1 / $0.05 / $5 | [官方模型与价格页](https://developers.openai.com/api/docs/models/gpt-6.1-terra)，2026-11-01 核对 |
+| `gpt-6-astra` | $10 / $1 / $50 | [官方模型页](https://developers.openai.com/api/docs/models/gpt-6-astra)，2026-11-01 核对；上下文 1,050,000 token，最大输出 128,000 |
+
+Terra 支持 none/low/medium/high/xhigh/max 强度。适配器接受其名字，角色测试使用假 CLI。名字支持不等于已有
+校准路由先验或账本价格；已安装价格表不认识 Terra 时，运行费用仍保持 unknown。工作流示例及其来源见
+[功能说明](features.zh.md#参考角色表示例不写入默认配置)。
+
 ## README 里的对比：自己做、内置子智能体、ccx
 
 ### 留出集（hc1，2026-10-29）

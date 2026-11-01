@@ -25,6 +25,25 @@ from ..plan import routing_mode
 from ..subagents import parse_spec as subagents_spec
 
 
+def cmd_roles(a) -> int:
+    from .. import roles
+    p, cwd = paths(), Path(a.cwd or os.getcwd())
+    if a.roles_cmd in ("set", "unset"):
+        _out(roles.set_role(p, cwd, a.name, a.value if a.roles_cmd == "set" else None, project=a.project))
+    elif a.ability:
+        _out(roles.ability_table(p))
+    else:
+        _out(roles.table(p, cwd))
+    return 0
+
+
+def _run_spec(a, text: str) -> dict:
+    spec = _spec_from_args(a, text)
+    if getattr(a, "role", None):
+        spec.update(role=a.role, explicit=getattr(a, "_explicit", set()))
+    return spec
+
+
 def cmd_ab(a) -> int:
     """Close an A/B self-run sample: sum the lead's own usage since the sample opened."""
     p = paths()
@@ -317,7 +336,8 @@ def max_usd(a, cfg: dict) -> float | None:
 def _cmd_run(a) -> int:
     p = paths()
     cfg = load_config(p)
-    if getattr(a, "mode", None) != "read" and _refused_off(p, cfg, a, "ccx run"):
+    role = getattr(a, "role", None)
+    if not role and getattr(a, "mode", None) != "read" and _refused_off(p, cfg, a, "ccx run"):
         return 0                                 # --mode read (a review, a second opinion) edits nothing: it runs
     max_usd(a, cfg)                     # a negative cap fails here, before --bg detaches anything
     proj = None
@@ -326,6 +346,14 @@ def _cmd_run(a) -> int:
         proj, stop = for_run(a)
         if stop:
             _out(stop)
+            return 0
+    if role:
+        from .. import roles
+        role_settings = roles.get(p, Path(a.cwd or os.getcwd()), role, cfg)
+        roles.apply_defaults(a, role_settings)
+        if role_settings.get("check_notice"):
+            print(f"ccx: {role_settings['check_notice']}", file=sys.stderr, flush=True)
+        if getattr(a, "mode", None) != "read" and _refused_off(p, cfg, a, "ccx run"):
             return 0
     auto = None
     if proj or a.autonomy:                       # a manager's dispatch: its autonomy level decides (K4)
@@ -337,19 +365,19 @@ def _cmd_run(a) -> int:
         raise ValueError("--bg needs the task as text or --brief-file (stdin is not passed on)")
     if a.wait is not None and not a.bg:
         raise ValueError("--wait N goes with --bg (a foreground run already waits until it is done)")
-    if a.effort and not a.model and not a.provider:
+    if a.effort and not a.model and not a.provider and not role:
         print(EFFORT_ALONE_NOTE, file=sys.stderr, flush=True)
     if a.bg and not auto:
         if a.proposal:
             # refuse a used-up, smaller or lapsed pre-authorisation here, before detaching: the detached child's
             # refusal would leave `ccx show <id> --wait` waiting (it checks again, and records a refusal, below)
-            _preauth_for_run(p, cfg, a.proposal, _spec_from_args(a, _brief(a)))
-        if not a.check and apply_mode(_spec_from_args(a, _brief(a)))["mode"] == "write":
+            _preauth_for_run(p, cfg, a.proposal, _run_spec(a, _brief(a)))
+        if not a.check and apply_mode(_run_spec(a, _brief(a)))["mode"] == "write":
             print(NO_CHECK_NUDGE, file=sys.stderr, flush=True)     # here, where the person sees it
         return _bg_maybe_wait(sys.argv[1:], p, a.wait)
     text = _brief(a)
     caller = _caller(a.caller)
-    spec = _spec_from_args(a, text)
+    spec = _run_spec(a, text)
     if person_named_to(caller, a.to, a.force) and not a.proposal and not (proj or a.autonomy):
         spec["person_to"] = True
     preauth, tier_self = None, False
@@ -366,7 +394,13 @@ def _cmd_run(a) -> int:
             # a proposal the picked tier planned "self" was never offered: sending it out is the lead's own call
             tier_self = proposals.tier_decided(proposals.get(p, a.proposal) or {})
     mode = apply_mode(spec)                      # before routing: start-up cost depends on read/write
-    kw, route = resolve(spec, caller, p, cfg)
+    if role:
+        from ..plan import resolve_role
+        kw, route = resolve_role(spec, caller, p, cfg, resolve=resolve)
+        if role_settings.get("check_notice"):
+            route["role_check_notice"] = role_settings["check_notice"]
+    else:
+        kw, route = resolve(spec, caller, p, cfg)
     route["mode"] = mode
     if a.proposal:
         if preauth:
@@ -408,6 +442,8 @@ def _cmd_run(a) -> int:
             return _bg_maybe_wait(sys.argv[1:], p, a.wait)
     lead = lead_session_id(caller)
     cwd = Path(a.cwd or os.getcwd())
+    if role and not a.brief_file:
+        text = roles.brief(p, cwd, role, text, cfg, check=a.check or "")
     fork = None
     if a.fork:
         if kw["to"] != "claude" or caller != "claude" or not os.environ.get("CLAUDE_CODE_SESSION_ID"):
@@ -442,10 +478,14 @@ def _cmd_run(a) -> int:
         proposals.answer(p, a.proposal, True, source="tier")
     rec = run(req, p)
     res = compact(rec)
+    role_line = roles.receipt(route) if role else None
+    if role_line:
+        res = {"role": role, "role_receipt": role_line, **res}
     if prev:
         res["continued_from"] = prev          # same sub-session: it remembers the earlier task(s)
     res["route"] = {k: v for k, v in route.items() if k in ("source", "b", "rung", "p", "chain_p", "tier",
-                                                              "stale", "mode", "trial", "cheaper_self")}
+                                                              "stale", "mode", "trial", "cheaper_self", "role",
+                                                              "role_effort_auto", "role_fallback")}
     if proj:
         res["project"] = {k: proj[k] for k in ("name", "path", "approval_rules") if proj.get(k)}
     if auto:
@@ -458,8 +498,8 @@ def _cmd_run(a) -> int:
         # an explicit pick with no size: its verdict reaches the ledger but not routing (seven-cores A/B, PR #30)
         res["route"]["learns"] = "no: give --minutes (or the rubric flags) so this run's verdict can teach routing"
     res["recap"] = recap(rec, res)              # last key: survives `| tail`
-    lead_out(res, cfg)
-    human_tail(human_summary(rec, res))
+    lead_out(res, {**cfg, "output": {**cfg.get("output", {}), "lead": "full"}} if role else cfg)
+    human_tail(([role_line] if role_line else []) + human_summary(rec, res))
     return 0 if exit_ok(rec) else 2
 
 
@@ -973,6 +1013,8 @@ def _route_summary(out: dict) -> list[str]:
         usd = out.get("expected_usd")
         lines = [f"Pick: {pick}" + (f", p(success) {out['p']:.2f}" if isinstance(out.get("p"), (int, float)) else "")
                  + (f", expected ~${usd:.4f}" if isinstance(usd, (int, float)) else "")]
+        if out.get("role_note"):
+            lines.insert(0, out["role_note"])
         if out.get("quota_note"):
             lines.append(out["quota_note"])
         if out.get("advice"):
@@ -999,6 +1041,27 @@ def _route_summary(out: dict) -> list[str]:
 def _route(a) -> dict:
     p = paths()
     cfg = load_config(p)
+    if getattr(a, "role", None):
+        from .. import roles
+        from ..plan import resolve_role
+        row = roles.get(p, Path(a.cwd or os.getcwd()), a.role, cfg)
+        spec = {"role": a.role, "to": a.to, "brief": " ".join(a.text or []), "files": a.files,
+                "b": a.b, "coupling": a.coupling, "clarity": a.clarity, "risk": a.risk,
+                "novelty": a.novelty, "minutes": a.minutes, "tradeoff": a.tradeoff, "force": True,
+                "mode": getattr(a, "mode", None) or row["defaults"].get("mode"),
+                "cwd": a.cwd, "kind": a.kind, "quota": parse_quota(a.quota),
+                "explicit": getattr(a, "_explicit", set())}
+        mode = apply_mode(spec)
+        _, out = resolve_role(spec, _caller(None), p, cfg, resolve=resolve)
+        out["mode"] = mode
+        if out.get("rung"):
+            agent, model, effort = out["rung"].split(":", 2)
+            out["role_note"] = (f"角色 {a.role} 指定 {agent}:{model}，强度按难度 → {effort}"
+                                if out.get("role_effort_auto") else f"角色 {a.role} 指定 {agent}:{model}:{effort}")
+            out["role_note"] += "；优先级：角色 > 配额 > 难度 > 能力表（建议）"
+        if routing_mode(cfg) == "off":
+            _routing_off(out)
+        return out
     if a.coupling or a.clarity or a.risk or a.novelty or a.b is not None or a.minutes:
         spec = {"to": a.to, "files": a.files, "b": a.b, "coupling": a.coupling, "clarity": a.clarity,
                 "risk": a.risk, "novelty": a.novelty, "tradeoff": a.tradeoff, "force": True,
@@ -1299,11 +1362,28 @@ def cmd_propose(a) -> int:
 
 
 def register(sub) -> None:
+    from ..roles import role_name
+    roles = sub.add_parser("roles", help="show or change opt-in role assignments (project overrides global)")
+    roles.add_argument("--cwd")
+    roles.add_argument("--ability", action="store_true", help="ability evidence grouped by role as a fourth dimension")
+    roles.set_defaults(fn=cmd_roles, roles_cmd="show")
+    role_cmds = roles.add_subparsers(dest="roles_cmd")
+    show = role_cmds.add_parser("show", help="show the merged table and its sources")
+    set_ = role_cmds.add_parser("set", help="assign agent:model:effort to a role")
+    set_.add_argument("name", type=role_name)
+    set_.add_argument("value")
+    unset = role_cmds.add_parser("unset", help="remove an assignment at this scope (reveals any lower-priority one)")
+    unset.add_argument("name", type=role_name)
+    for cmd in (show, set_, unset):
+        cmd.add_argument("--cwd", default=argparse.SUPPRESS)
+    for cmd in (set_, unset):
+        cmd.add_argument("--project", action="store_true")
     r = sub.add_parser("run", help="delegate one task to the other agent")
     # `ccx run -h`: the options most runs use first; the routing rubric and the coordinator / lead-side flags
     # under one "advanced" heading (help layout only: every option parses as before)
     adv = r.add_argument_group("advanced (routing rubric, coordinator and lead-side options; most runs need none of them)")
     r.add_argument("brief", nargs="*", help="task text (or use --brief-file / stdin)")
+    r.add_argument("--role", type=role_name, help="configured role: agent/model/effort and optional run defaults")
     r.add_argument("--brief-file")
     r.add_argument("--to", choices=["auto", *DELEGATE_AGENTS, *PROVIDER_AGENTS], default="auto")
     adv.add_argument("--from", dest="caller", choices=[*DELEGATE_AGENTS, *PROVIDER_AGENTS, "user"])
@@ -1342,6 +1422,7 @@ def register(sub) -> None:
     adv.add_argument("--fork", action="store_true", help="Claude lead -> Claude sub only: start from a copy of "
                    "your whole conversation (full context, costs more per turn)")
     r.add_argument("--worktree", action="store_true", help="isolate write task in a git worktree")
+    r.add_argument("--no-worktree", dest="worktree", action="store_false", help="override a role's worktree default")
     adv.add_argument("--quota", action="append", metavar="AGENT=USED",
                    help="share of a subscription's quota already used (claude=0.8; default: read by ccx, "
                         "`ccx quota`); the fuller it is, the dearer that quota is priced, so pay-per-token "
@@ -1484,6 +1565,8 @@ def register(sub) -> None:
     b.set_defaults(fn=cmd_batch)
     ro = sub.add_parser("route", help="which agent/model/effort for a task (rubric -> task-routing)")
     ro.add_argument("text", nargs="*", help="the task description (used to recommend read or write)")
+    ro.add_argument("--role", type=role_name, help="constrain the pick to a configured role")
+    ro.add_argument("--cwd", help="project whose role overrides to read")
     ro.add_argument("--mode", choices=["read", "write"], help="explicit read/write (else inferred from the text)")
     ro.add_argument("--minutes", type=float, help="how long a skilled engineer would need (standard difficulty unit)")
     ro.add_argument("--to", choices=["auto", *DELEGATE_AGENTS, *PROVIDER_AGENTS], default="auto")

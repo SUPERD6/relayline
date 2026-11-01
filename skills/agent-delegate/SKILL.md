@@ -10,6 +10,14 @@ if it is not on PATH, resolve this skill directory to the bridge checkout and ru
 `python -X utf8 <checkout>/ccx.py`. Sub-agents never delegate again. Only if you can't find the command, run
 `ccx -h --all` / `ccx run -h`.
 
+**Configured project roles:** check `ccx roles`. When a role table is present, dispatch with
+`ccx run --role build "the task in one sentence"` rather than assembling agent/model/effort flags each time.
+The project override wins over the global table; a role's `auto` effort follows difficulty while its named model
+stays fixed. Optional `.ccx/briefs/templates/build.md` supplies the brief; still verify the role's scope and check.
+Explicit flags override defaults. With no configured roles, keep the workflow below.
+Project checks are shown with their source but never adopted automatically: use a global default or pass a
+reviewed command explicitly with `--check` to authorize host-shell acceptance checks.
+
 **Your own context is the biggest cost:** every turn re-reads the whole conversation. Send big reads (many files,
 long logs, research) out read-only and take back the conclusion. Run long-output commands as
 `ccx sum -- <command>` (tests, logs, `git diff`): you get the failures or the per-file summary, the full output

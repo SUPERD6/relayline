@@ -354,3 +354,87 @@ UI 数据原有 `quota` 数组补充 `freshness`、`projected_at_reset`，用量
 - 子智能体不能再派子智能体（`CCX_DEPTH`）。
 - `ccx sync` 默认只预演。真改时每个被改的文件当天先备份一次。Codex 的 `config.toml` 只追加一个带标记的 hook 块，写入前先用 TOML 解析器检查。MCP 一律通过两边官方 CLI 添加。
 - 不读取、不复制任何账号凭据。
+
+## 角色表：一次指定，一句话派活
+
+[English](features.md#role-table-assign-once-delegate-in-one-sentence)。默认 `[roles]` 为空，不带 `--role`
+时继续使用原路由和原输出。角色名可自行增加，例如 `plan`、`build`、`review`、`test`、`lead`、`fix`、`analyze`。
+
+```toml
+[roles]
+build = "codex:gpt-6.1-sol:auto"
+review = "other:auto:auto"
+
+[roles.defaults.build]
+mode = "write"
+worktree = true
+review = "on"
+check = "python -m pytest -q tests/test_parser.py"
+```
+
+全局写在 `<hub>/ccx/tiers.toml`；项目 `.ccx/roles.toml` 使用同样的 `[roles]` 格式，优先覆盖角色和各项默认值。
+角色名以字母开头，可含字母、数字、`_`、`-`；`defaults` 为保留名。支持的默认值是 `mode`、`worktree`、
+`review`、`check`，没有隐式开启项。显式旗标始终优先，包括 `--no-worktree`、`--review off`、`--mode read`、
+`--check`。`--to` 显式指定另一家时，也解除原角色的模型限定；仍可用 `--model` 明确指定。
+argparse 接受的缩写（如 `--che`）具有相同优先级，`route.explicit_flags` 保存完整旗标名。
+`roles set/unset` 保持角色节之外的字节不变，包括 `[[tools]]`、`[[jobs]]` 等数组表。
+
+**check 的执行权限**：验收命令在 ccx 主机 shell 中执行，不在子智能体沙箱里。项目 `check` 保留在 `defaults`
+中供查看，并注明来源，但不自动采用；`effective_defaults` 只保留已配置的全局 check。CLI 提示、收据和 UI
+预览会标明被忽略的项目来源。审阅项目命令后，可显式传 `--check`，或把可信默认值放在 hub。模板只附实际采用
+的 check，UI 的一般确认不会启用项目提供的验收命令。
+
+- 格式 `agent:model:effort`，三段均可写 `auto`。固定模型、`effort=auto` 时，先用原五问、分钟估计或文本启发式
+  给原任务定难度，沿用该 agent 选中的强度，再替换模型。按 tier 路由时读取配置中 T1–T4 的 effort。不带五问
+  仍使用原文本启发式。收据标“按难度”；升档保留角色指定的模型，提升强度。
+- `model=auto` 使用原模型路由和“自己做”建议，agent 段仍限定候选；明确的 effort 覆盖路由强度。
+  effort 的覆盖用于首轮，按 tier 升档仍从 T1 进入 T2（Luna 换到 Sol），不会固定首轮模型。
+  `auto:auto:auto` 全走原路由。
+- `other` 按本检出最近一次 `build` 运行确定另一家；没有运行记录时看 build 配置。`other:auto` 是
+  `other:auto:auto` 的简写。历史包含已删除的 sibling/inside worktree；角色运行记录保留 `source_cwd`，
+  按最后实际执行的 attempt 确定 build 厂商，避免配额换家后仍按初始派发对象安排审查。
+  只考虑已安装且额度可用的其他厂商 CLI；没有合适的另一家时，退回 build 厂商的
+  不同配置模型，并在收据说明。连不同模型或本家 CLI 都没有则拒绝。角色不会绕过总开关、预算和 autonomy。
+
+```text
+ccx roles
+ccx roles set build codex:gpt-6.1-terra:auto --project
+ccx roles unset build --project
+ccx route --role build --b 5 "实现解析器"
+ccx run --role build "实现解析器"
+```
+
+`roles` / `roles show` 显示合并表及逐项来源。`set` / `unset` 默认改全局，`--project` 改项目；删除覆盖后显示
+下层配置，已有 defaults 保留供复用。关闭方法：删除两个层级中的角色赋值。
+
+可选模板 `.ccx/briefs/templates/build.md` 中写 `实现：{task}`，并填写明确的“只动”范围。只替换字面量
+`{task}`，JSON 和代码的其他花括号不受影响。展开后自动附项目 `AGENTS.md` 路径、范围提醒和实际 check。
+显式 `--brief-file` 视为完整简报，不套模板；没有模板就原样传任务。路由先看原任务，模板套话不抬高难度。
+
+UI 对话框的“按角色”按钮行，每个合并后角色一个按钮。点击只预填 `ccx run --role <name>`；预览显示模板与
+默认值，仍需第二次确认。沿用 60 秒一次性 nonce、4000 字限制、同源与 token 校验、`via=ui` 审计。确认前若
+配置或模板改变，要求重新预览。`GET /api/roles?project=<页面已知项目id>` 只读，改配置用 CLI 或 TOML 文件。
+
+运行记录和账本新增 `role`，普通运行记 null。角色派活的收据首行如：
+`角色 build → codex gpt-6.1-sol high（按难度）`。只有出现角色运行时，report 才追加 role 列和按角色的总计。
+`ccx roles --ability`、`GET /api/ability?by_role=1` 或 `?role=build` 把 role 作为能力表第四个可选分组维度。
+沿用 #230 的 verdict 排除规则、中位数和 Unknown；公开 workflow seed 仍单列，不分配角色。能力表仍是建议，
+用户指定的角色优先于建议，额度可用性仍限制候选。
+route 解释完整显示 **角色 > 配额 > 难度 > 能力表（建议）**。固定模型的难度计算不会给真实任务额外写入
+`no_ab`；显式 `--no-ab` 仍保留原来的评测排除语义。
+
+### 参考角色表（示例，不写入默认配置）
+
+下表来源是维护者在 **2026-11-01 P0-16 brief** 中报告的工作流使用记录，非本次新跑的模型评测。“实测过”仅
+表示用过所列工作流，不构成留出任务上的模型比较；角色功能本身用假 CLI 离线验收。
+
+| 角色 | 配置 | 实测状态与来源 |
+|---|---|---|
+| lead | `claude:opus:medium` | 实测过：本项目统筹；维护者 P0-16 brief，2026-11-01 |
+| build | `codex:gpt-6.1-sol:auto` | 实测过：T2/T3 档，[#230](https://github.com/SUPERD6/relayline/pull/230)–[#233](https://github.com/SUPERD6/relayline/pull/233)；同一 brief |
+| review | `other:auto:auto` | 实测过：Claude 第二轮审查抓到真 bug；Codex 审 11-01 四单均找出 P1；同一 brief 的观察记录 |
+| test | `codex:gpt-6-luna:low` | 实测过：T1 工作流；[已有测量](measured.zh.md)与同一 brief |
+| fix | `claude:fable:high` | **未测**：brief 报输入/输出 $10/$50 每百万 token、占 Claude 配额 2 倍，建议只放升档最后一级；这些价格和倍率本次未独立核实 |
+| analyze | `codex:gpt-6-astra:medium` | **未测**工作流；[官方模型页](https://developers.openai.com/api/docs/models/gpt-6-astra)，2026-11-01 核对：上下文 1,050,000 token，最大输出 128,000 |
+
+Codex 接受 `gpt-6.1-terra` 模型名；已核实价格和验证边界见 [实测记录](measured.zh.md#角色模型来源核对2026-11-01)。
