@@ -123,3 +123,92 @@ def _usable(p: Paths, spec: dict) -> dict:
                 new["tier"] = spec["tier"]
             return new
     return spec
+
+
+def routing_mode(cfg: dict) -> str:
+    """`[routing] mode` (P0-9): auto (shipped) = route and delegate as before; off = ccx delegates no new work:
+    `ccx route` / `ccx propose` say do it yourself; `ccx run` (except an explicit --mode read: a cross-vendor review
+    or second opinion edits nothing), `batch`, `q run` / `q resume` (they start queued pieces) and `way` refuse
+    without --force. `ccx ask`, `ccx discuss`, mem, board, and `ccx resume` / `ccx task resume` of a run already
+    started work as before. Any other value counts as auto (`ccx config set` checks it)."""
+    m = str((cfg.get("routing") or {}).get("mode", "auto")).strip().lower()
+    return "off" if m in ("off", "false", "no", "0") else "auto"
+
+
+OFF_WHY = ("routing.mode=off: you do the work yourself; ccx is for cross-vendor review and talk only "
+           "(ccx ask, ccx discuss, ccx run --mode read)")
+OFF_HOW = "`ccx config set routing.mode auto` delegates again; --force delegates this one anyway"
+
+
+def off_refusal(cfg: dict, force: bool, what: str) -> dict | None:
+    """What `what` (ccx run, ccx batch, ...) prints instead of delegating under routing.mode=off; None when it may
+    delegate (auto, or --force)."""
+    if force or routing_mode(cfg) != "off":
+        return None
+    return {"delegated": False, "routing_mode": "off", "advice": f"do-it-yourself: {OFF_WHY}",
+            "hint": f"{what}: {OFF_HOW}"}
+
+
+def _rnum(rc: dict, key: str, default: float) -> float:
+    """A [routing] number; a hand-edited bad value falls back (a bad entry must not stop routing)."""
+    try:
+        return float(rc.get(key, default))
+    except (TypeError, ValueError):
+        return float(default)
+
+
+def self_cost(p: Paths, cfg: dict, lead: str, files: int, requests: float | None, lead_ctx: int) -> dict | None:
+    """P0-6 proxy, what doing the task yourself would cost in your own conversation: requests x what each re-reads
+    (your conversation now, plus the files you read, half of them on average) at the cache-read price, the files and
+    output written into the cache once, plus a little output. Requests = --requests, else self_requests_base +
+    self_requests_per_file x files; the context = lead_ctx (given or read from your conversation, as `ccx lead`),
+    else self_ctx_default (a fresh conversation). Calibrated on the eval ledgers (hc1 / pg1 self runs on a Sonnet
+    lead: one-file tasks 3-4 requests, ~25k tokens a turn).
+    It is compared with delegating's fixed cost on your side, small_self_overhead_usd (the pg1 median of the lead's
+    own share of a delegation: brief, wait, acceptance; about small_self_overhead_requests requests of a fresh
+    conversation on small_self_overhead_on). Those are your turns too: the constant is scaled by your model's price
+    against that one, and the extra your longer conversation adds to each of those requests is added, so what
+    decides is your requests and file reads against delegating's few, not the model. A lead with no price (a plain
+    terminal, an unknown model) is priced on the reference model."""
+    rc = cfg.get("routing") or {}
+
+    def priced(rung: str, usage: dict) -> float | None:
+        agent, _, rest = (rung or "").partition(":")
+        model = rest.split(":")[0] or str((cfg.get("lead") or {}).get(agent) or "")
+        return learn.price_usd(p, agent, model, usage)
+
+    if requests:
+        reqs, reqs_from = float(requests), "--requests"
+    else:
+        reqs = _rnum(rc, "self_requests_base", 2) + _rnum(rc, "self_requests_per_file", 1.5) * files
+        reqs_from = "files"
+    fresh = _rnum(rc, "self_ctx_default", 25000)
+    ctx, ctx_from = (lead_ctx, "lead") if lead_ctx else (fresh, "default")
+    per_out = _rnum(rc, "self_output_per_request", 100)
+    new = _rnum(rc, "self_tokens_per_file", 3000) * files
+    out = reqs * per_out
+    mine = {"cached_input_tokens": int(reqs * (ctx + new / 2)), "cache_write_tokens": int(new + out),
+            "output_tokens": int(out)}
+    ro = _rnum(rc, "small_self_overhead_requests", 3)
+
+    def delegating(c: float) -> dict:          # delegating's own requests on your side, at context c
+        return {"cached_input_tokens": int(ro * c), "cache_write_tokens": int(ro * per_out),
+                "output_tokens": int(ro * per_out)}
+
+    ref = str(rc.get("small_self_overhead_on") or "claude:sonnet")
+    rung, usd = lead, priced(lead, mine)
+    if usd is None:
+        rung, usd = ref, priced(ref, mine)
+        if usd is None:
+            return None
+    overhead = _rnum(rc, "small_self_overhead_usd", 0.035)
+    at_ref, at_mine = priced(ref, delegating(fresh)), priced(rung, delegating(fresh))
+    if at_ref and at_mine:                      # no price for the reference model: the constant as it is
+        overhead = overhead * at_mine / at_ref
+    if ctx > fresh:                             # those requests re-read your longer conversation too
+        overhead += priced(rung, {"cached_input_tokens": int(ro * (ctx - fresh))}) or 0.0
+    agent, _, rest = (rung or "").partition(":")
+    model = rest.split(":")[0] or str((cfg.get("lead") or {}).get(agent) or "")
+    return {"usd": round(usd, 5), "requests": round(reqs, 1), "requests_from": reqs_from, "ctx_tokens": int(ctx),
+            "ctx_from": ctx_from, "model": f"{agent}:{model}" + (" (reference)" if rung != lead else ""),
+            "overhead_usd": round(overhead, 5), "overhead_on": ref}

@@ -32,6 +32,10 @@ def cmd_way(a) -> int:
         raise ValueError("give the task: ccx way \"...\" (or --brief-file)")
     from ..learn import task_kind
     cfg = load_config(p)
+    if not a.dry_run:
+        from .delegation import _refused_off  # routing.mode=off (P0-9): nothing is delegated without --force
+        if _refused_off(p, cfg, a, "ccx way"):
+            return 0
     caller = _caller(a.caller)
     kind = task_kind("write", a.kind)
     choice = ways.choose(a.risk, kind, ways.track(p), _candidates(cfg, caller, a.with_), cfg)
@@ -59,6 +63,7 @@ def register(sub) -> None:
     w.add_argument("--from", dest="caller")
     w.add_argument("--yes", action="store_true", help="the person agreed to two_versions (about twice the cost)")
     w.add_argument("--dry-run", action="store_true", help="which way and who, without running")
+    w.add_argument("--force", action="store_true", help="delegate even with routing.mode off")
     w.add_argument("--label", help="label of the build runs (eval-... keeps them out of H9 and probable verdicts)")
     w.add_argument("--stats", action="store_true", help="first-time-right and rework rates per kind and agent (H9)")
     w.add_argument("--days", type=float, default=90)
