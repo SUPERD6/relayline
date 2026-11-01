@@ -1,6 +1,6 @@
 """[subagent] switches (B3 item 3, 4, 6; config/tiers.toml): experimental, each at today's behaviour by default.
 Off: what a sub-agent is started with is byte-for-byte what it was before the switches existed (the golden file was
-captured from the commit before them with tests/b3_capture.py). On: exactly the intended flags, env and prompt line."""
+captured from the commit before them with tests/b3_capture.py; P0-11 item 2 changed only the Finish text of the three write cases, [prompt] slim). On: exactly the intended flags, env and prompt line."""
 from __future__ import annotations
 
 import json
@@ -205,3 +205,27 @@ def test_clean_home_is_one_per_run_and_starts_empty(tmp_path):
     os.utime(d, (old, old))
     delegate.clean_home(p, "run-c")
     assert not d.exists()                                                 # older than a day: removed
+
+
+def test_prompt_slim_off_is_the_finish_text_as_before(monkeypatch):
+    # P0-11 item 2: the golden file holds the slim Finish text for a clear write run without --check; [prompt]
+    # slim = false puts back the text it had before (SELFCHECK), and nothing else changes
+    from ccx import prompts
+    assert delegate.slim_prompt({}) is True
+    assert delegate.slim_prompt({"prompt": {"slim": False}}) is False
+    assert delegate.slim_prompt({"prompt": {"slim": "false"}}) is False
+    monkeypatch.setattr(delegate, "slim_prompt", lambda cfg: False)
+    for name in ("codex-write", "claude-write", "claude-read"):
+        got = cap(name)
+        assert prompts.SELFCHECK_WRITE not in got["prompt"]
+        assert got["prompt"] == GOLDEN[name]["prompt"].replace(prompts.SELFCHECK_WRITE, prompts.SELFCHECK)
+
+
+def test_prompt_slim_only_for_a_clear_write_run():
+    from ccx import prompts
+    assert prompts.SELFCHECK_WRITE in cap("codex-write")["prompt"]
+    assert prompts.SELFCHECK_WRITE not in cap("codex-read")["prompt"]
+    # ccx could not tell from the brief (mode_source default): the answer-only sentence stays
+    got = cap("codex-write", req_kw={"mode_source": "default"})["prompt"]
+    assert prompts.SELFCHECK in got and prompts.SELFCHECK_WRITE not in got
+    assert "full set once" not in prompts.SELFCHECK_WRITE and "not the whole suite" in prompts.SELFCHECK_WRITE

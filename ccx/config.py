@@ -303,6 +303,9 @@ SETTINGS = {   # key -> (type, help). Only these can be set with `ccx config set
     "lead.claude": (str, "model the Claude lead runs on (for savings estimates; with lead.model_by_task also the "
                            "strong lead's name, which passes no --model), e.g. opus"),
     "lead.codex": (str, "model the Codex lead runs on, e.g. gpt-6.1-sol"),
+    "prompt.slim": (_bool, "true | false: a write run that is clearly a change and has no --check gets the shorter "
+                           "Finish text (no answer-only sentence, targeted tests only); false = the text as before "
+                           "(default true)"),
     "wake.enabled": (_bool, "true | false: a --bg run that finishes sends the lead one line (Claude Code's inbox, "
                             "else the next turn's hook) instead of the lead polling (default true)"),
     "wake.trust_socket": (_bool, "true | false: a line delivered to Claude Code's inbox is not also left for the "

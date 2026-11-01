@@ -35,7 +35,7 @@ from .agents.codex import _add_children, _codex_growth, _codex_seen, _codex_tota
 from .ledger import write_record as _write_record  # noqa: F401
 from .plan import _fallback_plan, _plan, _provider_envs, _rung_spec, _usable, _within_budget, other  # noqa: F401
 from .prompts import (CLEAN_LANG, CHECK_RETRY, CHECK_RETRY_SAME, CHECK_RETRY_STRONGER, CHECK_TAIL_CHARS, CONTINUE, ESCALATE, FOLLOWUP, LEAD_NOTE, NEEDS_WRITE, POLICY_MARKERS, POLICY_RETRY, PROMPT,  # noqa: F401
-                      REVIEW_CALLER, REVIEW_FINISH, REVIEW_PERMISSION, SELF_CHECKED_RETRY, SELFCHECK, SELFCHECK_CMD, _policy_rejections,
+                      REVIEW_CALLER, REVIEW_FINISH, REVIEW_PERMISSION, SELF_CHECKED_RETRY, SELFCHECK, SELFCHECK_CMD, SELFCHECK_WRITE, _policy_rejections,
                       is_policy_line, review_permission)
 from .coverage import SELF_CHECKED, SELF_CHECKED_NOTE, on_self_checked, self_checked as coverage_self_checked
 from .merge import REVIEW_LINE
@@ -128,6 +128,12 @@ def refuse_if_busy(p: Paths, prev: dict) -> None:
             f"run {busy} is still working in that session (its check, review or fix round included): wait for it "
             f"with `ccx show {busy} --wait`, or stop it with `ccx stop {busy}`, then resume. Starting another run "
             "in the same session now would fail (Codex: 'thread already has an active writer').")
+
+
+def slim_prompt(cfg: dict) -> bool:
+    """[prompt] slim (default true): the shorter Finish text for a clear write run without --check (P0-11 item 2)."""
+    v = (cfg.get("prompt") or {}).get("slim", True)
+    return v if isinstance(v, bool) else str(v).strip().lower() not in ("false", "0", "no", "off")
 
 
 def _start_review(req: Request, p: Paths, cfg: dict, record: dict, cwd: Path, run_dir: Path, result: dict | None) -> dict:
@@ -514,7 +520,10 @@ def run(req: Request, p: Paths) -> dict:
         mode_text += "; do not start sub-agents of your own (no spawn_agent / Agent tool)"
     selfcheck = (REVIEW_FINISH if reviewer
                  else req.finish_note if req.finish_note
-                 else SELFCHECK_CMD.format(check=req.check) if req.check else SELFCHECK)
+                 else SELFCHECK_CMD.format(check=req.check) if req.check
+                 else SELFCHECK_WRITE if (req.mode == "write" and req.mode_source in ("explicit", "inferred")
+                                          and slim_prompt(cfg))
+                 else SELFCHECK)
     switches = subagent_switches(cfg)
     # a fork run keeps the lead's own start on every Claude attempt (the forked session is resumed with the same
     # flags and prompt; its cache is the point): clean's Claude side and its prompt line stay out of it
