@@ -29,6 +29,64 @@
 `ccx resume -h`、`ccx verify -h`、`ccx lead -h` 里不常用的选项放在 "advanced" 标题下。只改帮助排版：每个命令和选项
 名字不变、照旧解析（`tests/data/cli_surface.json` 冻结了完整清单，有测试核对）。
 
+## 能力表：按厂商、模型和任务积累证据
+
+`ccx ability`（在 `ccx advanced` 的高级组可见）从 hub 账本和仍可读取的运行记录，按 `plan`、`code`、
+`fix`、`test`、`review`、`docs`、`read` 七类分别统计。`review:` 标签的审查运行归 `review`；明确的只读模式
+归 `read`；其余按任务文字里最先出现的中英文动作词判断，例如“修复错误再测试”归 `fix`，“添加测试”归 `test`。
+显式任务类型优先于关键词。没有动作词时，已有五问记录的 `novelty = new` 提示 `plan`，否则归 `code`；
+文件数、耦合和风险本身不能判断任务类型。
+
+```bash
+ccx ability show --vendor codex --task fix
+ccx ability show --json
+ccx ability rebuild                         # 回填旧账本，或修复缓存
+ccx ability set claude.opus plan prefer
+ccx ability set codex.gpt-6-luna code avoid
+ccx ability set codex.gpt-6-luna code clear  # 移除用户设定
+```
+
+每格包含样本数 `n`、做对数 `ok`、`ok_self_checked`、其他未验证数、失败数、做对率 `ok / n`、已独立成功运行的
+已知成本中位数、记录时长中位数、effort 分布和最近运行/verdict 的时间。`ok_self_checked` 表示**未独立验证**，
+即使收据通过，也不计入 `ok`；证据缺失仍是未验证。主导的独立 verdict 可以判定原本没有证据分类的运行，
+后来的负 verdict 可以推翻通过。缺失成本/时长为 `null`，零仍为零，每个中位数附已知样本数。
+API 等价成本 `ae_usd` 与实际计费 `cost_usd` 分开取中位数，显示时优先 API 等价成本；
+这个指标不是“总花费 ÷ 成功数”。记录时长覆盖该 run 的各次尝试，不包含主导和审查员的整个工作流。
+**本地 n < 5 显示“数据不足”**；未验证运行也计入 n。评测、内部探针和 dismissed 运行不进入本地统计。
+一个 run 只计一次，归最后实际执行的模型，成本/时长使用整次 run 的记录（含之前的尝试），effort 保留为分布。
+
+`<hub>/ccx/ability.json` 是带版本的缓存：`cells` 存统计摘要，`entries` 存每个 run 的指纹和数值观察。
+brief 仅用于判断类型，不复制进缓存。命令层的 verdict 路径（`verify`、队列完成/接受、undo 标错、启动 hook
+的 sweep）会刷新；未变的 run 复用观察，只重算受影响的格子。查询还会补上 Python API 直接写入的 verdict。
+`rebuild` 从整个账本重建，仍在时利用 run.json/brief.md 补齐资料；无法恢复的信息保留 unknown。
+同一 run 的重复 verdict 替换旧观察，不增加样本。
+
+也可直接编辑 `<hub>/ccx/ability-overrides.toml`：
+
+```toml
+[claude.opus]
+plan = "prefer"
+[codex.gpt-6-luna]
+code = "avoid"
+[codex."gpt-6.1-sol"]
+review = "prefer"
+```
+
+带点的模型名要加引号。覆盖项优先于观察建议，标注**“用户设定”**（`preference_source: "user"`），不改统计证据。
+`set` 保留其他条目和注释。provider 按配置的厂商归属处理，通过其他 CLI 调用的 DeepSeek 仍归 DeepSeek。
+
+冷启动读取 `ccx/data/ability-seed.json`，以**带来源的独立工作流测量**显示，不伪造本地样本，也不混成一个模型胜率。
+全部 16 条来自[实测页](measured.zh.md)，每条的 `source` 指向对应英文段落：hc1 的 self/builtin/ccx2 三行
+（做对数、每成功总成本、墙钟中位数）；r5 的 self、builtin、r5d builtin2、r5f builtin 和
+r5e/r5f/r5g/r5h ccx2 八行（同样三列，r5g 成本和时长缺失）；pg1 全部 30 题的 self/ccx2/direct 三行；
+r4 只收录已公开的每成功成本 $0.595（ccx2）和 $0.567（self）。r4 的样本数、正确数、时长、模型，以及
+builtin 的模型身份留空。这些数字测的是工作流（ccx2 含主导），任务集和版本不同；`code` 只是粗分类，
+不能据此断言某厂商擅长某一类任务。冷启动本地 n 仍为零，本地中位数仍为空。
+
+**本次不接入路由决策**：`ccx route` 仅增加 `ability` JSON 字段，显示推断类型和各候选摘要；原来的选择、
+升级路径和字段不变。后续再把能力证据与角色表、配额一起接入。需要 token 的只读接口
+`/api/ability?vendor=codex&task=fix` 提供同样数据，本次不增加页面或前端控件。
+
 ## 实时看：`ccx ui`
 
 **首页是一个项目一张图**（P2-10）：中间是这个项目里的智能体和它们之间的往来（谁给谁派活、对话板话题、`ccx discuss` 讨论；被机器连续条数上限停下的话题、在问你的消息列为待办）；左边是共享记忆，连到说明里带了便签的那几次派活（从派活说明本身读出，不靠猜），以及这些派活最后对没对（你的判断；运行本身失败算错，被你停下、超预算、环境问题不算）；右边每次派活一张收据（谁派给谁、档位和实际用的模型档、花费、check 覆盖了哪些测试、这次派活有没有改自己的测试、审查结论、你的判断）；顶上是本周的 API 等价花费（记录里的 token × 价格表，不是账单；测试和评测不算），按实际用到的档位分开，其他做法只列已发布的实测表，不估算；底下是能力表（谁擅长什么），记过对错的活不够时显示“数据不足”。下面这些页面都还在原处：带全部待办和按钮的总览在 `#/all`。

@@ -55,6 +55,9 @@ def cmd_archive(a) -> int:
 
 def cmd_undo(a) -> int:
     _out(undo(paths(), a.run_id, a.apply, wrong=a.wrong, piece=getattr(a, "piece", None)))
+    if a.apply and a.wrong:
+        from ..ability import after_verdict
+        after_verdict(paths())
     return 0
 
 

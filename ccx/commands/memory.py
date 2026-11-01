@@ -295,6 +295,8 @@ def cmd_mem(a) -> int:
             try:                       # quiet: probable verdicts for runs nobody judged (H13); never blocks the start
                 from ..delegate import soft_verdicts
                 soft_verdicts(p)
+                from ..ability import after_verdict
+                after_verdict(p)
             except Exception:  # noqa: BLE001
                 pass
             try:                       # quiet housekeeping: old finished sub-sessions out of the apps' history
