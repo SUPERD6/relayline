@@ -429,6 +429,27 @@ def test_cli_demo_export_writes_only_the_demo(tmp_path):
     assert "--cwd" in r.stdout
 
 
+def test_cli_demo_uses_inside_worktree_layout(tmp_path):
+    from ccx import queue as wq
+    from ccx.config import paths, set_setting
+
+    set_setting(paths(), "worktree.location", "inside")
+    base = tmp_path / "demo"
+    out = tmp_path / "demo.html"
+    r = subprocess.run([sys.executable, str(REPO / "ccx.py"), "demo", "--dir", str(base), "--export", str(out)],
+                       cwd=tmp_path, capture_output=True, text=True, encoding="utf-8", timeout=180,
+                       stdin=subprocess.DEVNULL)
+    assert r.returncode == 0, r.stdout + r.stderr
+    p = Paths(base / "hub")
+    root = base / "projects" / demo.DOCS
+    wt = root / ".ccx" / "worktrees" / "demo-q2"
+    rec = json.loads((p.runs / "demo-q2" / "run.json").read_text(encoding="utf-8"))
+    assert Path(rec["worktree"]) == wt
+    assert wq.load(root)["items"]["q2"]["worktree"] == str(wt)
+    assert ui.project_root(str(wt)) == root
+    assert out.is_file()
+
+
 def test_cli_demo_export_without_dir_leaves_no_folder(tmp_path):
     tmp = tmp_path / "t"
     tmp.mkdir()

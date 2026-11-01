@@ -31,7 +31,7 @@ import tempfile
 import time
 from pathlib import Path
 
-from .config import Paths
+from .config import Paths, load_config, worktree_location
 
 DEMO_MARK = "ccx-demo.json"
 DEMO_DIRS = ("hub", "projects", "homes")          # all build() writes under its folder
@@ -248,11 +248,12 @@ def _shop(p: Paths, root: Path, now: float, notes: list[dict]) -> dict:
     return out
 
 
-def _docs(p: Paths, root: Path, now: float, notes: list[dict]) -> dict:
+def _docs(p: Paths, root: Path, now: float, notes: list[dict], location: str = "sibling") -> dict:
     """docs-site: a Codex lead's work queue of three pieces, one done and merged, one done in a worktree that is not
     merged yet, one waiting on it."""
     from . import project
     from . import queue as wq
+    from .workspace import worktree_path
     root.mkdir(parents=True, exist_ok=True)
     _write(root / "index.md", "# Docs\n\nDemo pages (ccx demo data).\n")
     project.init(root)
@@ -272,7 +273,7 @@ def _docs(p: Paths, root: Path, now: float, notes: list[dict]) -> dict:
               notes=(notes[2],))
     _verdict(p, "demo-q1", True, now - 6.5 * 3600)
     wq.update(root, "q1", status="done", run="demo-q1", agent="claude", cost_usd=0.0021, verdict=True)
-    wt = str(root.parent / ".ccx-worktrees" / root.name / "demo-q2")
+    wt = str(worktree_path(root, "demo-q2", location))
     _run(p, "demo-q2", root, "Add a search box (client side, no service)", now - 2 * 3600, to="codex",
          model="gpt-6-luna", effort="medium", caller="codex", lead=None, label="q:q2", usd=0.0064,
          result={"status": "done", "summary": "Search box with a prebuilt JSON index (38 KB); no network calls.",
@@ -355,6 +356,7 @@ def build(base: Path | None = None, now: float | None = None) -> Paths:
     """Write the demo under `base` (default: a new folder in the system's temporary folder) and return its hub."""
     base = Path(base) if base else new_base()
     now = now or time.time()
+    location = worktree_location(load_config())
     e = env(base)
     hub = Path(e["CCX_HUB"])
     if hub.exists() and not is_demo(Paths(hub)):
@@ -380,7 +382,7 @@ def build(base: Path | None = None, now: float | None = None) -> Paths:
     try:
         notes = _memory(p)
         _shop(p, shop, now, notes)
-        _docs(p, docs, now, notes)
+        _docs(p, docs, now, notes, location)
         _ledger_month(p, now, [shop, docs])
         _claude_session(Path(e["CLAUDE_CONFIG_DIR"]), shop, now)
         (projects / QUIET).mkdir(parents=True, exist_ok=True)

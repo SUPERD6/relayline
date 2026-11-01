@@ -16,7 +16,7 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Callable
 
-from .workspace import _git
+from .workspace import _git, worktree_repo
 
 # what ends a lane's session: the next piece then starts a new one
 BAD_KINDS = ("quota", "auth", "timeout", "user_stopped", "interrupted", "check_failed", "check_broken",
@@ -65,7 +65,7 @@ def used(rec: dict) -> int:
 def commit_block(rec: dict) -> str | None:
     """Inside a ccx worktree, one commit per piece, so a piece is undone with `git revert <sha>` there."""
     cwd = rec.get("cwd") or ""
-    if rec.get("mode") != "write" or "/.ccx-worktrees/" not in cwd.replace("\\", "/"):
+    if rec.get("mode") != "write" or worktree_repo(cwd) is None:
         return None
     wt = Path(cwd)
     _, dirty = _git(wt, "status", "--porcelain")

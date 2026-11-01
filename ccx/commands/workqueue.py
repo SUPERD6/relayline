@@ -16,6 +16,7 @@ from ..config import load_config, paths
 from ..delegate import Request, compact, run, verify
 from ..gitstate import SHARED_WHY, clean as _clean, in_git as _in_git
 from ..modes import resolve_mode
+from ..workspace import worktree_repo
 from .common import _caller, _out, resolve
 
 
@@ -226,7 +227,7 @@ def _here(cwd: Path, root: Path) -> bool:
     top = _top(str(root))
     if top:
         tops.add(Path(top).resolve())
-    return any(cwd.parent == t.parent / ".ccx-worktrees" / t.name for t in tops)
+    return worktree_repo(cwd) in tops
 
 
 def _mode(it: dict) -> dict:
@@ -242,7 +243,7 @@ def _tree_fields(rec: dict) -> tuple[dict, str | None]:
     (`ccx q done <id> --ok 1`; queue.accepted). In the project folder the fields are cleared, so a worktree or a
     verdict left from an earlier run of the item does not stick."""
     cwd = str(rec.get("cwd") or "")
-    if "/.ccx-worktrees/" not in cwd.replace("\\", "/"):
+    if worktree_repo(cwd) is None:
         return {"worktree": None, "branch": None, "verdict": None}, None
     from ..lanes import commit_block
     from ..workspace import _git
