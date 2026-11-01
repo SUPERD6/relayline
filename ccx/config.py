@@ -243,6 +243,14 @@ def load_config(p: Paths | None = None) -> dict:
     return cfg
 
 
+def worktree_location(cfg: dict) -> str:
+    """Where new worktrees go; reject typos before creating a directory or a branch."""
+    location = (cfg.get("worktree") or {}).get("location", "sibling")
+    if location not in ("sibling", "inside"):
+        raise ValueError("worktree.location must be sibling or inside")
+    return location
+
+
 # [subagent] (config/tiers.toml): experimental switches for what a sub-agent loads, each at today's behaviour until a
 # before / after measurement passes (scripts/eval/r5.py, arms ccx2daily*). Not [subagents]: that one caps the
 # sub-agent's own sub-agents.
@@ -306,6 +314,8 @@ SETTINGS = {   # key -> (type, help). Only these can be set with `ccx config set
                                       "always reviewed against the task text (default); rung = one stronger rung "
                                       "redoes it first while one is left; off = the label only"),
     "defaults.max_parallel": (int, "parallel sub-agents in ccx batch"),
+    "worktree.location": (str, "sibling | inside: new git worktrees beside the repository (default) or in "
+                               "<repo>/.ccx/worktrees/<run_id> (ignore .ccx/ in .gitignore)"),
     "defaults.timeout_sec": (int, "per-attempt timeout"),
     "lanes.default": (int, "warm lanes for ccx batch / q run: small pieces for the same project and agent share at "
                            "most N sub-sessions, one after another (0 = off: every piece its own session)"),
@@ -324,6 +334,9 @@ SETTINGS = {   # key -> (type, help). Only these can be set with `ccx config set
                             "else the next turn's hook) instead of the lead polling (default true)"),
     "wake.trust_socket": (_bool, "true | false: a line delivered to Claude Code's inbox is not also left for the "
                                  "next turn's hook (default true; false: a held or expired line still arrives)"),
+    "output.lead": (str, "line | full: what `ccx run` / `resume` / `show --wait` hand the lead when the check passed, "
+                         "the review passed or none ran, and nothing needs a look: one JSON line (default) or the whole result as before "
+                         "(`ccx show <id>` always gives the whole one)"),
     "lead.model_by_task": (_bool, "true | false: when ccx starts or recommends a NEW lead conversation (ccx fresh, "
                                   "ccx handoff, route/propose `new_lead`), pick its model from the task's difficulty: "
                                   "[lead_by_task] easy model up to easy_max_b, else the lead's own (default false; a "
@@ -381,8 +394,12 @@ def set_setting(p: Paths, key: str, raw: str) -> dict:
         raw = "" if raw in ("none", "off") else raw
     if key == "sessions.archive" and raw not in ("after_run", "hours", "off"):
         raise ValueError("sessions.archive must be after_run, hours or off")
+    if key == "worktree.location":
+        worktree_location({"worktree": {"location": raw}})
     if key == "autonomy.level" and raw not in ("L0", "L1", "L2"):
         raise ValueError("autonomy.level must be L0, L1 or L2")
+    if key == "output.lead" and raw not in ("line", "full"):
+        raise ValueError("output.lead must be line or full")
     if key == "escalate.on_self_checked" and raw not in ("review", "rung", "off"):
         raise ValueError("escalate.on_self_checked must be review, rung or off")
     if key == "routing.mode" and raw not in ("auto", "off"):

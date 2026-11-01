@@ -43,7 +43,7 @@ from .review import review_run as _review  # noqa: F401
 from .verdicts import (REASONS, SOFT_AFTER_H, _hard_verdict, _soft_verdict, soft_verdicts, verify,  # noqa: F401
                        verify_builtin)
 from .workspace import (_git, chain_snapshot, diffstat, make_worktree, mark_run_end, run_check,  # noqa: F401
-                        run_snapshot, undo, undo_snapshot, write_end_tree)
+                        run_snapshot, undo, undo_snapshot, worktree_repo, write_end_tree)
 
 AGENTS = DELEGATE_AGENTS
 
@@ -227,6 +227,29 @@ def _namecheck(req: Request, p: Paths, cfg: dict, record: dict, cwd: Path) -> di
         if record.get("attempts"):      # per attempt too: a later rung's run overwrites record["namecheck"]
             record["attempts"][-1]["namecheck"] = {"mode": nc.get("mode"), "hits": len(nc.get("hits") or [])}
     return namecheck.as_check(nc, req.check) if nc and nc["mode"] == "fail" and nc["hits"] else None
+
+
+def board_run(record: dict, phase: str) -> None:
+    """P2-12: a delegation's start and end (a review fix round is a run of its own) on its project's board, so
+    `ccx ui` and `ccx board` show it although no UI was open. Only where the board can be written without touching
+    the project: its .gitignore already ignores the board's files (board.post_run would add lines to it). Neither a
+    reviewer's run (part of the run it reviews) nor another ephemeral one (ccx ask, discuss, a quota probe) is posted."""
+    if record.get("caller") == "ccx-review" or record.get("ephemeral"):
+        return
+    try:
+        from . import board
+        from .ui import project_root
+        root = project_root(record.get("cwd"))
+        if not root or not root.is_dir():
+            return
+        gi = root / ".gitignore"
+        have = set(gi.read_text(encoding="utf-8", errors="replace").splitlines()) if gi.is_file() else set()
+        if ".ccx/" not in have and not all(x in have for x in board.IGNORES):
+            return
+        lab = str(record.get("label") or "").strip()      # a brief that starts with a blank line
+        board.post_run(root, {**record, "label": lab or None}, phase)
+    except Exception:  # noqa: BLE001 — the board is a view; it never fails the run
+        pass
 
 
 def _project_context(cwd: Path) -> Path | None:
@@ -626,6 +649,7 @@ def run(req: Request, p: Paths) -> dict:
         **({"base_note": stale_base} if stale_base else {}),
     }
     _write_record(run_dir, record)          # visible to `ccx show` at once (background runs, crashes)
+    board_run({**record, "label": req.label or req.brief}, "started")      # as the UI shows it: what was asked
     if req.mode == "write":
         # a fresh task takes its own snapshot; a resume or review fix round inherits the one of the run it goes on
         # from (followed back the chain), so its review sees the whole change and `ccx undo` of any link in the
@@ -775,6 +799,7 @@ def run(req: Request, p: Paths) -> dict:
             try:
                 recover.close_dead(p, run_id, "killed", "interrupted",
                                    f"ccx itself was interrupted; continue with `ccx resume {run_id}`", "run")
+                board_run(ledger.load_run(p, run_id), "finished")
             except Exception:  # noqa: BLE001 — never hide the original exception
                 pass
             raise
@@ -1099,9 +1124,11 @@ def run(req: Request, p: Paths) -> dict:
             # nobody wrote a final state although the lock is taken: say so instead of an empty "not ok"
             closed.update(ok=False, error=closed.get("error") or "final.lock was already taken by "
                           + ((run_dir / "final.lock").read_text(encoding="utf-8", errors="replace")[:200]))
+        board_run(closed, "finished")
         return closed
     _write_record(run_dir, record)
     ledger.append(p, record)
+    board_run(record, "finished")          # before a review fix round, which posts its own start and end
     try:                                   # sessions.archive = after_run: a final result's session leaves the apps' lists
         from . import archive
         record["archived"] = bool(archive.after_run(p, record))
@@ -1478,7 +1505,7 @@ def compact(record: dict) -> dict:
         out["namecheck"] = [line(h) for h in record["namecheck"]["hits"][:5]]
     if record.get("edited_tests") and "edited_tests" not in out:
         out["edited_tests"] = record["edited_tests"]
-    if record["cwd"] and "/.ccx-worktrees/" in record["cwd"].replace("\\", "/"):
+    if worktree_repo(record["cwd"]) is not None:
         out["worktree"] = record["cwd"]
     if record.get("base_note"):                     # --worktree on a dirty project: its check ran on HEAD's code
         out["base"] = record["base_note"]

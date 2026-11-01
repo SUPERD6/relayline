@@ -128,8 +128,8 @@ builtin 的模型身份留空。这些数字测的是工作流（ccx2 含主导�
 1. Claude（主）按 5 项给任务打分（改 2 个文件、单模块、目标清楚、风险低、有现成写法），写一段不到 200 字的简报，只写目标、要看的文件、怎样算完成。
 2. 执行 `ccx run --from claude --files 2 --coupling one --clarity goal "…"`。ccx 调用 task-routing 技能，算出每个“智能体:模型:强度”的成功率和每次成功的花费，挑出 `codex:gpt-6.1-sol:medium`。如果算下来自己做更划算、或者应该先拆开，就直接告诉主导，不派。
 3. ccx 在后台调用 `codex exec -m gpt-6.1-sol -c model_reasoning_effort="medium" …`。会话 ID 一出现就存盘。Codex 自己读文件、改代码、跑测试，这部分 token 花的是 Codex 账号的额度。
-4. Codex 必须按 JSON schema 回报：`status / summary / files_changed / verification / …`。Claude 只读这一小段，再自己看一眼 `git diff`，确认测试真的跑过，然后 `ccx verify <run_id> --ok 1`。check 通过时会写明它是在什么上通过的：`check passed (covers: tests/test_x.py)` 列出 pytest / unittest 命令点到的测试文件（目录会展开；别的命令写"not known"），用了过滤或节点 id 只跑其中一部分时加 `(only -k …)`；子智能体改过其中某个文件或它们上层的 `conftest.py` 时标 `basis changed`（检查依据被改动），只往里加了测试时写"tests added by the sub-agent in …"，新写的测试文件写"written by the sub-agent"或"only tests the sub-agent wrote"。结果、recap 那一行、`ccx show` 和账本里都有。check 跑到的测试文件全是子智能体这次新写或改过的，就不算普通 ok：kind 记 `ok_self_checked`（退出码仍是 0；`check.basis` 和 `needs_lead` 写"未经独立验证"，`ccx ui` 请人确认，不会被自动判对）。`[escalate] on_self_checked` 决定还做什么：`review`（默认）交给审查、对照任务原文核对，`rung` 先升一档重做，`off` 只打标记。只读运行如果什么都没答（summary 为空），不算 ok：kind 记 `no_answer`，并提示换更强的档位再问一次。
-5. 如果 Codex 回报 `blocked`，ccx 会在**同一个 Codex 会话**里升一档（high）继续，不用重新喂背景。Codex 说做完了、但 ccx 自己重跑的 `--check` 没过，也会升一档（同一家时在同一会话里）；`ccx config set defaults.focused_retry true` 之后，这一次会拿到失败的命令和输出的最后约 2000 字，只修失败处（默认关，等实测确认再开）。如果 Codex 额度用完，自动换 Claude 做（实验性：只有替身测试，还没遇到过真实的额度用完）；超时或崩溃，`ccx resume <run_id>` 接着做（有检查点的长任务用 `ccx task resume`），沿用原来的标签、验收命令和 review 设置（`ccx resume` 可以用 `--check` / `--review` 改；`ccx task resume` 总是沿用）。想让它停：`ccx stop <run_id>` 结束子智能体和它开的所有进程，之后 `ccx resume` 能接上。想限花费：`ccx run --max-usd 0.5`（`ccx resume --max-usd` 同样可用；默认取 `[run] max_usd`，0 = 不限）——这次派活的各次尝试、审查和修复轮合计花到这个数（API 等价美元，和收据上的花费同一口径）就停：下一档、本该开的审查或修复轮不再开始，结果里写 `max_usd: {cap, spent, stopped_before, note: "budget cap reached"}` 并带 `needs_lead`（recap 里是 `needs_lead=max_usd`）。这样的运行不会被自动记成"大概对"，也不算 L2 自动合并的证据，由你来定。只在两步之间检查，正在跑的那一步不会被掐断，所以合计最多超出一步（一趟尝试，或一次审查连同它的审查员）。只有 `ccx run` / `ccx resume` 读这个上限（`batch`、`q run`、`way`、`task resume` 不读）。它和 `--budget` 不同：`--budget` 只限子智能体自己再开的子智能体。
+4. Codex 必须按 JSON schema 回报：`status / summary / files_changed / verification / …`。check 通过、审查通过或没跑、没有要主导看的东西（没有 hint、open question、next_step、审查 note、L2 合并或项目答复、弱的或覆盖未知的 check 等）时，主导只拿到一行 JSON（summary、改动文件、diffstat、check、recap；`"view": "line"`），而不是之后每轮都要重读的完整结果；要看全部用 `ccx show <run_id>`，`ccx config set output.lead full` 恢复成每次给完整结果。Claude 只读这一小段，再自己看一眼 `git diff`，确认测试真的跑过，然后 `ccx verify <run_id> --ok 1`。check 通过时会写明它是在什么上通过的：`check passed (covers: tests/test_x.py)` 列出 pytest / unittest 命令点到的测试文件（目录会展开；别的命令写"not known"），用了过滤或节点 id 只跑其中一部分时加 `(only -k …)`；子智能体改过其中某个文件或它们上层的 `conftest.py` 时标 `basis changed`（检查依据被改动），只往里加了测试时写"tests added by the sub-agent in …"，新写的测试文件写"written by the sub-agent"或"only tests the sub-agent wrote"。结果、recap 那一行、`ccx show` 和账本里都有。check 跑到的测试文件全是子智能体这次新写或改过的，就不算普通 ok：kind 记 `ok_self_checked`（退出码仍是 0；`check.basis` 和 `needs_lead` 写"未经独立验证"，`ccx ui` 请人确认，不会被自动判对）。`[escalate] on_self_checked` 决定还做什么：`review`（默认）交给审查、对照任务原文核对，`rung` 先升一档重做，`off` 只打标记。只读运行如果什么都没答（summary 为空），不算 ok：kind 记 `no_answer`，并提示换更强的档位再问一次。
+5. 如果 Codex 回报 `blocked`，ccx 会在**同一个 Codex 会话**里升一档（high）继续，不用重新喂背景。Codex 说做完了、但 ccx 自己重跑的 `--check` 没过，也会升一档（同一家时在同一会话里）；`ccx config set defaults.focused_retry true` 之后，这一次会拿到失败的命令和输出的最后约 2000 字，只修失败处（默认关，等实测确认再开）。如果 Codex 额度用完，自动换 Claude 做（实验性：只有替身测试，还没遇到过真实的额度用完）；超时或崩溃，`ccx resume <run_id>` 接着做（有检查点的长任务用 `ccx task resume`），沿用原来的标签、验收命令和 review 设置（`ccx resume` 可以用 `--check` / `--review` 改；`ccx task resume` 总是沿用）。想让它停：`ccx stop <run_id>` 结束子智能体和它开的所有进程，之后 `ccx resume` 能接上。
 6. 每次运行都写进账本，结果自动记回 task-routing / task-split，下次选得更准。`ccx report` 生成看板网页：谁花了多少 token、什么类型的 token、额度用了多少，给出花费；`ccx trial` 实测之前不显示省了多少。
 
 反过来，在 Codex 里用同样的命令加 `--to claude`，就是 Codex 当主、Claude Code 当子。
@@ -255,7 +255,7 @@ Fail（做对 29 对 30），事后解读为未定。按配对看，三个都没
 原因停下的（额度、登录、`ccx stop`、超时、机器问题、预算），就不再起任何运行，这些块标 `not_run`，用 `ccx resume` 续那次停下的运行。如果审查（修复轮之后）或 ccx 否决了整个合并改动（`review_issues`、
 `review_failed`、`no_changes`、`check_broken`），哪一块都不算做完，不管它自己的 check 怎样。修复轮或拆出去的运行跑过之后，之前通过的 check
 会再跑一次，以最后一次为准。`results` 仍然每块
-一项（多了 `merged_run`、`merged_with`、`piece_state`），`ccx undo <运行> --piece <id>` 只还原这一块声明的路径（不记对错；只适用于在项目目录里跑的合并运行：干净仓库里并行写入会各开 worktree，worktree 运行没有 undo 快照）。修复和拆出去的
+一项（多了 `merged_run`、`merged_with`、`piece_state`），`ccx undo <运行> --piece <id>` 只还原这一块声明的路径（不记对错；只适用于在项目目录里跑的合并运行；独立 worktree 运行各有自己的 undo 快照）。修复和拆出去的
 运行在 run.json 和账本里带 `merge_of`，账本另有一条 `merge` 事件列出每块的结果。代价：审查按整个改动判（50 行门槛按所有块合计；修复和拆出去
 的运行可能再审一次）、墙钟变长；只要有合并的块没做完，退出码就是 2（单独跑的块仍按 `ccx run` 原来的退出码）。命令行上的 `--merge` 优先于
 `[lanes] default`，命令行上的 `--lanes` 优先于 `[merge] default`；两个都写在命令行上会报错。
@@ -309,6 +309,16 @@ UI 数据原有 `quota` 数组补充 `freshness`、`projected_at_reset`，用量
 ## 安全边界
 
 - 子智能体默认**可以改文件**（Codex `workspace-write` 沙箱；Claude `acceptEdits` 加工具白名单，只放行 git/python/pytest/npm/node 命令）。只想让它分析时加 `--mode read`。多个并行写任务自动放进不同 git worktree。
+- Worktree 位置：`[worktree] location = "sibling"` 保留原默认目录
+  `<repo 父目录>/.ccx-worktrees/<repo 名>/<run_id>`。用 `ccx config set worktree.location inside` 把新 worktree 放到
+  `<repo>/.ccx/worktrees/<run_id>`，位于项目文件夹内；设回 `sibling` 即恢复默认。复用 hub 的覆盖顺序
+  `ccx/tiers.toml`、`ccx/settings.toml`；没有项目级 `.ccx/config.toml` 覆盖。请在仓库的 `.gitignore` 忽略 `.ccx/`：
+  Git 未忽略它时，ccx 在创建 inside worktree 前发出警告，不自动修改 `.gitignore`。忽略后，主仓库的 `git status`
+  看不到里面的 worktree。智能体参数和权限不变（Codex 仍带 `--skip-git-repo-check`）；`ccx doctor` 显示当前选择。
+  改设置不会移动已有运行；undo、stop、resume 和会话归档仍使用运行记录里的路径。确认改动可丢弃后，可用
+  `git worktree remove <路径>` 清理已完成的 worktree。
+  运行结果、队列跟踪与接收、lane 提交、自动合并、验收可信度分组和 UI 项目归类同时识别两种布局，改设置后也能识别已有运行。
+  inside 仍为实验性：已用假智能体 CLI 和 Git 验证，尚未用真实智能体 CLI 或 Codex 项目信任继承验证。
 - 子智能体不能再派子智能体（`CCX_DEPTH`）。
 - `ccx sync` 默认只预演。真改时每个被改的文件当天先备份一次。Codex 的 `config.toml` 只追加一个带标记的 hook 块，写入前先用 TOML 解析器检查。MCP 一律通过两边官方 CLI 添加。
 - 不读取、不复制任何账号凭据。

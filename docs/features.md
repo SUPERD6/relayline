@@ -216,6 +216,10 @@ In Claude Code you say: "make `loader.py` accept a custom delimiter and add test
 3. **Run headless.** ccx runs `codex exec -m gpt-6.1-sol -c model_reasoning_effort="medium" …`. The session id is
    saved the moment it appears. Codex reads the files, edits and runs the tests on Codex's own quota.
 4. **Return a summary.** Codex must answer in a JSON schema (`status / summary / files_changed / verification / …`).
+   When the check passed, the review passed (or none ran) and nothing needs the lead (no hint, open question, next step, review
+   note, L2 merge or project answer, weak or unknown-coverage check, ...), the lead is handed one JSON line (summary,
+   files, diffstat, check, recap; `"view": "line"`) instead of the whole result, which it re-reads on every later
+   turn; `ccx show <run_id>` gives the whole one, and `ccx config set output.lead full` restores it everywhere.
    Claude reads only that, glances at `git diff`, and records its verdict with `ccx verify <run_id> --ok 1`.
    A passed check says what it passed on: `check passed (covers: tests/test_x.py)` lists the test files the
    pytest / unittest command names (folders expanded; "not known" for other commands), adds `(only -k …)` when a
@@ -424,8 +428,8 @@ that stopped. If the review (after its fix round) or ccx turns the merged diff d
 `review_failed`, `no_changes`, `check_broken`), no piece counts as done, whatever its own check said. After a follow-up
 or a spun-off run, checks that had passed are run again and the last result counts. `results`
 keeps one entry per piece (with `merged_run`, `merged_with`, `piece_state`), and `ccx undo <run> --piece <id>` puts
-back only the paths that piece declared (no verdict; only for a merged run in the project folder: in a clean repository
-parallel writers get worktrees, which have no undo snapshot). Follow-up and spun-off runs carry `merge_of` in run.json and the
+back only the paths that piece declared (no verdict; only for a merged run in the project folder; separate worktree
+runs keep their own undo snapshots). Follow-up and spun-off runs carry `merge_of` in run.json and the
 ledger, and a `merge` ledger event lists every piece's outcome. Costs: reviews judge the whole diff (the 50-line
 trigger counts every piece; a follow-up and a spun-off run may be reviewed again), wall time is longer, and the exit
 code is 2 when any merged piece is not done (a piece run alone keeps `ccx run`'s exit code). An explicit `--merge`
@@ -492,6 +496,19 @@ check; no improvement in task success or savings has been measured here.
   - DeepSeek Harness: `DSH_PERMISSION_MODE=workspace-write` (`read-only` with `--mode read`); ccx also turns off its
     default session-log upload to DeepSeek and its telemetry for these runs.
   - `--mode read` makes any of them analysis-only. Parallel writers go to separate git worktrees.
+- Worktree placement: `[worktree] location = "sibling"` keeps the existing default,
+  `<repo parent>/.ccx-worktrees/<repo name>/<run_id>`. Set `ccx config set worktree.location inside` to put new
+  worktrees in `<repo>/.ccx/worktrees/<run_id>`, within the project folder; set it back to `sibling` to restore the
+  default. The usual hub overrides (`ccx/tiers.toml`, then `ccx/settings.toml`) apply; there is no project-level
+  `.ccx/config.toml` override. Ignore `.ccx/` in the repository's `.gitignore`: ccx warns before creating an inside
+  worktree when Git does not ignore it, and never edits `.gitignore` for you. An ignored inside worktree does not
+  appear in the main checkout's `git status`. Agent arguments and permissions stay the same (Codex still receives
+  `--skip-git-repo-check`). `ccx doctor` shows the selected placement. Existing runs keep their recorded paths, so
+  changing the setting does not move them or change where undo, stop, resume or session archiving act; remove a
+  finished worktree with `git worktree remove <path>` when its changes are safe to discard.
+  Both layouts are recognized in run results, queues and acceptance, lane commits, automatic merging, check-trust
+  grouping and UI project grouping, even after the setting changes. Inside placement is experimental: checked
+  with fake agent CLIs and Git, not yet with real agent CLIs or Codex project trust inheritance.
 - A sub-agent cannot delegate again (`CCX_DEPTH`).
 - `ccx sync` is a dry run unless `--apply`:
   - Each changed file is backed up once a day.

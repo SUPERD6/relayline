@@ -25,6 +25,10 @@ namecheck = "warn"        # 写入运行后，静态查改动过的函数里有�
 # off = 不查。也可 ccx run --namecheck；手动查用 ccx namecheck。默认 warn 的依据：本仓库、标准库 0 误报，r5 的
 # 3 万多个文件里唯一命中是真 bug，没命中时没有代价；有命中的运行不自动记“大概率对”。换成 fail 要等 r5 前后对比。
 
+[worktree]
+location = "sibling"      # sibling = <repo parent>/.ccx-worktrees/<repo>/<run_id> (unchanged default)
+# inside = <repo>/.ccx/worktrees/<run_id>; ignore .ccx/ in the project's .gitignore
+
 # 整个流程的档位（task-routing 的 tier_plan，docs/DECISIONS.md「档位」）：--tradeoff save|balanced|fast|cheapest
 # 不只选模型，还决定每块活谁做：self = 主导自己做；ccx2 = 交给 ccx、主导验收（模型按 save 选）；
 # direct = 交给 ccx、没人复核（标“可能做错”，适合脚本/CI）。
@@ -272,6 +276,11 @@ max_usd = 0
 enabled = true
 # true：已投进 Claude Code 收件箱的就不再给钩子留一份；false：也留一份（被暂存或过期的消息下一轮仍能看到，代价是可能看到两次）
 trust_socket = true
+
+[output]
+# 主导拿到的结果（ccx/leadview.py）：check 和审查都过、没有要主导看的东西时，只给一行 JSON（做了什么、改了哪些文件、recap 里的
+# 花费和 `ccx show <id>`）；line = 默认，full = 每次都给完整结果（以前的样子）。`ccx show <id>` 永远是完整结果。
+lead = "line"
 
 [shared_context]
 # 共享工作上下文（docs/shared-context.zh.md）：ccx 用代码从主导会话记录里摘“最近在聊什么”，不调模型。

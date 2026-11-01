@@ -19,6 +19,17 @@ def _out(obj) -> None:
     print(json.dumps(obj, ensure_ascii=False, indent=2))
 
 
+def lead_out(res: dict, cfg: dict | None = None) -> None:
+    """A run's result as the lead is handed it: one JSON line when nothing needs its eyes, else the whole result
+    (ccx/leadview.py; `output.lead full` restores the whole one always)."""
+    from .. import leadview
+    if cfg is None:
+        from ..config import load_config, paths
+        cfg = load_config(paths())
+    obj, one = leadview.render(res, cfg)
+    print(leadview.dumps(obj, one))
+
+
 def human_tail(lines: list[str], stream=None) -> None:
     """A few plain lines after the JSON, only when stdout is a terminal: a person reads them. Leads and scripts read
     stdout through a pipe and get the JSON byte for byte as before."""
