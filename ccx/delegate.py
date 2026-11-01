@@ -573,6 +573,7 @@ def run(req: Request, p: Paths) -> dict:
     pv_env = _provider_envs(cfg, plan)       # missing key for the first rung -> clear error before anything runs
     plan = _within_budget(p, cfg, plan)
     from . import quota
+    quota.maybe_refresh(p, cfg)
     record = {
         "run_id": run_id, "label": req.label, "to": plan[0]["agent"], "caller": req.caller,
         "caller_vendor": _vendor(req.caller, cfg),
@@ -584,7 +585,7 @@ def run(req: Request, p: Paths) -> dict:
         "route": req.route, "task": req.task, "step": req.step, "learned": None, "ts": time.time(),
         "provider": req.provider, "lead_session": req.lead_session, "continued": cont,
         "first_rung": plan[0]["rung"],
-        "quota_at_start": quota.at_start(p, run_id, cfg),
+        "quota_at_start": quota.at_start(p),
         "continue_depth": (int(prev.get("continue_depth", 0)) + 1) if cont else 0,
         # follow-ups of the same task in a row (ccx resume, review fix rounds, resuming an interrupted run); a
         # continued session (ccx run auto-continue, --seat) or a board message answered in its session is not: 0

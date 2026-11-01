@@ -121,7 +121,7 @@ class TestQuotaRouting(Env):
         ranked = quota_candidates(self.p, load_config(self.p), ["claude", "codex"])
         self.assertEqual(ranked["eligible"], ["claude", "codex"])
 
-    def test_auto_run_and_snapshot_in_record_and_ledger(self):
+    def test_auto_run_keeps_snapshot_in_record_without_extra_ledger_rows(self):
         self.claude()
         self.codex()
         out = self.j("run", "--from", "user", "--b", "4", "--review", "off", "implement parser")
@@ -129,7 +129,9 @@ class TestQuotaRouting(Env):
         snap = self.record(out)["quota_at_start"]
         self.assertEqual(snap["pace"]["claude"]["five_hour"]["used"], 0.82)
         rows = [json.loads(x) for x in self.p.ledger.read_text(encoding="utf-8").splitlines()]
-        self.assertTrue(any(r.get("run_id") == out["run_id"] and r.get("quota_at_start") == snap for r in rows))
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]["run_id"], out["run_id"])
+        self.assertEqual(rows[0]["attempts"], 1)
 
     def test_named_model_is_kept_even_when_tight(self):
         self.claude()
@@ -287,3 +289,39 @@ class TestQuotaRouting(Env):
         self.assertIn("no quota windows", state["codex"]["error"])
         self.assertGreater(quota.pressure(self.p)["freshness"]["codex"], 60)
         self.assertEqual([c["agent"] for c in self.model_calls()], ["codex"])
+
+    def test_never_used_subscriptions_are_not_automatically_probed(self):
+        env = {"CCX_NO_QUOTA_PROBE": "0"}
+        self.j("route", "--b", "4", env=env)
+        self.assertEqual(self.model_calls(), [])
+        out = self.j("run", "--from", "user", "--to", "codex", "--tier", "T1", "--review", "off", "x", env=env)
+        self.assertEqual([c["agent"] for c in self.model_calls()], ["codex"])
+        rec = self.record(out)
+        self.assertEqual(rec["quota_at_start"]["freshness"], {"claude": None, "codex": None})
+        self.assertEqual(len(rec["attempts"]), 1)
+        rows = [json.loads(x) for x in self.p.ledger.read_text(encoding="utf-8").splitlines()]
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]["attempts"], 1)
+
+    def test_latest_reading_controls_automatic_refresh(self):
+        self.claude(0.2, age=70, window="seven_day")
+        self.claude(0.2)
+        self.j("route", "--b", "4", env={"CCX_NO_QUOTA_PROBE": "0"})
+        self.assertEqual(self.model_calls(), [])
+        self.assertLess(quota.pressure(self.p)["freshness"]["claude"], 1)
+
+    def test_manual_probes_leave_existing_runs_and_ledger_unchanged(self):
+        out = self.j("run", "--from", "user", "--to", "codex", "--tier", "T1", "--review", "off", "x")
+        run_file = self.p.runs / out["run_id"] / "run.json"
+        before_run, before_ledger = run_file.read_bytes(), self.p.ledger.read_bytes()
+        before_dirs = sorted(d.name for d in self.p.runs.iterdir())
+        result = self.j("quota", "--refresh", env={"FAKE_QUOTA_CLAUDE": json.dumps({
+            "five_hour": {"utilization": 0.2, "resetsAt": self.reset}}), "FAKE_QUOTA_CODEX": json.dumps({
+            "primary": {"used_percent": 16, "window_minutes": 300, "resets_at": self.reset}})})
+        self.assertEqual(result["refresh"]["claude"]["cost_usd"], 0.0004)
+        self.assertEqual(run_file.read_bytes(), before_run)
+        self.assertEqual(self.p.ledger.read_bytes(), before_ledger)
+        self.assertEqual(sorted(d.name for d in self.p.runs.iterdir()), before_dirs)
+        log = [json.loads(x) for x in (self.p.state / "quota-refresh.jsonl").read_text(encoding="utf-8").splitlines()]
+        self.assertEqual([row["agent"] for row in log], ["claude", "codex"])
+        self.assertEqual(log[0]["cost_usd"], 0.0004)

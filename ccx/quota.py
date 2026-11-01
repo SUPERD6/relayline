@@ -208,7 +208,7 @@ def pressure(p, given: dict | None = None) -> dict:
             if agent not in q and any(w.get("used") is not None for w in pc.values()):
                 q[agent] = max(w["projected"] for w in pc.values())
     return {"quota": q, "pace": detail,
-            "freshness": {ag: max((w["freshness"] for w in detail.get(ag, {}).values()), default=None)
+            "freshness": {ag: min((w["freshness"] for w in detail.get(ag, {}).values()), default=None)
                           for ag in ("claude", "codex")}}
 
 
@@ -376,7 +376,6 @@ def _probe_agent(p, agent: str) -> dict:
 def refresh(p, agents: list[str] | None = None, *, max_age_min: float | None = None) -> dict:
     """Refresh each subscription once; Codex reuses current disk readings before spending a request.
     Attempts, including failures, are recorded so an unreadable quota cannot cause a probe on every command."""
-    from . import ledger
     from .config import load_config
     if max_age_min is None:
         max_age_min = float((load_config(p).get("quota") or {}).get("auto_refresh_min", 60) or 60)
@@ -394,7 +393,9 @@ def refresh(p, agents: list[str] | None = None, *, max_age_min: float | None = N
                 "cost_usd": 0.0, "ae_usd": 0.0} if current else _probe_agent(p, agent))
         state[agent] = row
         out[agent] = row
-        ledger.append_event(p, {"type": "quota_refresh", **row})
+        p.state.mkdir(parents=True, exist_ok=True)
+        with open(p.state / "quota-refresh.jsonl", "a", encoding="utf-8") as fh:
+            fh.write(json.dumps(row, ensure_ascii=False) + "\n")
     f = _refresh_file(p)
     f.parent.mkdir(parents=True, exist_ok=True)
     f.write_text(json.dumps(state, ensure_ascii=False), encoding="utf-8")
@@ -402,7 +403,8 @@ def refresh(p, agents: list[str] | None = None, *, max_age_min: float | None = N
 
 
 def maybe_refresh(p, cfg: dict, agents: list[str] | None = None, given: dict | None = None) -> dict:
-    """The shared route/run gate; 0/false disables automatic refresh, explicit --refresh still works."""
+    """Refresh only an existing reading older than the interval; unknown subscriptions need --refresh.
+    0/false disables automatic refresh; explicit --refresh still works."""
     import os
     from .runners import find_bin
     minutes = (cfg.get("quota") or {}).get("auto_refresh_min", 60)
@@ -415,21 +417,15 @@ def maybe_refresh(p, cfg: dict, agents: list[str] | None = None, given: dict | N
         if ag == "claude" and not (cfg.get("quota") or {}).get("probe_claude", True):
             continue                         # retain the existing opt-out
         age = pr["freshness"].get(ag)
-        wins = pr["pace"].get(ag) or {}
-        stale = age is None or age > float(minutes) or all(w.get("used") is None for w in wins.values())
+        stale = age is not None and age > float(minutes)
         if stale and time.time() - (state.get(ag) or {}).get("ts", 0) >= float(minutes) * 60:
             due.append(ag)
     return refresh(p, due, max_age_min=float(minutes)) if due else {}
 
 
-def at_start(p, run_id: str, cfg: dict) -> dict:
-    """Full record field plus a joinable ledger event (ledger's run rows intentionally have a fixed schema)."""
-    from . import ledger
-    maybe_refresh(p, cfg)
-    snap = pressure(p)
-    ledger.append_event(p, {"type": "quota_at_start", "run_id": run_id, "ts": time.time(),
-                            "quota_at_start": snap})
-    return snap
+def at_start(p) -> dict:
+    """Read the snapshot for run.json only; no probe, run directory or ledger row."""
+    return pressure(p)
 
 
 def summary(p) -> str:
