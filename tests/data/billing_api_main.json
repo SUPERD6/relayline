@@ -1,0 +1,574 @@
+{
+  "main_commit": "5b31fb4dd0b74b7a865806ca27980ab68f50d3af",
+  "cases": {
+    "empty": {
+      "stats": {
+        "spend": {
+          "sub_agents_usd": 0.0,
+          "runs": 0,
+          "cost_per_success_usd": null
+        },
+        "saving": {
+          "usd": null,
+          "kind": "model",
+          "ci95": null,
+          "note": "model estimate; measured totals so far about even (rounds 1-5): https://github.com/SUPERD6/relayline/blob/main/docs/measured.md"
+        },
+        "totals": {
+          "ae": 0.0,
+          "sub_ae": 0.0,
+          "lead_ae": 0.0,
+          "codex_credits": 0.0,
+          "runs": 0,
+          "done_rate": null,
+          "verified": 0,
+          "soft_verified": 0,
+          "soft_trust": {
+            "soft": 0,
+            "rechecked": 0,
+            "overturned": 0,
+            "overturn_rate": null,
+            "learn": true
+          },
+          "reasons": {},
+          "cps": null,
+          "cache_read_share": null,
+          "saving": null,
+          "saving_kind": "model",
+          "saving_ci95": null,
+          "saving_n": 0,
+          "saving_old_model": null,
+          "saving_note": "model estimate; measured totals so far about even (rounds 1-5): https://github.com/SUPERD6/relayline/blob/main/docs/measured.md",
+          "quota_stops": 0,
+          "lead_turns": 0,
+          "lead_turn_tokens_median": null,
+          "lead_turn_ae_median": null,
+          "lead_one_rung_down_saving": null
+        },
+        "streams": [],
+        "ab": [],
+        "quota": []
+      },
+      "report": {
+        "report": "$REPORT",
+        "summary": "$SUMMARY",
+        "totals": {
+          "ae": 0.0,
+          "sub_ae": 0.0,
+          "lead_ae": 0.0,
+          "codex_credits": 0.0,
+          "runs": 0,
+          "done_rate": null,
+          "verified": 0,
+          "soft_verified": 0,
+          "soft_trust": {
+            "soft": 0,
+            "rechecked": 0,
+            "overturned": 0,
+            "overturn_rate": null,
+            "learn": true
+          },
+          "reasons": {},
+          "cps": null,
+          "cache_read_share": null,
+          "saving": null,
+          "saving_kind": "model",
+          "saving_ci95": null,
+          "saving_n": 0,
+          "saving_old_model": null,
+          "saving_note": "model estimate; measured totals so far about even (rounds 1-5): https://github.com/SUPERD6/relayline/blob/main/docs/measured.md",
+          "quota_stops": 0,
+          "lead_turns": 0,
+          "lead_turn_tokens_median": null,
+          "lead_turn_ae_median": null,
+          "lead_one_rung_down_saving": null
+        }
+      },
+      "summary": {
+        "generated": "$GENERATED",
+        "days": 36500,
+        "lead_seen": false,
+        "totals": {
+          "ae": 0.0,
+          "sub_ae": 0.0,
+          "lead_ae": 0.0,
+          "codex_credits": 0.0,
+          "runs": 0,
+          "done_rate": null,
+          "verified": 0,
+          "soft_verified": 0,
+          "soft_trust": {
+            "soft": 0,
+            "rechecked": 0,
+            "overturned": 0,
+            "overturn_rate": null,
+            "learn": true
+          },
+          "reasons": {},
+          "cps": null,
+          "cache_read_share": null,
+          "saving": null,
+          "saving_kind": "model",
+          "saving_ci95": null,
+          "saving_n": 0,
+          "saving_old_model": null,
+          "saving_note": "model estimate; measured totals so far about even (rounds 1-5): https://github.com/SUPERD6/relayline/blob/main/docs/measured.md",
+          "quota_stops": 0,
+          "lead_turns": 0,
+          "lead_turn_tokens_median": null,
+          "lead_turn_ae_median": null,
+          "lead_one_rung_down_saving": null
+        },
+        "streams": [
+          {
+            "agent": "claude",
+            "role": "lead",
+            "label": "Claude · lead",
+            "ae": 0.0,
+            "events": 0,
+            "input_tokens": 0,
+            "cache_write_tokens": 0,
+            "cached_input_tokens": 0,
+            "output_tokens": 0
+          },
+          {
+            "agent": "claude",
+            "role": "sub",
+            "label": "Claude · sub-agent",
+            "ae": 0.0,
+            "events": 0,
+            "input_tokens": 0,
+            "cache_write_tokens": 0,
+            "cached_input_tokens": 0,
+            "output_tokens": 0
+          },
+          {
+            "agent": "codex",
+            "role": "lead",
+            "label": "Codex · lead",
+            "ae": 0.0,
+            "events": 0,
+            "input_tokens": 0,
+            "cache_write_tokens": 0,
+            "cached_input_tokens": 0,
+            "output_tokens": 0
+          },
+          {
+            "agent": "codex",
+            "role": "sub",
+            "label": "Codex · sub-agent",
+            "ae": 0.0,
+            "events": 0,
+            "input_tokens": 0,
+            "cache_write_tokens": 0,
+            "cached_input_tokens": 0,
+            "output_tokens": 0
+          },
+          {
+            "agent": "gemini",
+            "role": "sub",
+            "label": "Gemini · sub-agent",
+            "ae": 0.0,
+            "events": 0,
+            "input_tokens": 0,
+            "cache_write_tokens": 0,
+            "cached_input_tokens": 0,
+            "output_tokens": 0
+          },
+          {
+            "agent": "claude",
+            "role": "builtin",
+            "label": "Claude · built-in sub-agent",
+            "ae": 0.0,
+            "events": 0,
+            "input_tokens": 0,
+            "cache_write_tokens": 0,
+            "cached_input_tokens": 0,
+            "output_tokens": 0
+          },
+          {
+            "agent": "codex",
+            "role": "builtin",
+            "label": "Codex · built-in sub-agent",
+            "ae": 0.0,
+            "events": 0,
+            "input_tokens": 0,
+            "cache_write_tokens": 0,
+            "cached_input_tokens": 0,
+            "output_tokens": 0
+          },
+          {
+            "agent": "deepseek",
+            "role": "sub",
+            "label": "DeepSeek · sub-agent (pay per token)",
+            "ae": 0.0,
+            "events": 0,
+            "input_tokens": 0,
+            "cache_write_tokens": 0,
+            "cached_input_tokens": 0,
+            "output_tokens": 0
+          },
+          {
+            "agent": "other",
+            "role": "sub",
+            "label": "Other API providers · sub-agent (pay per token)",
+            "ae": 0.0,
+            "events": 0,
+            "input_tokens": 0,
+            "cache_write_tokens": 0,
+            "cached_input_tokens": 0,
+            "output_tokens": 0
+          }
+        ],
+        "days_series": [],
+        "runs": [],
+        "ab": [],
+        "trial": null,
+        "quota": [],
+        "compare": [],
+        "accuracy": {
+          "tiers": [],
+          "calibration": {
+            "this": {
+              "n": 0,
+              "brier": null,
+              "bins": []
+            },
+            "last": {
+              "n": 0,
+              "brier": null,
+              "bins": []
+            }
+          },
+          "soft": {
+            "this": {
+              "rechecked": 0,
+              "overturned": 0,
+              "rate": null
+            },
+            "last": {
+              "rechecked": 0,
+              "overturned": 0,
+              "rate": null
+            }
+          },
+          "evals": false,
+          "checks": {
+            "judged": 0,
+            "wrong": 0,
+            "weak": []
+          }
+        }
+      }
+    },
+    "one_run": {
+      "stats": {
+        "spend": {
+          "sub_agents_usd": 0.03,
+          "runs": 1,
+          "cost_per_success_usd": 0.03
+        },
+        "saving": {
+          "usd": null,
+          "kind": "model",
+          "ci95": null,
+          "note": "model estimate; measured totals so far about even (rounds 1-5): https://github.com/SUPERD6/relayline/blob/main/docs/measured.md"
+        },
+        "totals": {
+          "ae": 0.03,
+          "sub_ae": 0.03,
+          "lead_ae": 0.0,
+          "codex_credits": 0.8,
+          "runs": 1,
+          "done_rate": 1.0,
+          "verified": 0,
+          "soft_verified": 0,
+          "soft_trust": {
+            "soft": 0,
+            "rechecked": 0,
+            "overturned": 0,
+            "overturn_rate": null,
+            "learn": true
+          },
+          "reasons": {},
+          "cps": 0.03,
+          "cache_read_share": 0.125,
+          "saving": null,
+          "saving_kind": "model",
+          "saving_ci95": null,
+          "saving_n": 0,
+          "saving_old_model": null,
+          "saving_note": "model estimate; measured totals so far about even (rounds 1-5): https://github.com/SUPERD6/relayline/blob/main/docs/measured.md",
+          "quota_stops": 0,
+          "lead_turns": 0,
+          "lead_turn_tokens_median": null,
+          "lead_turn_ae_median": null,
+          "lead_one_rung_down_saving": null
+        },
+        "streams": [
+          {
+            "label": "Codex · sub-agent",
+            "ae": 0.03,
+            "events": 1,
+            "input_tokens": 100,
+            "cache_write_tokens": 40,
+            "cached_input_tokens": 20,
+            "output_tokens": 10
+          }
+        ],
+        "ab": [],
+        "quota": []
+      },
+      "report": {
+        "report": "$REPORT",
+        "summary": "$SUMMARY",
+        "totals": {
+          "ae": 0.03,
+          "sub_ae": 0.03,
+          "lead_ae": 0.0,
+          "codex_credits": 0.8,
+          "runs": 1,
+          "done_rate": 1.0,
+          "verified": 0,
+          "soft_verified": 0,
+          "soft_trust": {
+            "soft": 0,
+            "rechecked": 0,
+            "overturned": 0,
+            "overturn_rate": null,
+            "learn": true
+          },
+          "reasons": {},
+          "cps": 0.03,
+          "cache_read_share": 0.125,
+          "saving": null,
+          "saving_kind": "model",
+          "saving_ci95": null,
+          "saving_n": 0,
+          "saving_old_model": null,
+          "saving_note": "model estimate; measured totals so far about even (rounds 1-5): https://github.com/SUPERD6/relayline/blob/main/docs/measured.md",
+          "quota_stops": 0,
+          "lead_turns": 0,
+          "lead_turn_tokens_median": null,
+          "lead_turn_ae_median": null,
+          "lead_one_rung_down_saving": null
+        }
+      },
+      "summary": {
+        "generated": "$GENERATED",
+        "days": 36500,
+        "lead_seen": false,
+        "totals": {
+          "ae": 0.03,
+          "sub_ae": 0.03,
+          "lead_ae": 0.0,
+          "codex_credits": 0.8,
+          "runs": 1,
+          "done_rate": 1.0,
+          "verified": 0,
+          "soft_verified": 0,
+          "soft_trust": {
+            "soft": 0,
+            "rechecked": 0,
+            "overturned": 0,
+            "overturn_rate": null,
+            "learn": true
+          },
+          "reasons": {},
+          "cps": 0.03,
+          "cache_read_share": 0.125,
+          "saving": null,
+          "saving_kind": "model",
+          "saving_ci95": null,
+          "saving_n": 0,
+          "saving_old_model": null,
+          "saving_note": "model estimate; measured totals so far about even (rounds 1-5): https://github.com/SUPERD6/relayline/blob/main/docs/measured.md",
+          "quota_stops": 0,
+          "lead_turns": 0,
+          "lead_turn_tokens_median": null,
+          "lead_turn_ae_median": null,
+          "lead_one_rung_down_saving": null
+        },
+        "streams": [
+          {
+            "agent": "claude",
+            "role": "lead",
+            "label": "Claude · lead",
+            "ae": 0.0,
+            "events": 0,
+            "input_tokens": 0,
+            "cache_write_tokens": 0,
+            "cached_input_tokens": 0,
+            "output_tokens": 0
+          },
+          {
+            "agent": "claude",
+            "role": "sub",
+            "label": "Claude · sub-agent",
+            "ae": 0.0,
+            "events": 0,
+            "input_tokens": 0,
+            "cache_write_tokens": 0,
+            "cached_input_tokens": 0,
+            "output_tokens": 0
+          },
+          {
+            "agent": "codex",
+            "role": "lead",
+            "label": "Codex · lead",
+            "ae": 0.0,
+            "events": 0,
+            "input_tokens": 0,
+            "cache_write_tokens": 0,
+            "cached_input_tokens": 0,
+            "output_tokens": 0
+          },
+          {
+            "agent": "codex",
+            "role": "sub",
+            "label": "Codex · sub-agent",
+            "ae": 0.03,
+            "events": 1,
+            "input_tokens": 100,
+            "cache_write_tokens": 40,
+            "cached_input_tokens": 20,
+            "output_tokens": 10
+          },
+          {
+            "agent": "gemini",
+            "role": "sub",
+            "label": "Gemini · sub-agent",
+            "ae": 0.0,
+            "events": 0,
+            "input_tokens": 0,
+            "cache_write_tokens": 0,
+            "cached_input_tokens": 0,
+            "output_tokens": 0
+          },
+          {
+            "agent": "claude",
+            "role": "builtin",
+            "label": "Claude · built-in sub-agent",
+            "ae": 0.0,
+            "events": 0,
+            "input_tokens": 0,
+            "cache_write_tokens": 0,
+            "cached_input_tokens": 0,
+            "output_tokens": 0
+          },
+          {
+            "agent": "codex",
+            "role": "builtin",
+            "label": "Codex · built-in sub-agent",
+            "ae": 0.0,
+            "events": 0,
+            "input_tokens": 0,
+            "cache_write_tokens": 0,
+            "cached_input_tokens": 0,
+            "output_tokens": 0
+          },
+          {
+            "agent": "deepseek",
+            "role": "sub",
+            "label": "DeepSeek · sub-agent (pay per token)",
+            "ae": 0.0,
+            "events": 0,
+            "input_tokens": 0,
+            "cache_write_tokens": 0,
+            "cached_input_tokens": 0,
+            "output_tokens": 0
+          },
+          {
+            "agent": "other",
+            "role": "sub",
+            "label": "Other API providers · sub-agent (pay per token)",
+            "ae": 0.0,
+            "events": 0,
+            "input_tokens": 0,
+            "cache_write_tokens": 0,
+            "cached_input_tokens": 0,
+            "output_tokens": 0
+          }
+        ],
+        "days_series": [
+          {
+            "day": "2026-10-31",
+            "claude:lead": 0.0,
+            "claude:sub": 0.0,
+            "codex:lead": 0.0,
+            "codex:sub": 0.03,
+            "gemini:sub": 0.0,
+            "claude:builtin": 0.0,
+            "codex:builtin": 0.0,
+            "deepseek:sub": 0.0,
+            "other:sub": 0.0
+          }
+        ],
+        "runs": [
+          {
+            "run_id": "api-golden",
+            "day": "2026-10-31",
+            "label": "api-golden",
+            "task": "",
+            "caller": "user",
+            "agent": "codex",
+            "rungs": [
+              "codex:gpt-6-luna:low"
+            ],
+            "status": "done",
+            "kind": "ok",
+            "verdict": null,
+            "tokens": 170,
+            "ae": 0.03,
+            "saving": null,
+            "b": null
+          }
+        ],
+        "ab": [],
+        "trial": null,
+        "quota": [],
+        "compare": [
+          {
+            "kind": "ccx → codex",
+            "tasks": 1,
+            "mean_ae": 0.03,
+            "median_ae": 0.03
+          }
+        ],
+        "accuracy": {
+          "tiers": [],
+          "calibration": {
+            "this": {
+              "n": 0,
+              "brier": null,
+              "bins": []
+            },
+            "last": {
+              "n": 0,
+              "brier": null,
+              "bins": []
+            }
+          },
+          "soft": {
+            "this": {
+              "rechecked": 0,
+              "overturned": 0,
+              "rate": null
+            },
+            "last": {
+              "rechecked": 0,
+              "overturned": 0,
+              "rate": null
+            }
+          },
+          "evals": false,
+          "checks": {
+            "judged": 0,
+            "wrong": 0,
+            "weak": []
+          }
+        }
+      }
+    }
+  }
+}
