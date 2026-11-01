@@ -119,8 +119,10 @@ class TestRun(Env):
         self.assertNotIn("max_usd", out)
 
     def test_negative_flag_is_an_error(self):
-        r = self.ccx("run", "--to", "codex", "--model", "gpt-6-luna", "--effort", "low", "--max-usd", "-1", "x")
+        r = self.ccx("run", "--to", "codex", "--model", "gpt-6-luna", "--effort", "low", "--max-usd=-1", "--bg", "x")
         self.assertNotEqual(r.returncode, 0)
+        self.assertIn("must be 0 (no limit) or a positive amount", r.stdout + r.stderr)   # ccx's own check
+        self.assertEqual(self.builds(), [])                             # before anything was detached
         self.assertNotEqual(self.ccx("config", "set", "run.max_usd", "-1").returncode, 0)
 
     def test_config_default_and_resume_flag(self):

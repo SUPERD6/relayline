@@ -672,8 +672,9 @@ def run(req: Request, p: Paths) -> dict:
             break
         if record["attempts"] and _capped(req, record, "attempt"):   # --max-usd: no further attempt, the lead decides
             if not (oc and oc.ok):
-                oc = Outcome(ok=False, kind="max_usd", error=f"budget cap reached before the next attempt; the last "
-                             f"one: {oc.error if oc else ''}"[:400])
+                last = (oc.error if oc else None) or ""
+                oc = Outcome(ok=False, kind="max_usd", error=("budget cap reached before the next attempt"
+                                                              + (f"; the last one: {last}" if last else ""))[:400])
             break
         spec = plan[i]
         to = spec["agent"]
@@ -1462,7 +1463,8 @@ def compact(record: dict) -> dict:
     if record.get("max_usd"):                     # P0-15: --max-usd stopped the chain before its next step
         m = record["max_usd"]
         out["max_usd"] = {**m, "note": "budget cap reached"}
-        out["needs_lead"] = f"max_usd: budget cap reached, the {m['stopped_before']} did not run"
+        out["needs_lead"] = (f"max_usd: budget cap reached, the {m['stopped_before']} did not run"
+                             + (f"; {out['needs_lead']}" if out.get("needs_lead") else ""))
         out["hint"] = (f"budget cap reached (${m['spent']:.4f} of ${m['cap']:g}): the {m['stopped_before']} did not "
                        "run; check the work yourself, or go on with "
                        f"`ccx resume {record['run_id']} \"...\" --max-usd <USD for the follow-up>`"

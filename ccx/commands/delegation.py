@@ -298,6 +298,7 @@ def max_usd(a, cfg: dict) -> float | None:
 def _cmd_run(a) -> int:
     p = paths()
     cfg = load_config(p)
+    max_usd(a, cfg)                     # a negative cap fails here, before --bg detaches anything
     proj = None
     if a.project:                                # into a project from the catalog (ccx/commands/projects.py)
         from .projects import for_run
@@ -679,6 +680,7 @@ def _cmd_resume(a) -> int:
     from ..recover import sweep
     if getattr(a, "wait", None) is not None and not getattr(a, "bg", False):
         raise ValueError("--wait N goes with --bg (a foreground resume already waits until it is done)")
+    max_usd(a, load_config(p))                       # a negative cap fails before --bg detaches anything
     refused = _env_refused(p, a)                     # before --bg detaches anything: nothing is spent
     if refused is not None:
         return refused
