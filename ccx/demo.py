@@ -300,7 +300,8 @@ def _memory(p: Paths) -> list[dict]:
 
 
 def _ledger_month(p: Paths, now: float, roots: list[Path]) -> None:
-    """A month of sub-agent runs in the ledger only (no run folders): the overview's spend."""
+    """A month of sub-agent runs in the ledger only (no run folders): the overview's spend. One label, so the token
+    page groups them as one task: early in a month they are the newest runs and would push the others off its list."""
     from . import ledger
     from .ui import month_start
     rnd = random.Random(SEED)
@@ -313,8 +314,7 @@ def _ledger_month(p: Paths, now: float, roots: list[Path]) -> None:
         ts = start + span * (i + rnd.random()) / 36
         tin, tout = rnd.randint(6000, 40000), rnd.randint(800, 6000)
         ok = rnd.random() > 0.15
-        rec = {"run_id": f"demo-m{i:02d}", "label": f"Monthly history: {roots[i % 2].name}",
-               "to": agent, "caller": "claude" if i % 3 else "codex",
+        rec = {"run_id": f"demo-m{i:02d}", "label": "routine upkeep", "to": agent, "caller": "claude" if i % 3 else "codex",
                "mode": "write", "ok": ok, "ts": ts, "kind": None if ok else "check_failed", "cwd": str(roots[i % 2]),
                "attempts": [_attempt(agent, model, effort, rnd.uniform(40, 400), tin, tout,
                                      round(usd * rnd.uniform(0.5, 2.0), 5))],

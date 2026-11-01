@@ -170,6 +170,23 @@ def test_receipt_and_token_page_have_every_part(server):
     assert len(kids) == 1 and kids[0]["vendor"] == "codex" and kids[0]["tokens"]["total"] > 0
 
 
+def test_token_page_keeps_the_receipts_on_a_months_first_day(monkeypatch):
+    """Built in the first hour of a month, the month's 36 ledger-only runs are the newest: they are one task on the
+    token page (one label), so the hand-made runs stay on its list of 40 (a demo built on a 1st once lost demo-r-ok)."""
+    monkeypatch.setattr(ui, "_dsh_ready", lambda: False)
+    t = time.localtime()
+    now = time.mktime((t.tm_year, t.tm_mon, 1, 0, 30, 0, 0, 0, -1))
+    base = demo.new_base()
+    try:
+        p = demo.build(base, now=now)
+        with mock.patch.dict(os.environ, demo.env(base)), mock.patch("time.time", return_value=now):
+            tok = ui.UI(p, idle_s=60).token_flow("7d")
+        runs = {r["run_id"] for t in tok["tasks"] for r in t["runs"]}
+        assert {"demo-r-ok", "demo-q2", "demo-m35"} <= runs
+    finally:
+        assert demo.remove(base)
+
+
 def _browser() -> str | None:
     """A Chrome, Chromium or Edge to render the page headless; None skips. CCX_TEST_BROWSER names one."""
     for name in (os.environ.get("CCX_TEST_BROWSER"), "google-chrome", "google-chrome-stable", "chromium",
