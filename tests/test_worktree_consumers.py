@@ -1,10 +1,23 @@
 """Saved sibling and inside paths identify the same project, even without a live worktree."""
+import os
 from pathlib import Path
 
 import pytest
 
 from ccx import ledger, ui
 from ccx.workspace import worktree_repo
+
+
+def _main_check_key(cmd, cwd):
+    """Reference copied from main: only a sibling worktree's root is folded into its repository."""
+    import hashlib
+    import re
+    norm = " ".join((cmd or "").split())
+    parts = [x for x in re.split(r"[\\/]+", (cwd or "").lower()) if x]
+    if len(parts) >= 3 and parts[-3] == ".ccx-worktrees":
+        parts = parts[:-1]
+    place = re.sub(r"\d+", "#", parts[-1]) if parts else ""
+    return hashlib.sha1(f"{norm}\0{place}".encode("utf-8")).hexdigest()[:12], norm, place
 
 
 @pytest.mark.parametrize("cwd, repo", [
@@ -74,3 +87,100 @@ def test_recent_runs_includes_inside_worktrees_of_the_project(tmp_path):
         ledger.write_record(d, rec)
         ledger.append(p, rec)
     assert {r["run_id"] for r in handoff._recent_runs(p, root)} == {"inside", "sibling"}
+
+
+@pytest.mark.parametrize("cwd", [
+    "/w/.ccx-worktrees/app/run-1",
+    "/w/.ccx-worktrees/app/run-1/src",
+    "/w/.ccx-worktrees/app/run-2/src/tests",
+    "C:\\w\\.ccx-worktrees\\app\\run-3\\src",
+])
+def test_sibling_subdirectory_check_keys_match_main(cwd):
+    assert ledger.check_key("pytest  -q", cwd) == _main_check_key("pytest  -q", cwd)
+
+
+def test_subdirectory_weak_checks_keep_their_main_key_in_soft_verdicts(tmp_path):
+    import time
+    from ccx.config import Paths
+    from ccx.verdicts import soft_verdicts
+
+    p = Paths(tmp_path / "hub")
+    now = time.time()
+    wt, cmd = "/w/.ccx-worktrees/app/run-1", "pytest -q"
+    old_key = _main_check_key(cmd, wt + "/src")[0]
+    for i in range(3):
+        rid = f"old-{i}"
+        ledger.append_event(p, {"run_id": rid, "cwd": wt + "/src", "ok": True, "status": "done",
+                                "ts": now - 13 * 3600, "check": {"key": old_key, "cmd": cmd, "passed": True}})
+        ledger.append_event(p, {"type": "verify", "run_id": rid, "ok": False})
+    root_key = _main_check_key(cmd, wt)[0]
+    ledger.append_event(p, {"run_id": "old-root", "cwd": wt, "ok": True, "status": "done",
+                            "ts": now - 13 * 3600, "check": {"key": root_key, "cmd": cmd, "passed": True}})
+    ledger.append_event(p, {"type": "verify", "run_id": "old-root", "ok": True})
+    for rid, cwd in (("sub-candidate", wt + "/src"), ("root-candidate", wt)):
+        rec = {"run_id": rid, "cwd": cwd, "to": "codex", "ok": True, "state": "finished", "attempts": [],
+               "ts": now - 13 * 3600, "check": {"cmd": cmd, "passed": True}, "result": {"status": "done"}}
+        d = p.runs / rid
+        d.mkdir(parents=True)
+        ledger.write_record(d, rec)
+        ledger.append(p, rec)
+    assert {r["run_id"] for r in soft_verdicts(p, now=now)} == {"root-candidate"}
+    assert not ledger.load_run(p, "sub-candidate").get("verdict")
+    trust = ledger.check_trust(ledger.rows(p), p)
+    assert trust[old_key]["weak"]
+    assert not trust[ledger.check_key(cmd, wt)[0]]["weak"]
+    assert (trust[root_key]["judged"], trust[root_key]["wrong"]) == (1, 0)
+
+
+@pytest.mark.skipif(os.name != "nt", reason="Windows paths are case insensitive")
+@pytest.mark.parametrize("layout", [".CCX/WORKTREES", ".cCx/WoRkTrEeS", ".CCX-WORKTREES"])
+def test_windows_worktree_consumers_recognize_uppercase_layouts(tmp_path, layout):
+    import time
+    from ccx import handoff
+    from ccx.commands.workqueue import _here
+    from ccx.config import Paths
+
+    root = tmp_path / "app"
+    root.mkdir()
+    (root / ".git").mkdir()
+    wt = (tmp_path / layout / root.name / "run-1" if layout == ".CCX-WORKTREES"
+          else root / layout / "run-1")
+    assert worktree_repo(wt) == root
+    assert _here(wt, root)
+    assert ui.project_root(str(wt)) == root
+    assert ledger.check_key("check", str(wt)) == ledger.check_key("check", str(root))
+    p = Paths(tmp_path / "hub")
+    rec = {"run_id": "upper", "cwd": str(wt), "ts": time.time(), "attempts": [],
+           "to": "codex", "result": {"status": "done"}}
+    d = p.runs / "upper"
+    d.mkdir(parents=True)
+    ledger.write_record(d, rec)
+    ledger.append(p, rec)
+    assert [r["run_id"] for r in handoff._recent_runs(p, root)] == ["upper"]
+
+
+def test_demo_reads_config_only_after_isolating_its_hub(tmp_path, monkeypatch):
+    import os
+    from ccx import demo, queue as wq
+    from ccx.config import Paths
+
+    base = tmp_path / "demo"
+    own_hub = Path(os.environ["CCX_HUB"])
+    real_load = demo.load_config
+    seen = []
+
+    def isolated_config(p=None):
+        assert p is not None and p.hub == base / "hub"
+        assert Path(os.environ["CCX_HUB"]) == p.hub
+        seen.append(p.hub)
+        cfg = real_load(p)
+        cfg["worktree"]["location"] = "inside"
+        return cfg
+
+    monkeypatch.setattr(demo, "load_config", isolated_config)
+    p = demo.build(base)
+    assert seen == [p.hub]
+    assert Path(os.environ["CCX_HUB"]) == own_hub
+    root = base / "projects" / demo.DOCS
+    assert wq.load(root)["items"]["q2"]["worktree"] == str(root / ".ccx" / "worktrees" / "demo-q2")
+    assert not (Paths(own_hub).hub / demo.DEMO_MARK).exists()

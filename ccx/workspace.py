@@ -34,16 +34,20 @@ def worktree_path(root: Path, run_id: str, location: str = "sibling") -> Path:
     return root.parent / SIBLING_WORKTREE_DIR / root.name / run_id
 
 
-def worktree_repo(cwd: str | Path | None) -> Path | None:
+def worktree_repo(cwd: str | Path | None, *, root_only: bool = False) -> Path | None:
     """Repository owning a ccx worktree in either layout, regardless of today's location setting.
-    Pure path inspection: saved runs and the UI also need this after a worktree has been removed."""
+    Pure path inspection: saved runs and the UI also need this after a worktree has been removed.
+    root_only preserves check statistics' historic treatment of a worktree's subdirectories."""
     if not cwd:
         return None
     parts = Path(str(cwd).replace("\\", "/")).parts
+    compared = tuple(p.casefold() for p in parts) if os.name == "nt" else parts
     for i in range(len(parts) - 2, -1, -1):
-        if parts[i] == SIBLING_WORKTREE_DIR and i + 2 < len(parts):
+        if root_only and i + 3 != len(parts):
+            continue
+        if compared[i] == SIBLING_WORKTREE_DIR and i + 2 < len(parts):
             return Path(*parts[:i]) / parts[i + 1]
-        if parts[i:i + 2] == (".ccx", "worktrees") and i + 2 < len(parts):
+        if compared[i:i + 2] == (".ccx", "worktrees") and i + 2 < len(parts):
             return Path(*parts[:i])
     return None
 

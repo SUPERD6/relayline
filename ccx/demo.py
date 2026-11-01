@@ -31,7 +31,7 @@ import tempfile
 import time
 from pathlib import Path
 
-from .config import Paths, load_config, worktree_location
+from .config import Paths, load_config, set_setting, worktree_location
 
 DEMO_MARK = "ccx-demo.json"
 DEMO_DIRS = ("hub", "projects", "homes")          # all build() writes under its folder
@@ -313,7 +313,8 @@ def _ledger_month(p: Paths, now: float, roots: list[Path]) -> None:
         ts = start + span * (i + rnd.random()) / 36
         tin, tout = rnd.randint(6000, 40000), rnd.randint(800, 6000)
         ok = rnd.random() > 0.15
-        rec = {"run_id": f"demo-m{i:02d}", "label": None, "to": agent, "caller": "claude" if i % 3 else "codex",
+        rec = {"run_id": f"demo-m{i:02d}", "label": f"Monthly history: {roots[i % 2].name}",
+               "to": agent, "caller": "claude" if i % 3 else "codex",
                "mode": "write", "ok": ok, "ts": ts, "kind": None if ok else "check_failed", "cwd": str(roots[i % 2]),
                "attempts": [_attempt(agent, model, effort, rnd.uniform(40, 400), tin, tout,
                                      round(usd * rnd.uniform(0.5, 2.0), 5))],
@@ -353,10 +354,10 @@ def _claude_session(home: Path, root: Path, now: float) -> None:
 
 
 def build(base: Path | None = None, now: float | None = None) -> Paths:
-    """Write the demo under `base` (default: a new folder in the system's temporary folder) and return its hub."""
+    """Write the demo under `base` (default: a new folder in the system's temporary folder) and return its hub.
+    CCX_DEMO_WORKTREE_LOCATION seeds this demo's own config without reading the caller's hub."""
     base = Path(base) if base else new_base()
     now = now or time.time()
-    location = worktree_location(load_config())
     e = env(base)
     hub = Path(e["CCX_HUB"])
     if hub.exists() and not is_demo(Paths(hub)):
@@ -380,6 +381,10 @@ def build(base: Path | None = None, now: float | None = None) -> Paths:
     saved = {k: os.environ.get(k) for k in e}
     os.environ.update(e)                       # project.init / board / queue read nothing else, but be sure
     try:
+        demo_location = os.environ.get("CCX_DEMO_WORKTREE_LOCATION")
+        if demo_location is not None:
+            set_setting(p, "worktree.location", demo_location)
+        location = worktree_location(load_config(p))
         notes = _memory(p)
         _shop(p, shop, now, notes)
         _docs(p, docs, now, notes, location)

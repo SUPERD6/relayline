@@ -431,14 +431,13 @@ def test_cli_demo_export_writes_only_the_demo(tmp_path):
 
 def test_cli_demo_uses_inside_worktree_layout(tmp_path):
     from ccx import queue as wq
-    from ccx.config import paths, set_setting
+    from ccx.config import load_config, paths
 
-    set_setting(paths(), "worktree.location", "inside")
     base = tmp_path / "demo"
     out = tmp_path / "demo.html"
     r = subprocess.run([sys.executable, str(REPO / "ccx.py"), "demo", "--dir", str(base), "--export", str(out)],
                        cwd=tmp_path, capture_output=True, text=True, encoding="utf-8", timeout=180,
-                       stdin=subprocess.DEVNULL)
+                       stdin=subprocess.DEVNULL, env={**os.environ, "CCX_DEMO_WORKTREE_LOCATION": "inside"})
     assert r.returncode == 0, r.stdout + r.stderr
     p = Paths(base / "hub")
     root = base / "projects" / demo.DOCS
@@ -448,6 +447,8 @@ def test_cli_demo_uses_inside_worktree_layout(tmp_path):
     assert wq.load(root)["items"]["q2"]["worktree"] == str(wt)
     assert ui.project_root(str(wt)) == root
     assert out.is_file()
+    assert load_config(p)["worktree"]["location"] == "inside"
+    assert list(paths().hub.iterdir()) == []
 
 
 def test_cli_demo_export_without_dir_leaves_no_folder(tmp_path):
@@ -637,3 +638,20 @@ def test_cli_demo_says_what_to_open_next(tmp_path):
     assert r.returncode == 0, r.stderr
     assert f"next: open {out}" in r.stderr
     assert json.loads(r.stdout)["snapshot"] == str(out)              # stdout stays the JSON
+
+
+def test_demo_receipts_stay_visible_at_the_start_of_a_month(tmp_path, monkeypatch):
+    from ccx import ledger
+    from ccx.tokenflow import Flow
+
+    now = time.mktime((2026, 11, 1, 0, 30, 0, 0, 0, -1))
+    base = tmp_path / "demo"
+    p = demo.build(base, now=now)
+    for key, value in demo.env(base).items():
+        monkeypatch.setenv(key, value)
+    rows = ledger.rows(p)
+    data = Flow(p).tokens(rows, now=now)
+    runs = {r["run_id"]: r for task in data["tasks"] for r in task["runs"]}
+    assert runs["demo-r-ok"]["requests"] == 5
+    assert runs["demo-q2"]["children"]
+    assert sum(not r.get("type") and r.get("run_id", "").startswith("demo-m") for r in rows) == 36
