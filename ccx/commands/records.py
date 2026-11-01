@@ -281,24 +281,35 @@ def cmd_stats(a) -> int:
     recover.sweep(paths())              # count runs whose ccx process died, with what they spent
     if a.summary:
         p = paths()
-        s = report.summarize(p, report.collect(p, a.days))
+        s = report.output_summary(report.summarize(p, report.collect(p, a.days)))
         t = s["totals"]
+        spend = {"sub_agents_usd": t["sub_ae"], "runs": t["runs"], "cost_per_success_usd": t["cps"]}
+        if "billing" in s:
+            spend = {"sub_agents_quota_units": t["sub_quota_units"],
+                     "cost_per_success_quota_units": t["quota_units_per_success"], **spend}
         # what was spent comes first; a saving is a measurement only from `ccx trial`, else a labelled model estimate
-        _out({"spend": {"sub_agents_usd": t["sub_ae"], "runs": t["runs"], "cost_per_success_usd": t["cps"]},
-              "saving": {"usd": t["saving"], "kind": t["saving_kind"], "ci95": t["saving_ci95"],
-                         "note": t.get("saving_note")},
-              "totals": t, "streams": [{k: v for k, v in x.items() if k not in ("agent", "role")}
-                                                 for x in s["streams"] if x["events"]], "ab": s["ab"],
-              "quota": s["quota"]})
+        result = {"spend": spend,
+                  "saving": {"usd": t["saving"], "kind": t["saving_kind"], "ci95": t["saving_ci95"],
+                             "note": t.get("saving_note")},
+                  "totals": t, "streams": [{k: v for k, v in x.items() if k not in ("agent", "role")}
+                                           for x in s["streams"] if x["events"]], "ab": s["ab"],
+                  "quota": s["quota"]}
+        if "billing" in s:
+            result["billing"] = s["billing"]
+        _out(result)
         return 0
-    rows = ledger.stats(paths())
+    p = paths()
+    rows = ledger.stats(p)
     if not rows:
         print("no runs yet")
         return 0
     cols = ["agent", "tier", "runs", "done_rate", "escalated", "avg_input", "avg_cached",
             "avg_output", "avg_seconds", "cost_usd"]
-    w = {c: max(len(c), *(len(str(r[c])) for r in rows)) for c in cols}
-    print("  ".join(c.ljust(w[c]) for c in cols))
+    if ledger.billing_config(load_config(p))["mode"] == "subscription":
+        cols[-1:] = ["quota_units", "ae_usd", "cost_usd"]
+    labels = {"ae_usd": "api_equivalent_usd"}
+    w = {c: max(len(labels.get(c, c)), *(len(str(r[c])) for r in rows)) for c in cols}
+    print("  ".join(labels.get(c, c).ljust(w[c]) for c in cols))
     for r in rows:
         print("  ".join(str(r[c]).ljust(w[c]) for c in cols))
     return 0
