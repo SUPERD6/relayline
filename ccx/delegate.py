@@ -212,9 +212,9 @@ def _namecheck(req: Request, p: Paths, cfg: dict, record: dict, cwd: Path) -> di
 def board_run(record: dict, phase: str) -> None:
     """P2-12: a delegation's start and end (a review fix round is a run of its own) on its project's board, so
     `ccx ui` and `ccx board` show it although no UI was open. Only where the board can be written without touching
-    the project: it has a board already, or its .gitignore covers .ccx/ (board.post_run would add lines to it). A
-    reviewer's run is part of the run it reviews; it is not posted."""
-    if record.get("caller") == "ccx-review":
+    the project: its .gitignore already ignores the board's files (board.post_run would add lines to it). Neither a
+    reviewer's run (part of the run it reviews) nor another ephemeral one (ccx ask, discuss, a quota probe) is posted."""
+    if record.get("caller") == "ccx-review" or record.get("ephemeral"):
         return
     try:
         from . import board
@@ -223,10 +223,11 @@ def board_run(record: dict, phase: str) -> None:
         if not root or not root.is_dir():
             return
         gi = root / ".gitignore"
-        if not (board._file(root).exists()
-                or (gi.is_file() and ".ccx/" in gi.read_text(encoding="utf-8", errors="replace").splitlines())):
+        have = set(gi.read_text(encoding="utf-8", errors="replace").splitlines()) if gi.is_file() else set()
+        if ".ccx/" not in have and not all(x in have for x in board.IGNORES):
             return
-        board.post_run(root, record, phase)
+        lab = str(record.get("label") or "").strip()      # a brief that starts with a blank line
+        board.post_run(root, {**record, "label": lab or None}, phase)
     except Exception:  # noqa: BLE001 — the board is a view; it never fails the run
         pass
 

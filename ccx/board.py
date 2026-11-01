@@ -209,9 +209,10 @@ def post(root: Path, frm: str, to: str, text: str, thread: str | None = None, re
 
 
 def for_me(e: dict, reader: str) -> bool:
-    """Is this message addressed to `reader` (vendor or vendor:session), and not written by it?"""
+    """Is this message addressed to `reader` (vendor or vendor:session), and not written by it? A run notice
+    (post_run) is for `ccx board` and `ccx ui` only: it never takes a session's turn budget."""
     v, frm = vendor_of(reader), e["from"]
-    if frm == reader or (":" not in reader and vendor_of(frm) == v):
+    if e.get("kind") == "run" or frm == reader or (":" not in reader and vendor_of(frm) == v):
         return False
     to = e["to"]
     return to == "all" or to == v or (":" in to and to == reader)
@@ -293,7 +294,7 @@ _CODE = re.compile(r"```.*?```|`[^`\n]*`", re.S)
 def asks_person(e: dict) -> bool:
     """A machine message that asks the person: `@person` (or @user / @human) in its text outside code, or addressed
     to `user` (a record written by other means: `post` itself refuses that address)."""
-    if vendor_of(str(e.get("from") or "")) == "user":
+    if vendor_of(str(e.get("from") or "")) == "user" or e.get("kind") == "run":   # a brief may say @person
         return False
     text = _CODE.sub(" ", str(e.get("text") or ""))
     return vendor_of(str(e.get("to") or "")) == "user" or bool(ASK_PERSON.search(text))
@@ -426,7 +427,7 @@ def sync(root: Path, repo: str, host: str, force: bool = False) -> dict:
             num = int(r.stdout.strip().rstrip("/").rsplit("/", 1)[-1])
     pushed_upto = int(st.get("pushed", 0))
     es = entries(root)
-    mine = [e for e in es if e["id"] > pushed_upto and not e.get("remote")]
+    mine = [e for e in es if e["id"] > pushed_upto and not e.get("remote") and e.get("kind") != "run"]
     for e in mine:
         body = f"<!-- ccx:board host={host} id={e['id']} -->\n" + json.dumps(e, ensure_ascii=False)
         ghpriv.comment(repo, num, body)

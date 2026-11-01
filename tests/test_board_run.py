@@ -45,12 +45,30 @@ class TestBoardRun(Env):
         self.assertIn(f"/runs/{rid}", got[1][2])
         self.go()                                                   # a second run: its own pair, nothing doubled
         self.assertEqual(len(self.runs()), 4)
+        from ccx import board                                        # reviewer A: never in a session's turn
+        self.assertEqual(board.turn_text(self.work, "claude:lead"), "")
+        self.assertEqual(board.read(self.work, "codex"), [])
 
     def test_a_review_fix_round_posts_its_own_pair_and_the_reviewer_none(self):
         out = self.go(review="on", review_seq="issues")
         first, fix = out["fixed_after_review_of"], out["run_id"]
         got = [(r, ph) for r, ph, _ in self.runs()]
         self.assertEqual(got, [(first, "started"), (first, "finished"), (fix, "started"), (fix, "finished")], got)
+
+    def test_ephemeral_runs_are_not_posted(self):
+        from ccx.delegate import board_run
+        board_run({"run_id": "r-eph", "cwd": str(self.work), "ephemeral": True, "to": "codex"}, "started")
+        board_run({"run_id": "r-rev", "cwd": str(self.work), "caller": "ccx-review", "to": "claude"}, "started")
+        board_run({"run_id": "r-ok", "cwd": str(self.work), "to": "codex", "label": "\n  do it\n"}, "started")
+        self.assertEqual([(r, t) for r, _, t in self.runs()], [("r-ok", "user → codex: do it")])
+
+    def test_a_board_without_the_ignore_lines_is_not_written(self):
+        (self.work / ".gitignore").write_text("*.pyc\n", encoding="utf-8")
+        (self.work / ".ccx").mkdir()
+        (self.work / ".ccx" / "board.jsonl").write_text("", encoding="utf-8")
+        self.go()
+        self.assertEqual(self.runs(), [])
+        self.assertEqual((self.work / ".gitignore").read_text(encoding="utf-8"), "*.pyc\n")
 
     def test_no_board_and_no_ignore_leaves_the_project_untouched(self):
         (self.work / ".gitignore").write_text("*.pyc\n", encoding="utf-8")

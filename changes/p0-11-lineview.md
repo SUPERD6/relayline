@@ -7,5 +7,6 @@
   tokens; `ccx show
   <id>` is always whole. Back to the whole result: `ccx config set output.lead full` (or `CCX_LEAD_VIEW=full`).
 - `ccx run` / `ccx resume` write a delegation's start and end (and a review fix round's) to the project's board
-  themselves (`board.post_run`, P2-12), so `ccx board` / `ccx ui` show it without the UI open; only where the project
-  has a board already or ignores `.ccx/`. The reviewer's run is not posted.
+  themselves (`board.post_run`, P2-12), so `ccx board` / `ccx ui` show it without the UI open; only where the
+  project's `.gitignore` already ignores `.ccx/`. Reviewer and other ephemeral runs are not posted; run notices never
+  reach a session's turn or the GitHub fallback.
