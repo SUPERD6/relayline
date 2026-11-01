@@ -279,10 +279,20 @@ SETTINGS = {   # key -> (type, help). Only these can be set with `ccx config set
     "policy.picked": (str, "save | balanced | fast | cheapest | none: the tier YOU pick for all work in this hub. It "
                            "pre-authorises what that tier delegates (`ccx propose` says authorized: true; project "
                            "autonomy L0/L1 still asks before edits). none (shipped) = offer first, as before"),
-    "routing.small_self": (_bool, "true | false: `ccx route` / `ccx propose` advise doing a small task yourself (at "
-                                  "most routing.small_self_files source files by your --files) instead of delegating "
-                                  "it; `ccx run` still delegates (default false until a measured round backs it)"),
+    "routing.mode": (str, "auto | off: auto (shipped) = ccx route / ccx run delegate as before; off = ccx "
+                          "delegates no new work (route and propose say do it yourself; run, batch, q run / resume "
+                          "and way refuse without --force); cross-vendor review and talk work as before: ccx ask, "
+                          "ccx discuss, ccx run --mode read, mem, board"),
+    "routing.small_self": (_bool, "true | false: `ccx route` / `ccx propose` advise doing a small task yourself "
+                                  "instead of delegating it, sized by routing.small_self_by; `ccx run` still "
+                                  "delegates (default false until a measured round backs it)"),
     "routing.small_self_files": (int, "routing.small_self: the most source files a task may touch to count as small"),
+    "routing.small_self_by": (str, "files | cost: what routing.small_self sizes a task by: files (default) = at "
+                                   "most routing.small_self_files source files by your --files; cost (experimental) "
+                                   "= what doing it yourself costs (requests x your conversation's size, plus the "
+                                   "files read) below routing.small_self_overhead_usd, scaled to your conversation"),
+    "routing.small_self_overhead_usd": (float, "routing.small_self by cost: delegating's fixed cost on the lead's "
+                                               "side (brief, wait, acceptance; default 0.035, the pg1 ledger median)"),
     "routing.small_self_quota": (float, "routing.small_self: from this share of your own quota used (0..1), small "
                                         "tasks are delegated as before"),
     "defaults.ab_self_rate": (float, "share of routed tasks the lead does itself to measure savings (0 = off)"),
@@ -380,6 +390,10 @@ def set_setting(p: Paths, key: str, raw: str) -> dict:
         raise ValueError("output.lead must be line or full")
     if key == "escalate.on_self_checked" and raw not in ("review", "rung", "off"):
         raise ValueError("escalate.on_self_checked must be review, rung or off")
+    if key == "routing.mode" and raw not in ("auto", "off"):
+        raise ValueError("routing.mode must be auto or off")
+    if key == "routing.small_self_by" and raw not in ("cost", "files"):
+        raise ValueError("routing.small_self_by must be cost or files")
     if key == "run.max_usd" and not float(raw) >= 0:
         raise ValueError("run.max_usd must be 0 (no limit) or a positive amount")
     if key == "ui.lang" and raw not in ("zh", "en"):

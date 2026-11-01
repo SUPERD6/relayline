@@ -21,6 +21,7 @@ from .common import (_brief, _caller, _out, lead_out, _routing_args, human_tail,
     apply_mode, find_seat, installed_agents, lead_session_id, parse_quota, person_named_to, picked_tier,
     provider_agents, resolve, tier_policy)
 from .install import tier_spec_safe
+from ..plan import routing_mode
 from ..subagents import parse_spec as subagents_spec
 
 
@@ -199,6 +200,21 @@ def _check_names_real_tests(check: str | None, cwd: Path) -> str | None:
         for m in miss) + ". Existing test files: " + (shown or "none"))
 
 
+def _refused_off(p, cfg: dict, a, what: str) -> bool:
+    """routing.mode=off (P0-9) without --force: print the refusal (JSON + a plain tail) and say so. Nothing starts,
+    so the detached half of --bg records it finished, as a refused proposal does."""
+    from ..plan import off_refusal, routing_mode
+    out = off_refusal(cfg, bool(getattr(a, "force", False)), what)
+    if not out:
+        if routing_mode(cfg) == "off":           # --force: stderr only, the JSON a lead reads stays as it was
+            print(f"ccx: routing.mode is off; {what} --force delegates this one anyway", file=sys.stderr, flush=True)
+        return False
+    _bg_refused(p, a, _caller(getattr(a, "caller", None)), out["advice"], next_step=out["hint"])
+    _out(out)
+    human_tail([f"Not delegated: {out['advice']}", "Cost: $0 (nothing ran)", f"Next: do it yourself, or {out['hint']}"])
+    return True
+
+
 def _bg_not_delegated(p, a, route: dict, caller: str) -> None:
     """The detached half of `ccx run --bg` whose routing says "do it yourself": no sub-agent starts, so nothing
     would ever write the run.json `ccx show <id> --wait` polls, and the lead waited out its whole timeout. Write a
@@ -300,6 +316,8 @@ def max_usd(a, cfg: dict) -> float | None:
 def _cmd_run(a) -> int:
     p = paths()
     cfg = load_config(p)
+    if getattr(a, "mode", None) != "read" and _refused_off(p, cfg, a, "ccx run"):
+        return 0                                 # --mode read (a review, a second opinion) edits nothing: it runs
     max_usd(a, cfg)                     # a negative cap fails here, before --bg detaches anything
     proj = None
     if a.project:                                # into a project from the catalog (ccx/commands/projects.py)
@@ -760,6 +778,8 @@ def cmd_batch(a) -> int:
     "review"? (auto|on|off, as `ccx run --review`)}]}"""
     p = paths()
     cfg = load_config(p)
+    if _refused_off(p, cfg, a, "ccx batch"):
+        return 0
     plan = json.loads(Path(a.plan).read_text(encoding="utf-8"))
     caller = _caller(a.caller)
     tasks = plan["tasks"]
@@ -932,12 +952,12 @@ def _route_summary(out: dict) -> list[str]:
                  + (f", expected ~${usd:.4f}" if isinstance(usd, (int, float)) else "")]
         if out.get("advice"):
             lines.append(f"Advice: {out['advice']}")
-        if (out.get("small_self") or {}).get("applied"):
+        if (out.get("small_self") or {}).get("applied") or out.get("routing_mode") == "off":
             return lines + ["Next: do it yourself"]
         return lines + [f"Next: ccx run --to {out['rung'].split(':')[0]} \"<the task>\" with the same flags"]
     tier, label = out.get("tier"), out.get("label")
     why = ", ".join(out.get("reasons") or [])
-    if (out.get("small_self") or {}).get("applied"):
+    if (out.get("small_self") or {}).get("applied") or out.get("routing_mode") == "off":
         return [f"Tier: {tier} ({label})" + (f": {why}" if why else ""), f"Advice: {out['advice']}",
                 "Next: do it yourself"]
     if tier == "T0":
@@ -974,6 +994,7 @@ def _route(a) -> dict:
                 from .common import lead_session_id
                 lead_ctx = context.lead_now(lead_agent, lead_session_id(lead_agent))
                 src = "none" if lead_ctx is None else "lead_session"
+                a.lead_ctx_read = True
             lead_ctx = lead_ctx or 0
             if route.get("policy") and lead_ctx:           # balanced: a big lead context sends medium tasks out
                 tp = tier_policy(p, cfg, {**spec, "files": a.files, "lead_ctx": lead_ctx},
@@ -993,8 +1014,11 @@ def _route(a) -> dict:
             if choice:
                 choice.update(lead_ctx_tokens=lead_ctx, ctx_source=src)
                 route["choice"] = choice      # self / built-in sub-agent / ccx: see the agent-delegate skill
-        _small_self(p, cfg, route, a, lead_ctx,
-                    delegates=bool(route.get("rung")) and (route.get("policy") or {}).get("mode") != "self")
+        if routing_mode(cfg) == "off":
+            _routing_off(route)
+        else:
+            _small_self(p, cfg, route, a, lead_ctx,
+                        delegates=bool(route.get("rung")) and (route.get("policy") or {}).get("mode") != "self")
         _lead_by_task(cfg, route, a)    # after `choice`: its built-in pick wins over builtin_model
         return route
     r = router.classify(" ".join(a.text), a.files)
@@ -1005,42 +1029,57 @@ def _route(a) -> dict:
     for ag in AGENTS:
         if t.get(ag):
             out[ag] = t[ag]
-    _small_self(p, cfg, out, a, a.lead_ctx or 0, delegates=r.tier != "T0")
+    if routing_mode(cfg) == "off":
+        _routing_off(out)
+    else:
+        _small_self(p, cfg, out, a, a.lead_ctx or 0, delegates=r.tier != "T0")
     return out
 
 
 def _small_self(p, cfg: dict, route: dict, a, lead_ctx: int, delegates: bool) -> None:
-    """P0-6, `routing.small_self` (off unless set): a task the lead estimates at <= small_self_files source files is
-    advised as do-it-yourself instead of delegated (files only: the measured basis; --minutes does not gate it, so
-    the agent-delegate offer path, which passes 15+ minutes, is covered). Advice only: `ccx run` and the rung, ladder
-    and tier plan are unchanged; a self/ccx `choice` is turned to self, its pick kept as `recommend_before`. Not when the person picked a tier (its rules win), --needs
-    names what only a ccx run gives, the lead's context is large, or the lead's own quota is tight (design:
-    r5 / hc1 self vs ccx2 by files changed)."""
+    """P0-6, `routing.small_self` (off unless set): a task that would cost less to do yourself than delegating's
+    fixed cost is advised as do-it-yourself instead of delegated. By `small_self_by`: files (default, #200's rule) =
+    at most small_self_files source files; cost (experimental) = plan.self_cost (requests x your conversation's
+    size, plus the files read) under `small_self_overhead_usd` (the lead's own share of a delegation: brief, wait,
+    acceptance; pg1 ledger median $0.035), scaled to your conversation and model. --minutes does not gate it, so the agent-delegate offer path, which passes 15+
+    minutes, is covered. Advice only: `ccx run` and the rung, ladder and tier plan are unchanged; a self/ccx `choice`
+    is turned to self, its pick kept as `recommend_before`. Not when the person picked a tier (its rules win),
+    --needs names what only a ccx run gives, the lead's context is large, or the lead's own quota is tight
+    (docs/maintenance.md, section 3)."""
+    from ..plan import _rnum, self_cost
     rc = cfg.get("routing") or {}
     on = rc.get("small_self", False)
     if not (on is True or str(on).strip().lower() in ("on", "true", "yes", "1")) or not delegates:
         return
-    def num(key, default):          # a hand-edited bad value falls back: a bad [routing] entry must not stop routing
-        try:
-            return float(rc.get(key, default))
-        except (TypeError, ValueError):
-            return float(default)
+    by = "cost" if str(rc.get("small_self_by", "files")).strip().lower() == "cost" else "files"
     files, src = int(getattr(a, "files", 0) or 0), "--files"
     if not files and (route.get("objective") or {}).get("files_named"):
         files, src = int(route["objective"]["files_named"]), "brief"
-    if not files or files > num("small_self_files", 1):
+    requests = getattr(a, "requests", None)
+    if requests is not None and requests <= 0:
+        raise ValueError("--requests must be more than 0")
+    if by == "files" and (not files or files > _rnum(rc, "small_self_files", 1)):
         return
-    pol = cfg.get("policy") or {}
+    if by == "cost" and not files and not requests:
+        return                                      # nothing to size it by: routing as before
     lead = (a.lead or "").split(":")[0] or _caller(None)
+    pol = cfg.get("policy") or {}
     skip = None
     if picked_tier(cfg):
         skip = f"you picked tier {picked_tier(cfg)} (policy.picked): its rules decide"
     elif set(x for x in (getattr(a, "needs", None) or "").split(",") if x) & {"undo", "worktree", "other-vendor",
                                                                              "resume"}:
         skip = "--needs asks for what only a ccx run gives"
-    elif lead_ctx >= int((pol.get("bands") or {}).get("lead_ctx_large", 150000)):
+    if (not skip and by == "cost" and not lead_ctx and getattr(a, "lead_ctx", None) is None and lead in AGENTS
+            and not getattr(a, "lead_ctx_read", False)):
+        try:                                         # your conversation's size, as `ccx lead` reads it
+            from .. import context
+            lead_ctx = context.lead_now(lead, lead_session_id(lead)) or 0
+        except Exception:  # noqa: BLE001 — no reading: self_cost uses a fresh conversation's size
+            lead_ctx = 0
+    if not skip and lead_ctx >= int((pol.get("bands") or {}).get("lead_ctx_large", 150000)):
         skip = f"your context is large ({lead_ctx} tokens): each turn of your own re-reads it"
-    else:
+    elif not skip:
         q = (route.get("choice") or {}).get("quota")       # three_way already read it
         if not isinstance(q, dict) and lead in AGENTS:
             try:
@@ -1048,22 +1087,49 @@ def _small_self(p, cfg: dict, route: dict, a, lead_ctx: int, delegates: bool) ->
             except Exception:  # noqa: BLE001 — no reading: the rule applies as if quota were fine
                 q = None
         used = (q or {}).get(lead)
-        limit = num("small_self_quota", 0.9)
+        limit = _rnum(rc, "small_self_quota", 0.9)
         limit = limit / 100 if limit > 1 else limit        # 90 means 90 %, like --quota
         if isinstance(used, (int, float)) and used >= limit:
             skip = f"your {lead} quota is tight ({used:.0%} projected)"
+    row = {"by": by, "files": files, "files_from": src}
+    est = None
+    if by == "cost" and not skip:
+        est = self_cost(p, cfg, a.lead or lead, files, requests, lead_ctx)
+        if est is None:
+            skip = "no price for your model nor the reference one: cannot tell what doing it yourself costs"
+        else:
+            row["self_cost"] = est
+            if est["usd"] >= est["overhead_usd"]:
+                skip = (f"doing it yourself costs about ${est['usd']:.3f} ({est['requests']:g} requests x "
+                        f"~{est['ctx_tokens'] // 1000}k tokens on {est['model']}), not less than delegating's fixed "
+                        f"${est['overhead_usd']:.3f}")
     if skip:
-        route["small_self"] = {"applied": False, "files": files, "files_from": src, "why": skip}
+        route["small_self"] = {"applied": False, **row, "why": skip}
         return
-    why = (f"small task ({files} file{'s' if files > 1 else ''} by {src}"
-           + (f", {a.minutes:g} min" if a.minutes else "")
-           + "): doing it yourself is quicker; delegating saves a little money and takes minutes")
-    route["small_self"] = {"applied": True, "files": files, "files_from": src, "why": why}
+    if by == "cost":
+        why = (f"doing it yourself costs about ${est['usd']:.3f} ({est['requests']:g} requests x "
+               f"~{est['ctx_tokens'] // 1000}k tokens on {est['model']}), less than delegating's fixed "
+               f"${est['overhead_usd']:.3f} (your brief, the wait, your acceptance)")
+    else:
+        why = (f"small task ({files} file{'s' if files > 1 else ''} by {src}"
+               + (f", {a.minutes:g} min" if a.minutes else "")
+               + "): doing it yourself is quicker; delegating saves a little money and takes minutes")
+    route["small_self"] = {"applied": True, **row, "why": why}
     if isinstance(route.get("choice"), dict) and route["choice"].get("recommend") != "self":
         route["choice"].update(recommend_before=route["choice"].get("recommend"), recommend="self",
                                why=f"routing.small_self: {why}")
     route["advice"] = (f"do-it-yourself: {why} (routing.small_self; `ccx run` still delegates it if you need ccx's "
                        "check, review or worktree)")
+
+
+def _routing_off(route: dict) -> None:
+    """P0-9, routing.mode=off: the route still shows its pick (rung, tier, estimates), but the advice is do it
+    yourself; a self/ccx `choice` is turned to self, its pick kept as `recommend_before`."""
+    from ..plan import OFF_HOW, OFF_WHY
+    route["routing_mode"] = "off"
+    route["advice"] = f"do-it-yourself: {OFF_WHY} ({OFF_HOW})"
+    if isinstance(route.get("choice"), dict) and route["choice"].get("recommend") != "self":
+        route["choice"].update(recommend_before=route["choice"].get("recommend"), recommend="self", why=OFF_WHY)
 
 
 _CJK = re.compile(r"[　-〿一-鿿＀-￯]")
@@ -1125,7 +1191,11 @@ def cmd_propose(a) -> int:
         return "?" if x is None else (f"${x:.4f}" if x < 0.01 else f"${x:.2f}")
     odds = "odds unknown" if row["p"] is None else f"about {row['p']:.0%} likely to work"
     out = {"proposal": row["proposal"]}
-    if tp.get("explicit") and tp.get("mode"):
+    if route.get("routing_mode") == "off":      # the master switch wins over a picked tier and small_self
+        from ..plan import OFF_HOW, OFF_WHY
+        out.update(worth_offering=False, authorized=False, recommend="self", why=OFF_WHY, say=None,
+                   routing_mode="off", next=f"not worth offering: do it yourself, nothing to ask ({OFF_HOW})")
+    elif tp.get("explicit") and tp.get("mode"):
         # the person picked this tier in their settings (policy.picked): it pre-authorises what the tier delegates
         # (docs/DECISIONS.md, tiers). worth_offering agrees with authorized: true when the tier delegates (a skill
         # copy that predates `authorized` then asks with `say`, the conservative side), false when it says self
@@ -1172,7 +1242,9 @@ def cmd_propose(a) -> int:
     if tp:
         out["tier"] = {k: tp.get(k) for k in ("tier", "band", "mode", "uncertain", "hard", "explicit", "provisional",
                                               "error") if k in tp}
-        if not tp.get("explicit"):
+        if route.get("routing_mode") == "off":
+            out["tier"]["note"] = "informational: routing.mode is off, nothing is delegated"
+        elif not tp.get("explicit"):
             out["tier"]["note"] = "informational: no tier picked, the offer-first rule above applies"
         elif not tp.get("mode"):
             out["tier"]["note"] = "the tier could not be planned: the offer-first rule above applies"
@@ -1215,7 +1287,7 @@ def register(sub) -> None:
                    "difficulty unit (b = log2 minutes, blended 60/40 with the rubric); task-split learns from it too")
     adv.add_argument("--task", help="task-checkpoint task id: the session id is saved into it at once")
     adv.add_argument("--step", type=int, help="task-checkpoint step number")
-    adv.add_argument("--force", action="store_true", help="delegate even when routing says do it yourself/split")
+    adv.add_argument("--force", action="store_true", help="delegate even when routing says do it yourself/split, or routing.mode is off")
     adv.add_argument("--no-ab", action="store_true", help="never pick this task as an A/B self-run sample")
     adv.add_argument("--proposal", help="the `ccx propose` id the person said yes to (H12)")
     adv.add_argument("--mcp", action="store_true", help="Claude sub-agent: also load MCP tools (bigger start-up)")
@@ -1362,6 +1434,7 @@ def register(sub) -> None:
                    "run as one run; each keeps its own check, result line and `ccx undo --piece`; a piece not done "
                    "gets one follow-up, then a run of its own (default: [merge] default, off)")
     b.add_argument("--no-merge", dest="merge", action="store_const", const=0, help="off, whatever [merge] default says")
+    b.add_argument("--force", action="store_true", help="delegate even with routing.mode off")
     b.set_defaults(fn=cmd_batch)
     ro = sub.add_parser("route", help="which agent/model/effort for a task (rubric -> task-routing)")
     ro.add_argument("text", nargs="*", help="the task description (used to recommend read or write)")
@@ -1376,6 +1449,8 @@ def register(sub) -> None:
     sv.add_argument("--lead-ctx", type=int, help="tokens each of your requests re-reads (your conversation's size); "
                     "default: read from your conversation's last request")
     sv.add_argument("--turns-left", type=int, default=10, help="turns this session will still run")
+    sv.add_argument("--requests", type=float, help="requests you expect the task takes if you do it yourself "
+                    "(routing.small_self_by cost; default: 2 + 1.5 per --files)")
     sv.add_argument("--needs", help="comma list that only a ccx run gives: undo,worktree,other-vendor,resume")
     sv.add_argument("--quota", action="append", metavar="AGENT=USED",
                     help="share of an agent's quota already used, e.g. claude=0.4 (Codex's is read automatically)")
