@@ -223,7 +223,7 @@ def project_root(cwd: str | None) -> Path | None:
         i = parts.index(".ccx-worktrees")
         if i + 1 < len(parts):
             c = Path(*parts[:i]) / parts[i + 1]
-    home = Path.home()
+    home = Path.home().resolve()
     for d in (c, *c.parents):
         if d == home and c != home:                 # ~/.ccx is ccx's own settings, not a project
             break
@@ -249,7 +249,7 @@ def is_scratch(path: str | Path | None, roots: list[Path]) -> bool:
     if not path:
         return False
     c = _resolved(str(path))
-    return ".ccx" in c.parts or any(c == r or r in c.parents for r in roots)
+    return ".ccx" in c.parts or any(c == _resolved(str(r)) or _resolved(str(r)) in c.parents for r in roots)
 
 
 @functools.lru_cache(maxsize=4096)
@@ -266,7 +266,7 @@ def is_test(rec: dict, roots: list[Path]) -> bool:
 
 
 def _pid(root: Path) -> str:
-    return "p" + hashlib.sha1(str(root).lower().encode("utf-8")).hexdigest()[:10]
+    return "p" + hashlib.sha1(str(_resolved(str(root))).lower().encode("utf-8")).hexdigest()[:10]
 
 
 def _sid(text: str) -> str:
@@ -1373,7 +1373,7 @@ def project_map(rd: Reader, p: Paths, pr: dict, runs: list[dict], verdicts: dict
     """P2-10: one project on one page. Middle: the agents and what they said to each other (board threads, `ccx
     discuss` talks, who sent work to whom); left: shared memory and the runs whose brief carried a note, with how
     they ended; right: the receipts; top: this week's actual spend by the rung it ran on. Read only, never a model."""
-    root = Path(pr["path"])
+    root = Path(pr["path"]).resolve()
     runs = sorted(runs, key=lambda r: -float(r.get("ts") or 0))
     rows = [receipt_row(rd, p, r, verdicts.get(r["run_id"]), piece_run) for r in runs]
     threads, pairs = _map_threads(rd, root, (conv or {}).get("todos") or [], since)
@@ -1646,7 +1646,7 @@ def collect(p: Paths, project: Path | None = None, days: float = 7, rd: Reader |
         if not is_test(r, scratch):
             real_by_root.setdefault(root_of(r), []).append(r)
     for pr in projects:
-        root = Path(pr["path"])
+        root = Path(pr["path"]).resolve()
         try:
             maps.append(project_map(rd, p, pr, real_by_root.get(root, []), verdicts,
                                     piece_run, conv_of.get(pr["id"]), talks, now - 7 * 86400, since))
@@ -1850,7 +1850,7 @@ def _activity_lines(state: dict, line: str) -> dict:
 
 def run_activity(rd: Reader, d: Path, rec: dict, after: int = 0, source: str = "") -> dict:
     files = sorted({*d.glob("events.*.log"), *d.glob("stream*.jsonl"), *d.glob("stderr.*.log")})
-    files = [f for f in files if f.resolve().parent == d]
+    files = [f for f in files if f.resolve().parent == d.resolve()]
     # ccx buffers exec stdout until an attempt ends. The tool's own session is the live source meanwhile.
     session_source = False
     if rec.get("state") == "running" and rec.get("session_id"):
@@ -2385,7 +2385,7 @@ def chat_argv(text: str, root: Path, rd: Reader) -> list[str]:
         d, rec = _run_record(rd, args[0])
         if op == "show":
             return ["ccx", "show", args[0]]
-        if project_root(rec.get("cwd")) != root:
+        if project_root(rec.get("cwd")) != root.resolve():
             raise ValueError("review: select the run's project")
         brief = _visible_brief(d)
         snapshot = judge(rd.p, args[0])

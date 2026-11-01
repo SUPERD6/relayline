@@ -10,7 +10,7 @@ import threading
 import time
 import venv
 from pathlib import Path
-from queue import Queue
+from queue import Empty, Queue
 from types import SimpleNamespace
 from unittest import mock
 from urllib.request import ProxyHandler, Request, build_opener
@@ -399,8 +399,18 @@ def test_demo_token_page_keeps_complete_runs_at_month_boundary(tmp_path, monkeyp
     assert tokens["cut"]["tasks"] == 0
 
 
-def test_demo_cli_wiring_from_outside_repository(tmp_path):
+@pytest.mark.parametrize("symlinked", [False, True], ids=["direct", "symlink"])
+def test_demo_cli_wiring_from_outside_repository(tmp_path, symlinked):
     """Exercise the named entry point in another process, with no browser and no agent CLI."""
+    if symlinked:
+        real = tmp_path / "real"
+        real.mkdir()
+        alias = tmp_path / "alias"
+        try:
+            alias.symlink_to(real, target_is_directory=True)
+        except OSError as exc:
+            pytest.skip(f"directory symlinks unavailable: {exc}")
+        tmp_path = alias
     base = tmp_path / "demo"
     fresh = tmp_path / "venv"
     venv.EnvBuilder(with_pip=False).create(fresh)
@@ -413,26 +423,59 @@ def test_demo_cli_wiring_from_outside_repository(tmp_path):
     p = Paths(base / "hub")
     from ccx.winproc import CREATE_NO_WINDOW
     flags = {"creationflags": CREATE_NO_WINDOW} if os.name == "nt" else {}
-    proc = subprocess.Popen([str(interpreter), str(ROOT / "ccx.py"), "demo", "--dir", str(base), "--no-open"],
-                            cwd=tmp_path, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True,
-                            encoding="utf-8", **flags)
+    stderr_path = tmp_path / "demo-stderr.log"
+    with stderr_path.open("wb") as stderr:
+        proc = subprocess.Popen([str(interpreter), str(ROOT / "ccx.py"), "demo", "--dir", str(base), "--no-open"],
+                                cwd=tmp_path, stdout=subprocess.PIPE, stderr=stderr, text=True,
+                                encoding="utf-8", **flags)
     lines = Queue()
+    stdout = []
     def read_stdout():
         for line in proc.stdout:
+            stdout.append(line)
             if line.startswith("ccx ui: http"):
                 lines.put(line.strip().split("ccx ui: ", 1)[1])
-    threading.Thread(target=read_stdout, daemon=True).start()
+        lines.put(None)                       # a failed process should report its output immediately
+    reader = threading.Thread(target=read_stdout, daemon=True)
+    reader.start()
     try:
-        url = urlsplit(lines.get(timeout=30))
+        try:
+            address = lines.get(timeout=90)
+        except Empty:
+            address = None
+        assert address is not None, (f"ccx demo did not print its URL within 90 s (exit={proc.poll()})\n"
+            f"stdout:\n{''.join(stdout)}\nstderr:\n{stderr_path.read_text(encoding='utf-8', errors='replace')}")
+        url = urlsplit(address)
         srv = SimpleNamespace(port=url.port, token=url.fragment.removeprefix("k="))
         code, full = request(srv, "/api/runs/demo-r-review")
         assert code == 200
+        assert full["project"] == ui._pid(base / "projects" / "shop-api")
         assert full["activity"]["events"] and full["review"]["fixes"]
         assert any(e.get("kind") == "run" for e in board.entries(base / "projects" / "shop-api"))
     finally:
         proc.terminate()
         proc.wait(10)
+        reader.join(5)
         proc.stdout.close()
+
+
+def test_demo_cli_startup_failure_reports_subprocess_output(tmp_path, monkeypatch):
+    failure = tmp_path / "startup-failure.py"
+    failure.write_text("print('demo startup began', flush=True)\nraise RuntimeError('fixture startup failure')\n",
+                       encoding="utf-8")
+    launch = subprocess.Popen
+
+    def fail_live(argv, *args, **kwargs):
+        if len(argv) > 1 and argv[1] == str(ROOT / "ccx.py") and "--export" not in argv:
+            argv = [argv[0], str(failure)]
+        return launch(argv, *args, **kwargs)
+
+    monkeypatch.setattr(subprocess, "Popen", fail_live)
+    with pytest.raises(AssertionError) as caught:
+        test_demo_cli_wiring_from_outside_repository(tmp_path, False)
+    message = str(caught.value)
+    assert "demo startup began" in message and "fixture startup failure" in message
+    assert "stdout:" in message and "stderr:" in message and "exit=" in message
 
 
 class HeadlessBrowser:
