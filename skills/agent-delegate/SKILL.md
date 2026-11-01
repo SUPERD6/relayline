@@ -137,8 +137,8 @@ ccx resume <run_id> "follow-up"  # same sub-session: no re-briefing, cache stays
 # --new for a fresh one; --fork (Claude -> Claude) starts from a copy of your whole conversation
 ```
 Result JSON: status, summary, files_changed, diffstat, check, verification, open_questions, next_step, tokens.
-When the check and the review passed and nothing needs you, it is one line (`"view": "line"`: summary, files,
-diffstat, check, recap); `ccx show <run_id>` has the rest, only if you need it.
+When the check passed, the review passed (or none ran) and nothing needs you, it is one line (`"view": "line"`:
+summary, files, diffstat, check, recap); `ccx show <run_id>` has the rest, only if you need it.
 A quota/rate-limit stop retries once on the other agent (`--no-fallback` to stop instead);
 a timeout, crash or `ccx stop` keeps the session id — `ccx resume <run_id>` continues where it stopped.
 

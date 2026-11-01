@@ -3,7 +3,8 @@
 A lead re-reads everything it was handed on every later request of its conversation, so the result of a run is paid
 for again and again (129 passed write runs of a real hub, 2026-10: median 860 bytes whole, 509 as one line). When
 the check passed and the review passed (or none ran) and nothing asks for the lead (no needs_lead, hint, kind,
-edited tests, namecheck hits, policy blocks, open questions, next step, review notes, L2 merge or project answer;
+edited tests, namecheck hits, policy blocks, open questions, next step, review notes, L2 merge or project answer,
+a fix round;
 no weak, unchanged-tree, unknown-coverage or changed-yardstick check), the lead gets one JSON line:
 what was done (summary, files, diffstat), the check as it was (cmd, passed, exit, what it covers), and the recap (status, check, review, cost, `ccx show <id>` for the rest).
 Everything else is as before, whole. `ccx show <id>` always gives the whole result.
@@ -19,7 +20,8 @@ SUMMARY_CHARS = 300
 # any of these in a result means the lead has something to look at: the whole result goes out
 ATTENTION = ("needs_lead", "hint", "kind", "edited_tests", "namecheck", "policy_blocked", "cost_chain_error",
              "base", "retry_after", "open_questions", "next_step",
-             "autonomy", "project")      # an L2 merge's outcome (merged, why not, undo), a project's approval rules
+             "autonomy", "project",      # an L2 merge's outcome (merged, why not, undo), a project's approval rules
+             "fixed_after_review_of")    # passed after a fix round: the first review's issues are worth a look
 
 
 def mode(cfg: dict) -> str:

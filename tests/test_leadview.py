@@ -47,6 +47,7 @@ class TestClean(unittest.TestCase):
                  dict(PASSED, next_step="run the migration first"),
                  dict(PASSED, autonomy={"level": "L2", "merge": {"merged": False, "why_not": "x"}}),
                  dict(PASSED, project={"name": "p"}),
+                 dict(PASSED, fixed_after_review_of="r0"),
                  dict(PASSED, check={"passed": True, "covers": "x", "covers_unknown": True})]
         for c in cases:
             obj, one = leadview.render(c, {})
@@ -94,6 +95,13 @@ class TestRunOutput(Env):
         self.assertEqual(out["view"], "line")
         log = (self.hub / "ccx" / "runs" / out["run_id"] / "bg.log").read_text(encoding="utf-8", errors="replace")
         self.assertIn('  "tokens"', log)                      # the child's log keeps the whole result
+
+    def test_config_set_output_lead(self):
+        self.assertNotEqual(self.ccx("config", "set", "output.lead", "ful").returncode, 0)
+        self.assertEqual(self.ccx("config", "set", "output.lead", "full").returncode, 0)
+        r = self.ccx("run", "--from", "claude", "--to", "codex", "--model", "gpt-6-luna", "--effort", "low",
+                     "--no-ab", "--review", "off", "--check", "python -c pass", "implement thing")
+        self.assertNotIn("view", json.loads(r.stdout))
 
     def test_output_lead_full_is_as_before(self):
         r = self.ccx("run", "--from", "claude", "--to", "codex", "--model", "gpt-6-luna", "--effort", "low",
