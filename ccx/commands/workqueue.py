@@ -245,6 +245,7 @@ def _tree_fields(rec: dict) -> tuple[dict, str | None]:
     cwd = str(rec.get("cwd") or "")
     if worktree_repo(cwd) is None:
         return {"worktree": None, "branch": None, "verdict": None}, None
+    cwd = str(Path(cwd).resolve())
     from ..lanes import commit_block
     from ..workspace import _git
     sha = commit_block(rec)

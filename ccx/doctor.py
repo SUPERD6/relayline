@@ -282,8 +282,7 @@ def config_row(p: Paths) -> tuple[str, str]:
 
 def worktree_row(p: Paths) -> tuple[str, str]:
     """Placement for new worktrees; existing runs keep the cwd saved in their records."""
-    from pathlib import Path
-    from .workspace import worktree_path
+    from .workspace import SIBLING_WORKTREE_DIR
     try:
         location = worktree_location(load_config(p))
     except (OSError, ValueError, TypeError, AttributeError) as e:
@@ -291,7 +290,7 @@ def worktree_row(p: Paths) -> tuple[str, str]:
     if location == "inside":
         return "ok", ("inside: <repo>/.ccx/worktrees/<run_id>, within the project folder; "
                       "ignore .ccx/ in .gitignore (ccx warns before creating one if it is not ignored)")
-    sibling = worktree_path(Path("<repo parent>") / "<repo name>", "<run_id>").as_posix()
+    sibling = f"<repo parent>/{SIBLING_WORKTREE_DIR}/<repo name>/<run_id>"
     return "ok", (f"sibling: {sibling}, beside the repository "
                   "(default, keeps the existing directory layout)")
 

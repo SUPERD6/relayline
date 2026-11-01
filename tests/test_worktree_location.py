@@ -12,6 +12,7 @@ from ccx.config import Paths, load_config
 class TestWorktreeLocation(StopEnv):
     def setUp(self):
         super().setUp()
+        self.work = self.work.resolve()
         self.env.update({"CCX_GEMINI_BIN": str(FAKES / "fake_gemini.py"),
                          "CCX_DSH_BIN": str(FAKES / "fake_dsh.py")})
         self.git("init", "-q")

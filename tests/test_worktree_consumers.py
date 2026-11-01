@@ -33,7 +33,7 @@ def _main_check_key(cmd, cwd):
     ("/w/.ccx-worktrees/app", None),
 ])
 def test_worktree_repo_recognizes_both_layouts(cwd, repo):
-    assert worktree_repo(cwd) == (Path(repo) if repo is not None else None)
+    assert worktree_repo(cwd) == (Path(repo).resolve() if repo is not None else None)
 
 
 def test_check_trust_groups_both_saved_layouts_with_the_project():
@@ -43,6 +43,7 @@ def test_check_trust_groups_both_saved_layouts_with_the_project():
 
 
 def test_ui_groups_both_removed_worktree_layouts_with_the_project(tmp_path):
+    tmp_path = tmp_path.resolve()
     repo = tmp_path / "app"
     repo.mkdir()
     (repo / ".git").mkdir()
@@ -140,6 +141,7 @@ def test_windows_worktree_consumers_recognize_uppercase_layouts(tmp_path, layout
     from ccx.commands.workqueue import _here
     from ccx.config import Paths
 
+    tmp_path = tmp_path.resolve()
     root = tmp_path / "app"
     root.mkdir()
     (root / ".git").mkdir()
@@ -159,11 +161,78 @@ def test_windows_worktree_consumers_recognize_uppercase_layouts(tmp_path, layout
     assert [r["run_id"] for r in handoff._recent_runs(p, root)] == ["upper"]
 
 
+@pytest.fixture(params=["symlink", "short"])
+def path_alias(tmp_path, request):
+    """Real filesystem aliases: macOS's temp symlink and Windows's 8.3 names need the same treatment."""
+    def alias(path):
+        if request.param == "symlink":
+            link = tmp_path / ("alias-" + path.name)
+            try:
+                link.symlink_to(path, target_is_directory=True)
+            except OSError as e:
+                pytest.skip(f"directory symlinks are unavailable: {e}")
+            return link
+        if os.name != "nt":
+            pytest.skip("8.3 short names are Windows-only")
+        import ctypes
+        from ctypes import wintypes
+        short_name = ctypes.windll.kernel32.GetShortPathNameW
+        short_name.argtypes = [wintypes.LPCWSTR, wintypes.LPWSTR, wintypes.DWORD]
+        short_name.restype = wintypes.DWORD
+        size = short_name(str(path), None, 0)
+        if not size:
+            pytest.skip("GetShortPathNameW is unavailable for this directory")
+        buf = ctypes.create_unicode_buffer(size)
+        if not short_name(str(path), buf, size) or Path(buf.value) == path:
+            pytest.skip("the filesystem did not provide an 8.3 alias")
+        return Path(buf.value)
+    return alias
+
+
+@pytest.mark.parametrize("location", ["sibling", "inside"])
+def test_worktree_aliases_share_paths_and_project_keys(tmp_path, path_alias, location, monkeypatch):
+    import time
+    from ccx import handoff, lanes, workspace
+    from ccx.commands import workqueue
+    from ccx.config import Paths
+
+    root = tmp_path.resolve() / "project-with-a-long-name"
+    root.mkdir()
+    (root / ".git").mkdir()
+    wt = workspace.worktree_path(root, "run-with-a-long-name", location)
+    (wt / "src").mkdir(parents=True)
+    alias_root, alias_wt = path_alias(root), path_alias(wt)
+    assert workspace.worktree_path(alias_root, wt.name, location) == wt
+    assert worktree_repo(alias_wt) == root
+    assert worktree_repo(alias_wt / "src") == root
+    assert ui.project_root(str(alias_wt)) == root
+    monkeypatch.setattr(workqueue, "_top", lambda root: None)
+    assert workqueue._here(alias_wt, root)
+    assert workqueue._here(wt, alias_root)
+    assert ledger.check_key("check", str(alias_root)) == ledger.check_key("check", str(root))
+    assert ledger.check_key("check", str(alias_wt)) == ledger.check_key("check", str(root))
+    assert ledger.check_key("check", str(alias_wt / "src")) == ledger.check_key("check", str(wt / "src"))
+    monkeypatch.setattr(lanes, "commit_block", lambda rec: None)
+    monkeypatch.setattr(workspace, "_git", lambda cwd, *args: (0, "ccx/run-with-a-long-name"))
+    fields, _ = workqueue._tree_fields({"cwd": str(alias_wt), "mode": "write"})
+    assert fields["worktree"] == str(wt)
+    p = Paths(tmp_path / "hub")
+    for rid, cwd in (("project", alias_root), ("subdir", alias_root / "src"), ("worktree", alias_wt)):
+        rec = {"run_id": rid, "cwd": str(cwd), "to": "codex", "ts": time.time(), "attempts": [],
+               "result": {"status": "done"}}
+        d = p.runs / rid
+        d.mkdir(parents=True)
+        ledger.write_record(d, rec)
+        ledger.append(p, rec)
+    assert {r["run_id"] for r in handoff._recent_runs(p, root)} == {"project", "subdir", "worktree"}
+
+
 def test_demo_reads_config_only_after_isolating_its_hub(tmp_path, monkeypatch):
     import os
     from ccx import demo, queue as wq
     from ccx.config import Paths
 
+    tmp_path = tmp_path.resolve()
     base = tmp_path / "demo"
     own_hub = Path(os.environ["CCX_HUB"])
     real_load = demo.load_config

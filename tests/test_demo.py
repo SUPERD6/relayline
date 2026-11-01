@@ -450,6 +450,7 @@ def test_cli_demo_uses_inside_worktree_layout(tmp_path):
     from ccx import queue as wq
     from ccx.config import load_config, paths
 
+    tmp_path = tmp_path.resolve()
     base = tmp_path / "demo"
     out = tmp_path / "demo.html"
     r = subprocess.run([sys.executable, str(REPO / "ccx.py"), "demo", "--dir", str(base), "--export", str(out)],

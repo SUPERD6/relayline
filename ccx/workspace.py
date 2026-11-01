@@ -28,34 +28,35 @@ SIBLING_WORKTREE_DIR = ".ccx-worktrees"
 
 
 def worktree_path(root: Path, run_id: str, location: str = "sibling") -> Path:
-    """The configured layout for a new worktree (also used for demo records and doctor's explanation)."""
+    """The configured layout for a new worktree, with one spelling for symlinks and Windows short names."""
+    root = root.resolve()
     if location == "inside":
-        return root / ".ccx" / "worktrees" / run_id
-    return root.parent / SIBLING_WORKTREE_DIR / root.name / run_id
+        return (root / ".ccx" / "worktrees" / run_id).resolve()
+    return (root.parent / SIBLING_WORKTREE_DIR / root.name / run_id).resolve()
 
 
 def worktree_repo(cwd: str | Path | None, *, root_only: bool = False) -> Path | None:
     """Repository owning a ccx worktree in either layout, regardless of today's location setting.
-    Pure path inspection: saved runs and the UI also need this after a worktree has been removed.
+    Resolve aliases without requiring the worktree to exist: saved runs and the UI also need this after removal.
     root_only preserves check statistics' historic treatment of a worktree's subdirectories."""
     if not cwd:
         return None
-    parts = Path(str(cwd).replace("\\", "/")).parts
+    parts = Path(str(cwd).replace("\\", "/")).resolve().parts
     compared = tuple(p.casefold() for p in parts) if os.name == "nt" else parts
     for i in range(len(parts) - 2, -1, -1):
         if root_only and i + 3 != len(parts):
             continue
         if compared[i] == SIBLING_WORKTREE_DIR and i + 2 < len(parts):
-            return Path(*parts[:i]) / parts[i + 1]
+            return (Path(*parts[:i]) / parts[i + 1]).resolve()
         if compared[i:i + 2] == (".ccx", "worktrees") and i + 2 < len(parts):
-            return Path(*parts[:i])
+            return Path(*parts[:i]).resolve()
     return None
 
 
 def _worktree_lock(root: Path) -> threading.Lock:
     """One lock per repository: keyed by its common git folder, which every linked worktree of it shares."""
     rc, common = _git(root, "rev-parse", "--path-format=absolute", "--git-common-dir")
-    key = os.path.normcase(os.path.abspath(common if rc == 0 and common else str(root)))
+    key = os.path.normcase(os.path.realpath(common if rc == 0 and common else str(root)))
     with _WT_LOCKS_GUARD:
         return _WT_LOCKS.setdefault(key, threading.Lock())
 
@@ -70,7 +71,7 @@ def make_worktree(cwd: Path, run_id: str, tries: int = 3) -> Path:
                          capture_output=True, text=True, encoding="utf-8", errors="replace")
     if top.returncode != 0:
         raise RuntimeError("--worktree needs a git repository")
-    root = Path(top.stdout.strip())
+    root = Path(top.stdout.strip()).resolve()
     location = worktree_location(load_config())
     wt = worktree_path(root, run_id, location)
     if location == "inside":
