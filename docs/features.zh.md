@@ -29,6 +29,70 @@
 `ccx resume -h`、`ccx verify -h`、`ccx lead -h` 里不常用的选项放在 "advanced" 标题下。只改帮助排版：每个命令和选项
 名字不变、照旧解析（`tests/data/cli_surface.json` 冻结了完整清单，有测试核对）。
 
+## 能力表：按厂商、模型和任务积累证据
+
+`ccx ability`（在 `ccx advanced` 的高级组可见）从 hub 账本和仍可读取的运行记录，按 `plan`、`code`、
+`fix`、`test`、`review`、`docs`、`read` 七类分别统计。`review:` 标签的审查运行归 `review`；明确的只读模式
+归 `read`；其余按任务文字里最先出现的中英文动作词判断，例如“修复错误再测试”归 `fix`，“添加测试”归 `test`。
+显式任务类型优先于关键词。没有动作词时，已有五问记录的 `novelty = new` 提示 `plan`，否则归 `code`；
+文件数、耦合和风险本身不能判断任务类型。
+
+```bash
+ccx ability show --vendor codex --task fix
+ccx ability show --json
+ccx ability rebuild                         # 回填旧账本，或修复缓存
+ccx ability set claude.opus plan prefer
+ccx ability set codex.gpt-6-luna code avoid
+ccx ability set codex.gpt-6-luna code clear  # 移除用户设定
+```
+
+每格包含样本数 `n`、做对数 `ok`、`ok_self_checked`、其他未验证数、失败数、做对率 `ok / n`、已独立成功运行的
+已知成本中位数、记录时长中位数、effort 分布和最近运行/verdict 的时间。`ok_self_checked` 表示**未独立验证**，
+即使收据通过，也不计入 `ok`；证据缺失仍是未验证。**什么算一次：**只有带非 soft verdict 的运行才进入 `n`，
+且排除 partial、仍在运行的任务，以及环境、配额或人为停止。计为做对还须同时满足 `kind = ok` 和正 verdict；
+负 verdict 计失败。`ok_self_checked` 单列，始终不算做对。没有 verdict 或只有 soft verdict 的运行不进分母，
+也不算失败；其未验证/自测数和 effort 元数据仍可在 `n` 之外显示。正 verdict 但 kind 未知仍是未验证。
+停止类型与 UI 的 open 口径一致：`env`（含沙箱错误 1223）、`quota`、`user_stopped`、`over_budget`、
+`policy`、`needs_write`、`timeout`、`no_answer`；这些停止即使带 verdict 也不算失败。
+缺失成本/时长为 `null`，零仍为零，每个中位数附已知样本数。
+API 等价成本 `ae_usd` 与实际计费 `cost_usd` 分开取中位数，显示时优先 API 等价成本；
+这个指标不是“总花费 ÷ 成功数”。记录时长覆盖该 run 的各次尝试，不包含主导和审查员的整个工作流。
+**本地 n < 5 显示“数据不足”**；`n = 0` 时做对率为空。评测、内部探针和 dismissed 运行不进入本地统计。
+一个 run 只计一次，归最后实际执行的模型，成本/时长使用整次 run 的记录（含之前的尝试），effort 保留为分布。
+
+`<hub>/ccx/ability.json` 是带版本的缓存：`cells` 存统计摘要，`entries` 存每个 run 的指纹和数值观察。
+brief 仅用于判断类型，不复制进缓存。命令层的 verdict 路径（`verify`、队列完成/接受、undo 标错、启动 hook
+的 sweep）会刷新；未变的 run 复用观察，只重算受影响的格子。短暂 `PermissionError` 不会缓存未读文件的指纹，
+下次查询会重试。`q accept --dry-run` 不刷新，也不创建能力缓存或锁文件。查询还会补上 Python API 直接写入的 verdict。
+`rebuild` 从整个账本重建，仍在时利用 run.json/brief.md 补齐资料；无法恢复的信息保留 unknown。
+同一 run 的重复 verdict 替换旧观察，不增加样本。
+
+也可直接编辑 `<hub>/ccx/ability-overrides.toml`：
+
+```toml
+[claude.opus]
+plan = "prefer"
+[codex.gpt-6-luna]
+code = "avoid"
+[codex."gpt-6.1-sol"]
+review = "prefer"
+```
+
+带点的模型名要加引号。覆盖项优先于观察建议，标注**“用户设定”**（`preference_source: "user"`），不改统计证据。
+`set` 保留其他条目和注释。provider 按配置的厂商归属处理，通过其他 CLI 调用的 DeepSeek 仍归 DeepSeek。
+
+冷启动读取 `ccx/data/ability-seed.json`，以**带来源的独立工作流测量**显示，不伪造本地样本，也不混成一个模型胜率。
+全部 16 条来自[实测页](measured.zh.md)，每条的 `source` 指向对应英文段落：hc1 的 self/builtin/ccx2 三行
+（做对数、每成功总成本、墙钟中位数）；r5 的 self、builtin、r5d builtin2、r5f builtin 和
+r5e/r5f/r5g/r5h ccx2 八行（同样三列，r5g 成本和时长缺失）；pg1 全部 30 题的 self/ccx2/direct 三行；
+r4 只收录已公开的每成功成本 $0.595（ccx2）和 $0.567（self）。r4 的样本数、正确数、时长、模型，以及
+builtin 的模型身份留空。这些数字测的是工作流（ccx2 含主导），任务集和版本不同；`code` 只是粗分类，
+不能据此断言某厂商擅长某一类任务。冷启动本地 n 仍为零，本地中位数仍为空。
+
+**本次不接入路由决策**：`ccx route` 仅增加 `ability` JSON 字段，显示推断类型和各候选摘要；原来的选择、
+升级路径和字段不变。后续再把能力证据与角色表、配额一起接入。需要 token 的只读接口
+`/api/ability?vendor=codex&task=fix` 提供同样数据，本次不增加页面或前端控件。
+
 ## 实时看：`ccx ui`
 
 **首页是一个项目一张图**（P2-10）：中间是这个项目里的智能体和它们之间的往来（谁给谁派活、对话板话题、`ccx discuss` 讨论；被机器连续条数上限停下的话题、在问你的消息列为待办）；左边是共享记忆，连到说明里带了便签的那几次派活（从派活说明本身读出，不靠猜），以及这些派活最后对没对（你的判断；运行本身失败算错，被你停下、超预算、环境问题不算）；右边每次派活一张收据（谁派给谁、档位和实际用的模型档、花费、check 覆盖了哪些测试、这次派活有没有改自己的测试、审查结论、你的判断）；顶上是本周的 API 等价花费（记录里的 token × 价格表，不是账单；测试和评测不算），按实际用到的档位分开，其他做法只列已发布的实测表，不估算；底下是能力表（谁擅长什么），记过对错的活不够时显示“数据不足”。下面这些页面都还在原处：带全部待办和按钮的总览在 `#/all`。
@@ -65,7 +129,7 @@
 2. 执行 `ccx run --from claude --files 2 --coupling one --clarity goal "…"`。ccx 调用 task-routing 技能，算出每个“智能体:模型:强度”的成功率和每次成功的花费，挑出 `codex:gpt-6.1-sol:medium`。如果算下来自己做更划算、或者应该先拆开，就直接告诉主导，不派。
 3. ccx 在后台调用 `codex exec -m gpt-6.1-sol -c model_reasoning_effort="medium" …`。会话 ID 一出现就存盘。Codex 自己读文件、改代码、跑测试，这部分 token 花的是 Codex 账号的额度。
 4. Codex 必须按 JSON schema 回报：`status / summary / files_changed / verification / …`。Claude 只读这一小段，再自己看一眼 `git diff`，确认测试真的跑过，然后 `ccx verify <run_id> --ok 1`。check 通过时会写明它是在什么上通过的：`check passed (covers: tests/test_x.py)` 列出 pytest / unittest 命令点到的测试文件（目录会展开；别的命令写"not known"），用了过滤或节点 id 只跑其中一部分时加 `(only -k …)`；子智能体改过其中某个文件或它们上层的 `conftest.py` 时标 `basis changed`（检查依据被改动），只往里加了测试时写"tests added by the sub-agent in …"，新写的测试文件写"written by the sub-agent"或"only tests the sub-agent wrote"。结果、recap 那一行、`ccx show` 和账本里都有。check 跑到的测试文件全是子智能体这次新写或改过的，就不算普通 ok：kind 记 `ok_self_checked`（退出码仍是 0；`check.basis` 和 `needs_lead` 写"未经独立验证"，`ccx ui` 请人确认，不会被自动判对）。`[escalate] on_self_checked` 决定还做什么：`review`（默认）交给审查、对照任务原文核对，`rung` 先升一档重做，`off` 只打标记。只读运行如果什么都没答（summary 为空），不算 ok：kind 记 `no_answer`，并提示换更强的档位再问一次。
-5. 如果 Codex 回报 `blocked`，ccx 会在**同一个 Codex 会话**里升一档（high）继续，不用重新喂背景。Codex 说做完了、但 ccx 自己重跑的 `--check` 没过，也会升一档（同一家时在同一会话里）；`ccx config set defaults.focused_retry true` 之后，这一次会拿到失败的命令和输出的最后约 2000 字，只修失败处（默认关，等实测确认再开）。如果 Codex 额度用完，自动换 Claude 做（实验性：只有替身测试，还没遇到过真实的额度用完）；超时或崩溃，`ccx resume <run_id>` 接着做（有检查点的长任务用 `ccx task resume`），沿用原来的标签、验收命令和 review 设置（`ccx resume` 可以用 `--check` / `--review` 改；`ccx task resume` 总是沿用）。想让它停：`ccx stop <run_id>` 结束子智能体和它开的所有进程，之后 `ccx resume` 能接上。
+5. 如果 Codex 回报 `blocked`，ccx 会在**同一个 Codex 会话**里升一档（high）继续，不用重新喂背景。Codex 说做完了、但 ccx 自己重跑的 `--check` 没过，也会升一档（同一家时在同一会话里）；`ccx config set defaults.focused_retry true` 之后，这一次会拿到失败的命令和输出的最后约 2000 字，只修失败处（默认关，等实测确认再开）。如果 Codex 额度用完，自动换 Claude 做（实验性：只有替身测试，还没遇到过真实的额度用完）；超时或崩溃，`ccx resume <run_id>` 接着做（有检查点的长任务用 `ccx task resume`），沿用原来的标签、验收命令和 review 设置（`ccx resume` 可以用 `--check` / `--review` 改；`ccx task resume` 总是沿用）。想让它停：`ccx stop <run_id>` 结束子智能体和它开的所有进程，之后 `ccx resume` 能接上。想限花费：`ccx run --max-usd 0.5`（`ccx resume --max-usd` 同样可用；默认取 `[run] max_usd`，0 = 不限）——这次派活的各次尝试、审查和修复轮合计花到这个数（API 等价美元，和收据上的花费同一口径）就停：下一档、本该开的审查或修复轮不再开始，结果里写 `max_usd: {cap, spent, stopped_before, note: "budget cap reached"}` 并带 `needs_lead`（recap 里是 `needs_lead=max_usd`）。这样的运行不会被自动记成"大概对"，也不算 L2 自动合并的证据，由你来定。只在两步之间检查，正在跑的那一步不会被掐断，所以合计最多超出一步（一趟尝试，或一次审查连同它的审查员）。只有 `ccx run` / `ccx resume` 读这个上限（`batch`、`q run`、`way`、`task resume` 不读）。它和 `--budget` 不同：`--budget` 只限子智能体自己再开的子智能体。
 6. 每次运行都写进账本，结果自动记回 task-routing / task-split，下次选得更准。`ccx report` 生成看板网页：谁花了多少 token、什么类型的 token、额度用了多少，给出花费；`ccx trial` 实测之前不显示省了多少。
 
 反过来，在 Codex 里用同样的命令加 `--to claude`，就是 Codex 当主、Claude Code 当子。
@@ -101,6 +165,46 @@
 `skills/` 加本仓库的）在两边各被加载几次、最近一次是什么时候，并列出从没加载过的技能、它们的描述每轮大约占多少 token
 （按字符数估算，不是分词器计数）。只读：只给建议，不删任何东西。第一次 `ccx setup` 还会问一次（只在终端里）：要不要用
 `ccx mem suggest` 的规则（不调模型）扫最近 7 天的会话，把找到的偏好和坑逐条问你，你说要的才写进记忆（走 `ccx mem accept` 的流程）。
+
+## 两种口径
+
+账本同时保留 **API 等价美元**（`ae_usd`，按 API 牌价折算；`cost_usd` 仍表示已知的实际账单金额）和
+**配额单位**（`quota_units`）。在 `hub/ccx/tiers.toml` 中配置：
+
+```toml
+[billing]
+mode = "api"              # 默认；"subscription" 让 ccx report 优先展示配额单位
+quota_unit = 1.0          # 每个 token 对应的配额单位
+
+[billing.vendors.anthropic]
+quota_unit = 1.0
+models = { opus = 2.0 }   # 精确模型名；替代基础权重
+
+[billing.providers.codex]
+quota_unit = 0.5
+```
+
+默认新输入、缓存写入、缓存读取、输出每个 token 各算 1 单位；1 小时缓存写入子集和推理输出子集不重复算。
+订阅限制没有稳定公开的 token 换算，所以默认采用中性的 token 代理量；单位不代表订阅剩余额度或实际账单。
+权重必须是有限的非负数。优先级：provider 的模型权重 > provider 基础权重 > vendor 的模型权重 > vendor
+基础权重 > `billing.quota_unit`。vendor 名用 `anthropic`、`openai`、`google` 等；provider 名用 `claude`、
+`codex` 或自定义 `[providers.NAME]` 的名称。模型键精确匹配记录中的模型名，包括别名；`opus` 不匹配
+`claude-opus-5-5`。
+
+新运行按每次尝试自己的 provider/model 折算并记录总数，两种模式都记录双口径，既有美元字段的名称和含义不变。
+旧账本缺少配额字段时按未加权 token 总数补算，没有 token 则为 0；只在读取时补，不重写文件，也不套当前权重。
+已经存下的单位（包括 0）不会因改权重而变化。旧的跨厂商记录缺少分厂商 token 数，其补算单位归最后完成运行的一家。
+
+`ccx report` 在 `api` 模式保留原有美元呈现；`subscription` 模式的主汇总、每日图和表格以配额单位为主、AE$
+为辅。汇总 JSON 在总数、分流和运行中同时提供两种口径，并增加 `quota_days_series` 和 `billing.mode`；
+`ccx stats --summary` 包含新增的总数和分流字段。UI JSON 增加单位与模式供前端读取，页面结构不变。
+本改动只涉及记账和展示，不改变路由、美元预算上限或实测节省的计算。
+
+通过 `ccx config set billing.mode subscription` 切换，也可设回 `api`；其他值会报错。普通 `ccx stats` 在 API
+模式保留原有列；订阅模式增加 `quota_units`，放在 `api_equivalent_usd` 和原有实际账单列 `cost_usd` 之前。
+`ccx stats --summary` 的 `spend` 同时提供两种口径，把所选口径放在前面，并返回 `billing.mode`。
+`ccx lead --breakdown` 的各项估算和建议同样随模式排列：订阅模式优先展示每 100 轮配额单位，API 模式优先展示
+API 等价美元。原有美元字段和 API 模式建议文案保留。
 
 ## 分级（`config/tiers.toml`，可在 `hub/ccx/tiers.toml` 覆盖）
 

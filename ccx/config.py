@@ -274,14 +274,25 @@ _bool.__name__ = "true/false"
 
 
 SETTINGS = {   # key -> (type, help). Only these can be set with `ccx config set`.
+    "billing.mode": (str, "api | subscription: API-equivalent USD first (default), or quota units first"),
     "defaults.tradeoff": (str, "tier: save | balanced | fast | cheapest, or a knob 0..1 (0 = cheapest, 1 = fastest)"),
     "policy.picked": (str, "save | balanced | fast | cheapest | none: the tier YOU pick for all work in this hub. It "
                            "pre-authorises what that tier delegates (`ccx propose` says authorized: true; project "
                            "autonomy L0/L1 still asks before edits). none (shipped) = offer first, as before"),
-    "routing.small_self": (_bool, "true | false: `ccx route` / `ccx propose` advise doing a small task yourself (at "
-                                  "most routing.small_self_files source files by your --files) instead of delegating "
-                                  "it; `ccx run` still delegates (default false until a measured round backs it)"),
+    "routing.mode": (str, "auto | off: auto (shipped) = ccx route / ccx run delegate as before; off = ccx "
+                          "delegates no new work (route and propose say do it yourself; run, batch, q run / resume "
+                          "and way refuse without --force); cross-vendor review and talk work as before: ccx ask, "
+                          "ccx discuss, ccx run --mode read, mem, board"),
+    "routing.small_self": (_bool, "true | false: `ccx route` / `ccx propose` advise doing a small task yourself "
+                                  "instead of delegating it, sized by routing.small_self_by; `ccx run` still "
+                                  "delegates (default false until a measured round backs it)"),
     "routing.small_self_files": (int, "routing.small_self: the most source files a task may touch to count as small"),
+    "routing.small_self_by": (str, "files | cost: what routing.small_self sizes a task by: files (default) = at "
+                                   "most routing.small_self_files source files by your --files; cost (experimental) "
+                                   "= what doing it yourself costs (requests x your conversation's size, plus the "
+                                   "files read) below routing.small_self_overhead_usd, scaled to your conversation"),
+    "routing.small_self_overhead_usd": (float, "routing.small_self by cost: delegating's fixed cost on the lead's "
+                                               "side (brief, wait, acceptance; default 0.035, the pg1 ledger median)"),
     "routing.small_self_quota": (float, "routing.small_self: from this share of your own quota used (0..1), small "
                                         "tasks are delegated as before"),
     "defaults.ab_self_rate": (float, "share of routed tasks the lead does itself to measure savings (0 = off)"),
@@ -303,6 +314,12 @@ SETTINGS = {   # key -> (type, help). Only these can be set with `ccx config set
     "lead.claude": (str, "model the Claude lead runs on (for savings estimates; with lead.model_by_task also the "
                            "strong lead's name, which passes no --model), e.g. opus"),
     "lead.codex": (str, "model the Codex lead runs on, e.g. gpt-6.1-sol"),
+    "prompt.slim": (_bool, "true | false: a run given --mode write and no --check is not told what to do when the "
+                           "task only asks for an answer (that sentence is left out); false = the text as before "
+                           "(default true)"),
+    "run.max_usd": (float, "default --max-usd of ccx run / resume: stop the delegation (its attempts, review and fix "
+                           "round together) once it has spent this many API-equivalent $ (0 = no limit, the default; "
+                           "batch, q run, way and task resume do not read it)"),
     "wake.enabled": (_bool, "true | false: a --bg run that finishes sends the lead one line (Claude Code's inbox, "
                             "else the next turn's hook) instead of the lead polling (default true)"),
     "wake.trust_socket": (_bool, "true | false: a line delivered to Claude Code's inbox is not also left for the "
@@ -352,6 +369,8 @@ def set_setting(p: Paths, key: str, raw: str) -> dict:
     if key not in SETTINGS:
         raise ValueError(f"unknown setting {key!r}; known: {', '.join(SETTINGS)}")
     typ = SETTINGS[key][0]
+    if key == "billing.mode" and raw not in ("api", "subscription"):
+        raise ValueError("billing.mode must be api or subscription")
     if key == "defaults.tradeoff" and raw not in ("save", "balanced", "fast", "cheapest"):
         k = float(raw)
         if not 0 <= k <= 1:
@@ -366,6 +385,12 @@ def set_setting(p: Paths, key: str, raw: str) -> dict:
         raise ValueError("autonomy.level must be L0, L1 or L2")
     if key == "escalate.on_self_checked" and raw not in ("review", "rung", "off"):
         raise ValueError("escalate.on_self_checked must be review, rung or off")
+    if key == "routing.mode" and raw not in ("auto", "off"):
+        raise ValueError("routing.mode must be auto or off")
+    if key == "routing.small_self_by" and raw not in ("cost", "files"):
+        raise ValueError("routing.small_self_by must be cost or files")
+    if key == "run.max_usd" and not float(raw) >= 0:
+        raise ValueError("run.max_usd must be 0 (no limit) or a positive amount")
     if key == "ui.lang" and raw not in ("zh", "en"):
         raise ValueError("ui.lang must be zh or en")
     try:

@@ -171,6 +171,9 @@ ccx ui [--project DIR] [--no-open] [--export FILE]   # live page on 127.0.0.1 (n
 ccx demo [--no-open] [--keep] [--export FILE]       # the same page on made-up data in a temp folder: no account, offline
 ccx config set ui.lang zh            # language of ccx ui and of the lines ccx writes into conversations
 ccx config set defaults.tradeoff 0.3  # the save <-> fast knob: save / balanced / fast, or 0..1
+ccx config set routing.mode off      # delegate no work: do it yourself; ccx ask / discuss / run --mode read (a
+                                     # cross-vendor review), mem, board as before; run / batch / q run / q resume /
+                                     # way refuse without --force (auto = as shipped)
 ccx ab done <id> --ok 1               # close an A/B sample (the ~10% the lead does itself)
 ccx send --list | --thread <id> "msg" # message a live Codex desktop / interactive session (Codex only: a Claude Code
                                       # session, terminal or desktop app, has no way in for an outside message;

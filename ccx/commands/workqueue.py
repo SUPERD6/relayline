@@ -79,6 +79,8 @@ def cmd_q(a) -> int:
         out["closed_parents"] = wq.close_parents(root)
         moved = wq.propagate(root)
         out.update({k: v for k, v in moved.items() if v})
+        from ..ability import after_verdict
+        after_verdict(paths())
         _out(out)
     elif a.q_cmd == "accept":
         if not a.ids and not a.all_ready:
@@ -89,9 +91,16 @@ def cmd_q(a) -> int:
         p = paths()
         out, code = accept(p, load_config(p), root, a.ids or [], all_ready=a.all_ready, check=a.check,
                            dry_run=a.dry_run, into_protected=a.into_protected)
+        if not a.dry_run:
+            from ..ability import after_verdict
+            after_verdict(p)
         _out(out)
         return code
     elif a.q_cmd in ("run", "resume"):
+        from .delegation import _refused_off      # routing.mode=off (P0-9): nothing is delegated without --force
+        p = paths()
+        if _refused_off(p, load_config(p), a, f"ccx q {a.q_cmd}"):
+            return 0
         return _run(a, root)
     return 0
 
@@ -727,6 +736,7 @@ def register(sub) -> None:
         r.add_argument("--gate", action="store_true", help="an item's dependents start only after your verdict "
                        "on it (`ccx q done <id> --ok 1`), not as soon as its run reports done (default: off)")
         r.add_argument("--from", dest="caller")
+        r.add_argument("--force", action="store_true", help="delegate even with routing.mode off")
         r.add_argument("--bg", action="store_true", help="run detached; its output goes to a log in the queue "
                        "folder; `ccx q ls` shows each running item's run id (`live`), the runner and how the last "
                        "run ended")

@@ -24,7 +24,7 @@ GROUPS = (
     ("Memory and context", ("ctx", "project", "fresh", "inbox", "skills")),
     ("Accounting and reports", ("stats", "report", "quota")),
     ("Between agents", ("peek", "board", "say", "reply")),
-    ("Advanced", ("init", "projects", "where", "intake", "sync", "config", "uninstall", "repair", "agents")),
+    ("Advanced", ("init", "projects", "where", "intake", "sync", "config", "uninstall", "repair", "agents", "ability")),
     ("Maintenance", ("task", "send", "plan", "batch", "route", "propose", "way", "discuss", "turn", "sum", "archive",
                      "autonomy", "selftest")),
     ("Developer", ("trial", "ab", "bench", "improve", "namecheck")),
@@ -65,6 +65,7 @@ def _grouped_help(sub: argparse._SubParsersAction, full: bool = True) -> str:
         lines += textwrap.wrap(f"`ccx advanced` (or `ccx -h --all`) lists {n} more commands: " + "; ".join(
             f"{title.lower()} ({', '.join(names[:4])}{', ...' if len(names) > 4 else ''})" for title, names in hidden)
             + ".", width)
+    lines.append("`ccx config set routing.mode off`: delegate no work, only cross-vendor review and talk (auto = as shipped).")
     lines.append("`ccx dev` lists the developer commands; `ccx dev <command>` runs one, as `ccx <command>` does.")
     lines.append("`ccx <command> -h` shows one command in full.")
     return "\n".join(lines)

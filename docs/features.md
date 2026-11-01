@@ -31,6 +31,81 @@ advanced (the hub, several projects, installing: `init`, `projects`, `where`, `i
 every command and option keeps its name and parses as before (`tests/data/cli_surface.json` froze the full list
 and a test checks it).
 
+## Ability table: evidence by vendor, model and task
+
+`ccx ability` (also listed by `ccx advanced`) learns separate cells for `plan`, `code`, `fix`, `test`,
+`review`, `docs` and `read` from the hub's ledger and available run records. Review runs (`review:` labels)
+are `review`; explicit read mode is `read`; otherwise the first action word in the task, in English or Chinese,
+decides ("fix the bug, then test" is `fix`, "add tests" is `test`). Explicit task types take priority over keywords.
+With no action word, the recorded five-question rubric's `novelty = new` suggests `plan`; otherwise the fallback
+is `code`. File count, coupling and risk alone cannot identify a task type.
+
+```bash
+ccx ability show --vendor codex --task fix
+ccx ability show --json
+ccx ability rebuild                         # backfill old runs / repair the cache
+ccx ability set claude.opus plan prefer
+ccx ability set codex.gpt-6-luna code avoid
+ccx ability set codex.gpt-6-luna code clear  # remove your setting
+```
+
+Each local cell has `n`, `ok`, `ok_self_checked`, `unverified`, `failed`, `success_rate` (`ok / n`), median known
+cost of independently successful runs, median recorded run seconds, effort counts and the latest run/verdict
+timestamp. `ok_self_checked` is **not independently verified**, never added to `ok`, even when its receipt is a
+pass; unknown evidence stays unverified. **What counts once:** `n` includes only runs with a non-soft verdict,
+excluding partial/running work and machine, quota or user stops. A right run also needs `kind = ok` and a positive
+verdict; a negative verdict counts as failed. `ok_self_checked` stays separate and is never right. Runs without
+a verdict (or with only a soft one) do not enter the denominator or count as failures; their unverified/self-checked
+counts and effort metadata may still be shown outside `n`. A positive verdict with an unknown kind stays
+unverified. Excluded stop
+kinds match the UI's open outcomes: `env` (including sandbox error 1223), `quota`, `user_stopped`, `over_budget`,
+`policy`, `needs_write`, `timeout`, `no_answer`. These stops do not count as failed even with a verdict.
+Missing costs/times are `null`, zero stays zero, and each median reports
+its known-sample count. Cost medians keep API-equivalent (`ae_usd`) and billed (`cost_usd`) USD separate; the displayed
+median prefers API-equivalent costs. This median is not total spend divided by successes. Recorded seconds cover
+the run's attempts, not the lead's or reviewer's entire workflow. Cells with **fewer than five local runs** say
+**"insufficient data / 数据不足"**; `n = 0` has no success rate. Evaluations, internal probes and dismissed
+runs do not train local cells. Each run counts once, attributed to its final model, with its whole recorded run
+cost/time (including earlier attempts); effort is retained as a count, not a separate cell.
+
+`<hub>/ccx/ability.json` is a versioned cache: `cells` holds summaries, `entries` holds a fingerprint and a numeric
+observation per run. Briefs are read to infer types, not copied into this cache. CLI verdict paths (`verify`, queue
+completion/acceptance, undo-as-wrong, the start-hook sweep) refresh it; unchanged runs reuse their observations and
+only changed cells are recalculated. A transient `PermissionError` does not cache the unread file's fingerprint;
+the next query retries. `q accept --dry-run` does not refresh or create ability cache/lock files.
+Queries also catch verdicts written directly through the Python API.
+`rebuild` reconstructs it from the ledger, using run.json/brief.md when still present. Unrecoverable metadata stays
+unknown. Repeated verdicts replace that run's observation rather than adding runs.
+
+You can also edit `<hub>/ccx/ability-overrides.toml`:
+
+```toml
+[claude.opus]
+plan = "prefer"
+[codex.gpt-6-luna]
+code = "avoid"
+[codex."gpt-6.1-sol"]
+review = "prefer"
+```
+
+Quote model names containing dots. A preference wins over observational advice and is labelled **"user setting /
+用户设定"** (`preference_source: "user"`); it does not rewrite counts or evidence. `set` preserves other entries and
+comments. Provider names resolve to their configured vendor, so DeepSeek through another CLI is still DeepSeek.
+
+Cold start shows `ccx/data/ability-seed.json` as **separate, sourced workflow measurements**, never synthetic local
+runs or pooled model rates. All 16 entries come from [Measured](measured.md): hc1's self/builtin/ccx2 rows (right,
+cost per success and median wall); r5 self, builtin, r5d builtin2, r5f builtin and r5e/r5f/r5g/r5h ccx2 rows (same
+three columns, r5g cost/wall unknown); pg1's all-30 self/ccx2/direct rows (same columns); and r4's two published
+cost-per-success numbers, $0.595 ccx2 / $0.567 self. r4's sample count, accuracy, wall and model are unknown;
+built-in model identities are also unknown. These are workflow costs (ccx2 includes a lead), from different task
+sets and versions; `code` is only a coarse benchmark family. They do not establish a vendor's strength at a
+particular type. The cold-start local count stays zero and local medians stay empty.
+
+This change **does not steer routing**: `ccx route` only gains an `ability` JSON field with the inferred type and
+candidate summaries; the pick, ladder and other fields remain unchanged. Roles and quota-aware selection will be
+combined with this evidence later. The authenticated, read-only `/api/ability?vendor=codex&task=fix` endpoint
+provides the same data for UI work; this change adds no page or frontend controls.
+
 ## See it live: `ccx ui`
 
 **The home page is one project on one map** (P2-10): in the middle the agents and what went between them (who sent
@@ -163,6 +238,14 @@ In Claude Code you say: "make `loader.py` accept a custom delimiter and add test
      keeping the run's label, acceptance check and review setting (`ccx resume` takes `--check` / `--review` to
      change them; `ccx task resume` always keeps them).
    - You want it to stop: `ccx stop <run_id>` ends the sub-agent and everything it started; `ccx resume` goes on.
+   - You want a spending limit: `ccx run --max-usd 0.5` (or `ccx resume --max-usd`; default `[run] max_usd`, 0 = no
+     limit) stops the whole delegation once its attempts, review and fix round together have spent that much
+     (API-equivalent $, as on the receipt): the next rung, a review that was due or the fix round does not start,
+     and the result says `max_usd: {cap, spent, stopped_before, note: "budget cap reached"}` with a `needs_lead`
+     (`needs_lead=max_usd` in the recap). Such a run gets no automatic "probably right" and is no evidence for an L2
+     merge: you decide. It is checked between steps, so a running step finishes and the total can go over by one
+     step (an attempt, or one review with its reviewers). Only `ccx run` / `ccx resume` read it (`batch`, `q run`,
+     `way` and `task resume` do not). Not the same as `--budget`, which caps only the sub-agent's own sub-agents.
 6. **Learn and report.** Every run goes into a ledger and back into task-routing / task-split, so the next pick is
    better. `ccx report` builds a dashboard: who spent how many tokens of which kind, quota use and spend; a saving only once `ccx trial` has measured one.
 
@@ -230,6 +313,51 @@ and lists the ones never loaded with an estimate of the tokens their description
 not a tokenizer). Read only: it suggests, it deletes nothing. A first `ccx setup` also offers, once and only on a
 terminal, to look through the last 7 days of sessions with `ccx mem suggest`'s rules (no model) and asks about each
 preference or pitfall it finds; only the ones you say yes to are written (`ccx mem accept`'s path).
+
+## Two accounting bases
+
+The ledger keeps **API-equivalent USD** (`ae_usd`, based on API list prices; `cost_usd` remains the billed
+amount when known) alongside **quota units** (`quota_units`). In `hub/ccx/tiers.toml`:
+
+```toml
+[billing]
+mode = "api"              # default; "subscription" puts quota units first in ccx report
+quota_unit = 1.0          # units per token
+
+[billing.vendors.anthropic]
+quota_unit = 1.0
+models = { opus = 2.0 }   # exact model name; replaces the base weight
+
+[billing.providers.codex]
+quota_unit = 0.5
+```
+
+The default is one unit per fresh input, cache-write, cache-read or output token, counted once each. The 1-hour
+cache-write subset and reasoning-output subset are not counted twice. This is a neutral proxy because subscription
+limits have no stable published token conversion; units are neither remaining quota nor a subscription bill.
+Weights must be finite, non-negative numbers. Precedence is provider model, provider base, vendor model, vendor
+base, then `billing.quota_unit`. Vendor names are `anthropic`, `openai`, `google`, etc.; provider names are the
+agent names (such as `claude` or `codex`, or a custom `[providers.NAME]`). Model keys match the recorded model
+exactly, including aliases; `opus` does not also match `claude-opus-5-5`.
+
+Each new run records units per attempt's provider/model and their total, regardless of display mode. Existing
+dollar fields keep their names and meaning. Older ledger rows without units are read as the unweighted token
+total (zero when no tokens are known), without rewriting the file or applying today's weights. Stored units,
+including zero, stay unchanged when weights change. Legacy cross-provider rows lack per-provider token counts;
+their inferred units belong to the provider that finished the run.
+
+`ccx report` keeps its existing dollar presentation in `api` mode. In `subscription` mode its main totals, daily
+chart and tables put quota units first with AE$ alongside. Summary JSON includes both bases in totals, streams
+and runs, plus `quota_days_series` and `billing.mode`; `ccx stats --summary` includes the new totals and stream
+fields. UI JSON adds units and mode for the frontend to consume; the UI layout is unchanged. This changes
+accounting and presentation only, not routing, USD budget caps or measured-savings calculations.
+
+Switch with `ccx config set billing.mode subscription` (or `api`); other values are rejected. Plain `ccx stats`
+keeps its existing columns in API mode. Subscription mode adds `quota_units` first, then `api_equivalent_usd`
+and the existing billed `cost_usd`. `ccx stats --summary` includes both bases in `spend`, with the selected one
+first, and reports `billing.mode`. `ccx lead --breakdown` similarly orders its per-part estimates: quota units
+per 100 turns first in subscription mode, API-equivalent USD first in API mode. Its advice follows the same
+choice; the original dollar fields and API-mode advice are retained.
 
 ## Tiers (`config/tiers.toml`, override in `hub/ccx/tiers.toml`)
 

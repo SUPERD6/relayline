@@ -57,6 +57,8 @@ def evidence(rec: dict) -> str | None:
     v = rec.get("verdict") or {}
     if v.get("ok") is True and not v.get("soft"):
         return "your verdict: ok"
+    if rec.get("max_usd"):              # P0-15: --max-usd stopped a step (its review, say): only your verdict counts
+        return None
     c = rec.get("check") or {}
     if c.get("passed") and not c.get("broken"):
         from .coverage import text

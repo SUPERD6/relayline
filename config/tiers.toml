@@ -80,14 +80,30 @@ large = "direct"
 uncertain = "direct"
 hard = "direct"
 
-# 小活自己做（P0-6，默认关，等留出集一轮实测再开）：开了以后 ccx route / ccx propose 对主导 --files 估计 <= small_self_files
-# 个源文件的活（只看文件数，--minutes 不挡）建议 do it yourself，不再提议派；ccx run 照派、rung 照算。
+# 总开关（P0-9）：auto = 照常路由和派活；off = ccx 不派新活，ccx route / ccx propose 一律"自己做"，ccx run / batch / q run /
+# q resume / way 不带 --force 就拒绝；只当跨厂商审查和对话用：ccx ask、ccx discuss、ccx run --mode read、mem、board，
+# 以及已开始运行的 ccx resume 照常。
+# 小活自己做（P0-6，默认关，等留出集一轮实测再开）：开了以后 ccx route / ccx propose 在"自己做比派活的固定开销便宜"时
+# 建议 do it yourself，不再提议派；ccx run 照派、rung 照算。small_self_by = files（默认）= #200 的规则；cost（实验）：自己做的成本 = 请求数（--requests，
+# 否则 self_requests_base + self_requests_per_file × 文件数）×（主导会话当前长度，读不到用 self_ctx_default + 读进的文件）
+# × 缓存读价 + 读进的文件写缓存 + 少量输出，低于 small_self_overhead_usd（主导写 brief + 等 + 验收，pg1 账本中位数 $0.035，
+# 按主导模型价格缩放，再加会话更长时那约 3 次请求多读的部分）就自己做；files：--files <= small_self_files。
 # 选了档位（policy.picked）、--needs 要 ccx 才有的东西、主导上下文 >= policy.bands.lead_ctx_large、主导额度 >= small_self_quota
-# 时不生效。依据：r5 / hc1 上 self 与 ccx2 按改动文件数分流（文件 <= 1 自己做：留出集对数不变、墙钟 -14%、成本 +5%）。
+# 时不生效。依据：pg1 派活花费 82% 在主导侧；hc1 / pg1 self 账本校准（一个文件 3–4 次请求、每次约 25k token）。
 [routing]
+mode = "auto"             # ccx config set routing.mode off
 small_self = false        # ccx config set routing.small_self on
+small_self_by = "files"   # files（#200 的规则，默认）| cost（实验：自己做贵不贵）
+small_self_overhead_usd = 0.035
+small_self_overhead_requests = 3        # 派活时主导自己的请求数（pg1 ccx2 中位），开销常数按它在你会话上的价钱缩放
+small_self_overhead_on = "claude:sonnet"  # 开销常数是在哪个主导上量的
 small_self_files = 1
 small_self_quota = 0.9
+self_requests_base = 2
+self_requests_per_file = 1.5
+self_ctx_default = 25000
+self_tokens_per_file = 3000
+self_output_per_request = 100
 
 # Avoid wasting a run on a nearly exhausted subscription. / 避免快用满的一家白跑。
 [quota]
@@ -117,6 +133,19 @@ claude = "sonnet"
 roots = []                # 默认空；ccx config set projects.roots "DIR;DIR"
 max_depth = 5             # 根目录往下最多找几层
 refresh_hours = 24        # 开局时目录比这更旧就在后台轻量刷新（0 = 关）
+
+[billing]
+mode = "api"             # api | subscription: presentation only; routing and USD budget caps stay unchanged
+quota_unit = 1.0          # units per input/output token, including cache reads/writes once each
+# A neutral token proxy: vendors do not publish one stable subscription-to-token conversion.
+# Optional vendor defaults and provider overrides (non-negative finite weights):
+# [billing.vendors.anthropic]
+# quota_unit = 1.0
+# models = { opus = 2.0, sonnet = 1.0 }
+# [billing.providers.my_provider]
+# quota_unit = 0.5
+# models = { "exact-model-id" = 2.0 }  # exact model names, not patterns; replaces the base weight
+# Precedence: provider model > provider base > vendor model > vendor base > billing.quota_unit.
 
 [report]
 publish_dir = ""          # 你的私有用量仓库的本地克隆；ccx report --publish 提交到这里
@@ -226,6 +255,16 @@ max_machine_turns = 6
 # 跨电脑后备：你自己的**私人** GitHub 仓库 owner/repo（ccx config set board.github ...）。空 = 关，完全不碰网络。
 # ccx 检查它是私人的、不是项目本身的仓库；对话板同步到该仓库的一个 issue，最多每 10 分钟拉一次。
 github = ""
+
+[prompt]
+# 主导明确给了 --mode write、又没有 --check 的运行，收尾说明去掉"只要回答"那句（那是给只问答案的任务的）；从 brief 推断出的
+# write 保留它（"add() 返回什么？"也可能被读成改动）。实验性：没在真实子智能体上测过。false = 恢复原来的文字。
+slim = true
+[run]
+# 一次派活（含升级重试、审查、修复轮）累计花到这么多（API 等价美元）就停，收据写"budget cap reached"；0 = 不限（默认）。
+# 每次可用 ccx run/resume --max-usd 覆盖（只有 run/resume 读它）。正在跑的那一步不会被中途掐断：在两步之间检查，
+# 所以最多超出一步（一趟尝试，或一次审查）。
+max_usd = 0
 
 [wake]
 # 后台派活（ccx run --bg）跑完时主动告诉主导一行结论，主导不用轮询（ccx/wake.py）：Claude Code 主导走它自己的收件箱
