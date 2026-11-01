@@ -868,7 +868,11 @@ def cmd_quota(a) -> int:
     extra = {}
     if a.backfill:
         extra["backfilled"] = quota.backfill(p)
-    if a.probe:
+    if a.refresh:
+        extra["refresh"] = quota.refresh(p)
+        if a.probe:
+            extra["probe_readings"] = extra["refresh"]["claude"].get("readings", 0)
+    elif a.probe:
         extra["probe_readings"] = quota.probe(p)
     pr = quota.pressure(p)
     lam = {}
@@ -880,7 +884,8 @@ def cmd_quota(a) -> int:
     stops = quota.recent_stops(p)
     if stops:
         extra["recent_quota_stops"] = stops       # H2: why each was taken for a quota stop
-    _out({"projected_at_reset": pr["quota"], "quota_price_share_of_api": lam, "windows": pr["pace"], **extra})
+    _out({"projected_at_reset": pr["quota"], "quota_price_share_of_api": lam, "windows": pr["pace"],
+          "freshness": pr["freshness"], **extra})
     return 0
 
 
@@ -913,6 +918,8 @@ def _route_summary(out: dict) -> list[str]:
         usd = out.get("expected_usd")
         lines = [f"Pick: {pick}" + (f", p(success) {out['p']:.2f}" if isinstance(out.get("p"), (int, float)) else "")
                  + (f", expected ~${usd:.4f}" if isinstance(usd, (int, float)) else "")]
+        if out.get("quota_note"):
+            lines.append(out["quota_note"])
         if out.get("advice"):
             lines.append(f"Advice: {out['advice']}")
         if (out.get("small_self") or {}).get("applied"):
@@ -923,6 +930,10 @@ def _route_summary(out: dict) -> list[str]:
     if (out.get("small_self") or {}).get("applied"):
         return [f"Tier: {tier} ({label})" + (f": {why}" if why else ""), f"Advice: {out['advice']}",
                 "Next: do it yourself"]
+    if out.get("quota_note"):
+        why = "; ".join(x for x in (why, out["quota_note"]) if x)
+    if (out.get("quota_routing") or {}).get("all_tight"):
+        return [why, "Next: do it yourself or wait for a quota reset"]
     if tier == "T0":
         nxt = ("do it yourself (a lead's `ccx run` refuses it; from your terminal, `ccx run --to <agent>` still "
                "delegates it, on the cheapest rung)")
@@ -938,6 +949,7 @@ def _route(a) -> dict:
         spec = {"to": a.to, "files": a.files, "b": a.b, "coupling": a.coupling, "clarity": a.clarity,
                 "risk": a.risk, "novelty": a.novelty, "tradeoff": a.tradeoff, "force": True,
                 "minutes": a.minutes,
+                "quota": parse_quota(a.quota),
                 "brief": " ".join(a.text or []), "mode": getattr(a, "mode", None), "kind": a.kind}
         mode = apply_mode(spec)
         kw, route = resolve(spec, _caller(None), p, cfg)
@@ -968,6 +980,9 @@ def _route(a) -> dict:
             route["self_vs_delegate"].update(ctx_tokens=ctx, lead_ctx_tokens=lead_ctx, ctx_source=src)
             others = ((installed_agents() or list(DELEGATE_AGENTS)) + provider_agents(load_config(p))
                       if a.to == "auto" else [a.to])      # three_way holds pay-per-token agents back itself
+            from ..plan import quota_candidates
+            ranked = quota_candidates(p, cfg, others, parse_quota(a.quota))
+            others = ranked["eligible"] or others
             quota = parse_quota(a.quota)
             choice = learn.three_way(p, route["b"], a.lead, others, ctx, a.turns_left, route["tradeoff"],
                                      needs=tuple(x for x in (a.needs or "").split(",") if x), quota=quota,
@@ -981,11 +996,23 @@ def _route(a) -> dict:
         _lead_by_task(cfg, route, a)    # after `choice`: its built-in pick wins over builtin_model
         return route
     r = router.classify(" ".join(a.text), a.files)
+    from .. import quota
+    from ..plan import quota_candidates
+    quota.maybe_refresh(p, cfg)
     t = cfg["tiers"][r.tier]
     out = r.as_dict() | {"label": tier_words(p, t, r.tier, "label"), "when": tier_words(p, t, r.tier, "when"),
                          "note": "keyword heuristic; give the rubric flags for a calibrated pick",
                          "mode": apply_mode({"brief": " ".join(a.text or []), "mode": getattr(a, "mode", None)})}
-    for ag in AGENTS:
+    ranked = quota_candidates(p, cfg, [ag for ag in (installed_agents() or list(AGENTS)) if t.get(ag)],
+                              parse_quota(a.quota))
+    out["quota_routing"] = ranked
+    if ranked.get("message"):
+        out["quota_note"] = ranked["message"]
+    if ranked["all_tight"]:
+        out["advice"] = ranked["message"]
+    elif ranked["eligible"]:
+        out["recommended_agent"] = ranked["eligible"][0]
+    for ag in ranked["candidates"]:
         if t.get(ag):
             out[ag] = t[ag]
     _small_self(p, cfg, out, a, a.lead_ctx or 0, delegates=r.tier != "T0")
@@ -1373,6 +1400,7 @@ def register(sub) -> None:
     bn.set_defaults(fn=cmd_bench)
     qu = sub.add_parser("quota", help="subscription quota by pace: projected use of each window at its reset")
     qu.add_argument("--probe", action="store_true", help="one tiny Claude request now, to read its windows")
+    qu.add_argument("--refresh", action="store_true", help="refresh both subscriptions; probe only when needed")
     qu.add_argument("--backfill", action="store_true", help="read Claude windows from past run logs (once)")
     qu.set_defaults(fn=cmd_quota)
     ab = sub.add_parser("ab", help="close an A/B self-run sample")

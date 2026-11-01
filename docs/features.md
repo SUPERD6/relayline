@@ -303,6 +303,53 @@ trigger counts every piece; a follow-up and a spun-off run may be reviewed again
 code is 2 when any merged piece is not done (a piece run alone keeps `ccx run`'s exit code). An explicit `--merge`
 wins over `[lanes] default` and an explicit `--lanes` over `[merge] default`; both on the command line is an error.
 
+## Quota awareness
+
+Before a large task, run `ccx quota --refresh`. Claude's windows come from `rate_limit_event` /
+`rate_limit_info.unifiedWindows` in stream-json (kept in `<hub>/ccx/quota.jsonl`); Codex's come from
+`token_count.rate_limits` in its latest session files. They are the CLI's reported subscription windows,
+not a billing API or a promise that the next request will succeed. Missing readings stay Unknown; a window
+that reset since its reading has `used: null`. `freshness` is the reading's age in minutes, not the age of
+the refresh attempt. `projected_at_reset` (also `projected`) extrapolates the recent pace only after six hours
+of history; before then it equals current use.
+
+Refresh sends one history-free, tool-free `claude -p` request on haiku low, with a $0.005 CLI budget;
+Codex reads disk for free, and when its readings are missing, stale or already reset sends one read-only
+`codex exec` on gpt-6-luna low
+from an empty temporary directory. Probes target less than $0.005 each; the real startup cost and this bound
+are **not yet measured**. Claude's reported `cost_usd`, token usage and the API-equivalent estimate `ae_usd`
+are recorded as `quota_refresh` ledger events and in `<hub>/ccx/quota-refresh.json`; unavailable cost stays
+null. Codex's estimate is not a charge to a subscription. A failed probe preserves the old reading, records
+its error and is cooled down for the refresh interval. Re-reading an old Codex file does not make it fresh.
+Flags were checked with Claude Code 2.1.316 and codex-cli 0.164.0 `--help`; model requests were tested only
+with fake CLIs.
+
+Defaults in `<hub>/ccx/tiers.toml` (or the user config):
+
+```toml
+[quota]
+auto_refresh_min = 60  # 0 or false disables automatic refresh; --refresh still works
+avoid_above = 0.8
+routing = "on"        # "off" disables the new quota ordering
+```
+
+`ccx route` and `ccx run` refresh stale/missing readings once automatically. The existing
+`probe_claude = false` and `CCX_NO_QUOTA_PROBE=1` opt-outs still disable automatic probes. An automatic pick
+puts a vendor last if **any** window is over 80% used or projected over 100% at reset; its `quota_routing`
+and `quota_note` name the reason and alternative. When every candidate is tight, the advice is to do it
+yourself or wait for the earliest known usable reset (Unknown if unavailable). Explicit targets/models stay
+as requested; `--quota` readings override disk values. This ordering does not remove the existing quota
+shadow pricing in the cost model.
+
+A quota-classified stop records `quota_stop` evidence and tries one eligible other vendor, at most once,
+unless `--no-fallback` was set. `quota_fallback` in the receipt names both vendors and the known reset time.
+Auth errors, timeouts and other errors do not trigger this fallback. Every run stores a `quota_at_start`
+snapshot in `run.json` and a ledger event with the same `run_id`, so it can be joined with the fixed-schema
+run row later. `ccx doctor` prints one read-only quota line. The UI data's existing `quota` array adds
+`freshness` and `projected_at_reset`, keeping usage/reset fields; showing the UI never probes. The page
+itself is unchanged. Live limit recovery and the refresh cost still need the lead's next real quota-stop
+check; no improvement in task success or savings has been measured here.
+
 ## Safety
 
 - Sub-agents **may edit files** by default:

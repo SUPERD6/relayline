@@ -89,6 +89,12 @@ small_self = false        # ccx config set routing.small_self on
 small_self_files = 1
 small_self_quota = 0.9
 
+# Avoid wasting a run on a nearly exhausted subscription. / 避免快用满的一家白跑。
+[quota]
+auto_refresh_min = 60     # stale readings: one tiny probe; 0/false disables / 超过 60 分钟刷新，0/false 关
+avoid_above = 0.8         # any window > 80%, or projected > 100%, sorts last / 任一窗口用量或预测超线则降序
+routing = "on"           # off keeps the previous routing / off 关闭配额排序
+
 [lead]                    # 主导平时用的模型：估算“如果自己做要花多少”；lead.model_by_task 开时也是“强档”的名字（强档不传 --model，工具照常用自己的模型）
 claude = "opus"
 codex = "gpt-6.1-sol"

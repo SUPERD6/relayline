@@ -156,6 +156,48 @@ Fail（做对 29 对 30），事后解读为未定。按配对看，三个都没
 的运行可能再审一次）、墙钟变长；只要有合并的块没做完，退出码就是 2（单独跑的块仍按 `ccx run` 原来的退出码）。命令行上的 `--merge` 优先于
 `[lanes] default`，命令行上的 `--lanes` 优先于 `[merge] default`；两个都写在命令行上会报错。
 
+## 配额感知
+
+开大活前可以运行 `ccx quota --refresh`。Claude 从 stream-json 的 `rate_limit_event` /
+`rate_limit_info.unifiedWindows` 读窗口，保存在 `<hub>/ccx/quota.jsonl`；Codex 从最新会话文件的
+`token_count.rate_limits` 读取。这是 CLI 报告的订阅窗口，不是账单接口，也不保证下一次请求能成功。
+读不到就保留 Unknown；读数之后已经重置的窗口用 `used: null` 表示。`freshness` 是读数多少分钟前产生，
+不是刷新尝试距今多久。`projected_at_reset`（兼容原来的 `projected`）在有至少六小时历史后才按最近消耗
+速度外推；不足六小时时等于当前用量。
+
+刷新对 Claude 发一次 haiku low 的最小 `claude -p` 请求，不带会话历史、工具或项目上下文，并传入
+$0.005 的 CLI 预算；Codex 优先免费重读磁盘，读数缺失、超过刷新间隔或窗口已经重置时，
+才从空临时目录发一次只读 `codex exec`，
+使用 gpt-6-luna low。探针目标每次低于 $0.005，**真实启动成本和是否达到此目标尚未实测**。
+Claude 报告的 `cost_usd`、token 用量及 API 等价估算 `ae_usd` 写入账本的 `quota_refresh` 事件和
+`<hub>/ccx/quota-refresh.json`；未知费用为 null，Codex 的等价估算不等于订阅额外收费。
+失败保留旧读数、记录错误，并在刷新间隔内冷却；重读旧 Codex 文件不会把读数标成新鲜。
+参数已用 Claude Code 2.1.316、codex-cli 0.164.0 的 `--help` 核对；模型请求只用假 CLI 测试。
+
+默认配置（放在 `<hub>/ccx/tiers.toml` 或个人配置里）：
+
+```toml
+[quota]
+auto_refresh_min = 60  # 0 或 false 关闭自动刷新；显式 --refresh 仍可用
+avoid_above = 0.8
+routing = "on"        # "off" 关闭新增的配额排序
+```
+
+`ccx route` 和 `ccx run` 遇到过期或缺失读数会自动刷新一次。原有 `probe_claude = false` 和
+`CCX_NO_QUOTA_PROBE=1` 仍可关闭自动探针。自动选择时，某家**任一窗口**用量超过 80%，或重置时预测
+超过 100%，就排到最后；输出的 `quota_routing`、`quota_note` 写明用量、原因和备选家。
+所有候选都紧时，建议自己做或等最早已知可用的重置时间；没有重置时间就写 Unknown。
+显式指定的目标或模型保持原选择；`--quota` 优先于文件读数。关闭新增排序不影响原成本模型已有的
+配额影子定价。
+
+运行撞到被分类为配额的停止时，记录 `quota_stop` 证据，只向另一家可用候选改派一次；
+`--no-fallback` 仍关闭回退。收据中的 `quota_fallback` 写明两家及已知重置时间。
+鉴权、超时等非配额错误不触发这条回退。每次运行在 `run.json` 保存 `quota_at_start`，账本另存
+同一 `run_id` 的快照事件，之后可关联固定格式的运行行。`ccx doctor` 多一行只读配额摘要。
+UI 数据原有 `quota` 数组补充 `freshness`、`projected_at_reset`，用量与重置时间字段保持；
+打开 UI 不会调用探针，页面本身未改。真实限额后的恢复与刷新费用，待统筹下次实际限额时验证；
+这里没有测出任务成功率或节省幅度。
+
 ## 安全边界
 
 - 子智能体默认**可以改文件**（Codex `workspace-write` 沙箱；Claude `acceptEdits` 加工具白名单，只放行 git/python/pytest/npm/node 命令）。只想让它分析时加 `--mode read`。多个并行写任务自动放进不同 git worktree。

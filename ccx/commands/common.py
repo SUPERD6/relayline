@@ -266,17 +266,9 @@ def cash_ready(p, cfg: dict, quota: dict) -> list[str]:
 
 
 def _maybe_probe_claude(p, cfg: dict, agents: list[str], given: dict) -> None:
-    """Claude's quota is only seen in a Claude run's events. When Claude is a candidate and the last reading is
-    over an hour old, one tiny request refreshes it (off with [quota] probe_claude = false or CCX_NO_QUOTA_PROBE)."""
-    if "claude" not in agents or "claude" in given or os.environ.get("CCX_NO_QUOTA_PROBE") == "1"             or not (cfg.get("quota") or {}).get("probe_claude", True) or not find_bin("claude"):
-        return
+    """Legacy helper name; both subscriptions share the age gate, keeping the old Claude opt-outs."""
     from .. import quota
-    age = quota.claude_reading_age(p)
-    if age is None or age > quota.PROBE_AFTER_S:
-        try:
-            quota.probe(p)
-        except Exception:  # noqa: BLE001 — a failed probe just leaves the old reading
-            pass
+    quota.maybe_refresh(p, cfg, agents, given)
 
 
 def resolve(spec: dict, caller: str, p, cfg: dict) -> tuple[dict | None, dict]:
@@ -286,6 +278,8 @@ def resolve(spec: dict, caller: str, p, cfg: dict) -> tuple[dict | None, dict]:
     Order: explicit --model/--effort  >  rubric (task-routing, learns from outcomes)  >  --tier  >
     keyword heuristic (fallback when no rubric is given)."""
     to = spec.get("to") or "auto"
+    from ..plan import quota_candidates
+    _maybe_probe_claude(p, cfg, ["claude", "codex"] if to == "auto" else [to], spec.get("quota") or {})
     # the model pick: --tradeoff, else defaults.tradeoff, as before. A tier the person picked in their settings
     # (`ccx config set policy.picked <tier>`) is the whole-workflow tier when the lead names none (who does it, the
     # size band), but it does not change the models: the delegated part picks them like save (DECISIONS, tiers)
@@ -341,8 +335,16 @@ def resolve(spec: dict, caller: str, p, cfg: dict) -> tuple[dict | None, dict]:
     if "b" in route and spec.get("tier", "auto") == "auto":
         agents = ((installed_agents() or list(AGENTS)) + cash_ready(p, cfg, spec.get("quota") or {})
                   if to == "auto" else [to])
-        _maybe_probe_claude(p, cfg, agents, spec.get("quota") or {})
-        pk = learn.pick(p, route["b"], agents, tradeoff,
+        ranked = quota_candidates(p, cfg, agents, spec.get("quota"))
+        route["quota_routing"] = ranked
+        if ranked.get("message"):
+            route["quota_note"] = ranked["message"]
+        if ranked["all_tight"]:
+            route["advice"] = ranked["message"]
+            if to == "auto" and not spec.get("force"):
+                return None, route
+        eligible = ranked["eligible"] if to == "auto" and ranked["eligible"] else agents
+        pk = learn.pick(p, route["b"], eligible, tradeoff,
                         max_escalations=int(cfg["defaults"].get("max_escalations", 1)), mode=spec.get("mode"),
                         kind=spec.get("kind"), quota=spec.get("quota"), risk=spec.get("risk"))
         route["kind"] = learn.task_kind(spec.get("mode"), spec.get("kind"))
@@ -393,7 +395,18 @@ def resolve(spec: dict, caller: str, p, cfg: dict) -> tuple[dict | None, dict]:
             return None, route
     if tier == "T0":
         tier = "T1"
-    return {"to": _target(to, caller), "tier": tier, "route": route}, route
+    target = _target(to, caller)
+    candidates = [ag for ag in (installed_agents() or list(AGENTS)) if cfg["tiers"].get(tier, {}).get(ag)]
+    ranked = quota_candidates(p, cfg, candidates if to == "auto" else [target], spec.get("quota"))
+    route["quota_routing"] = ranked
+    if ranked.get("message"):
+        route["quota_note"] = ranked["message"]
+    if to == "auto" and ranked["all_tight"] and not spec.get("force"):
+        route["advice"] = ranked["message"]
+        return None, route
+    if to == "auto" and target in ranked["tight"] and ranked["eligible"]:
+        target = ranked["eligible"][0]
+    return {"to": target, "tier": tier, "route": route}, route
 
 
 PERSON_TO_NOTE = ("small enough that doing it yourself would be cheaper; delegated anyway because you named --to "

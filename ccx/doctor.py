@@ -306,6 +306,8 @@ def doctor(p: Paths, codex_lead: bool = False, verbose: bool = False) -> bool:
     except Exception as e:  # noqa: BLE001
         add("tiers.toml", "FAIL", str(e))
     add("ccx config", *config_row(p))
+    from . import quota
+    add("subscription quota", "info", quota.summary(p))
     try:                                   # a broken layout.toml: keep the table, skip the rows that read it
         lay = p.layout
     except ValueError as e:

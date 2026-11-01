@@ -18,6 +18,43 @@ def other(agent: str, cfg: dict | None = None) -> str:
     return got[0] if got else "codex"
 
 
+def quota_candidates(p: Paths, cfg: dict, agents: list[str], given: dict | None = None) -> dict:
+    """Stable partition: tight subscriptions last; unknown readings remain eligible, explicitly labelled.
+    Filtering the first group before the cost pick prevents a cheap but exhausted subscription winning again."""
+    from . import quota
+    agents = list(dict.fromkeys(agents))
+    opts = cfg.get("quota") or {}
+    if str(opts.get("routing", "on")).lower() in ("off", "false", "0"):
+        return {"candidates": agents, "eligible": agents, "tight": {}, "all_tight": False}
+    pr = quota.pressure(p, given)
+    tight = {}
+    for ag in agents:
+        wins = pr["pace"].get(ag) or {}
+        if ag in (given or {}):
+            wins = {"given": {"used": given[ag], "projected": given[ag]}}
+        hit = [w for w in wins.values() if w.get("used") is not None and
+               (w["used"] > float(opts.get("avoid_above", 0.8)) or w.get("projected", 0) > 1.0)]
+        if hit:
+            tight[ag] = {"used": max(w["used"] for w in hit),
+                         "projected_at_reset": max(w.get("projected", w["used"]) for w in hit),
+                         "resets_at": max((w.get("resets_at") or 0 for w in hit), default=0) or None}
+    available = [ag for ag in agents if ag not in tight]
+    out = {"candidates": available + [ag for ag in agents if ag in tight],
+           "eligible": available, "tight": tight, "all_tight": bool(agents) and not available,
+           "freshness": pr["freshness"]}
+    if tight:
+        why = "; ".join(f"{ag} quota {w['used']:.0%}, projected {w['projected_at_reset']:.0%}"
+                        for ag, w in tight.items())
+        if available:
+            out["message"] = f"{why}; prefer {', '.join(available)}"
+        else:
+            resets = [w["resets_at"] for w in tight.values() if w["resets_at"]]
+            reset = min(resets) if resets else None
+            out["resets_at"] = reset
+            out["message"] = f"{why}; all quotas tight: do it yourself or wait until {quota.reset_text(reset)}"
+    return out
+
+
 def _provider_envs(cfg: dict, plan: list[dict]) -> dict:
     """agent -> (cli, env) for every provider agent in the plan. A missing key fails the run up front when the
     first rung needs it; later rungs that need it are simply not reached (their entry is left out)."""
@@ -94,11 +131,16 @@ def _fallback_plan(req: Request, p: Paths, cfg: dict, failed: dict) -> dict | No
     """First rung on another vendor's agent after a quota stop: routing picks the cheapest in total among the
     installed ones that can work (I4); without a difficulty, the first of them."""
     from .agents import others
-    to = other(failed["agent"], cfg)
+    candidates = others(failed["agent"], cfg) or [other(failed["agent"], cfg)]
+    ranked = quota_candidates(p, cfg, candidates)
+    candidates = ranked["eligible"]
+    if not candidates:
+        return None
+    to = candidates[0]
     b = (req.route or {}).get("b")
     if b is not None:
         try:
-            pk = learn.pick(p, float(b), others(failed["agent"], cfg) or [to],
+            pk = learn.pick(p, float(b), candidates,
                             (req.route or {}).get("tradeoff", "save"), mode=req.mode)
             return _rung_spec(pk["rung"])
         except Exception:  # noqa: BLE001

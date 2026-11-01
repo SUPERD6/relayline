@@ -42,6 +42,9 @@ if stream:
         print("Error: When using --print, --output-format=stream-json requires --verbose", file=sys.stderr)
         sys.exit(1)
     print(json.dumps({"type": "system", "subtype": "init", "session_id": sid, "model": "fake"}), flush=True)
+    if os.environ.get("FAKE_QUOTA_CLAUDE"):
+        print(json.dumps({"type": "rate_limit_event", "rate_limit_info": {
+            "unifiedWindows": json.loads(os.environ["FAKE_QUOTA_CLAUDE"])}}))
 if mode == "hang":
     if stream:   # one request already answered (as stream-json prints it, twice for one message) before it hangs
         msg = {"type": "assistant", "session_id": sid, "message": {"id": "msg_1", "model": "claude-sonnet", "usage": {
@@ -93,6 +96,7 @@ denials = [{"tool_name": "Bash", "tool_use_id": f"t{i}", "tool_input": {"command
            for i in range(int(os.environ.get("FAKE_DENIALS") or 0))]     # FAKE_DENIALS: tool calls refused
 print(json.dumps({"type": "result", "subtype": "success", "is_error": False, "session_id": sid,
                   **({"permission_denials": denials} if os.environ.get("FAKE_DENIALS") else {}),
-                  "result": json.dumps(res), "structured_output": res, "total_cost_usd": 0.0123,
+                  "result": json.dumps(res), "structured_output": res,
+                  "total_cost_usd": 0.0004 if prompt == "Reply OK. Do not use tools." else 0.0123,
                   "usage": {"input_tokens": 10, "cache_creation_input_tokens": 900,
                             "cache_read_input_tokens": 3000, "output_tokens": 200}}))
