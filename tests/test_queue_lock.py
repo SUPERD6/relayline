@@ -26,6 +26,11 @@ def _tmp(case: unittest.TestCase) -> Path:
     return d
 
 
+MONO_OFFSET = 10 ** 6       # the fake time.monotonic is this far behind the fake time.time
+PAUSE_MAX = 0.05            # the longest sleep of the lock's retry loop with its jitter fixed at 0.5
+EPS = 1e-9
+
+
 class TestLockRetries(unittest.TestCase):
     def setUp(self):
         self.root = _tmp(self)
@@ -57,6 +62,35 @@ class TestLockRetries(unittest.TestCase):
         self.assertFalse(th.is_alive(), "the lock kept waiting")
         return out
 
+    def _clock(self, stack, start=None, on_sleep=None):
+        """ccx.queue's time on a fake clock: it moves only when the lock sleeps (or a fake wait moves it), so how slow
+        the runner is changes nothing, and time.time and time.monotonic move in step. On the wall clock they do not:
+        PR #222's CI (windows 3.11) measured 0.298 s with time.time across a wait that _stale had counted as more than
+        0.3 s on time.monotonic. monotonic stays a different number (MONO_OFFSET behind), so code that compares it with
+        an mtime fails here as it would for real. The jitter is fixed (random() = 0.5): each sleep is the pause itself,
+        at most PAUSE_MAX. Starts at the real time unless told, so files written just now are just now on it; it can run
+        ahead of the real time (a release that retries for 2 s), so judge staleness only by mtimes set on it.
+        on_sleep(clock) runs after each sleep (others acting while this waiter sleeps). -> the clock (now, first,
+        sleeps, calls)."""
+        clock = SimpleNamespace(now=time.time() if start is None else start, first=None, sleeps=0, calls=0)
+
+        def now():
+            clock.calls += 1                           # a retry loop that never sleeps would never reach a deadline
+            self.assertLess(clock.calls, 10 ** 5, "the lock kept retrying without sleeping")
+            return clock.now
+
+        def sleep(s):
+            if clock.first is None:
+                clock.first = clock.now
+            clock.sleeps += 1
+            clock.now += s
+            if on_sleep:
+                on_sleep(clock)
+        stack.enter_context(mock.patch.object(wq, "time", SimpleNamespace(
+            time=now, monotonic=lambda: now() - MONO_OFFSET, sleep=sleep, monotonic_ns=time.monotonic_ns)))
+        stack.enter_context(mock.patch.object(wq, "random", SimpleNamespace(random=lambda: 0.5)))
+        return clock
+
     def test_denied_create_is_retried_on_windows(self):
         with mock.patch.object(wq, "_WINDOWS", True), mock.patch("ccx.queue.os.open", self.flaky_open(3)):
             wq.update(self.root, "q1", status="doing")
@@ -65,83 +99,99 @@ class TestLockRetries(unittest.TestCase):
         self.assertFalse(self.lock.exists())
 
     def test_denied_create_raises_at_once_elsewhere(self):
-        t = time.time()
-        with mock.patch.object(wq, "_WINDOWS", False), mock.patch("ccx.queue.os.open", self.flaky_open(10 ** 6)):
-            with self.assertRaises(PermissionError):
-                with wq._lock(self.root, timeout=10):
-                    pass
-        self.assertLess(time.time() - t, 2)
+        with ExitStack() as stack:
+            clock = self._clock(stack)
+            with mock.patch.object(wq, "_WINDOWS", False), mock.patch("ccx.queue.os.open", self.flaky_open(10 ** 6)):
+                with self.assertRaises(PermissionError):
+                    with wq._lock(self.root, timeout=10):
+                        pass
+        self.assertEqual(clock.sleeps, 0)
 
     def test_folder_not_writable_raises_at_once_on_windows(self):
-        t = time.time()                    # the default timeout: no 2 * 10 s stall when no file can be created at all
-        with mock.patch.object(wq, "_WINDOWS", True), \
-                mock.patch("ccx.queue.os.open", self.flaky_open(10 ** 6, only_lock=False)):
-            with self.assertRaises(PermissionError):
-                with wq._lock(self.root):
-                    pass
-        self.assertLess(time.time() - t, 2)
+        with ExitStack() as stack:         # the default timeout: no 2 * 10 s stall when no file can be created at all
+            clock = self._clock(stack)
+            with mock.patch.object(wq, "_WINDOWS", True), \
+                    mock.patch("ccx.queue.os.open", self.flaky_open(10 ** 6, only_lock=False)):
+                with self.assertRaises(PermissionError):
+                    with wq._lock(self.root):
+                        pass
+        self.assertEqual(clock.sleeps, 0)
 
     def test_lasting_denial_of_the_lock_raises_after_the_deadline(self):
-        t = time.time()
-        with mock.patch.object(wq, "_WINDOWS", True), mock.patch("ccx.queue.os.open", self.flaky_open(10 ** 6)):
-            with self.assertRaises(PermissionError):
-                with wq._lock(self.root, timeout=0.2):
-                    pass
-        self.assertGreaterEqual(time.time() - t, 0.4)
+        with ExitStack() as stack:
+            clock = self._clock(stack)
+            t = clock.now
+            with mock.patch.object(wq, "_WINDOWS", True), mock.patch("ccx.queue.os.open", self.flaky_open(10 ** 6)):
+                with self.assertRaises(PermissionError):
+                    with wq._lock(self.root, timeout=0.2):
+                        pass
+        self.assertGreaterEqual(clock.now - t, 0.4)
+        self.assertLess(clock.now - t, 0.4 + PAUSE_MAX + EPS)
+        wq.update(self.root, "q1", status="doing")     # the failed wait gave this process's turn back: writes work
+        self.assertFalse(self.lock.exists())
 
     def test_lock_that_cannot_be_taken_over_does_not_hang(self):
         wq.qdir(self.root).mkdir(parents=True)
         self.lock.write_bytes(b"crashed")
-        old = time.time() - 100
-        os.utime(self.lock, (old, old))
         real = Path.unlink
 
         def unlink(p, *a, **k):            # held open by a hung writer (Windows): the takeover is denied
             if p == self.lock:
                 raise PermissionError(13, "Permission denied", str(p))
             return real(p, *a, **k)
-        with mock.patch.object(Path, "unlink", unlink):
-            out = self.in_thread(lambda: wq._lock(self.root, timeout=0.2).__enter__())
+        with ExitStack() as stack:
+            clock = self._clock(stack)
+            old = clock.now - 100
+            os.utime(self.lock, (old, old))
+            t = clock.now
+            with mock.patch.object(Path, "unlink", unlink):
+                out = self.in_thread(lambda: wq._lock(self.root, timeout=0.2).__enter__())
         self.assertIsInstance(out.get("err"), PermissionError)
+        self.assertGreaterEqual(clock.now - t, 0.4)
+        self.assertLess(clock.now - t, 0.4 + PAUSE_MAX + EPS)
 
     @unittest.skipUnless(os.name == "nt", "a handle blocks deleting the file only on Windows")
     def test_real_open_handle_does_not_hang(self):
         wq.qdir(self.root).mkdir(parents=True)
-        with open(self.lock, "w"):
-            old = time.time() - 100
+        with ExitStack() as stack, open(self.lock, "w"):
+            clock = self._clock(stack)
+            old = clock.now - 100
             os.utime(self.lock, (old, old))
+            t = clock.now
             out = self.in_thread(lambda: wq._lock(self.root, timeout=0.2).__enter__())
-        self.assertIn("err", out)
+        self.assertIsInstance(out.get("err"), PermissionError)          # the deadline, not the fake clock's guard
+        self.assertGreaterEqual(clock.now - t, 0.4)
+        self.assertLess(clock.now - t, 0.4 + PAUSE_MAX + EPS)
 
     def test_fresh_lock_is_never_taken_over(self):
         wq.qdir(self.root).mkdir(parents=True)
         self.lock.write_bytes(b"another writer")
-        stop = threading.Event()
 
-        def retake():                      # taken again just now, every time this waiter looks (contention)
-            while not stop.is_set():
-                new = time.time()
-                os.utime(self.lock, (new, new))
-                time.sleep(0.02)
-        th = threading.Thread(target=retake, daemon=True)
-        th.start()
-        self.addCleanup(th.join)
-        self.addCleanup(stop.set)
-        with self.assertRaises(RuntimeError):     # waited past timeout, but the lock is never old: no takeover
-            with wq._lock(self.root, timeout=0.2):
-                pass
+        def retake(clock):                 # taken again just now, every time this waiter looks (contention)
+            os.utime(self.lock, (clock.now, clock.now))
+        with ExitStack() as stack:
+            clock = self._clock(stack, on_sleep=retake)
+            os.utime(self.lock, (clock.now, clock.now))
+            t = clock.now
+            with self.assertRaises(RuntimeError):     # waited past timeout, but the lock is never old: no takeover
+                with wq._lock(self.root, timeout=0.2):
+                    pass
+        self.assertGreaterEqual(clock.now - t, 0.4)
+        self.assertLess(clock.now - t, 0.4 + PAUSE_MAX + EPS)  # after 2 * timeout without a change of hands
         self.assertEqual(self.lock.read_bytes(), b"another writer")
 
     def test_lock_from_the_future_is_taken_over_before_the_deadline(self):
         wq.qdir(self.root).mkdir(parents=True)
         self.lock.write_bytes(b"crashed, server clock ahead")
-        new = time.time() + 3600           # clock skew on a shared folder, or a restored file: mtime never "old"
-        os.utime(self.lock, (new, new))
-        t = time.time()
-        with wq._lock(self.root, timeout=0.3):    # unchanged for > timeout as this waiter watched it: taken over
-            pass
-        self.assertGreaterEqual(time.time() - t, 0.3)
-        self.assertLess(time.time() - t, 0.6)    # before the 2 * timeout deadline
+        with ExitStack() as stack:
+            clock = self._clock(stack)
+            new = clock.now + 3600         # clock skew on a shared folder, or a restored file: mtime never "old"
+            os.utime(self.lock, (new, new))
+            t = clock.now
+            with wq._lock(self.root, timeout=0.3):    # unchanged for > timeout as this waiter watched it: taken over
+                pass
+        self.assertGreaterEqual(clock.now - t, 0.3)
+        self.assertLess(clock.now - t, 0.3 + PAUSE_MAX + EPS)  # the first look after timeout, not 2 * timeout
         self.assertFalse(self.lock.exists())
         wq.update(self.root, "q1", status="doing")                     # and later writes work again
         self.assertFalse(self.lock.exists())
@@ -161,12 +211,13 @@ class TestLockRetries(unittest.TestCase):
     def test_stale_lock_is_taken_over_at_once(self):
         wq.qdir(self.root).mkdir(parents=True)
         self.lock.write_bytes(b"crashed")
-        old = time.time() - 100
-        os.utime(self.lock, (old, old))
-        t = time.time()
-        with wq._lock(self.root, timeout=5):
-            pass
-        self.assertLess(time.time() - t, 2)
+        with ExitStack() as stack:
+            clock = self._clock(stack)
+            old = clock.now - 100
+            os.utime(self.lock, (old, old))
+            with wq._lock(self.root, timeout=5):
+                pass
+        self.assertEqual(clock.sleeps, 0)
         self.assertFalse(self.lock.exists())
 
     def test_release_leaves_a_lock_that_is_no_longer_ours(self):
@@ -182,16 +233,20 @@ class TestLockRetries(unittest.TestCase):
                 n["left"] -= 1
                 raise PermissionError(13, "Permission denied", str(p))
             return real(p, *a, **k)
-        with mock.patch.object(Path, "unlink", unlink):
-            wq.update(self.root, "q1", status="doing")
-        self.assertFalse(self.lock.exists())
-        with mock.patch.object(Path, "unlink", lambda p, *a, **k: (_ for _ in ()).throw(PermissionError(13, "x"))):
-            wq.update(self.root, "q1", status="done")                  # the release keeps failing: still no raise
-        self.assertTrue(self.lock.exists())
-        old = time.time() - 100
-        os.utime(self.lock, (old, old))
-        with wq._lock(self.root, timeout=0.2):                         # left behind: taken over once stale
-            pass
+        with ExitStack() as stack:                     # its retries sleep on the fake clock, not for 2 s
+            clock = self._clock(stack)
+            with mock.patch.object(Path, "unlink", unlink):
+                wq.update(self.root, "q1", status="doing")
+            self.assertFalse(self.lock.exists())
+            self.assertEqual(clock.sleeps, 2)                              # one short wait per denial
+            with mock.patch.object(Path, "unlink", lambda p, *a, **k: (_ for _ in ()).throw(PermissionError(13, "x"))):
+                wq.update(self.root, "q1", status="done")                  # the release keeps failing: still no raise
+            self.assertTrue(self.lock.exists())
+            self.assertEqual(clock.sleeps, 2 + 100)                        # it kept trying (about 2 s) first
+            old = clock.now - 100
+            os.utime(self.lock, (old, old))
+            with wq._lock(self.root, timeout=0.2):                         # left behind: taken over once stale
+                pass
 
     def _many_threads(self, n, t):
         errs = []
@@ -263,17 +318,8 @@ class TestLockRetries(unittest.TestCase):
         d = wq.qdir(self.root)
         d.mkdir(parents=True, exist_ok=True)
         self.lock.write_bytes(b"another 0")
-        clock = SimpleNamespace(now=1000.0, first=None, calls=0, writers=0)
 
-        def now():
-            clock.calls += 1                           # a retry loop that never sleeps would never reach a deadline
-            self.assertLess(clock.calls, 10 ** 5, "the lock kept retrying without sleeping")
-            return clock.now
-
-        def sleep(s):
-            if clock.first is None:
-                clock.first = clock.now
-            clock.now += s
+        def others(clock):
             if not self.lock.read_bytes().startswith(b"another"):
                 return                                 # ours (a sleep in the release): leave it
             if clock.now - clock.first >= seconds:
@@ -285,7 +331,8 @@ class TestLockRetries(unittest.TestCase):
                 tmp = d / "next"
                 tmp.write_bytes(f"another {n}".encode())
                 os.replace(tmp, self.lock)
-        stack.enter_context(mock.patch.object(wq, "time", SimpleNamespace(time=now, monotonic=now, sleep=sleep)))
+        clock = self._clock(stack, start=1000.0, on_sleep=others)
+        clock.writers = 0
         stack.enter_context(mock.patch("ccx.queue._stale", return_value=False))   # not a takeover test
         return clock
 
@@ -332,14 +379,25 @@ class TestLockRetries(unittest.TestCase):
         self.assertGreater(clock.writers, 100)
 
     def test_thread_hung_holding_the_lock_fails_the_others_after_2x_timeout(self):
-        turns = wq._local_lock(self.lock)
-        turns.lock.acquire()
-        self.addCleanup(turns.lock.release)
-        t = time.time()
-        with self.assertRaises(RuntimeError):
-            with wq._lock(self.root, timeout=0.2):
-                pass
-        self.assertLess(time.time() - t, 3)            # not MAX_WAIT_FACTOR * timeout (6 s)
+        with ExitStack() as stack:
+            clock = self._clock(stack)
+            turns = wq._Turns()
+
+            class Hung:                                # held by a sibling that never lets go: no turn changes hands
+                def acquire(self, timeout=-1):
+                    clock.now += timeout
+                    return False
+
+                def release(self):
+                    pass
+            turns.lock = Hung()
+            stack.enter_context(mock.patch.object(wq, "_local_lock", return_value=turns))
+            t = clock.now
+            with self.assertRaises(RuntimeError):
+                with wq._lock(self.root, timeout=0.25):   # waits of 0.1 s: past 2 * timeout at the 6th, 0.6 s
+                    pass
+        self.assertGreaterEqual(clock.now - t, 0.5)
+        self.assertLess(clock.now - t, 0.65)           # not MAX_WAIT_FACTOR * timeout (7.5 s)
 
     def test_probe_names_differ_within_one_clock_tick(self):
         # monotonic_ns is ~15 ms coarse on Windows before 3.13: two threads probing in one tick shared a name, and

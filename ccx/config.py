@@ -313,6 +313,9 @@ SETTINGS = {   # key -> (type, help). Only these can be set with `ccx config set
     "lead.claude": (str, "model the Claude lead runs on (for savings estimates; with lead.model_by_task also the "
                            "strong lead's name, which passes no --model), e.g. opus"),
     "lead.codex": (str, "model the Codex lead runs on, e.g. gpt-6.1-sol"),
+    "prompt.slim": (_bool, "true | false: a run given --mode write and no --check is not told what to do when the "
+                           "task only asks for an answer (that sentence is left out); false = the text as before "
+                           "(default true)"),
     "run.max_usd": (float, "default --max-usd of ccx run / resume: stop the delegation (its attempts, review and fix "
                            "round together) once it has spent this many API-equivalent $ (0 = no limit, the default; "
                            "batch, q run, way and task resume do not read it)"),
