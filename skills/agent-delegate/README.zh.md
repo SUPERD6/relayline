@@ -31,7 +31,7 @@
 3. **运行**：`ccx run`（带打分参数时自动选模型；默认允许改文件）、`--model/--effort`（自己指定，加 `--minutes` 才能用来校准路由）、`--mode read`（只分析）、`--check CMD`（验收命令，子智能体跑完 ccx 再跑一遍）、`--risk visible` / `--review on|off`（由另一家的便宜模型审改动；auto 时风险高、代码改动 50 行以上、子智能体没把握、说的和实际改动对不上，或证据弱（没有 `--check`、check 不跑测试、跑的测试没提到改动的文件或函数、或验收命令放过过做错的结果；只用另一家最便宜的一档，每天最多 20 次，`weak_daily`）才审）、`--worktree`（在单独的分支上改）、`--bg --wait 540`（一次调用拿结果；还在跑再 `ccx show <run_id> --wait`）、`ccx stop <run_id>`（停掉正在跑的委派，之后可 `ccx resume`）、`--task/--step`（会话 ID 写进 task-checkpoint）、`ccx batch`（并行）、`ccx resume`（同一个子会话里追问或接着做）、`ccx way --risk low|visible|critical`（按风险选做法；critical 约贵一倍，先问用户）。
    - 额度用完/限流：自动换另一个智能体再试一次（`--no-fallback` 关掉）。
    - 超时、崩溃或 `ccx stop`：会话 ID 已经存下，`ccx resume <run_id>` 接着做。
-4. **验收**：已经打印出带 `run_id` 的结果就别再派同一份简报，要补充用 `ccx resume <run_id>`。总结只是说法。
+4. **验收**：已经打印出带 `run_id` 的结果就别再派同一份简报，要补充用 `ccx resume <run_id>`。总结只是说法。check 通过、审查通过或没跑、没有要你看的东西时，结果只有一行（`"view": "line"`：summary、文件、diffstat、check、recap）；要看其余的用 `ccx show <run_id>`，需要时才看。
    - 结果里有 `needs_lead`、`edited_tests` 或 `namecheck` 时**先看它们**（`namecheck`：改动的函数里没有任何作用域定义的名字，多半是测试没覆盖到的 NameError）。
    - `check` 通过且跑的是相关测试，再看 `files_changed` / `diffstat` 就够了，**不要自己重跑**（H11 实测 2026-10-24）。只有 check 失败、没有、带 `weak`（这个命令在这里放过过做错的结果），或状态是 partial/blocked 时，才自己跑测试或读完整 diff。`check.covers` 列出它实际跑了哪些测试文件：没测到任务要求的行为，就不算"相关测试"；有 `check.basis_changed` 表示它是在子智能体改过的测试上通过的，先看那几处改动。
    - **子智能体自写测试通过 ≠ 做对。** check 跑到的测试文件全是子智能体这次新写或改过的，`kind` 就是 `ok_self_checked`（退出码仍是 0；`check.basis` 和 `needs_lead` 写明"未经独立验证"；默认 ccx 会交给审查、要求对照任务原文核对，见 `[escalate] on_self_checked`）。主导要自己对照任务原文验收（任务里写的每个名字、签名、返回值、错误和情形），或给它一个运行前就有的测试做 check，才算做完。外部基准里 18 道隐藏测试失败的题，全都通过了子智能体自己的 `test_own.py`。

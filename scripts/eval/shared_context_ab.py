@@ -162,7 +162,7 @@ def run_unit(u: dict, out: Path, lock: threading.Lock) -> dict:
     f = out / "claude-home" / "projects" / "lead" / f"{sid}.jsonl"
     f.parent.mkdir(parents=True, exist_ok=True)
     f.write_text("".join(json.dumps(e) + "\n" for e in lead_transcript(task, time.time())), encoding="utf-8")
-    env = {**env_for(out), "CCX_LEAD_SESSION": sid}
+    env = {**env_for(out), "CCX_LEAD_SESSION": sid, "CCX_LEAD_VIEW": "full"}   # it reads tokens from the result
     model, effort = MODELS[u["agent"]]
     argv = [sys.executable, str(ROOT / "ccx.py"), "run", "--from", "claude", "--to", u["agent"], "--model", model,
             "--effort", effort, "--mode", "write", "--context", u["arm"], "--new", "--no-ab", "--no-escalate",
