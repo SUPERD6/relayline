@@ -1037,7 +1037,7 @@ def month_view(rd: Reader, wait: bool = True) -> dict | None:
         s = report.summarize(rd.p, report.collect(rd.p, max(1 / 24, (now - start) / 86400), include_lead=False))
         t = s["totals"]
         return {"since": start, "sub_usd": t["sub_ae"], "runs": t["runs"], "saving": t["saving"],
-                "quota_units": t["sub_quota_units"], "billing": s["billing"],
+                "quota_units": t.get("sub_quota_units", 0), "billing": s.get("billing", {"mode": "api"}),
                 "kind": t["saving_kind"], "ci95": t["saving_ci95"], "n": t["saving_n"]}
     return _later(rd, "month", MONTH_EVERY_S, make, wait, None)
 
@@ -1400,6 +1400,11 @@ def project_map(rd: Reader, p: Paths, pr: dict, runs: list[dict], verdicts: dict
             x["usd"] = round(x["usd"] + float(rv["usd"]), 6)
         for k in {a.get("rung") or "?" for a in r.get("attempts") or []}:
             rungs[k]["runs"] += 1
+    spend = {"usd": round(sum(_usd(r) for r in week), 4), "runs": len(week),
+             "rungs": sorted(rungs.values(), key=lambda x: -x["usd"])}
+    cfg = rd.cfg()
+    if (cfg.get("billing") or {}).get("mode", "api") == "subscription":
+        spend["quota_units"] = round(sum(_quota_units(r, cfg) for r in week), 6)
     return {
         "id": pr["id"], "name": pr["name"],
         "agents": sorted(names), "edges": edges[:12],
@@ -1410,9 +1415,7 @@ def project_map(rd: Reader, p: Paths, pr: dict, runs: list[dict], verdicts: dict
         "memory": {"total": len(live), "here": sum(memory.relevant(e, root.name) for e in live),
                    "carried": sum(1 for row in rows if row["notes"]), "notes": notes},
         "receipts": rows[:MAP_RECEIPTS_MAX], "receipts_total": len(rows),
-        "spend": {"usd": round(sum(_usd(r) for r in week), 4),
-                  "quota_units": round(sum(_quota_units(r, rd.cfg()) for r in week), 6), "runs": len(week),
-                  "rungs": sorted(rungs.values(), key=lambda x: -x["usd"])},
+        "spend": spend,
     }
 
 
