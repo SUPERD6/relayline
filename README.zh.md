@@ -65,7 +65,7 @@
 - ccx 不替你登录，不复制、不保存凭据；服务商的 key 留在你的环境变量里，只交给需要它的那个 CLI。只在先给你看过的前提下
   改各工具配置文件里它自己标记的那一段或那一条。`ccx ui` 只监听 127.0.0.1。
 - 你的记忆、账本和学到的参数都在你自己的 hub 文件夹里；这个仓库没有个人数据，CI 会检查。ccx 运行什么、可能改什么、怎么报告问题：
-  [SECURITY.zh.md](SECURITY.zh.md)。
+  [SECURITY.zh.md](SECURITY.zh.md)；防什么、不防什么：[威胁模型](https://github.com/SUPERD6/relayline/blob/main/docs/threat-model.zh.md)。
 
 **不用账号先试：** `ccx demo` 在临时文件夹里用编出来的项目、运行、便签和花费打开 `ccx ui`（离线可用，不用登录 Claude 或 Codex，
 不碰你自己的设置）。

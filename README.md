@@ -80,7 +80,8 @@ more, split only what can run in parallel, accept without re-running).
   run. `ccx ui` listens on 127.0.0.1 only.
 - Your memory, ledger and learned parameters stay in your hub folder; this repository holds no personal data, and CI
   checks it. What ccx runs and may change, and how to report a problem:
-  [SECURITY.md](https://github.com/SUPERD6/relayline/blob/main/SECURITY.md).
+  [SECURITY.md](https://github.com/SUPERD6/relayline/blob/main/SECURITY.md); what it defends against and what it does not:
+  [threat model](https://github.com/SUPERD6/relayline/blob/main/docs/threat-model.md).
 
 **Try it without accounts:** `ccx demo` opens `ccx ui` on made-up projects, runs, notes and costs in a temporary
 folder (offline, no Claude or Codex login; your own setup is not touched).
