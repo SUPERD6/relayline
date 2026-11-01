@@ -131,7 +131,7 @@ def refuse_if_busy(p: Paths, prev: dict) -> None:
 
 
 def slim_prompt(cfg: dict) -> bool:
-    """[prompt] slim (default true): the shorter Finish text for a clear write run without --check (P0-11 item 2)."""
+    """[prompt] slim (default true): no answer-only sentence for a `--mode write` run without --check (P0-11 item 2)."""
     v = (cfg.get("prompt") or {}).get("slim", True)
     return v if isinstance(v, bool) else str(v).strip().lower() not in ("false", "0", "no", "off")
 
@@ -521,7 +521,7 @@ def run(req: Request, p: Paths) -> dict:
     selfcheck = (REVIEW_FINISH if reviewer
                  else req.finish_note if req.finish_note
                  else SELFCHECK_CMD.format(check=req.check) if req.check
-                 else SELFCHECK_WRITE if (req.mode == "write" and req.mode_source in ("explicit", "inferred")
+                 else SELFCHECK_WRITE if (req.mode == "write" and req.mode_why == "--mode given"   # the lead said so
                                           and slim_prompt(cfg))
                  else SELFCHECK)
     switches = subagent_switches(cfg)
