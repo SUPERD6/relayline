@@ -324,6 +324,9 @@ SETTINGS = {   # key -> (type, help). Only these can be set with `ccx config set
                             "else the next turn's hook) instead of the lead polling (default true)"),
     "wake.trust_socket": (_bool, "true | false: a line delivered to Claude Code's inbox is not also left for the "
                                  "next turn's hook (default true; false: a held or expired line still arrives)"),
+    "output.lead": (str, "line | full: what `ccx run` / `resume` / `show --wait` hand the lead when the check passed, "
+                         "the review passed or none ran, and nothing needs a look: one JSON line (default) or the whole result as before "
+                         "(`ccx show <id>` always gives the whole one)"),
     "lead.model_by_task": (_bool, "true | false: when ccx starts or recommends a NEW lead conversation (ccx fresh, "
                                   "ccx handoff, route/propose `new_lead`), pick its model from the task's difficulty: "
                                   "[lead_by_task] easy model up to easy_max_b, else the lead's own (default false; a "
@@ -383,6 +386,8 @@ def set_setting(p: Paths, key: str, raw: str) -> dict:
         raise ValueError("sessions.archive must be after_run, hours or off")
     if key == "autonomy.level" and raw not in ("L0", "L1", "L2"):
         raise ValueError("autonomy.level must be L0, L1 or L2")
+    if key == "output.lead" and raw not in ("line", "full"):
+        raise ValueError("output.lead must be line or full")
     if key == "escalate.on_self_checked" and raw not in ("review", "rung", "off"):
         raise ValueError("escalate.on_self_checked must be review, rung or off")
     if key == "routing.mode" and raw not in ("auto", "off"):
