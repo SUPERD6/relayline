@@ -30,6 +30,7 @@ if log:
         f.write(json.dumps({"agent": "codex", "argv": argv, "prompt": prompt,
                             "depth": os.environ.get("CCX_DEPTH"),
                             "deepseek_key": os.environ.get("DEEPSEEK_API_KEY"),
+                            "credential_vars": [k for k in os.environ if k.endswith(("_API_KEY", "_AUTH_TOKEN", "_BASE_URL"))],
                             "openai_key": bool(os.environ.get("OPENAI_API_KEY"))}) + "\n")
 
 if argv[:2] == ["login", "status"]:

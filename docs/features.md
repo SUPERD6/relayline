@@ -441,7 +441,7 @@ Before a large task, run `ccx quota --refresh`. Claude's windows come from `rate
 `rate_limit_info.unifiedWindows` in stream-json (kept in `<hub>/ccx/quota.jsonl`); Codex's come from
 `token_count.rate_limits` in its latest session files. They are the CLI's reported subscription windows,
 not a billing API or a promise that the next request will succeed. Missing readings stay Unknown; a window
-that reset since its reading has `used: null`. `freshness` is the reading's age in minutes, not the age of
+that reset since its reading has `used: null` and `projected_at_reset: null`. `freshness` is the reading's age in minutes, not the age of
 the refresh attempt. `projected_at_reset` (also `projected`) extrapolates the recent pace only after six hours
 of history; before then it equals current use.
 
@@ -455,7 +455,7 @@ are recorded only in `<hub>/ccx/quota-refresh.jsonl` and the latest-attempt stat
 null. Codex's estimate is not a charge to a subscription. A failed probe preserves the old reading, records
 its error and is cooled down for the refresh interval. Re-reading an old Codex file does not make it fresh.
 Flags were checked with Claude Code 2.1.316 and codex-cli 0.164.0 `--help`; model requests were tested only
-with fake CLIs.
+with fake CLIs. Probes strip inherited API credentials and endpoint overrides and use the CLI's own login.
 
 Defaults in `<hub>/ccx/tiers.toml` (or the user config):
 
@@ -466,6 +466,7 @@ avoid_above = 0.8
 routing = "on"        # "off" disables the new quota ordering
 ```
 
+These keys also support `ccx config set/get`, for example `ccx config set quota.routing off`.
 `ccx route` and `ccx run` refresh a subscription automatically only when it has an existing reading and its
 latest reading is older than `auto_refresh_min`. A subscription with no readings is never probed automatically;
 use `ccx quota --refresh` to initialize it. Per-agent `freshness` is the latest reading's age; each window
@@ -476,11 +477,16 @@ and `quota_note` name the reason and alternative. When every candidate is tight,
 yourself or wait for the earliest known usable reset (Unknown if unavailable). Explicit targets/models stay
 as requested; `--quota` readings override disk values. This ordering does not remove the existing quota
 shadow pricing in the cost model.
+Quota pressure does not opt into Gemini or dsh; dsh still requires an explicit `--to dsh`. Only the existing
+Claude/Codex candidates and already eligible configured providers can be picked automatically. Keyword routing
+keeps its original candidates; `quota.routing = "off"` restores the original selection behaviour.
 
 A quota-classified stop records `quota_stop` evidence and tries one eligible other vendor, at most once,
-unless `--no-fallback` was set. `quota_fallback` in the receipt names both vendors and the known reset time.
+unless `--no-fallback` was set. `quota_fallback` in both full and compact receipts names both vendors and the known reset time.
 Auth errors, timeouts and other errors do not trigger this fallback. Every run stores a `quota_at_start`
-snapshot only in `run.json`. Taking the snapshot adds no ledger row and edits no existing run. Probes are
+snapshot only in `run.json`. Taking the snapshot adds no ledger row, edits no existing run and never writes the
+Codex reading cache. Route/run share readings for one call, dropping them at its end; a probe replaces the
+refreshed vendor's readings. Probes are
 not delegations: they create no run directory or ledger row, and do not enter ledger attempt/request statistics.
 `ccx doctor` prints one read-only quota line. The UI data's existing `quota` array adds
 `freshness` and `projected_at_reset`, keeping usage/reset fields; showing the UI never probes. The page

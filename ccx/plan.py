@@ -18,13 +18,25 @@ def other(agent: str, cfg: dict | None = None) -> str:
     return got[0] if got else "codex"
 
 
+def quota_routing(cfg: dict) -> bool:
+    return str((cfg.get("quota") or {}).get("routing", "on")).lower() not in ("off", "false", "0")
+
+
+def auto_quota_agents(cfg: dict, agents: list[str]) -> list[str]:
+    """Quota pressure cannot opt into another CLI; ready provider candidates were authorised by cash_ready."""
+    from .config import AGENTS
+    if not quota_routing(cfg):
+        return agents
+    return [ag for ag in agents if ag in AGENTS or ag in (cfg.get("providers") or {})]
+
+
 def quota_candidates(p: Paths, cfg: dict, agents: list[str], given: dict | None = None) -> dict:
     """Stable partition: tight subscriptions last; unknown readings remain eligible, explicitly labelled.
     Filtering the first group before the cost pick prevents a cheap but exhausted subscription winning again."""
     from . import quota
     agents = list(dict.fromkeys(agents))
     opts = cfg.get("quota") or {}
-    if str(opts.get("routing", "on")).lower() in ("off", "false", "0"):
+    if not quota_routing(cfg):
         return {"candidates": agents, "eligible": agents, "tight": {}, "all_tight": False}
     pr = quota.pressure(p, given)
     tight = {}
@@ -131,7 +143,7 @@ def _fallback_plan(req: Request, p: Paths, cfg: dict, failed: dict) -> dict | No
     """First rung on another vendor's agent after a quota stop: routing picks the cheapest in total among the
     installed ones that can work (I4); without a difficulty, the first of them."""
     from .agents import others
-    candidates = others(failed["agent"], cfg) or [other(failed["agent"], cfg)]
+    candidates = auto_quota_agents(cfg, others(failed["agent"], cfg) or [other(failed["agent"], cfg)])
     ranked = quota_candidates(p, cfg, candidates)
     candidates = ranked["eligible"]
     if not candidates:

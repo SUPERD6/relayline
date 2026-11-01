@@ -15,12 +15,36 @@ from __future__ import annotations
 
 import json
 import time
+from contextlib import contextmanager
+from contextvars import ContextVar
 from pathlib import Path
 
 WINDOW_MIN = {"five_hour": 300, "seven_day": 10080}
 RATE_HOURS = 48
 MIN_SPAN_HOURS = 6
 PROBE_AFTER_S = 3600
+_READINGS = ContextVar("quota_readings", default=None)
+
+
+@contextmanager
+def reading_scope():
+    """Share disk readings inside one route/run, including nested helpers; never across calls or threads."""
+    token = _READINGS.set({}) if _READINGS.get() is None else None
+    try:
+        yield
+    finally:
+        if token is not None:
+            _READINGS.reset(token)
+
+
+def _readings(p, agent: str, *, write_cache: bool = True) -> list[dict]:
+    cache, key = _READINGS.get(), (p.state, agent)
+    if cache is not None and key in cache:
+        return cache[key]
+    rows = codex_readings(p=p, write_cache=write_cache) if agent == "codex" else claude_readings(p)
+    if cache is not None:
+        cache[key] = rows
+    return rows
 
 
 def _file(p) -> Path:
@@ -42,6 +66,9 @@ def save_claude(p, events: list[dict]) -> int:
         with open(f, "a", encoding="utf-8") as fh:
             for r in out:
                 fh.write(json.dumps(r) + "\n")
+        cache = _READINGS.get()
+        if cache is not None and (p.state, "claude") in cache:
+            cache[p.state, "claude"] = cache[p.state, "claude"] + out
     return len(out)
 
 
@@ -106,7 +133,8 @@ def _tail_readings(f: Path) -> list[dict]:
     return out
 
 
-def codex_readings(days: float = 8, p=None, home: Path | None = None, now: float | None = None) -> list[dict]:
+def codex_readings(days: float = 8, p=None, home: Path | None = None, now: float | None = None,
+                   *, write_cache: bool = True) -> list[dict]:
     """Codex's quota readings, read only from the end of its newest session files (seconds -> milliseconds: a week
     of logs was read whole before, 9.65 of `ccx route`'s 10 s, PR #30). With a hub `p`, each file's readings are
     kept by (path, mtime, size) in <hub>/ccx/codex-quota-cache.json, so a later call re-reads only changed files."""
@@ -145,7 +173,7 @@ def codex_readings(days: float = 8, p=None, home: Path | None = None, now: float
                 continue
         new_cache[str(f)] = [mtime, size, rs]
         out += rs
-    if cf and new_cache != cache:
+    if write_cache and cf and new_cache != cache:
         try:
             cf.parent.mkdir(parents=True, exist_ok=True)
             cf.write_text(json.dumps(new_cache), encoding="utf-8")
@@ -190,16 +218,17 @@ def pace(readings: list[dict], now: float | None = None) -> dict:
             row.update(projected=round(last["used"], 3), note="too early to project (less than 6 h of readings)")
         out[win] = row
     for row in out.values():
-        row["projected_at_reset"] = row["projected"]
+        row["projected_at_reset"] = row["projected"] if row["used"] is not None else None
     return out
 
 
-def pressure(p, given: dict | None = None) -> dict:
+def pressure(p, given: dict | None = None, *, write_cache: bool = True) -> dict:
     """agent -> projected share of its tightest window by its reset (what the total cost prices quota with).
     Explicit values (--quota claude=0.8) win; else Codex from its logs and Claude from kept readings."""
     q = dict(given or {})
     detail = {}
-    for agent, readings in (("codex", codex_readings(p=p)), ("claude", claude_readings(p))):
+    for agent in ("codex", "claude"):
+        readings = _readings(p, agent, write_cache=write_cache)
         if not readings:
             continue
         pc = pace(readings)
@@ -315,6 +344,15 @@ def _refresh_state(p) -> dict:
         return {}
 
 
+def subscription_env(env: dict) -> dict:
+    """Use the CLI's own login, without inherited API endpoints or credentials from the lead."""
+    from .delegate import HOST_AUTH
+    drop = {*HOST_AUTH, "CLAUDECODE", "CLAUDE_CODE_SIMPLE", "CLAUDE_CODE_USE_BEDROCK",
+            "CLAUDE_CODE_USE_VERTEX", "CLAUDE_CODE_USE_FOUNDRY"}
+    return {k: v for k, v in env.items() if k not in drop
+            and not k.endswith(("_API_KEY", "_AUTH_TOKEN", "_BASE_URL"))}
+
+
 def _probe_agent(p, agent: str) -> dict:
     """No project context or delegation; Claude has no tools, Codex is read-only.
     Flags checked: Claude 2.1.316 / Codex 0.164.0 --help.
@@ -342,11 +380,7 @@ def _probe_agent(p, agent: str) -> dict:
                      "--ignore-user-config", "-c", 'model_reasoning_effort="low"',
                      "-c", 'web_search="disabled"', "-c", "features.multi_agent=false",
                      "-c", "features.plugins=false", "-c", "features.apps=false", "-"]
-        env = dict(os.environ)
-        env.pop("CLAUDECODE", None)
-        # A lead using Claude Code against a third-party server is not the Claude subscription.
-        for key in ("ANTHROPIC_BASE_URL", "ANTHROPIC_AUTH_TOKEN"):
-            env.pop(key, None)
+        env = subscription_env(os.environ)
         with tempfile.TemporaryDirectory(prefix="ccx-quota-") as tmp:
             r = subprocess.run(argv, input="Reply OK. Do not use tools.", cwd=tmp, env=env,
                                capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=30)
@@ -360,7 +394,11 @@ def _probe_agent(p, agent: str) -> dict:
             row["readings"] = save_claude(p, events)
             oc = parse_claude(r.stdout, r.stderr, r.returncode)
         else:
-            row["readings"] = sum(r["ts"] >= row["ts"] for r in codex_readings(p=p))
+            # The probe writes new session data: discard only that vendor's pre-probe readings.
+            cache = _READINGS.get()
+            if cache is not None:
+                cache.pop((p.state, "codex"), None)
+            row["readings"] = sum(r["ts"] >= row["ts"] for r in _readings(p, "codex"))
             oc = parse_codex(r.stdout, r.stderr, r.returncode, None)
         row.update(exit_code=r.returncode, usage=oc.usage, cost_usd=oc.cost_usd,
                    ae_usd=learn.price_usd(p, agent, model, oc.usage) if oc.usage else None)
@@ -385,7 +423,7 @@ def refresh(p, agents: list[str] | None = None, *, max_age_min: float | None = N
     for agent in dict.fromkeys(agents if agents is not None else ("claude", "codex")):
         if agent not in ("claude", "codex"):
             continue
-        rs = codex_readings(p=p) if agent == "codex" else []
+        rs = _readings(p, "codex") if agent == "codex" else []
         windows = pace(rs)
         current = bool(windows) and all(w.get("used") is not None and w["freshness"] <= max_age_min
                                         for w in windows.values())
@@ -425,7 +463,7 @@ def maybe_refresh(p, cfg: dict, agents: list[str] | None = None, given: dict | N
 
 def at_start(p) -> dict:
     """Read the snapshot for run.json only; no probe, run directory or ledger row."""
-    return pressure(p)
+    return pressure(p, write_cache=False)
 
 
 def summary(p) -> str:

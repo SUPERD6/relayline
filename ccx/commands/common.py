@@ -10,7 +10,7 @@ import uuid
 
 from pathlib import Path
 
-from .. import learn, ledger, router
+from .. import learn, ledger, quota, router
 from ..config import AGENTS, DELEGATE_AGENTS
 from ..runners import find_bin
 
@@ -282,6 +282,7 @@ def _maybe_probe_claude(p, cfg: dict, agents: list[str], given: dict) -> None:
     quota.maybe_refresh(p, cfg, agents, given)
 
 
+@quota.reading_scope()
 def resolve(spec: dict, caller: str, p, cfg: dict) -> tuple[dict | None, dict]:
     """One task spec (CLI flags or a batch entry) -> (Request kwargs, routing info).
     kwargs is None when the answer is "don't delegate" (do it yourself / split first).
@@ -289,7 +290,7 @@ def resolve(spec: dict, caller: str, p, cfg: dict) -> tuple[dict | None, dict]:
     Order: explicit --model/--effort  >  rubric (task-routing, learns from outcomes)  >  --tier  >
     keyword heuristic (fallback when no rubric is given)."""
     to = spec.get("to") or "auto"
-    from ..plan import quota_candidates
+    from ..plan import auto_quota_agents, quota_candidates
     _maybe_probe_claude(p, cfg, ["claude", "codex"] if to == "auto" else [to], spec.get("quota") or {})
     # the model pick: --tradeoff, else defaults.tradeoff, as before. A tier the person picked in their settings
     # (`ccx config set policy.picked <tier>`) is the whole-workflow tier when the lead names none (who does it, the
@@ -346,6 +347,8 @@ def resolve(spec: dict, caller: str, p, cfg: dict) -> tuple[dict | None, dict]:
     if "b" in route and spec.get("tier", "auto") == "auto":
         agents = ((installed_agents() or list(AGENTS)) + cash_ready(p, cfg, spec.get("quota") or {})
                   if to == "auto" else [to])
+        if to == "auto":
+            agents = auto_quota_agents(cfg, agents)
         ranked = quota_candidates(p, cfg, agents, spec.get("quota"))
         route["quota_routing"] = ranked
         if ranked.get("message"):
@@ -407,7 +410,7 @@ def resolve(spec: dict, caller: str, p, cfg: dict) -> tuple[dict | None, dict]:
     if tier == "T0":
         tier = "T1"
     target = _target(to, caller)
-    candidates = [ag for ag in (installed_agents() or list(AGENTS)) if cfg["tiers"].get(tier, {}).get(ag)]
+    candidates = [ag for ag in AGENTS if cfg["tiers"].get(tier, {}).get(ag)]
     ranked = quota_candidates(p, cfg, candidates if to == "auto" else [target], spec.get("quota"))
     route["quota_routing"] = ranked
     if ranked.get("message"):

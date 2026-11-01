@@ -27,7 +27,7 @@ import time
 from dataclasses import dataclass
 from pathlib import Path
 
-from . import agents, context_share, learn, ledger, recover, subagents
+from . import agents, context_share, learn, ledger, quota, recover, subagents
 from .config import DELEGATE_AGENTS, SUBAGENT_SWITCHES, Paths, load_config, provider_of, subagent_switches  # noqa: F401
 from .runners import BUILDERS, Outcome, execute, usage_dict
 # split out by job (J11); re-exported so `from ccx.delegate import ...` keeps working
@@ -430,8 +430,8 @@ def _child_env(to: str, run_id: str, extra: dict | None = None, provider: bool =
     if to == "claude" and not provider and _provider_url(env.get("ANTHROPIC_BASE_URL")):
         # the lead is Claude Code on a provider's model (DeepSeek): a Claude sub-agent must reach Anthropic, not
         # inherit the lead's endpoint and key
-        for k in ("ANTHROPIC_BASE_URL", "ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN"):
-            env.pop(k, None)
+        from .quota import subscription_env
+        env = subscription_env(env)
     if to == "claude" and not provider:
         # a `claude --bare` lead (how Claude Code runs on a provider) passes CLAUDE_CODE_SIMPLE on to its commands; a
         # Claude sub-agent started with it is bare too, ignores the person's login and fails "Not logged in"
@@ -471,6 +471,7 @@ def _child_env(to: str, run_id: str, extra: dict | None = None, provider: bool =
     return env
 
 
+@quota.reading_scope()
 def run(req: Request, p: Paths) -> dict:
     cfg = load_config(p)
     depth_guard(cfg)

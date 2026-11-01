@@ -265,7 +265,7 @@ Fail（做对 29 对 30），事后解读为未定。按配对看，三个都没
 开大活前可以运行 `ccx quota --refresh`。Claude 从 stream-json 的 `rate_limit_event` /
 `rate_limit_info.unifiedWindows` 读窗口，保存在 `<hub>/ccx/quota.jsonl`；Codex 从最新会话文件的
 `token_count.rate_limits` 读取。这是 CLI 报告的订阅窗口，不是账单接口，也不保证下一次请求能成功。
-读不到就保留 Unknown；读数之后已经重置的窗口用 `used: null` 表示。`freshness` 是读数多少分钟前产生，
+读不到就保留 Unknown；读数之后已经重置的窗口用 `used: null`、`projected_at_reset: null` 表示。`freshness` 是读数多少分钟前产生，
 不是刷新尝试距今多久。`projected_at_reset`（兼容原来的 `projected`）在有至少六小时历史后才按最近消耗
 速度外推；不足六小时时等于当前用量。
 
@@ -278,6 +278,7 @@ Claude 报告的 `cost_usd`、token 用量及 API 等价估算 `ae_usd` 只写�
 未知费用为 null，Codex 的等价估算不等于订阅额外收费。
 失败保留旧读数、记录错误，并在刷新间隔内冷却；重读旧 Codex 文件不会把读数标成新鲜。
 参数已用 Claude Code 2.1.316、codex-cli 0.164.0 的 `--help` 核对；模型请求只用假 CLI 测试。
+探针清除继承的 API 凭据和服务地址覆盖，只使用 CLI 自己的登录态。
 
 默认配置（放在 `<hub>/ccx/tiers.toml` 或个人配置里）：
 
@@ -288,6 +289,7 @@ avoid_above = 0.8
 routing = "on"        # "off" 关闭新增的配额排序
 ```
 
+这三个配置键也支持 `ccx config set/get`，例如 `ccx config set quota.routing off`。
 `ccx route` 和 `ccx run` 只在某家已有读数、且最新读数超过 `auto_refresh_min` 分钟时自动刷新。
 从未有读数的家不会自动探针，需要时手动运行 `ccx quota --refresh` 初始化。
 各家的 `freshness` 表示最新读数的年龄，各窗口另保留自己的读数年龄。原有 `probe_claude = false` 和
@@ -296,11 +298,14 @@ routing = "on"        # "off" 关闭新增的配额排序
 所有候选都紧时，建议自己做或等最早已知可用的重置时间；没有重置时间就写 Unknown。
 显式指定的目标或模型保持原选择；`--quota` 优先于文件读数。关闭新增排序不影响原成本模型已有的
 配额影子定价。
+配额压力不会自动启用 Gemini 或 dsh；dsh 仍须显式 `--to dsh`。自动选择仅使用原有 Claude/Codex 候选及
+已配置且符合原付费路由规则的 provider。关键词路由保留原候选集合；`quota.routing = "off"` 恢复原选择行为。
 
 运行撞到被分类为配额的停止时，记录 `quota_stop` 证据，只向另一家可用候选改派一次；
-`--no-fallback` 仍关闭回退。收据中的 `quota_fallback` 写明两家及已知重置时间。
+`--no-fallback` 仍关闭回退。完整和精简收据中的 `quota_fallback` 都写明两家及已知重置时间。
 鉴权、超时等非配额错误不触发这条回退。每次运行只在 `run.json` 保存 `quota_at_start`；
-读取快照不增加账本行、不修改已有运行。探针不是派活，不创建运行目录或账本行，也不计入账本的
+读取快照不增加账本行、不修改已有运行，也不写 Codex 读数缓存。route/run 在单次调用内复用读数，结束即清除；
+探针会替换刚刷新的那家读数。探针不是派活，不创建运行目录或账本行，也不计入账本的
 attempts/requests 统计。`ccx doctor` 多一行只读配额摘要。
 UI 数据原有 `quota` 数组补充 `freshness`、`projected_at_reset`，用量与重置时间字段保持；
 打开 UI 不会调用探针，页面本身未改。真实限额后的恢复与刷新费用，待统筹下次实际限额时验证；

@@ -1,9 +1,13 @@
 """P0-17: quota routing and bounded refresh/fallback. CLI wiring runs outside the repo, with fakes only."""
 import json
+import os
+import subprocess
+import sys
 import time
 from datetime import datetime, timezone
+from unittest import mock
 
-from test_ccx import Env
+from test_ccx import Env, FAKES
 from ccx import quota, ui
 from ccx.config import Paths, load_config
 from ccx.plan import quota_candidates
@@ -12,6 +16,10 @@ from ccx.plan import quota_candidates
 class TestQuotaRouting(Env):
     def setUp(self):
         super().setUp()
+        for agent in ("gemini", "dsh"):
+            key = f"CCX_{agent.upper()}_BIN"
+            self.env[key] = os.environ[key] = str(FAKES / f"fake_{agent}.py")
+        self.env["CCX_LEAD_VIEW"] = "line"
         self.p = Paths(self.hub)
         self.now = time.time()
         self.reset = int(self.now + 86400)
@@ -76,7 +84,7 @@ class TestQuotaRouting(Env):
         self.codex()
         out = self.j("route", "--b", "4")
         self.assertEqual(out["quota_routing"]["tight"], {})
-        self.assertEqual(set(out["quota_routing"]["eligible"]), {"claude", "codex"})
+        self.assertEqual(set(out["quota_routing"]["eligible"]), {"claude", "codex", "gemini", "dsh"})
         self.assertNotIn("quota_note", out)
 
     def test_route_all_tight_names_the_reset(self):
@@ -117,6 +125,7 @@ class TestQuotaRouting(Env):
         self.claude(0.99, age=10)
         pr = quota.pressure(self.p)
         self.assertIsNone(pr["pace"]["claude"]["five_hour"]["used"])
+        self.assertIsNone(pr["pace"]["claude"]["five_hour"]["projected_at_reset"])
         self.assertAlmostEqual(pr["freshness"]["claude"], 10, delta=0.2)
         ranked = quota_candidates(self.p, load_config(self.p), ["claude", "codex"])
         self.assertEqual(ranked["eligible"], ["claude", "codex"])
@@ -325,3 +334,123 @@ class TestQuotaRouting(Env):
         log = [json.loads(x) for x in (self.p.state / "quota-refresh.jsonl").read_text(encoding="utf-8").splitlines()]
         self.assertEqual([row["agent"] for row in log], ["claude", "codex"])
         self.assertEqual(log[0]["cost_usd"], 0.0004)
+
+    def test_quota_settings_round_trip_through_cli(self):
+        cases = (("quota.auto_refresh_min", "30", 30), ("quota.avoid_above", "0.75", 0.75),
+                 ("quota.routing", "off", "off"), ("quota.auto_refresh_min", "false", False))
+        for key, raw, expected in cases:
+            with self.subTest(key=key, raw=raw):
+                self.assertEqual(self.j("config", "set", key, raw), {key: expected})
+                self.assertEqual(self.j("config", "get", key), {key: expected})
+        self.assertNotEqual(self.ccx("config", "set", "quota.routing", "maybe").returncode, 0)
+
+    def test_probes_use_cli_login_without_inherited_credentials(self):
+        env = {key: "fake-secret" for key in ("ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN", "OPENAI_API_KEY",
+               "CODEX_API_KEY", "DEEPSEEK_API_KEY", "CLAUDE_CODE_OAUTH_TOKEN")}
+        env.update(ANTHROPIC_BASE_URL="https://provider.invalid", OPENAI_BASE_URL="https://provider.invalid")
+        self.j("quota", "--refresh", env=env)
+        self.assertEqual([c["agent"] for c in self.model_calls()], ["claude", "codex"])
+        for call in self.model_calls():
+            self.assertEqual(call["credential_vars"], [])
+            self.assertFalse(call.get("host_auth"))
+
+    def test_keyword_route_keeps_main_candidates_without_quota_reason(self):
+        out = self.j("route", "implement parser")
+        self.assertIn("codex", out)
+        self.assertIn("claude", out)
+        self.assertNotIn("gemini", out)
+        self.assertNotIn("dsh", out)
+        self.assertNotIn("recommended_agent", out)
+        # Main's keyword recommendation is not filtered by CLI discovery.
+        from ccx.cli import parse
+        from ccx.commands.delegation import _route
+        with mock.patch("ccx.commands.delegation.installed_agents", return_value=["codex"]):
+            out = _route(parse(["route", "implement parser"]))
+        self.assertIn("claude", out)
+
+    def test_switching_from_provider_to_subscription_strips_the_keys_too(self):
+        from ccx.delegate import _child_env
+        inherited = {"ANTHROPIC_BASE_URL": "https://provider.invalid", "ANTHROPIC_API_KEY": "fake-key",
+                     "OPENAI_API_KEY": "fake-key", "OPENAI_BASE_URL": "https://provider.invalid",
+                     "CLAUDE_CODE_OAUTH_TOKEN": "fake-token"}
+        with mock.patch.dict(os.environ, inherited), mock.patch("ccx.delegate._provider_url", return_value=True):
+            env = _child_env("claude", "quota-env-test")
+        for key in inherited:
+            self.assertNotIn(key, env)
+        self.assertEqual(env["CLAUDE_CONFIG_DIR"], str(self.home_claude))
+
+    def test_quota_off_restores_rubric_candidates_and_keyword_target(self):
+        from ccx.commands.common import cash_ready, installed_agents
+        from ccx import learn
+        self.config('[quota]\nrouting = "off"\n')
+        self.claude(0.95)
+        self.codex(0.96)
+        cfg = load_config(self.p)
+        candidates = installed_agents() + cash_ready(self.p, cfg, {})
+        expected = learn.pick(self.p, 4, candidates, "save")
+        out = self.j("route", "--b", "4")
+        self.assertEqual(out["rung"], expected["rung"])
+        self.assertEqual(out["quota_routing"]["candidates"], candidates)
+        out = self.j("route", "implement parser")
+        self.assertEqual([ag for ag in ("codex", "claude", "gemini", "dsh") if ag in out], ["codex", "claude"])
+        self.assertNotIn("recommended_agent", out)
+        out = self.j("run", "--from", "codex", "--tier", "T2", "--review", "off", "implement parser")
+        self.assertEqual(out["agent"], "claude")
+
+    def test_both_tight_never_pick_other_installed_clis_or_suggest_running(self):
+        from ccx.commands.delegation import _route_summary
+        self.claude(0.95)
+        self.codex(0.96)
+        for args in (("--b", "4"), ("--b", "4", "--lead", "claude:opus:max", "--lead-ctx", "1000"),
+                     ("implement parser",)):
+            out = self.j("route", *args)
+            self.assertEqual(set(out["quota_routing"]["candidates"]), {"claude", "codex"})
+            self.assertTrue(out["quota_routing"]["all_tight"])
+            message = "\n".join(_route_summary(out))
+            self.assertNotIn("ccx run", message)
+            self.assertIn(f"建议自己做或等重置到 {quota.reset_text(self.reset)}", message)
+            self.assertNotIn("ccx run", json.dumps(out.get("choice", {})))
+        out = self.j("run", "--from", "codex", "--tier", "T2", "--review", "off", "implement parser")
+        self.assertFalse(out["delegated"])
+        self.assertEqual(self.model_calls(), [])
+
+    def test_successful_compact_receipt_keeps_quota_fallback(self):
+        out = self.j("run", "--from", "user", "--to", "claude", "--tier", "T2", "--review", "off",
+                     "--check", "python -c pass", "implement parser", env={"FAKE_STATUS_CLAUDE": "quota"})
+        self.assertEqual(out.get("view"), "line", out)
+        self.assertIn("因 claude 限额改派 codex，重置", out["quota_fallback"]["message"])
+        shown = self.j("show", out["run_id"], "--wait", "5")
+        self.assertEqual(shown["quota_fallback"], out["quota_fallback"])
+
+    def test_at_start_never_creates_or_updates_the_codex_cache(self):
+        self.codex()
+        before = sorted(self.hub.rglob("*"))
+        self.assertEqual(quota.at_start(self.p)["pace"]["codex"]["primary"]["used"], 0.16)
+        self.assertEqual(sorted(self.hub.rglob("*")), before)
+        quota.codex_readings(p=self.p)
+        cache = self.p.state / "codex-quota-cache.json"
+        before = cache.read_bytes(), cache.stat().st_mtime_ns
+        self.codex(0.4)
+        self.assertEqual(quota.at_start(self.p)["pace"]["codex"]["primary"]["used"], 0.4)
+        self.assertEqual((cache.read_bytes(), cache.stat().st_mtime_ns), before)
+
+    def test_route_and_run_scan_each_vendor_once_per_call(self):
+        self.claude(0.2)
+        self.codex()
+        counts = self.work / "quota-scans.json"
+        for args in (("route", "--b", "4", "--lead", "claude:opus:max", "--lead-ctx", "1000"),
+                     ("run", "--from", "user", "--b", "4", "--review", "off", "implement parser")):
+            r = subprocess.run([sys.executable, str(FAKES / "quota_count_cli.py"), *args], cwd=self.work,
+                               env={**self.env, "CCX_NO_QUOTA_PROBE": "0", "FAKE_QUOTA_SCANS": str(counts)},
+                               capture_output=True, text=True, encoding="utf-8")
+            self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+            self.assertEqual(json.loads(counts.read_text(encoding="utf-8")), {"claude": 1, "codex": 1})
+
+    def test_reading_cache_ends_with_the_call(self):
+        self.codex()
+        with quota.reading_scope():
+            self.assertEqual(quota.at_start(self.p)["pace"]["codex"]["primary"]["used"], 0.16)
+            self.codex(0.4)
+            self.assertEqual(quota.at_start(self.p)["pace"]["codex"]["primary"]["used"], 0.16)
+        with quota.reading_scope():
+            self.assertEqual(quota.at_start(self.p)["pace"]["codex"]["primary"]["used"], 0.4)

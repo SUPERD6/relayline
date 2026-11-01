@@ -11,7 +11,7 @@ import time
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
-from .. import lanes, learn, ledger, merge, router, usage
+from .. import lanes, learn, ledger, merge, quota, router, usage
 from ..config import AGENTS, DELEGATE_AGENTS, PROVIDER_AGENTS, TIER_ORDER, load_config, paths
 from ..delegate import Request, compact, exit_ok, human_summary, recap, run, verify
 from ..gitstate import SHARED_WHY, STALE_WHY, clean, in_git
@@ -292,6 +292,7 @@ def _preauth_for_run(p, cfg: dict, proposal: str, spec: dict) -> dict | None:
     return pre
 
 
+@quota.reading_scope()
 def cmd_run(a) -> int:
     rid = os.environ.get("CCX_RUN_ID")          # the detached child of --bg (run() takes the variable away)
     if rid:                                      # nobody reads its stdout: tell the lead, however it ends (wake.py)
@@ -379,10 +380,13 @@ def _cmd_run(a) -> int:
         route["proposal"] = a.proposal
     if kw is None:
         _bg_not_delegated(p, a, route, caller)
+        ranked = route.get("quota_routing") or {}
+        hint = (f"建议自己做或等重置到 {quota.reset_text(ranked.get('resets_at'))}" if ranked.get("all_tight")
+                else "add --force to delegate anyway")
         _out({"delegated": False, "advice": route.get("advice"), "route": route,
-              "hint": "add --force to delegate anyway"})
+              "hint": hint})
         human_tail([f"Not delegated: {route.get('advice')}", "Cost: $0 (nothing ran)",
-                    "Next: do it yourself, or add --force to delegate anyway"])
+                    hint if ranked.get("all_tight") else "Next: do it yourself, or add --force to delegate anyway"])
         return 0
     if route.get("cheaper_self"):
         print(f"ccx: {route['cheaper_self']}", file=sys.stderr, flush=True)
@@ -906,6 +910,7 @@ def _batch_merged(p, cfg: dict, reqs: list, tasks: list[dict], skipped: list, ex
     return 0 if all(ok for _, _, ok in done) else 2
 
 
+@quota.reading_scope()
 def cmd_quota(a) -> int:
     from .. import quota
     p = paths()
@@ -959,6 +964,10 @@ def cmd_route(a) -> int:
 
 def _route_summary(out: dict) -> list[str]:
     """Plain lines for a person at a terminal (human_tail): the pick, why, and the command that runs it."""
+    ranked = out.get("quota_routing") or {}
+    if ranked.get("all_tight"):
+        return [out.get("quota_note") or ranked["message"],
+                f"建议自己做或等重置到 {quota.reset_text(ranked.get('resets_at'))}"]
     if out.get("rung"):
         pick = out["rung"].replace(":", " ", 1).replace(":", "/")
         usd = out.get("expected_usd")
@@ -978,8 +987,6 @@ def _route_summary(out: dict) -> list[str]:
                 "Next: do it yourself"]
     if out.get("quota_note"):
         why = "; ".join(x for x in (why, out["quota_note"]) if x)
-    if (out.get("quota_routing") or {}).get("all_tight"):
-        return [why, "Next: do it yourself or wait for a quota reset"]
     if tier == "T0":
         nxt = ("do it yourself (a lead's `ccx run` refuses it; from your terminal, `ccx run --to <agent>` still "
                "delegates it, on the cheapest rung)")
@@ -988,6 +995,7 @@ def _route_summary(out: dict) -> list[str]:
     return [f"Tier: {tier} ({label})" + (f": {why}" if why else ""), f"Next: {nxt}"]
 
 
+@quota.reading_scope()
 def _route(a) -> dict:
     p = paths()
     cfg = load_config(p)
@@ -1001,7 +1009,7 @@ def _route(a) -> dict:
         kw, route = resolve(spec, _caller(None), p, cfg)
         route["mode"] = mode            # recommended read/write and why; routing priced the start-up with it
         lead_ctx = a.lead_ctx or 0
-        if a.lead and route.get("rung"):
+        if a.lead and route.get("rung") and not (route.get("quota_routing") or {}).get("all_tight"):
             ctx = a.ctx_tokens
             for f in a.ctx_files or []:        # rough: 4 bytes per token
                 try:
@@ -1027,7 +1035,9 @@ def _route(a) -> dict:
             route["self_vs_delegate"].update(ctx_tokens=ctx, lead_ctx_tokens=lead_ctx, ctx_source=src)
             others = ((installed_agents() or list(DELEGATE_AGENTS)) + provider_agents(load_config(p))
                       if a.to == "auto" else [a.to])      # three_way holds pay-per-token agents back itself
-            from ..plan import quota_candidates
+            from ..plan import auto_quota_agents, quota_candidates
+            if a.to == "auto":
+                others = auto_quota_agents(cfg, others)
             ranked = quota_candidates(p, cfg, others, parse_quota(a.quota))
             others = ranked["eligible"] or others
             quota = parse_quota(a.quota)
@@ -1053,14 +1063,14 @@ def _route(a) -> dict:
     out = r.as_dict() | {"label": tier_words(p, t, r.tier, "label"), "when": tier_words(p, t, r.tier, "when"),
                          "note": "keyword heuristic; give the rubric flags for a calibrated pick",
                          "mode": apply_mode({"brief": " ".join(a.text or []), "mode": getattr(a, "mode", None)})}
-    ranked = quota_candidates(p, cfg, [ag for ag in (installed_agents() or list(AGENTS)) if t.get(ag)],
+    ranked = quota_candidates(p, cfg, [ag for ag in AGENTS if t.get(ag)],
                               parse_quota(a.quota))
     out["quota_routing"] = ranked
     if ranked.get("message"):
         out["quota_note"] = ranked["message"]
     if ranked["all_tight"]:
         out["advice"] = ranked["message"]
-    elif ranked["eligible"]:
+    elif ranked["tight"] and ranked["eligible"]:
         out["recommended_agent"] = ranked["eligible"][0]
     for ag in ranked["candidates"]:
         if t.get(ag):

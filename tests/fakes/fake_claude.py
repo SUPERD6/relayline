@@ -21,6 +21,7 @@ if log:
                             "base_url": os.environ.get("ANTHROPIC_BASE_URL"),
                             "auth_token": bool(os.environ.get("ANTHROPIC_AUTH_TOKEN")),
                             "api_key": os.environ.get("ANTHROPIC_API_KEY"),
+                            "credential_vars": [k for k in os.environ if k.endswith(("_API_KEY", "_AUTH_TOKEN", "_BASE_URL"))],
                             "host_auth": [k for k in ("CLAUDE_CODE_OAUTH_TOKEN", "CLAUDE_CODE_SDK_HAS_HOST_AUTH_REFRESH")
                                           if k in os.environ]}) + "\n")
 if argv[:1] == ["--version"]:
