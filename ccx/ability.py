@@ -18,6 +18,7 @@ from statistics import median
 from . import ledger
 from .agents import vendor as agent_vendor
 from .config import Paths, load_config, toml_string
+from .ui import NOT_WRONG  # Share stop reasons (including max_usd), rather than keeping a drifting copy.
 
 
 class TaskType(str, Enum):
@@ -33,8 +34,6 @@ class TaskType(str, Enum):
 TASKS = tuple(t.value for t in TaskType)
 VERSION = 2
 MIN_N = 5
-# Same open outcomes as ui.NOT_WRONG: these stops say nothing about the model's ability.
-NOT_WRONG = {"env", "quota", "user_stopped", "over_budget", "policy", "needs_write", "timeout", "no_answer"}
 SEED = Path(__file__).parent / "data" / "ability-seed.json"
 ALIASES = {"anthropic": "claude", "openai": "codex", "google": "gemini", "dsh": "deepseek"}
 WORDS = {
@@ -265,7 +264,7 @@ def refresh(p: Paths, *, rebuild: bool = False, persist: bool = True) -> dict:
             d = _run_dir(p, rid)
             before = previous.get(rid, {})
             try:
-                stamp = hashlib.sha256(json.dumps([row, events.get(rid), cfg.get("providers"),
+                stamp = hashlib.sha256(json.dumps([row, events.get(rid), cfg.get("providers"), sorted(NOT_WRONG),
                     _stat(d / "run.json") if d else None, _stat(d / "brief.md") if d else None],
                     sort_keys=True).encode("utf-8")).hexdigest()
                 sample = (_observation(p, row, events.get(rid, {}), cfg)

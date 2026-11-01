@@ -372,9 +372,19 @@ def test_review_no_verdict_is_neither_right_nor_failed(p, ok):
 @pytest.mark.parametrize("verdict", [{}, {"ok": False}, {"ok": True}])
 def test_review_machine_and_person_stops_are_not_ability_failures(p, kind, verdict):
     assert ability.NOT_WRONG == ui.NOT_WRONG
+    assert ability.NOT_WRONG is ui.NOT_WRONG  # One source keeps future budget stops from drifting again.
     add(p, "stopped", kind=kind, ok=False, state="finished", status="failed", verdict=verdict,
         error="sandbox setup helper: 1223" if kind == "env" else kind)
     assert ability.refresh(p)["cells"] == []
+
+
+def test_review_max_usd_stop_replaces_old_cached_failure(p):
+    add(p, "capped", kind="max_usd", ok=False, state="finished", status="failed", verdict={"ok": False})
+    # Simulate a cache produced before max_usd was recognised as a stop, without changing the ledger.
+    with mock.patch.object(ability, "NOT_WRONG", ui.NOT_WRONG - {"max_usd"}):
+        assert ability.refresh(p)["cells"][0]["failed"] == 1
+    assert ability.refresh(p)["cells"] == []
+    assert ability.refresh(p) == ability.refresh(p, rebuild=True)
 
 
 def test_review_q_accept_dry_run_does_not_call_refresh(tmp_path, p):
