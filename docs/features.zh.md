@@ -48,16 +48,22 @@ ccx ability set codex.gpt-6-luna code clear  # 移除用户设定
 
 每格包含样本数 `n`、做对数 `ok`、`ok_self_checked`、其他未验证数、失败数、做对率 `ok / n`、已独立成功运行的
 已知成本中位数、记录时长中位数、effort 分布和最近运行/verdict 的时间。`ok_self_checked` 表示**未独立验证**，
-即使收据通过，也不计入 `ok`；证据缺失仍是未验证。主导的独立 verdict 可以判定原本没有证据分类的运行，
-后来的负 verdict 可以推翻通过。缺失成本/时长为 `null`，零仍为零，每个中位数附已知样本数。
+即使收据通过，也不计入 `ok`；证据缺失仍是未验证。**什么算一次：**只有带非 soft verdict 的运行才进入 `n`，
+且排除 partial、仍在运行的任务，以及环境、配额或人为停止。计为做对还须同时满足 `kind = ok` 和正 verdict；
+负 verdict 计失败。`ok_self_checked` 单列，始终不算做对。没有 verdict 或只有 soft verdict 的运行不进分母，
+也不算失败；其未验证/自测数和 effort 元数据仍可在 `n` 之外显示。正 verdict 但 kind 未知仍是未验证。
+停止类型与 UI 的 open 口径一致：`env`（含沙箱错误 1223）、`quota`、`user_stopped`、`over_budget`、
+`policy`、`needs_write`、`timeout`、`no_answer`；这些停止即使带 verdict 也不算失败。
+缺失成本/时长为 `null`，零仍为零，每个中位数附已知样本数。
 API 等价成本 `ae_usd` 与实际计费 `cost_usd` 分开取中位数，显示时优先 API 等价成本；
 这个指标不是“总花费 ÷ 成功数”。记录时长覆盖该 run 的各次尝试，不包含主导和审查员的整个工作流。
-**本地 n < 5 显示“数据不足”**；未验证运行也计入 n。评测、内部探针和 dismissed 运行不进入本地统计。
+**本地 n < 5 显示“数据不足”**；`n = 0` 时做对率为空。评测、内部探针和 dismissed 运行不进入本地统计。
 一个 run 只计一次，归最后实际执行的模型，成本/时长使用整次 run 的记录（含之前的尝试），effort 保留为分布。
 
 `<hub>/ccx/ability.json` 是带版本的缓存：`cells` 存统计摘要，`entries` 存每个 run 的指纹和数值观察。
 brief 仅用于判断类型，不复制进缓存。命令层的 verdict 路径（`verify`、队列完成/接受、undo 标错、启动 hook
-的 sweep）会刷新；未变的 run 复用观察，只重算受影响的格子。查询还会补上 Python API 直接写入的 verdict。
+的 sweep）会刷新；未变的 run 复用观察，只重算受影响的格子。短暂 `PermissionError` 不会缓存未读文件的指纹，
+下次查询会重试。`q accept --dry-run` 不刷新，也不创建能力缓存或锁文件。查询还会补上 Python API 直接写入的 verdict。
 `rebuild` 从整个账本重建，仍在时利用 run.json/brief.md 补齐资料；无法恢复的信息保留 unknown。
 同一 run 的重复 verdict 替换旧观察，不增加样本。
 

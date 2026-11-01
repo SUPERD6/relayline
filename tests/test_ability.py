@@ -75,16 +75,21 @@ def test_aggregation_and_real_medians(p):
         add(p, str(i), ae_usd=cost, seconds=i * 10, effort="high" if i == 2 else "low", ts=100 + i)
     add(p, "self", kind="ok_self_checked", ae_usd=0.01, seconds=30, ts=103)
     cell = ability.table(p, vendor="codex", task="code")["rows"][0]
-    assert (cell["n"], cell["ok"], cell["ok_self_checked"], cell["success_rate"]) == (4, 3, 1, 0.75)
-    assert cell["median_usd_per_success"] == 0.2
-    assert cell["cost_basis"] == "ae_usd"
-    assert cell["median_wall_s"] == 15
+    # Without verdicts these runs stay outside n; self-checks remain visible without becoming successes.
+    assert (cell["n"], cell["ok"], cell["ok_self_checked"], cell["success_rate"]) == (0, 0, 1, None)
+    # No judged successes means neither a success-cost median nor its cost basis can be reported.
+    assert cell["median_usd_per_success"] is None
+    assert cell["cost_basis"] is None
+    # Unjudged attempts also supply no samples to the counted-run wall median.
+    assert cell["median_wall_s"] is None
     assert cell["efforts"] == {"high": 1, "low": 3}
     assert cell["updated"] == 103 and cell["insufficient_data"]
     add(p, "bad", kind="check_failed", ok=False, ae_usd=8, seconds=400)
     cell = ability.table(p, vendor="codex", task="code")["rows"][0]
-    assert (cell["n"], cell["failed"], cell["success_rate"]) == (5, 1, 0.6)
-    assert not cell["insufficient_data"] and cell["median_usd_per_success"] == 0.2
+    # A failed check with no verdict is still unjudged, so it adds neither a failure nor a counted run.
+    assert (cell["n"], cell["failed"], cell["success_rate"]) == (0, 0, None)
+    # Five raw observations do not meet the five-judged-run threshold or establish a success-cost median.
+    assert cell["insufficient_data"] and cell["median_usd_per_success"] is None
 
 
 def test_verdicts_correct_existing_samples_and_self_check_stays_separate(p):
@@ -96,7 +101,8 @@ def test_verdicts_correct_existing_samples_and_self_check_stays_separate(p):
     assert (cell["ok"], cell["ok_self_checked"], cell["unverified"]) == (0, 1, 1)
     ledger.append_event(p, {"type": "verify", "run_id": "u", "ok": True, "ts": 202})
     cell = ability.refresh(p)["cells"][0]
-    assert (cell["n"], cell["ok"], cell["unverified"]) == (2, 1, 0)
+    # A positive verdict counts this run, but kind=None cannot satisfy the additional kind=ok success rule.
+    assert (cell["n"], cell["ok"], cell["unverified"]) == (2, 0, 1)
     ledger.append_event(p, {"type": "verify", "run_id": "u", "ok": False, "ts": 203})
     cell = ability.refresh(p)["cells"][0]
     assert (cell["n"], cell["ok"], cell["failed"], cell["updated"]) == (2, 0, 1, 203)
@@ -171,7 +177,8 @@ def test_overrides_win_without_changing_evidence_and_preserve_comments(p):
     ability.set_override(p, "codex.gpt-6-luna", "code", "avoid")
     c = ability.table(p, vendor="openai", task="code")["rows"]
     luna = next(r for r in c if r["model"] == "gpt-6-luna")
-    assert (luna["preference"], luna["preference_source"], luna["success_rate"]) == ("avoid", "user", 1)
+    # User preferences do not turn an observation without a verdict into a measured success rate.
+    assert (luna["preference"], luna["preference_source"], luna["success_rate"]) == ("avoid", "user", None)
     ability.set_override(p, "claude.opus", "plan", "avoid")
     ability.set_override(p, "claude.opus", "review", "prefer")
     assert "# my notes" in f.read_text(encoding="utf-8") and "# keep this" in f.read_text(encoding="utf-8")
@@ -230,7 +237,8 @@ def test_real_commands_from_outside_repository(tmp_path, p):
     output = process(tmp_path, "ability", "show", "--vendor", "codex", "--task", "fix").stdout
     assert "gpt-6-luna" in output and "数据不足" in output
     doc = json.loads(process(tmp_path, "ability", "--json", "show", "--task", "fix").stdout)
-    assert len(doc["rows"]) == 1 and doc["rows"][0]["n"] == 1
+    # The command exposes the unjudged observation, but no verdict means it contributes zero counted runs.
+    assert len(doc["rows"]) == 1 and doc["rows"][0]["n"] == 0
     doc = json.loads(process(tmp_path, "ability", "rebuild", "--json").stdout)
     assert doc["rows"] and (p.state / "ability.json").is_file()
     process(tmp_path, "ability", "set", "claude.opus", "plan", "prefer")
@@ -253,7 +261,8 @@ def test_real_verify_updates_cache_without_changing_ledger_format(tmp_path, p):
     out = json.loads(process(tmp_path, "verify", "verified", "--ok", "1").stdout)
     assert out["verdict"] is True
     state = json.loads((p.state / "ability.json").read_text(encoding="utf-8"))
-    assert state["cells"][0]["ok"] == 1
+    # The verdict is persisted, but this fixture's kind=None still prevents classification as a right run.
+    assert (state["cells"][0]["n"], state["cells"][0]["ok"], state["cells"][0]["unverified"]) == (1, 0, 1)
     assert ledger.rows(p)[-1]["type"] == "verify" and "ability" not in ledger.rows(p)[-1]
     process(tmp_path, "verify", "verified", "--ok", "0")
     assert json.loads((p.state / "ability.json").read_text(encoding="utf-8"))["cells"][0]["failed"] == 1
@@ -276,7 +285,9 @@ def test_real_route_exposes_the_summary(tmp_path, p):
     add(p, "r", brief="Fix a parser")
     out = json.loads(process(tmp_path, "route", "--b", "3", "--to", "codex", "Fix a parser").stdout)
     assert out["ability"]["task"] == "fix"
-    assert any(r["n"] == 1 for r in out["ability"]["rows"])
+    # Route shows the actual pending observation without counting it as a verdict-backed sample.
+    assert any(r["model"] == "gpt-6-luna" and r["n"] == 0 and r["unverified"] == 1
+               for r in out["ability"]["rows"])
 
 
 def test_corrupt_override_does_not_break_route_or_replace_the_pick(p, capsys):
@@ -305,9 +316,173 @@ def test_api_ability_requires_token_and_does_not_change_files(p):
         response = conn.getresponse()
         assert response.status == 200
         data = json.loads(response.read())
-        assert data["rows"][0]["task"] == "fix" and data["rows"][0]["n"] == 1
+        # API summaries use the same denominator: this fixture has no verdict and therefore n=0.
+        assert data["rows"][0]["task"] == "fix" and data["rows"][0]["n"] == 0
         assert not (p.state / "ability.json").exists()
     finally:
         conn.close()
         server.stop()
         worker.join(timeout=10)
+
+
+# Review follow-up: regression coverage for verdict-gated accounting and read-only paths.
+def test_review_only_judged_ok_runs_are_right(p):
+    for rid, kw in {
+        "right": {"kind": "ok", "verdict": {"ok": True}, "seconds": 4},
+        "wrong": {"kind": "check_failed", "ok": False, "verdict": {"ok": False}, "seconds": 6},
+        "self": {"kind": "ok_self_checked", "verdict": {"ok": True}, "seconds": 8},
+        "self-pending": {"kind": "ok_self_checked", "seconds": 1000},
+        "pending": {"seconds": 1000},
+        "soft": {"verdict": {"ok": True, "soft": True}, "seconds": 1000},
+        "unknown-kind": {"kind": None, "verdict": {"ok": True}, "seconds": 10},
+    }.items():
+        add(p, rid, state="finished", status="done", **kw)
+    cell = ability.refresh(p)["cells"][0]
+    assert (cell["n"], cell["ok"], cell["failed"], cell["success_rate"]) == (4, 1, 1, .25)
+    assert (cell["ok_self_checked"], cell["unverified"]) == (2, 3)
+    assert cell["median_wall_s"] == 7 and cell["wall_n"] == 4
+    assert cell["median_usd_per_success"] == .2
+    assert cell["efforts"] == {"low": 7} and cell["insufficient_data"]
+    add(p, "fifth", verdict={"ok": True}, status="done", state="finished")
+    cell = ability.refresh(p)["cells"][0]
+    assert cell["n"] == 5 and not cell["insufficient_data"]
+    assert ability.refresh(p) == ability.refresh(p, rebuild=True)
+
+
+@pytest.mark.parametrize("kw", [
+    {"status": "partial"},
+    {"status": "done", "result": {"status": "partial"}},
+    {"status": "done", "state": "running"},
+])
+def test_review_partial_work_never_enters_denominator(p, kw):
+    add(p, "partial", verdict={"ok": True}, **kw)
+    assert ability.refresh(p)["cells"] == []
+
+
+@pytest.mark.parametrize("ok", [True, False])
+def test_review_no_verdict_is_neither_right_nor_failed(p, ok):
+    add(p, "pending", ok=ok, kind="ok" if ok else "check_failed", state="finished", status="done")
+    cell = ability.refresh(p)["cells"][0]
+    assert (cell["n"], cell["ok"], cell["failed"], cell["success_rate"]) == (0, 0, 0, None)
+    assert cell["unverified"] == 1
+    assert cell["median_wall_s"] is None and cell["median_usd_per_success"] is None
+
+
+@pytest.mark.parametrize("kind", sorted(ui.NOT_WRONG))
+@pytest.mark.parametrize("verdict", [{}, {"ok": False}, {"ok": True}])
+def test_review_machine_and_person_stops_are_not_ability_failures(p, kind, verdict):
+    assert ability.NOT_WRONG == ui.NOT_WRONG
+    add(p, "stopped", kind=kind, ok=False, state="finished", status="failed", verdict=verdict,
+        error="sandbox setup helper: 1223" if kind == "env" else kind)
+    assert ability.refresh(p)["cells"] == []
+
+
+def test_review_q_accept_dry_run_does_not_call_refresh(tmp_path, p):
+    from ccx.commands import workqueue
+    project = tmp_path / "project"
+    project.mkdir()
+    args = cli.parse(["q", "accept", "--all-ready", "--dry-run", "--cwd", str(project)])
+    with mock.patch("ccx.accept.accept", return_value=({"plan": []}, 0)), \
+            mock.patch.object(ability, "after_verdict") as refresh:
+        assert workqueue.cmd_q(args) == 0
+        refresh.assert_not_called()
+    assert not p.state.exists()
+    assert not list(project.iterdir())
+
+
+def test_review_real_dry_run_writes_no_hub_files(tmp_path, monkeypatch):
+    hub = tmp_path / "absent-hub"
+    project = tmp_path / "project"
+    project.mkdir()
+    monkeypatch.setenv("CCX_HUB", str(hub))
+    process(tmp_path, "q", "accept", "--all-ready", "--dry-run", "--cwd", str(project))
+    assert not hub.exists() and not list(project.iterdir())
+
+
+def test_review_api_with_no_hub_returns_seed_without_writing(tmp_path):
+    hub = tmp_path / "absent-hub"
+    server = ui.UI(Paths(hub), idle_s=60)
+    worker = threading.Thread(target=server.serve, daemon=True)
+    worker.start()
+    conn = http.client.HTTPConnection("127.0.0.1", server.port, timeout=10)
+    try:
+        conn.request("GET", "/api/ability", headers={"X-CCX-Token": server.token})
+        response = conn.getresponse()
+        assert response.status == 200
+        data = json.loads(response.read())
+        assert data["seed"] and all(r["n"] == 0 for r in data["rows"])
+        assert not hub.exists()
+    finally:
+        conn.close()
+        server.stop()
+        worker.join(timeout=10)
+
+
+@pytest.mark.parametrize("which", ["run.json", "brief.md", "stat"])
+def test_review_permission_error_does_not_cache_unread_fingerprint(p, which):
+    add(p, "r", brief="", verdict={"ok": True})
+    d = p.runs / "r"
+    d.mkdir(parents=True)
+    (d / "run.json").write_text(json.dumps({"kind": "ok"}), encoding="utf-8")
+    (d / "brief.md").write_text("Fix a parser", encoding="utf-8")
+    method = "stat" if which == "stat" else "read_text"
+    target = d / ("run.json" if which == "stat" else which)
+    original = getattr(Path, method)
+    calls = []
+
+    def denied(path, *args, **kw):
+        if path == target:
+            calls.append(path)
+            raise PermissionError("temporarily replaced")
+        return original(path, *args, **kw)
+
+    with mock.patch.object(Path, method, autospec=True, side_effect=denied):
+        for _ in range(2):
+            state = ability.refresh(p)
+            assert "r" not in state["entries"] and state["cells"] == []
+        assert len(calls) == 2
+    recovered = ability.refresh(p)
+    assert recovered["cells"][0]["task"] == "fix" and recovered["cells"][0]["n"] == 1
+    assert recovered == ability.refresh(p, rebuild=True)
+
+
+def test_review_permission_error_keeps_only_last_good_fingerprint(p):
+    add(p, "r", verdict={"ok": True})
+    d = p.runs / "r"
+    d.mkdir(parents=True)
+    metadata = d / "run.json"
+    metadata.write_text(json.dumps({"brief": "Fix it"}), encoding="utf-8")
+    before = ability.refresh(p)
+    metadata.write_text(json.dumps({"brief": "Docs: expand the command reference"}), encoding="utf-8")
+    original = Path.read_text
+
+    def denied(path, *args, **kw):
+        if path == metadata:
+            raise PermissionError("temporarily replaced")
+        return original(path, *args, **kw)
+
+    with mock.patch.object(Path, "read_text", autospec=True, side_effect=denied):
+        assert ability.refresh(p) == before
+    recovered = ability.refresh(p)
+    assert recovered["entries"]["r"]["stamp"] != before["entries"]["r"]["stamp"]
+    assert recovered["cells"][0]["task"] == "docs"
+
+
+def test_review_ledger_permission_error_does_not_replace_cache(p):
+    add(p, "r", verdict={"ok": True})
+    ability.refresh(p)
+    cache = p.state / "ability.json"
+    before = cache.read_bytes()
+    add(p, "new", verdict={"ok": True})
+    original = Path.read_text
+
+    def denied(path, *args, **kw):
+        if path == p.ledger:
+            raise PermissionError("ledger temporarily unavailable")
+        return original(path, *args, **kw)
+
+    with mock.patch.object(Path, "read_text", autospec=True, side_effect=denied):
+        with pytest.raises(PermissionError):
+            ability.refresh(p)
+        assert cache.read_bytes() == before
+    assert ability.refresh(p)["cells"][0]["n"] == 2

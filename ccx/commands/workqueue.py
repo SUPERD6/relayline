@@ -91,8 +91,9 @@ def cmd_q(a) -> int:
         p = paths()
         out, code = accept(p, load_config(p), root, a.ids or [], all_ready=a.all_ready, check=a.check,
                            dry_run=a.dry_run, into_protected=a.into_protected)
-        from ..ability import after_verdict
-        after_verdict(p)
+        if not a.dry_run:
+            from ..ability import after_verdict
+            after_verdict(p)
         _out(out)
         return code
     elif a.q_cmd in ("run", "resume"):

@@ -52,19 +52,28 @@ ccx ability set codex.gpt-6-luna code clear  # remove your setting
 Each local cell has `n`, `ok`, `ok_self_checked`, `unverified`, `failed`, `success_rate` (`ok / n`), median known
 cost of independently successful runs, median recorded run seconds, effort counts and the latest run/verdict
 timestamp. `ok_self_checked` is **not independently verified**, never added to `ok`, even when its receipt is a
-pass; unknown evidence stays unverified. An independent lead verdict can judge a run with no classified evidence;
-a later negative verdict overrides a pass. Missing costs/times are `null`, zero stays zero, and each median reports
+pass; unknown evidence stays unverified. **What counts once:** `n` includes only runs with a non-soft verdict,
+excluding partial/running work and machine, quota or user stops. A right run also needs `kind = ok` and a positive
+verdict; a negative verdict counts as failed. `ok_self_checked` stays separate and is never right. Runs without
+a verdict (or with only a soft one) do not enter the denominator or count as failures; their unverified/self-checked
+counts and effort metadata may still be shown outside `n`. A positive verdict with an unknown kind stays
+unverified. Excluded stop
+kinds match the UI's open outcomes: `env` (including sandbox error 1223), `quota`, `user_stopped`, `over_budget`,
+`policy`, `needs_write`, `timeout`, `no_answer`. These stops do not count as failed even with a verdict.
+Missing costs/times are `null`, zero stays zero, and each median reports
 its known-sample count. Cost medians keep API-equivalent (`ae_usd`) and billed (`cost_usd`) USD separate; the displayed
 median prefers API-equivalent costs. This median is not total spend divided by successes. Recorded seconds cover
 the run's attempts, not the lead's or reviewer's entire workflow. Cells with **fewer than five local runs** say
-**"insufficient data / 数据不足"**; unverified runs still count in `n`. Evaluations, internal probes and dismissed
+**"insufficient data / 数据不足"**; `n = 0` has no success rate. Evaluations, internal probes and dismissed
 runs do not train local cells. Each run counts once, attributed to its final model, with its whole recorded run
 cost/time (including earlier attempts); effort is retained as a count, not a separate cell.
 
 `<hub>/ccx/ability.json` is a versioned cache: `cells` holds summaries, `entries` holds a fingerprint and a numeric
 observation per run. Briefs are read to infer types, not copied into this cache. CLI verdict paths (`verify`, queue
 completion/acceptance, undo-as-wrong, the start-hook sweep) refresh it; unchanged runs reuse their observations and
-only changed cells are recalculated. Queries also catch verdicts written directly through the Python API.
+only changed cells are recalculated. A transient `PermissionError` does not cache the unread file's fingerprint;
+the next query retries. `q accept --dry-run` does not refresh or create ability cache/lock files.
+Queries also catch verdicts written directly through the Python API.
 `rebuild` reconstructs it from the ledger, using run.json/brief.md when still present. Unrecoverable metadata stays
 unknown. Repeated verdicts replace that run's observation rather than adding runs.
 

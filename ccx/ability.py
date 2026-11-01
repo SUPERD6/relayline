@@ -31,8 +31,10 @@ class TaskType(str, Enum):
 
 
 TASKS = tuple(t.value for t in TaskType)
-VERSION = 1
+VERSION = 2
 MIN_N = 5
+# Same open outcomes as ui.NOT_WRONG: these stops say nothing about the model's ability.
+NOT_WRONG = {"env", "quota", "user_stopped", "over_budget", "policy", "needs_write", "timeout", "no_answer"}
 SEED = Path(__file__).parent / "data" / "ability-seed.json"
 ALIASES = {"anthropic": "claude", "openai": "codex", "google": "gemini", "dsh": "deepseek"}
 WORDS = {
@@ -96,24 +98,26 @@ def aggregate(samples: list[dict]) -> list[dict]:
         groups[_key(row)].append(row)
     out = []
     for (vendor, model, task), rs in sorted(groups.items()):
-        good = [r for r in rs if r["verdict"] == "ok"]
+        judged = [r for r in rs if r.get("counted", True)]
+        good = [r for r in judged if r["verdict"] == "ok"]
         costs = {}
         for basis in ("ae_usd", "cost_usd", "usd"):
             vals = [v for r in good if (v := _number(r.get(basis))) is not None]
             if vals:
                 costs[basis] = {"median": median(vals), "n": len(vals)}
         basis = next(iter(costs), None)
-        walls = [v for r in rs if (v := _number(r.get("wall_s"))) is not None]
+        walls = [v for r in judged if (v := _number(r.get("wall_s"))) is not None]
         counts = Counter(r["verdict"] for r in rs)
-        out.append({"vendor": vendor, "model": model, "task": task, "n": len(rs), "ok": len(good),
+        out.append({"vendor": vendor, "model": model, "task": task, "n": len(judged), "ok": len(good),
                     "ok_self_checked": counts["ok_self_checked"], "unverified": counts["unverified"],
-                    "failed": counts["failed"], "success_rate": len(good) / len(rs),
+                    "failed": sum(r["verdict"] == "failed" for r in judged),
+                    "success_rate": len(good) / len(judged) if judged else None,
                     "median_usd_per_success": costs[basis]["median"] if basis else None,
                     "cost_basis": basis, "cost_medians": costs,
                     "median_wall_s": median(walls) if walls else None, "wall_n": len(walls),
                     "efforts": dict(sorted(Counter(r.get("effort") or "unknown" for r in rs).items())),
                     "updated": max((v for r in rs if (v := _number(r.get("updated"))) is not None), default=None),
-                    "insufficient_data": len(rs) < MIN_N})
+                    "insufficient_data": len(judged) < MIN_N})
     return out
 
 
@@ -121,6 +125,8 @@ def _stat(path: Path) -> list[int] | None:
     try:
         s = path.stat()
         return [s.st_mtime_ns, s.st_size]
+    except PermissionError:
+        raise
     except OSError:
         return None
 
@@ -132,6 +138,8 @@ def _run_dir(p: Paths, rid: str) -> Path | None:
 def _json(path: Path, default):
     try:
         return json.loads(path.read_text(encoding="utf-8"))
+    except PermissionError:
+        raise
     except (OSError, ValueError):
         return default
 
@@ -142,6 +150,9 @@ def _observation(p: Paths, row: dict, event: dict, cfg: dict) -> dict | None:
     d = _run_dir(p, row["run_id"])
     rec = _json(d / "run.json", {}) if d else {}
     data = {**row, **rec}
+    status = (data.get("result") or {}).get("status") or data.get("status")
+    if data.get("kind") in NOT_WRONG or status == "partial" or data.get("state") == "running":
+        return None
     attempts = data.get("attempts")
     last = attempts[-1] if isinstance(attempts, list) and attempts else {}
     rungs = row.get("rungs") or []
@@ -154,6 +165,8 @@ def _observation(p: Paths, row: dict, event: dict, cfg: dict) -> dict | None:
     if not brief and d:
         try:
             brief = (d / "brief.md").read_text(encoding="utf-8")
+        except PermissionError:
+            raise
         except OSError:
             pass
     # Delegated briefs can carry shared context / permission boilerplate before the actual task.
@@ -164,20 +177,17 @@ def _observation(p: Paths, row: dict, event: dict, cfg: dict) -> dict | None:
                       review=data.get("task_type") == "review", task_type=data.get("task_type"))
     verdict = event if event.get("type") == "verify" else (data.get("verdict") or {})
     kind = data.get("kind")
-    if verdict.get("ok") is False:
+    counted = bool(verdict and verdict.get("ok") is not None and not verdict.get("soft"))
+    if counted and verdict.get("ok") is False:
         outcome = "failed"
     elif kind == "ok_self_checked":
         outcome = "ok_self_checked"
-    elif verdict.get("ok") is True and not verdict.get("soft"):
+    elif counted and verdict.get("ok") is True and kind == "ok":
         outcome = "ok"
-    elif kind == "ok":
-        outcome = "ok"
-    elif data.get("ok") is False:
-        outcome = "failed"
     else:
         outcome = "unverified"
     result = {"vendor": _vendor(data.get("vendor") or agent_vendor(agent, cfg)), "model": model,
-              "effort": effort, "task": task, "verdict": outcome,
+              "effort": effort, "task": task, "verdict": outcome, "counted": counted,
               "updated": verdict.get("ts") or data.get("ts"),
               "wall_s": _number(row.get("seconds", data.get("seconds", data.get("wall"))))}
     for basis in ("ae_usd", "cost_usd", "usd"):
@@ -253,14 +263,22 @@ def refresh(p: Paths, *, rebuild: bool = False, persist: bool = True) -> dict:
         entries, dirty = {}, set()
         for rid, row in runs.items():
             d = _run_dir(p, rid)
-            stamp = hashlib.sha256(json.dumps([row, events.get(rid), cfg.get("providers"),
-                _stat(d / "run.json") if d else None, _stat(d / "brief.md") if d else None],
-                sort_keys=True).encode("utf-8")).hexdigest()
             before = previous.get(rid, {})
+            try:
+                stamp = hashlib.sha256(json.dumps([row, events.get(rid), cfg.get("providers"),
+                    _stat(d / "run.json") if d else None, _stat(d / "brief.md") if d else None],
+                    sort_keys=True).encode("utf-8")).hexdigest()
+                sample = (_observation(p, row, events.get(rid, {}), cfg)
+                          if before.get("stamp") != stamp else before.get("sample"))
+            except PermissionError:
+                # A transient Windows replacement is not missing metadata. Retain only the last good entry,
+                # never this unread fingerprint, so the next query retries even if mtime/size stay unchanged.
+                if before:
+                    entries[rid] = before
+                continue
             if before.get("stamp") == stamp:
                 entries[rid] = before
                 continue
-            sample = _observation(p, row, events.get(rid, {}), cfg)
             entries[rid] = {"stamp": stamp, "sample": sample}
             for s in (before.get("sample"), sample):
                 if s:
