@@ -283,9 +283,22 @@ def cmd_run(a) -> int:
     return _cmd_run(a)
 
 
+def max_usd(a, cfg: dict) -> float | None:
+    """P0-15: --max-usd, else [run] max_usd; 0 = no limit (None). A negative one is an error."""
+    v = a.max_usd if getattr(a, "max_usd", None) is not None else (cfg.get("run") or {}).get("max_usd")
+    try:
+        v = float(v) if v is not None else None
+    except (TypeError, ValueError):
+        v = None
+    if v is not None and (v != v or v < 0):
+        raise ValueError("--max-usd / [run] max_usd must be 0 (no limit) or a positive amount")
+    return v if v else None
+
+
 def _cmd_run(a) -> int:
     p = paths()
     cfg = load_config(p)
+    max_usd(a, cfg)                     # a negative cap fails here, before --bg detaches anything
     proj = None
     if a.project:                                # into a project from the catalog (ccx/commands/projects.py)
         from .projects import for_run
@@ -391,7 +404,7 @@ def _cmd_run(a) -> int:
                   allow_subagents=not a.no_subagents, check=a.check, review=a.review, risk=a.risk,
                   namecheck=getattr(a, "namecheck", None),
                   subagents="off" if a.no_subagents else subagents_spec(a.subagents), budget_usd=a.budget,
-                  parallel=True if a.parallel else None, share_context=a.context,
+                  max_usd=max_usd(a, cfg), parallel=True if a.parallel else None, share_context=a.context,
                   progress=not os.environ.get("CCX_RUN_ID"), **kw)    # not the detached child of --bg
     if preauth:
         # the run of a proposal the picked tier pre-authorised starts now: only now is it used (once), and only now
@@ -667,6 +680,7 @@ def _cmd_resume(a) -> int:
     from ..recover import sweep
     if getattr(a, "wait", None) is not None and not getattr(a, "bg", False):
         raise ValueError("--wait N goes with --bg (a foreground resume already waits until it is done)")
+    max_usd(a, load_config(p))                       # a negative cap fails before --bg detaches anything
     refused = _env_refused(p, a)                     # before --bg detaches anything: nothing is spent
     if refused is not None:
         return refused
@@ -686,6 +700,7 @@ def _cmd_resume(a) -> int:
     req = Request(to="codex", brief=_brief(a), tier=a.tier, resume_run=a.run_id,
                   caller=_caller(a.caller), escalate=False if a.no_escalate else None,
                   model=a.model, effort=a.effort, budget_usd=a.budget, review=a.review, check=a.check,
+                  max_usd=max_usd(a, load_config(p)),
                   namecheck=getattr(a, "namecheck", None), progress=not os.environ.get("CCX_RUN_ID"))
     if a.check:                         # replaces the stored check (one that named a missing file, say)
         prev = ledger.load_run(p, a.run_id)
@@ -1223,6 +1238,9 @@ def register(sub) -> None:
                    "the tool's default, fewer when quota is tight (default); off; or a number")
     adv.add_argument("--budget", type=float, metavar="USD", help="spending cap for its own sub-agents on this piece "
                    "(default [subagents] max_usd, $2); over it the run stops and can go on with ccx resume --budget")
+    adv.add_argument("--max-usd", type=float, metavar="USD", help="stop this whole delegation (rungs, review, fix "
+                     "round) once it has spent USD, API-equivalent; checked between steps, so a running attempt "
+                     "finishes (default [run] max_usd, 0 = no limit)")
     adv.add_argument("--parallel", action="store_true", help="tell it explicitly to use sub-agents for independent "
                    "parts (only with this flag: a brief that lists several items does not add it)")
     r.add_argument("--review", choices=["auto", "on", "off"], default="auto", help="independent review of the diff "
@@ -1309,6 +1327,8 @@ def register(sub) -> None:
     rs.add_argument("--effort")
     radv.add_argument("--budget", type=float, metavar="USD", help="a new spending cap for its own sub-agents (after "
                       "an over_budget stop)")
+    radv.add_argument("--max-usd", type=float, metavar="USD", help="cap on this follow-up as a whole, as for ccx run "
+                      "(default [run] max_usd, 0 = no limit)")
     rs.add_argument("--review", choices=["auto", "on", "off"], default=None, help="independent review of what this "
                     "follow-up changed, as for ccx run (default: the resumed run's own setting, auto for older runs)")
     rs.add_argument("--check", metavar="CMD", help="replace the run's acceptance command from here on (e.g. one "

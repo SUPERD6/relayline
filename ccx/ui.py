@@ -1264,7 +1264,7 @@ def brief_notes(rd: Reader, run_dir: Path) -> list[int]:
 
 
 # a run that ended for one of these reasons says nothing about whether the work (or a note it carried) was right
-NOT_WRONG = {"env", "quota", "user_stopped", "over_budget", "policy", "needs_write", "timeout", "no_answer"}
+NOT_WRONG = {"env", "quota", "user_stopped", "over_budget", "max_usd", "policy", "needs_write", "timeout", "no_answer"}
 
 
 def _hard(rec: dict, verdict: dict | None) -> dict | None:
