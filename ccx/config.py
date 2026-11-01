@@ -306,6 +306,9 @@ SETTINGS = {   # key -> (type, help). Only these can be set with `ccx config set
     "prompt.slim": (_bool, "true | false: a run given --mode write and no --check is not told what to do when the "
                            "task only asks for an answer (that sentence is left out); false = the text as before "
                            "(default true)"),
+    "run.max_usd": (float, "default --max-usd of ccx run / resume: stop the delegation (its attempts, review and fix "
+                           "round together) once it has spent this many API-equivalent $ (0 = no limit, the default; "
+                           "batch, q run, way and task resume do not read it)"),
     "wake.enabled": (_bool, "true | false: a --bg run that finishes sends the lead one line (Claude Code's inbox, "
                             "else the next turn's hook) instead of the lead polling (default true)"),
     "wake.trust_socket": (_bool, "true | false: a line delivered to Claude Code's inbox is not also left for the "
@@ -369,6 +372,8 @@ def set_setting(p: Paths, key: str, raw: str) -> dict:
         raise ValueError("autonomy.level must be L0, L1 or L2")
     if key == "escalate.on_self_checked" and raw not in ("review", "rung", "off"):
         raise ValueError("escalate.on_self_checked must be review, rung or off")
+    if key == "run.max_usd" and not float(raw) >= 0:
+        raise ValueError("run.max_usd must be 0 (no limit) or a positive amount")
     if key == "ui.lang" and raw not in ("zh", "en"):
         raise ValueError("ui.lang must be zh or en")
     try:

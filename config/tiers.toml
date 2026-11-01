@@ -225,6 +225,11 @@ github = ""
 # 主导明确给了 --mode write、又没有 --check 的运行，收尾说明去掉"只要回答"那句（那是给只问答案的任务的）；从 brief 推断出的
 # write 保留它（"add() 返回什么？"也可能被读成改动）。实验性：没在真实子智能体上测过。false = 恢复原来的文字。
 slim = true
+[run]
+# 一次派活（含升级重试、审查、修复轮）累计花到这么多（API 等价美元）就停，收据写"budget cap reached"；0 = 不限（默认）。
+# 每次可用 ccx run/resume --max-usd 覆盖（只有 run/resume 读它）。正在跑的那一步不会被中途掐断：在两步之间检查，
+# 所以最多超出一步（一趟尝试，或一次审查）。
+max_usd = 0
 
 [wake]
 # 后台派活（ccx run --bg）跑完时主动告诉主导一行结论，主导不用轮询（ccx/wake.py）：Claude Code 主导走它自己的收件箱
