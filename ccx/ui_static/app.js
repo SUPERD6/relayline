@@ -16,6 +16,7 @@
   let RUNPAGE_NO = 0;
   let CHATDRAFT = "", CHATPROJECT = "", CHATPREP = null, CHATRESULT = null;
   let CHATGEN = 0;
+  let CHATROLES = [], CHATROLEPROJECT = "";
   /* DeepSeek's own agent is shown with its command name (ccx handoff --to dsh, or deepseek); `deepseek` alone is
      the deepseek provider (Claude Code on DeepSeek's API) in run records, the DeepSeek session on the board */
   const KNOWN = {claude: "Claude", codex: "Codex", deepseek: "DeepSeek", dsh: "DeepSeek (dsh)", gemini: "Gemini"};
@@ -1276,7 +1277,13 @@
     return "/#/all";
   }
   function selectChatProject(pid) {
-    if (pid !== CHATPROJECT) { CHATPROJECT = pid; CHATGEN++; CHATPREP = null; CHATRESULT = null; }
+    if (pid !== CHATPROJECT) { CHATPROJECT = pid; CHATGEN++; CHATPREP = null; CHATRESULT = null; CHATROLES = []; CHATROLEPROJECT = ""; }
+    if (pid && pid !== CHATROLEPROJECT && !SNAP) {
+      CHATROLEPROJECT = pid;
+      api("/api/roles?project=" + encodeURIComponent(pid)).then(r => {
+        if (CHATPROJECT === pid) { CHATROLES = r.roles || []; repaintChat(); }
+      }).catch(() => { if (CHATPROJECT === pid) { CHATROLES = []; repaintChat(); } });
+    }
   }
   function chatOutcome() {
     if (!CHATRESULT) return "";
@@ -1295,8 +1302,9 @@
     if (SNAP) return "";
     const projects = D.projects || [];
     if (!CHATPROJECT && projects.length) selectChatProject(projects[0].id);
-    return `<section class="card ui-chat"><h2>${t("chat_title")}</h2><p>${t("chat_rule")}</p><label for="chat-project">${t("runs_project")}</label><select id="chat-project">${projects.map(p => `<option value="${esc(p.id)}"${p.id === CHATPROJECT ? " selected" : ""}>${esc(p.name)}</option>`).join("")}</select><label for="chat-input">${t("chat_input")}</label><textarea id="chat-input" maxlength="4000" rows="4">${esc(CHATDRAFT)}</textarea><button class="btn" data-chat="preview">${t("chat_preview")}</button>`
-      + (CHATPREP ? `<div class="cmd"><p>${t("chat_will")}</p><pre>${esc(CHATPREP.cmd)}</pre><p>${t("chat_estimate")}: ${CHATPREP.estimate === "unknown" ? t("runs_unknown") : usd(CHATPREP.estimate)} · ${t("chat_ttl")}</p><button class="btn primary" data-chat="confirm">${t("chat_confirm")}</button></div>` : "")
+    const roleButtons = CHATROLES.length ? `<div class="chat-roles" role="group" aria-label="${t("chat_roles")}"><span>${t("chat_roles")}</span> ${CHATROLES.map(r => `<button class="btn" data-chat-role="${esc(r.name)}" title="${esc(r.spec)}">${esc(r.name)}</button>`).join(" ")}</div>` : "";
+    return `<section class="card ui-chat"><h2>${t("chat_title")}</h2><p>${t("chat_rule")}</p><label for="chat-project">${t("runs_project")}</label><select id="chat-project">${projects.map(p => `<option value="${esc(p.id)}"${p.id === CHATPROJECT ? " selected" : ""}>${esc(p.name)}</option>`).join("")}</select>${roleButtons}<label for="chat-input">${t("chat_input")}</label><textarea id="chat-input" maxlength="4000" rows="4">${esc(CHATDRAFT)}</textarea><button class="btn" data-chat="preview">${t("chat_preview")}</button>`
+      + (CHATPREP ? `<div class="cmd"><p>${t("chat_will")}</p><pre>${esc(CHATPREP.cmd)}</pre>${CHATPREP.role ? `<p>${esc(CHATPREP.role.spec)}</p><pre>${esc(JSON.stringify(CHATPREP.role.effective_defaults))}</pre>${CHATPREP.role.check_notice ? `<p role="note">${esc(CHATPREP.role.check_notice)}</p>` : ""}<pre>${esc(CHATPREP.brief)}</pre>` : ""}<p>${t("chat_estimate")}: ${CHATPREP.estimate === "unknown" ? t("runs_unknown") : usd(CHATPREP.estimate)} · ${t("chat_ttl")}</p><button class="btn primary" data-chat="confirm">${t("chat_confirm")}</button></div>` : "")
       + chatOutcome() + `</section>`;
   }
   function repaintChat() {
@@ -1308,6 +1316,16 @@
     if (e.target.dataset.runfilter) { RUNFILTER[e.target.dataset.runfilter] = e.target.value; RUNPAGE_NO = 0; RUNLIST = null; RUNERR = ""; loadRuns(null, true).then(render); }
   });
   document.addEventListener("click", async e => {
+    const roleButton = e.target.closest("[data-chat-role]");
+    if (roleButton) {
+      let task = CHATDRAFT;
+      const previous = /^ccx run --role [A-Za-z][A-Za-z0-9_-]* -- ([\s\S]*)$/.exec(task);
+      if (previous) { try { task = JSON.parse(previous[1]); } catch (_) { task = previous[1]; } }
+      CHATDRAFT = `ccx run --role ${roleButton.dataset.chatRole} -- ${JSON.stringify(task)}`;
+      CHATGEN++; CHATPREP = null; CHATRESULT = null; repaintChat();
+      const input = $("chat-input"); if (input) input.focus();
+      return;
+    }
     const page = e.target.closest("[data-run-page]");
     if (page) { if (!page.disabled && !RUNBUSY) { RUNPAGE_NO = Math.max(0, Number(page.dataset.runPage)); loadRuns(null, true).then(render); } return; }
     const diff = e.target.closest("[data-run-diff]");

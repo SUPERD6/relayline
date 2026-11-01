@@ -232,14 +232,19 @@ def _deep_merge(base: dict, over: dict) -> dict:
     return out
 
 
-def load_config(p: Paths | None = None) -> dict:
+def load_config(p: Paths | None = None, *, documents: dict | None = None) -> dict:
     p = p or paths()
     with open(DEFAULT_TIERS, "rb") as f:
         cfg = tomllib.load(f)
+    if documents is not None:
+        documents[DEFAULT_TIERS] = cfg
     for f in (p.user_tiers, p.settings):          # hand-edited overrides, then `ccx config set`
         if f.exists():
             with open(f, "rb") as fh:
-                cfg = _deep_merge(cfg, tomllib.load(fh))
+                over = tomllib.load(fh)
+            if documents is not None:
+                documents[f] = over
+            cfg = _deep_merge(cfg, over)
     return cfg
 
 
@@ -285,7 +290,15 @@ def _quota_minutes(raw: str) -> float | bool:
     return False if raw.strip().lower() == "false" else float(raw)
 
 
+ROLE_DEFAULTS = {"mode": ("read", "write"), "review": ("auto", "on", "off"),
+                 "worktree": bool, "check": str}  # roles.defaults.<name>; no implicit defaults
+# mode = worker read/write; worktree = isolate writes; review = auto/on/off;
+# check = host-shell acceptance command, adopted only from global defaults or explicit --check.
+
+
 SETTINGS = {   # key -> (type, help). Only these can be set with `ccx config set`.
+    # Arbitrary roles.<name> and roles.defaults.<name> mode/worktree/review/check use ccx.roles
+    # (ccx roles set/unset), outside this scalar-key allowlist. Default role table: {}.
     "quota.auto_refresh_min": (_quota_minutes, "refresh existing readings older than N minutes (default 60); "
                                               "0/false disables"),
     "quota.avoid_above": (float, "used share above which quota routing prefers another subscription (default 0.8)"),

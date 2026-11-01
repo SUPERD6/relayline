@@ -117,7 +117,7 @@ def _plan(req: Request, p: Paths, cfg: dict, max_esc: int) -> list[dict]:
         effort = req.effort or "medium"
         rung = f"{req.to}:{req.model}:{effort}"
         ladder = list((req.route or {}).get("ladder") or [])
-        if not ladder:
+        if not ladder and not (req.route or {}).get("role_fixed_model"):
             try:
                 ladder = learn.ladder_after(p, rung, max_esc)
             except Exception:  # noqa: BLE001 — routing skill missing: no escalation path
@@ -130,9 +130,11 @@ def _plan(req: Request, p: Paths, cfg: dict, max_esc: int) -> list[dict]:
         if not cfg["tiers"].get(tier, {}).get(req.to):
             break
         spec = tier_spec(cfg, tier, req.to)
-        out.append({"agent": req.to, "model": spec["model"], "effort": spec["effort"],
+        effort = (req.effort if not out and (req.route or {}).get("role") and req.effort
+                  else spec["effort"])
+        out.append({"agent": req.to, "model": spec["model"], "effort": effort,
                     "lean": bool(spec.get("lean", False)), "tier": tier,
-                    "rung": f"{req.to}:{spec['model']}:{spec['effort']}"})
+                    "rung": f"{req.to}:{spec['model']}:{effort}"})
         tier = next_tier(tier)
     if not out:
         raise ValueError(f"tier {req.tier} has no {req.to} model configured")
@@ -266,3 +268,118 @@ def self_cost(p: Paths, cfg: dict, lead: str, files: int, requests: float | None
     return {"usd": round(usd, 5), "requests": round(reqs, 1), "requests_from": reqs_from, "ctx_tokens": int(ctx),
             "ctx_from": ctx_from, "model": f"{agent}:{model}" + (" (reference)" if rung != lead else ""),
             "overhead_usd": round(overhead, 5), "overhead_on": ref}
+
+
+def resolve_role(spec: dict, caller: str, p: Paths, cfg: dict, resolve=None) -> tuple[dict | None, dict]:
+    """Role constraints surround the existing resolver; without --role it is called unchanged.
+
+    A fixed model uses the ordinary difficulty pick's effort (a configured T1..T4 effort for keyword/tier
+    routing). Model=auto keeps the ordinary selection and refusal rules. Explicit CLI choices win.
+    """
+    from pathlib import Path
+    import os
+    from . import roles
+    from .commands.common import resolve as ordinary
+    resolve = resolve or ordinary
+    name = spec.get("role")
+    if not name:
+        return resolve(spec, caller, p, cfg)
+    cwd = Path(spec.get("cwd") or os.getcwd())
+    role = roles.get(p, cwd, name, cfg)
+    explicit = spec.get("explicit", set())
+    selected = dict(spec)
+    if "--to" not in explicit and selected.get("to", "auto") == "auto":
+        selected["to"] = role["agent"]
+    different, fallback = None, None
+    if selected.get("to") == "other":
+        from .agents import others
+        # Use the executed attempt, never the initial target, across the checkout's worktrees.
+        root, previous = roles.repository(cwd), None
+        for row in reversed(ledger.rows(p)):
+            if row.get("type") or row.get("role") != "build":
+                continue
+            try:
+                record = ledger.load_run(p, row["run_id"])
+            except (FileNotFoundError, ValueError):
+                record = {}
+            origin = record.get("source_cwd") or row.get("cwd")
+            if not origin or roles.repository(Path(origin)) != root:
+                continue
+            last = (record.get("attempts") or [{}])[-1]
+            rungs = [r for r in row.get("rungs") or [] if r]
+            parts = (last.get("rung") or (rungs[-1] if rungs else "")).split(":", 2)
+            agent = last.get("agent") or (parts[0] if len(parts) == 3 else None)
+            model = last.get("model") or (parts[1] if len(parts) == 3 else None)
+            if agent and model:
+                previous = {"agent": agent, "model": model}
+                break
+        build = next((r for r in roles.table(p, cwd, cfg)["roles"] if r["name"] == "build"), {})
+        build_agent = (previous or {}).get("agent") or build.get("agent") or caller
+        if build_agent in ("auto", "other", "user"):
+            build_agent = "codex" if caller != "codex" else "claude"
+        build_model = (previous or {}).get("model") or build.get("model")
+        candidates = others(build_agent, cfg)
+        ranked = quota_candidates(p, cfg, candidates, spec.get("quota"))
+        if ranked["eligible"]:
+            selected["to"] = ranked["eligible"][0]
+        else:
+            from .runners import find_bin
+            if not find_bin(build_agent):
+                raise ValueError("role other: no available reviewer CLI")
+            selected["to"], different = build_agent, build_model
+            fallback = "other: no eligible other vendor; same vendor, different model"
+    fixed = spec.get("model") or (role["model"] if role["model"] != "auto" else None)
+    # An explicit --to chooses another vendor; do not pass it the role's model for the old vendor.
+    if "--to" in explicit and spec.get("to") not in ("auto", role["agent"]) and not spec.get("model"):
+        fixed = None
+    if spec.get("provider"):
+        fixed = spec.get("model")
+    if fixed and selected.get("to", "auto") == "auto":
+        from .commands.common import _agent_of_model
+        selected["to"] = _agent_of_model(fixed) or "auto"
+    sized = {**selected, "model": None, "effort": None} if fixed else selected
+    if fixed:
+        # Naming the model is the person's assignment, as with --model. Force ONLY the sizing lookup;
+        # routing.mode, autonomy and budget gates still run outside it. No A/B task is opened for sizing.
+        sized.update(force=True)
+    kw, route = resolve(sized, caller, p, cfg)
+    route.update(role=name, role_spec=role["spec"], role_source=role["source"])
+    route["explicit_flags"] = sorted(explicit)
+    if (route.get("quota_routing") or {}).get("all_tight") and not spec.get("force"):
+        return None, route
+    if kw is None:
+        return kw, route
+    agent = kw["to"]
+    tier = kw.get("tier")
+    base = tier_spec(cfg, tier, agent) if tier in cfg.get("tiers", {}) and tier != "T0" else kw
+    effort = spec.get("effort") or (role["effort"] if role["effort"] != "auto" else base.get("effort"))
+    model = fixed or kw.get("model") or base.get("model")
+    if different and model == different:
+        model = next((cfg["tiers"][t][agent]["model"] for t in ("T2", "T1", "T3", "T4")
+                      if agent in cfg["tiers"].get(t, {}) and cfg["tiers"][t][agent]["model"] != different), None)
+        if not model:
+            raise ValueError("role other: no different model configured for the only available vendor")
+    if not model or not effort:
+        raise ValueError(f"role {name}: no model/effort configured for {agent}")
+    rung = f"{agent}:{model}:{effort}"
+    changed = route.get("rung") != rung
+    if changed:
+        # Probabilities/costs for the routing model do not describe the user's different model.
+        for key in ("p", "chain_p", "expected_usd", "stale"):
+            route.pop(key, None)
+    route.update(rung=rung, role_effort_auto=not spec.get("effort") and role["effort"] == "auto")
+    if fixed:
+        route["role_fixed_model"] = True
+        order = ["low", "medium", "high", "xhigh", "max", "ultra"]
+        efforts = [cfg["tiers"][t][agent]["effort"] for t in ("T1", "T2", "T3", "T4")
+                   if agent in cfg["tiers"].get(t, {})]
+        route["ladder"] = [f"{agent}:{model}:{e}" for e in dict.fromkeys(efforts)
+                           if e in order and effort in order and order.index(e) > order.index(effort)]
+    if fallback:
+        route["role_fallback"] = fallback
+    if fixed or kw.get("model") or (different and model != base.get("model")):
+        kw.update(model=model, effort=effort)
+    elif spec.get("effort") or role["effort"] != "auto":
+        kw["effort"] = effort
+    kw["route"] = route
+    return kw, route

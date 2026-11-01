@@ -17,6 +17,10 @@ from .base import Adapter
 # in read-only mode ("blocked by policy"; tested 2026-10-23).
 CODEX_KEEP = (("windows", "sandbox"),)
 
+# Informational aliases; arbitrary --model names remain accepted. Checked 2026-11-01 against
+# https://developers.openai.com/api/docs/models/gpt-6.1-terra; codex-cli 0.164.0 --help accepts -m MODEL.
+KNOWN_MODELS = ("gpt-6-luna", "gpt-6.1-sol", "gpt-6.1-terra", "gpt-6-astra")
+
 
 # What CCX_CODEX_ISOLATE=1 turns off besides the user's config.toml (belt and braces: config.toml is not loaded).
 # plugins / remote_plugin / apps (codex-cli 0.164.0 `codex features list`: stable, on by default): with the plugin

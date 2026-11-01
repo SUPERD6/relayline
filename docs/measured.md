@@ -2,6 +2,21 @@
 
 English · [中文](measured.zh.md) · back to the [README](../README.md) · all [research reports](research/README.md)
 
+## Role model source check (2026-11-01)
+
+`codex-cli 0.164.0 --help` accepts `-m/--model MODEL` without enumerating models. Official model pages were
+opened on 2026-11-01; this confirms documentation, not account access or a live model run.
+
+| Model | Input / cached input / output, USD per 1M tokens (standard short context) | Source |
+|---|---|---|
+| `gpt-6.1-terra` | $1 / $0.05 / $5 | [Official model/pricing page](https://developers.openai.com/api/docs/models/gpt-6.1-terra), checked 2026-11-01 |
+| `gpt-6-astra` | $10 / $1 / $50 | [Official model page](https://developers.openai.com/api/docs/models/gpt-6-astra), checked 2026-11-01; 1,050,000-token context, 128,000 max output |
+
+Terra supports reasoning efforts none/low/medium/high/xhigh/max. The adapter accepts its name; role tests use
+fake CLIs. Adding a name does not add calibrated routing priors or an accounting price: installed pricing tables
+that do not know Terra keep its cost unknown. The example role workflows and their sources are in
+[Features](features.md#reference-assignments-examples-not-shipped-configuration).
+
 ## The README's comparison: self, built-in sub-agent, ccx
 
 ### Hold-out set (hc1, 2026-10-29)
