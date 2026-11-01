@@ -25,6 +25,17 @@ class TestDefault(unittest.TestCase):
         self.assertEqual(max_usd(SimpleNamespace(max_usd=0.2), {"run": {"max_usd": 1.5}}), 0.2)
         self.assertIsNone(max_usd(SimpleNamespace(max_usd=0), {"run": {"max_usd": 1.5}}))   # 0 on the line: off
         self.assertIsNone(max_usd(a, {"run": {"max_usd": "x"}}))
+        with self.assertRaises(ValueError):
+            max_usd(SimpleNamespace(max_usd=-1), {})
+
+    def test_no_soft_verdict_or_l2_evidence_for_a_capped_run(self):
+        from ccx.accept import evidence
+        rec = {"check": {"passed": True, "cmd": "pytest"}, "max_usd": {"stopped_before": "review"}}
+        self.assertIsNone(evidence(rec))
+        self.assertEqual(evidence(dict(rec, verdict={"ok": True})), "your verdict: ok")
+        import inspect
+        from ccx import verdicts
+        self.assertIn('record.get("max_usd")', inspect.getsource(verdicts.soft_verdicts))
 
 
 class TestRun(Env):
@@ -52,7 +63,7 @@ class TestRun(Env):
     def test_no_cap_is_as_before(self):
         out = self.go("--review", "on")
         self.assertNotIn("max_usd", out)
-        self.assertNotIn("max_usd=", out["recap"])
+        self.assertNotIn("max_usd", out["recap"])
         self.assertEqual(len(self.reviews()), 1)
 
     def test_cap_reached_skips_the_review(self):
@@ -62,7 +73,9 @@ class TestRun(Env):
         self.assertEqual((m["stopped_before"], m["note"], m["cap"]), ("review", "budget cap reached", float(TINY)))
         self.assertGreater(m["spent"], 0)
         self.assertIn("budget cap reached", out["hint"])
-        self.assertIn("max_usd=reached", out["recap"])
+        self.assertIn("needs_lead=max_usd", out["recap"])
+        self.assertEqual(out["review"]["verdict"], "not-run")
+        self.assertIn("budget cap", out["review"]["error"])
 
     def test_cap_reached_skips_the_next_rung(self):
         out = self.go("--review", "off", "--check", "exit 1", "--max-usd", TINY)
@@ -90,6 +103,25 @@ class TestRun(Env):
         self.assertNotIn("fixed_after_review_of", out)
         self.assertEqual(out["max_usd"]["stopped_before"], "fix round")
         self.assertIn("budget cap reached", out["hint"])
+
+    def test_auto_review_and_a_failed_check_name_the_step_really_stopped(self):
+        # reviewers A and B: with review auto the cap was written as "review" before the check failed
+        out = self.go("--check", "exit 1", "--max-usd", TINY)
+        self.assertEqual(out["kind"], "check_failed")
+        self.assertEqual(out["max_usd"]["stopped_before"], "attempt", out["max_usd"])
+        self.assertEqual(self.reviews(), [])
+
+    def test_a_change_auto_would_not_review_is_not_flagged(self):
+        (self.work / "test_a.py").write_text("import a\nassert a.x == 2\n", encoding="utf-8")
+        out = self.go("--check", f'"{sys.executable}" test_a.py', "--max-usd", TINY)
+        self.assertTrue(out["check"]["passed"], out)
+        self.assertNotIn("review", out)                                 # strong check: auto reviews nothing
+        self.assertNotIn("max_usd", out)
+
+    def test_negative_flag_is_an_error(self):
+        r = self.ccx("run", "--to", "codex", "--model", "gpt-6-luna", "--effort", "low", "--max-usd", "-1", "x")
+        self.assertNotEqual(r.returncode, 0)
+        self.assertNotEqual(self.ccx("config", "set", "run.max_usd", "-1").returncode, 0)
 
     def test_config_default_and_resume_flag(self):
         Paths(self.hub).user_tiers.parent.mkdir(parents=True, exist_ok=True)

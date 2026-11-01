@@ -284,13 +284,15 @@ def cmd_run(a) -> int:
 
 
 def max_usd(a, cfg: dict) -> float | None:
-    """P0-15: --max-usd, else [run] max_usd; 0 or less = no limit (None)."""
+    """P0-15: --max-usd, else [run] max_usd; 0 = no limit (None). A negative one is an error."""
     v = a.max_usd if getattr(a, "max_usd", None) is not None else (cfg.get("run") or {}).get("max_usd")
     try:
         v = float(v) if v is not None else None
     except (TypeError, ValueError):
         v = None
-    return v if v and v > 0 else None
+    if v is not None and (v != v or v < 0):
+        raise ValueError("--max-usd / [run] max_usd must be 0 (no limit) or a positive amount")
+    return v if v else None
 
 
 def _cmd_run(a) -> int:

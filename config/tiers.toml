@@ -223,7 +223,8 @@ github = ""
 
 [run]
 # 一次派活（含升级重试、审查、修复轮）累计花到这么多（API 等价美元）就停，收据写"budget cap reached"；0 = 不限（默认）。
-# 每次可用 ccx run/resume --max-usd 覆盖。正在跑的那一趟不会被中途掐断：在两步之间检查，所以最多超出一趟。
+# 每次可用 ccx run/resume --max-usd 覆盖（只有 run/resume 读它）。正在跑的那一步不会被中途掐断：在两步之间检查，
+# 所以最多超出一步（一趟尝试，或一次审查）。
 max_usd = 0
 
 [wake]
