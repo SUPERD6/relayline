@@ -36,7 +36,8 @@ def parse(value: str, cfg: dict) -> dict:
 
 def project_root(cwd: Path) -> Path:
     """Nearest checkout or explicit project role table; do not resolve a worktree back to its main checkout."""
-    cwd = cwd.resolve()
+    from .workspace import canonical
+    cwd = canonical(cwd)
     for root in (cwd, *cwd.parents):
         if (root / ".git").exists() or (root / ".ccx" / "roles.toml").exists():
             return root
@@ -72,6 +73,7 @@ def _role_section(data: dict, source) -> dict:
 
 
 def table(p: Paths, cwd: Path, cfg: dict | None = None) -> dict:
+    from .workspace import canonical
     documents = {} if cfg is None else None
     cfg = cfg if cfg is not None else load_config(p, documents=documents)
     root = project_root(cwd)
@@ -82,10 +84,10 @@ def table(p: Paths, cwd: Path, cfg: dict | None = None) -> dict:
         for name, value in _role_section(data, path).items():
             if name == "defaults":
                 for r, opts in value.items():
-                    default_sources.setdefault(r, {}).update({k: str(path) for k in opts})
+                    default_sources.setdefault(r, {}).update({k: str(canonical(path)) for k in opts})
             else:
-                sources[name] = str(path)
-    local = root / ".ccx" / "roles.toml"
+                sources[name] = str(canonical(path))
+    local = canonical(root / ".ccx" / "roles.toml")
     over = _role_section(_read(local), local)
     merged = _deep_merge(merged, over)
     defaults = merged.get("defaults") or {}
@@ -122,7 +124,7 @@ def table(p: Paths, cwd: Path, cfg: dict | None = None) -> dict:
                 effective["check"] = trusted
                 effective_sources["check"] = (default_sources.get(name) or {}).get("check", "global")
             notice = f"项目 check 来自 {local}，仅展示，不自动采用；检查后可显式传入 --check。"
-        template = root / ".ccx" / "briefs" / "templates" / f"{name}.md"
+        template = canonical(root / ".ccx" / "briefs" / "templates" / f"{name}.md")
         rows.append({"name": name, "spec": value, **spec, "defaults": opts,
                      "source": str(local) if name in over else sources.get(name, "global"),
                      "default_sources": ds, "effective_defaults": effective,
@@ -167,10 +169,11 @@ def _is_roles(section: tuple[str, ...]) -> bool:
 
 def set_role(p: Paths, cwd: Path, name: str, value: str | None, *, project: bool = False) -> dict:
     """Edit a role assignment; check both the whole parsed file and every byte outside role sections."""
+    from .workspace import canonical
     role_name(name)
     if value is not None:
         parse(value, load_config(p))
-    path = project_root(cwd) / ".ccx" / "roles.toml" if project else p.user_tiers
+    path = canonical(project_root(cwd) / ".ccx" / "roles.toml" if project else p.user_tiers)
     text = path.read_bytes().decode("utf-8") if path.exists() else ""
     data = tomllib.loads(text)
     _role_section(data, path)
@@ -234,12 +237,13 @@ def apply_defaults(args, role: dict) -> None:
 
 
 def brief(p: Paths, cwd: Path, name: str, task: str, cfg: dict | None = None, *, check: str | None = None) -> str:
+    from .workspace import canonical
     role = get(p, cwd, name, cfg)
     if not role["template"]:
         return task
     template = Path(role["template"]).read_text(encoding="utf-8")
     text = template.replace("{task}", task)
-    agents = project_root(cwd) / "AGENTS.md"
+    agents = canonical(project_root(cwd) / "AGENTS.md")
     check = role["effective_defaults"].get("check") if check is None else check
     return (f"{text}\n\nProject instructions: {agents}\n"
             "Only change / 只动: the files required by this task; follow the project's scope rules.\n"

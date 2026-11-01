@@ -12,6 +12,7 @@ import pytest
 
 from ccx import board, cli, ledger, plan, report, roles, ui
 from ccx.config import Paths, load_config
+from ccx.workspace import canonical
 from test_ccx import Env
 from test_ui_runs import fixture_run, request, server  # noqa: F401 - reuse #233 HTTP fixtures
 
@@ -42,11 +43,11 @@ def test_global_project_merge_and_sources(project):
     rows = {r['name']: r for r in roles.table(p, nested)['roles']}
     assert rows['build']['model'] == 'gpt-6.1-terra'
     assert rows['build']['defaults'] == dict(mode='write', worktree=True, review='off', check='python -m unittest')
-    assert rows['build']['source'] == str(local)
-    assert rows['build']['default_sources']['review'] == str(local)
-    assert rows['build']['default_sources']['check'] == str(p.user_tiers)
+    assert rows['build']['source'] == str(canonical(local))
+    assert rows['build']['default_sources']['review'] == str(canonical(local))
+    assert rows['build']['default_sources']['check'] == str(canonical(p.user_tiers))
     assert rows['review']['agent'] == 'other' and rows['review']['effort'] == 'auto'
-    assert rows['review']['source'] == str(p.user_tiers)
+    assert rows['review']['source'] == str(canonical(p.user_tiers))
 
 
 @pytest.mark.parametrize('tier,effort', [('T1', 'low'), ('T2', 'medium'), ('T3', 'high'), ('T4', 'xhigh')])
@@ -161,7 +162,7 @@ class TestRoleCommands(Env):
         assert ledger.rows(p)[-1]['role'] == 'build'
         prompt = self.calls()[-1]['prompt']
         assert '# Build\nImplement a parser' in prompt and '{task}' not in prompt
-        assert str(self.work / 'AGENTS.md') in prompt and 'Only change parser.py' in prompt
+        assert str(canonical(self.work / 'AGENTS.md')) in prompt and 'Only change parser.py' in prompt
         assert 'python -m unittest' not in (p.runs / out['run_id'] / 'brief.md').read_text(encoding='utf-8')
         summary = report.summarize(p, report.collect(p, include_lead=False))
         assert summary['runs'][0]['role'] == 'build' and summary['roles'][0]['runs'] == 1
@@ -209,10 +210,10 @@ class TestRoleCommands(Env):
         out = json.loads(result.stdout)
         rec = ledger.load_run(p, out['run_id'])
         assert rec['check_cmd'] is None and not marker.exists()
-        assert str(source) in out['role_receipt'] and '不自动采用' in out['role_receipt']
-        assert str(source) in result.stderr
+        assert str(canonical(source)) in out['role_receipt'] and '不自动采用' in out['role_receipt']
+        assert str(canonical(source)) in result.stderr
         row = self.json('roles')['roles'][0]
-        assert row['defaults']['check'] == cmd and row['default_sources']['check'] == str(source)
+        assert row['defaults']['check'] == cmd and row['default_sources']['check'] == str(canonical(source))
         assert 'check' not in row['effective_defaults']
         assert cmd not in (p.runs / out['run_id'] / 'brief.md').read_text(encoding='utf-8')
 
@@ -229,7 +230,7 @@ class TestRoleCommands(Env):
         assert global_marker.exists() and not project_marker.exists()
         row = self.json('roles')['roles'][0]
         assert row['effective_defaults']['check'] == global_cmd
-        assert row['effective_default_sources']['check'] == str(p.user_tiers)
+        assert row['effective_default_sources']['check'] == str(canonical(p.user_tiers))
 
     def test_explicit_check_can_use_reviewed_project_command(self):
         cmd, marker = self.marker_check('project_check')
@@ -308,7 +309,7 @@ class TestRoleCommands(Env):
         out = self.json('run', '--role', 'build', '--tier', 'T1', '--worktree', '--mode', 'write', '--review', 'off',
                         '--no-escalate', '--no-fallback', 'Edit a.txt')
         rec = ledger.load_run(Paths(self.hub), out['run_id'])
-        assert Path(rec['source_cwd']) == self.work.resolve() and Path(rec['cwd']) != self.work.resolve()
+        assert Path(rec['source_cwd']) == canonical(self.work) and Path(rec['cwd']) != canonical(self.work)
         assert roles.repository(Path(rec['cwd'])) == roles.repository(self.work)
 
 
@@ -397,7 +398,7 @@ def test_ui_project_check_stays_inert_after_actual_confirmation(server, monkeypa
     assert code == 200
     assert preview['role']['defaults']['check'] == cmd
     assert 'check' not in preview['role']['effective_defaults']
-    assert str(source) in preview['role']['check_notice'] and cmd not in preview['brief']
+    assert str(canonical(source)) in preview['role']['check_notice'] and cmd not in preview['brief']
     code, started = request(srv, '/api/chat/run', {'nonce': preview['nonce']})
     assert code == 200 and started['started']
     deadline = time.monotonic() + 15
@@ -411,7 +412,7 @@ def test_ui_project_check_stays_inert_after_actual_confirmation(server, monkeypa
     assert result['ok'], result
     rec = ledger.load_run(p, started['run_id'])
     assert rec['state'] == 'finished' and rec['check_cmd'] is None and not marker.exists()
-    assert str(source) in rec['route']['role_check_notice']
+    assert str(canonical(source)) in rec['route']['role_check_notice']
 
 
 def test_ability_role_is_optional_fourth_dimension(project):
@@ -507,7 +508,7 @@ def test_role_history_repository_canonicalizes_extended_length_checkout(project)
     p, root = project
     extended = Path('//?/' + root.as_posix())
     with mock.patch.object(roles, 'project_root', return_value=extended):
-        assert roles.repository(root) == root
+        assert roles.repository(root) == canonical(root)
 
 
 @pytest.mark.parametrize('value', ['1', '0', '"bad"', 'false'])
@@ -529,7 +530,7 @@ def test_roles_api_parses_each_configuration_document_once(server):
         code, data = request(srv, '/api/roles?project=' + ui._pid(root))
     assert code == 200 and data['roles'][0]['defaults']['review'] == 'off'
     load.assert_called_once()
-    assert read.call_args_list == [mock.call(root / '.ccx' / 'roles.toml')]
+    assert read.call_args_list == [mock.call(canonical(root / '.ccx' / 'roles.toml'))]
 
 
 @pytest.mark.skipif(not os.environ.get('CCX_UI_BROWSER'), reason='set CCX_UI_BROWSER for role button browser smoke')
@@ -577,7 +578,7 @@ def test_browser_project_check_notice_and_effective_defaults(server, tmp_path):
             'document.querySelector("[data-chat=preview]").click();')
         browser.wait_for('!!document.querySelector(".ui-chat .cmd [role=note]")')
         notice = browser.evaluate('document.querySelector(".ui-chat .cmd [role=note]").textContent')
-        assert str(source) in notice and '不自动采用' in notice
+        assert str(canonical(source)) in notice and '不自动采用' in notice
         assert not browser.evaluate('document.querySelector(".ui-chat .cmd").textContent.includes("untrusted-project-check")')
     finally:
         browser.close()
