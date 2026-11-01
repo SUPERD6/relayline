@@ -78,6 +78,10 @@ sub-agent. The extra requests came from the habits below.
   `ccx run`. If it is still running then: `ccx show <run_id> --wait`, again while it says running. Never
   `ccx resume` a run that is still running. Don't pipe ccx output through `tail`/`head`: the result is one small
   JSON object, and a pipe on a long run hits your shell's timeout.
+- **Work of your own meanwhile:** `ccx run ... --bg` (no `--wait`) returns at once; when the run is finished, ccx
+  sends you its one-line result itself, also when it was refused or crashed (Claude Code: a message in this
+  conversation, between your tool calls or as a new turn; Codex, experimental: before your next turn). Don't poll
+  for it; `ccx show <run_id> --wait` when you have nothing else to do or no line came.
 - **Your own sub-agents next to ccx:** pieces done by your built-in sub-agents and pieces done through ccx never
   write the same files at the same time; a ccx writer running beside your own writers goes in `--worktree` or
   through `ccx q run` (its undo snapshot, diff and check would otherwise take in their edits). Their model: the
@@ -122,6 +126,7 @@ ccx run ... --task <id> --step <n>   # session id saved into task-checkpoint at 
 ccx run ... --mode read          # analysis only (without --mode, ccx infers read/write from the brief; follow it)
 ccx run ... --check "CMD"        # acceptance command: the sub-agent runs it, ccx runs it again (failure = failure)
 ccx run ... --risk visible       # user-facing / critical work: another vendor's cheap model reviews the diff
+ccx run ... --max-usd 0.5        # start no further rung, review or fix round once $0.5 is spent (needs_lead)
 ccx run ... --review on|off      # force or skip it; default auto (risk, 50+ code lines, unsure, claims vs diff,
                                  # weak evidence: no check, a check running no tests, tests not naming the
                                  # changed files/functions, or a check that passed wrong work before;

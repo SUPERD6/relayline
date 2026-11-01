@@ -84,6 +84,24 @@ Claude Code 和 Codex 每轮开始前都会跑 `UserPromptSubmit` hook（Claude 
 页面只发送项目 id、话题、消息 id 和正文；对话板在哪由服务端自己找。每次回复在 `<hub>/ccx/ui-actions.jsonl` 记一行
 （话题、id、长度；不记正文）。
 
+## 后台派活跑完主动告诉主导
+
+`ccx run --bg` / `ccx resume --bg`（不带 `--wait`）：run（含审查修复轮）结束，或被拒绝、没派出去、崩溃时，ccx 用 `--bg`
+打印的那个 id 把一行结论（recap）发给发起它的主导，
+主导不用轮询（每次轮询都是一次重读整个对话的主导请求）。按顺序用第一个能用的：
+
+1. **Claude Code 自己的收件箱**（跨会话消息，Claude Code 2.1.224+，原生 Windows 2.1.234+）。Claude Code 给它运行的命令
+   导出 `CLAUDE_CODE_MESSAGING_SOCKET` 和 `CLAUDE_CODE_MESSAGING_TOKEN`，后台 run 继承它们，以该会话子进程的身份投进同一个
+   会话。会话空闲时会开新一轮，忙时在工具调用之间读到。2026-10-31 真机试过（Claude Code 2.1.309，桌面 app，原生 Windows）：送达。
+2. **下一轮的钩子**（`ccx turn`，Claude Code 和 Codex）：这一行存在 `<hub>/ccx/wake/`，只显示一次。没有收件箱时用
+   （Codex 主导；Codex 这条只用假 CLI 测过：实验性）。
+3. **轮询**保留：`ccx show <id> --wait` / `--any`。
+
+主导正在等（`--bg --wait N`、`ccx show <id> --wait`）时，结果走 stdout，不再发通知。子智能体不会继承主导的收件箱变量
+（否则它能往主导的对话里投消息）。做了什么记在 run 目录的 `wake.json`
+（`claude-inbox`、`hook`、`waiter`、`off`）。关掉：`ccx config set wake.enabled false`。`wake.trust_socket false`：已送达的
+也给钩子留一份（给会暂存消息的会话用）。
+
 ## GitHub 后备（可选）
 
 `ccx config set board.github owner/repo`（用户自己的仓库，必须是**私人**的——ccx 用 `gh repo view` 检查，公开仓库拒绝，
