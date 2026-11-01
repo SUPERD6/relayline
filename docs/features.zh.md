@@ -129,6 +129,46 @@ UI 服务开着时，观察器把新的开始 / 完成状态写成 `kind: run` �
 （按字符数估算，不是分词器计数）。只读：只给建议，不删任何东西。第一次 `ccx setup` 还会问一次（只在终端里）：要不要用
 `ccx mem suggest` 的规则（不调模型）扫最近 7 天的会话，把找到的偏好和坑逐条问你，你说要的才写进记忆（走 `ccx mem accept` 的流程）。
 
+## 两种口径
+
+账本同时保留 **API 等价美元**（`ae_usd`，按 API 牌价折算；`cost_usd` 仍表示已知的实际账单金额）和
+**配额单位**（`quota_units`）。在 `hub/ccx/tiers.toml` 中配置：
+
+```toml
+[billing]
+mode = "api"              # 默认；"subscription" 让 ccx report 优先展示配额单位
+quota_unit = 1.0          # 每个 token 对应的配额单位
+
+[billing.vendors.anthropic]
+quota_unit = 1.0
+models = { opus = 2.0 }   # 精确模型名；替代基础权重
+
+[billing.providers.codex]
+quota_unit = 0.5
+```
+
+默认新输入、缓存写入、缓存读取、输出每个 token 各算 1 单位；1 小时缓存写入子集和推理输出子集不重复算。
+订阅限制没有稳定公开的 token 换算，所以默认采用中性的 token 代理量；单位不代表订阅剩余额度或实际账单。
+权重必须是有限的非负数。优先级：provider 的模型权重 > provider 基础权重 > vendor 的模型权重 > vendor
+基础权重 > `billing.quota_unit`。vendor 名用 `anthropic`、`openai`、`google` 等；provider 名用 `claude`、
+`codex` 或自定义 `[providers.NAME]` 的名称。模型键精确匹配记录中的模型名，包括别名；`opus` 不匹配
+`claude-opus-5-5`。
+
+新运行按每次尝试自己的 provider/model 折算并记录总数，两种模式都记录双口径，既有美元字段的名称和含义不变。
+旧账本缺少配额字段时按未加权 token 总数补算，没有 token 则为 0；只在读取时补，不重写文件，也不套当前权重。
+已经存下的单位（包括 0）不会因改权重而变化。旧的跨厂商记录缺少分厂商 token 数，其补算单位归最后完成运行的一家。
+
+`ccx report` 在 `api` 模式保留原有美元呈现；`subscription` 模式的主汇总、每日图和表格以配额单位为主、AE$
+为辅。汇总 JSON 在总数、分流和运行中同时提供两种口径，并增加 `quota_days_series` 和 `billing.mode`；
+`ccx stats --summary` 包含新增的总数和分流字段。UI JSON 增加单位与模式供前端读取，页面结构不变。
+本改动只涉及记账和展示，不改变路由、美元预算上限或实测节省的计算。
+
+通过 `ccx config set billing.mode subscription` 切换，也可设回 `api`；其他值会报错。普通 `ccx stats` 在 API
+模式保留原有列；订阅模式增加 `quota_units`，放在 `api_equivalent_usd` 和原有实际账单列 `cost_usd` 之前。
+`ccx stats --summary` 的 `spend` 同时提供两种口径，把所选口径放在前面，并返回 `billing.mode`。
+`ccx lead --breakdown` 的各项估算和建议同样随模式排列：订阅模式优先展示每 100 轮配额单位，API 模式优先展示
+API 等价美元。原有美元字段和 API 模式建议文案保留。
+
 ## 分级（`config/tiers.toml`，可在 `hub/ccx/tiers.toml` 覆盖）
 
 固定分级是后备方案；带打分参数时由 task-routing 按成功率和每次成功的花费来选，并且会根据实际结果自动校准。

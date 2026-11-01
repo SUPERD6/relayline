@@ -270,6 +270,51 @@ not a tokenizer). Read only: it suggests, it deletes nothing. A first `ccx setup
 terminal, to look through the last 7 days of sessions with `ccx mem suggest`'s rules (no model) and asks about each
 preference or pitfall it finds; only the ones you say yes to are written (`ccx mem accept`'s path).
 
+## Two accounting bases
+
+The ledger keeps **API-equivalent USD** (`ae_usd`, based on API list prices; `cost_usd` remains the billed
+amount when known) alongside **quota units** (`quota_units`). In `hub/ccx/tiers.toml`:
+
+```toml
+[billing]
+mode = "api"              # default; "subscription" puts quota units first in ccx report
+quota_unit = 1.0          # units per token
+
+[billing.vendors.anthropic]
+quota_unit = 1.0
+models = { opus = 2.0 }   # exact model name; replaces the base weight
+
+[billing.providers.codex]
+quota_unit = 0.5
+```
+
+The default is one unit per fresh input, cache-write, cache-read or output token, counted once each. The 1-hour
+cache-write subset and reasoning-output subset are not counted twice. This is a neutral proxy because subscription
+limits have no stable published token conversion; units are neither remaining quota nor a subscription bill.
+Weights must be finite, non-negative numbers. Precedence is provider model, provider base, vendor model, vendor
+base, then `billing.quota_unit`. Vendor names are `anthropic`, `openai`, `google`, etc.; provider names are the
+agent names (such as `claude` or `codex`, or a custom `[providers.NAME]`). Model keys match the recorded model
+exactly, including aliases; `opus` does not also match `claude-opus-5-5`.
+
+Each new run records units per attempt's provider/model and their total, regardless of display mode. Existing
+dollar fields keep their names and meaning. Older ledger rows without units are read as the unweighted token
+total (zero when no tokens are known), without rewriting the file or applying today's weights. Stored units,
+including zero, stay unchanged when weights change. Legacy cross-provider rows lack per-provider token counts;
+their inferred units belong to the provider that finished the run.
+
+`ccx report` keeps its existing dollar presentation in `api` mode. In `subscription` mode its main totals, daily
+chart and tables put quota units first with AE$ alongside. Summary JSON includes both bases in totals, streams
+and runs, plus `quota_days_series` and `billing.mode`; `ccx stats --summary` includes the new totals and stream
+fields. UI JSON adds units and mode for the frontend to consume; the UI layout is unchanged. This changes
+accounting and presentation only, not routing, USD budget caps or measured-savings calculations.
+
+Switch with `ccx config set billing.mode subscription` (or `api`); other values are rejected. Plain `ccx stats`
+keeps its existing columns in API mode. Subscription mode adds `quota_units` first, then `api_equivalent_usd`
+and the existing billed `cost_usd`. `ccx stats --summary` includes both bases in `spend`, with the selected one
+first, and reports `billing.mode`. `ccx lead --breakdown` similarly orders its per-part estimates: quota units
+per 100 turns first in subscription mode, API-equivalent USD first in API mode. Its advice follows the same
+choice; the original dollar fields and API-mode advice are retained.
+
 ## Tiers (`config/tiers.toml`, override in `hub/ccx/tiers.toml`)
 
 Fixed tiers are the fallback. With rubric flags, task-routing picks by success probability and cost per success,
