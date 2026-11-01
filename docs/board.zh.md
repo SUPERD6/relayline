@@ -90,7 +90,7 @@ Claude Code 和 Codex 每轮开始前都会跑 `UserPromptSubmit` hook（Claude 
 结束时写状态、API 等价花费和 `/runs/<run_id>`），所以 UI 没开时 `ccx board` 和 `ccx ui` 也能看到。审查后的修复轮是一次独立运行，
 有自己的一对记录；审查员的运行和其他一次性运行（`ccx ask`、`ccx discuss`、额度探针）不记。只在不会动到项目文件时才写：
 项目的 `.gitignore` 里有 `.ccx/`（或对话板那几行）。每次运行的每个阶段只写一次（`board.post_run`），谁先写都一样。
-这些记录只给 `ccx board` 和 `ccx ui` 看：不进任何会话的每轮送达，GitHub 后备也不推送。覆盖的结束情况：正常结束、子智能体运行中被中断、
+这些记录只给 `ccx ui`、`ccx board --all` 和 `ccx board --thread run:<run_id>` 看：不进任何会话的每轮送达（`ccx board --as <智能体>` 也不显示），GitHub 后备也不推送。覆盖的结束情况：正常结束、子智能体运行中被中断、
 被另一个 `ccx` 先收尾；进程被直接杀掉时只有开始那条，等 UI 打开时补上。
 
 ## 后台派活跑完主动告诉主导
