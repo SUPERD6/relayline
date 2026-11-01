@@ -852,6 +852,12 @@ def review_run(req: Request, p: Paths, cfg: dict, record: dict, cwd: Path, run_d
         weak = bool(why)
     if not why:
         return
+    from .delegate import _capped
+    if _capped(req, record, "review"):            # P0-15 --max-usd: a review was due; the lead does it instead
+        record["review"] = {"verdict": "not-run", "reason": why, "error": "budget cap reached (--max-usd)"}
+        if edited:
+            record["review"]["edited_tests"] = edited
+        return
     # a weak-evidence review is the routine one (most write runs): only the other vendors' cheapest rung
     cands = rv.reviewers(cfg, req.provider or req.to, find_bin, None if weak else p, cheapest=weak)
     if not cands:
