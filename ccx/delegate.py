@@ -27,7 +27,7 @@ import time
 from dataclasses import dataclass
 from pathlib import Path
 
-from . import agents, context_share, learn, ledger, recover, subagents
+from . import agents, context_share, learn, ledger, quota, recover, subagents
 from .config import DELEGATE_AGENTS, SUBAGENT_SWITCHES, Paths, load_config, provider_of, subagent_switches  # noqa: F401
 from .runners import BUILDERS, Outcome, execute, usage_dict
 # split out by job (J11); re-exported so `from ccx.delegate import ...` keeps working
@@ -430,8 +430,8 @@ def _child_env(to: str, run_id: str, extra: dict | None = None, provider: bool =
     if to == "claude" and not provider and _provider_url(env.get("ANTHROPIC_BASE_URL")):
         # the lead is Claude Code on a provider's model (DeepSeek): a Claude sub-agent must reach Anthropic, not
         # inherit the lead's endpoint and key
-        for k in ("ANTHROPIC_BASE_URL", "ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN"):
-            env.pop(k, None)
+        from .quota import subscription_env
+        env = subscription_env(env)
     if to == "claude" and not provider:
         # a `claude --bare` lead (how Claude Code runs on a provider) passes CLAUDE_CODE_SIMPLE on to its commands; a
         # Claude sub-agent started with it is bare too, ignores the person's login and fails "Not logged in"
@@ -471,6 +471,7 @@ def _child_env(to: str, run_id: str, extra: dict | None = None, provider: bool =
     return env
 
 
+@quota.reading_scope()
 def run(req: Request, p: Paths) -> dict:
     cfg = load_config(p)
     depth_guard(cfg)
@@ -618,6 +619,8 @@ def run(req: Request, p: Paths) -> dict:
     plan = [_usable(p, x) for x in _plan(req, p, cfg, max_esc)]
     pv_env = _provider_envs(cfg, plan)       # missing key for the first rung -> clear error before anything runs
     plan = _within_budget(p, cfg, plan)
+    from . import quota
+    quota.maybe_refresh(p, cfg)
     record = {
         "run_id": run_id, "label": req.label, "to": plan[0]["agent"], "caller": req.caller,
         "caller_vendor": _vendor(req.caller, cfg),
@@ -629,6 +632,7 @@ def run(req: Request, p: Paths) -> dict:
         "route": req.route, "task": req.task, "step": req.step, "learned": None, "ts": time.time(),
         "provider": req.provider, "lead_session": req.lead_session, "continued": cont,
         "first_rung": plan[0]["rung"],
+        "quota_at_start": quota.at_start(p),
         "continue_depth": (int(prev.get("continue_depth", 0)) + 1) if cont else 0,
         # follow-ups of the same task in a row (ccx resume, review fix rounds, resuming an interrupted run); a
         # continued session (ccx run auto-continue, --seat) or a board message answered in its session is not: 0
@@ -855,7 +859,10 @@ def run(req: Request, p: Paths) -> dict:
         if oc.kind == "quota":
             try:                       # H2: what made this a quota stop, kept to check the call later
                 from . import quota
-                quota.log_stop(p, run_id, record["attempts"][-1], quota.stop_evidence(cli, so, se, oc.error))
+                evidence = quota.stop_evidence(cli, so, se, oc.error)
+                record["attempts"][-1]["quota_stop"] = evidence
+                record["quota_stop"] = {"agent": to, "resets_at": oc.retry_after, **evidence}
+                quota.log_stop(p, run_id, record["attempts"][-1], evidence)
             except Exception:  # noqa: BLE001 — evidence is best effort
                 pass
         status = (oc.result or {}).get("status")
@@ -891,6 +898,13 @@ def run(req: Request, p: Paths) -> dict:
             fb = _fallback_plan(req, p, cfg, spec)
             if fb:
                 fell_back = True
+                reset = oc.retry_after
+                if not reset:
+                    windows = quota.pressure(p)["pace"].get(to) or {}
+                    reset = max((w.get("resets_at") or 0 for w in windows.values()), default=0) or None
+                record["quota_fallback"] = {"from": to, "to": fb["agent"], "resets_at": reset,
+                    "message": (f"因 {to} 限额改派 {fb['agent']}，重置时间 {quota.reset_text(reset)}"
+                                f"（{to} -> {fb['agent']}）")}
                 plan = plan[:i + 1] + [fb]
                 prompt, session = first_prompt, None      # fresh session on the other agent
                 i += 1
@@ -1379,6 +1393,10 @@ def compact(record: dict) -> dict:
     }
     if record.get("diffstat"):
         out["diffstat"] = record["diffstat"]          # `git diff --shortstat` since the run's undo snapshot
+    if record.get("quota_fallback"):
+        out["quota_fallback"] = record["quota_fallback"]
+    if record.get("quota_stop"):
+        out["quota_stop"] = record["quota_stop"]
     atts = record["attempts"]
     chain = [a.get("tier") or a.get("rung") or "?" for k, a in enumerate(atts)   # a policy retry stays on its rung
              if not (k and atts[k - 1].get("kind") == "policy" and atts[k - 1]["rung"] == a["rung"])]
