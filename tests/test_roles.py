@@ -1,8 +1,10 @@
 """Opt-in roles: real CLI wiring from outside the repo, fake agent binaries only."""
 import json
 import os
+import subprocess
 import sys
 import time
+import tomllib
 from pathlib import Path
 from unittest import mock
 
@@ -238,6 +240,77 @@ class TestRoleCommands(Env):
                         '--no-escalate', '--no-fallback', 'Read parser')
         assert ledger.load_run(p, out['run_id'])['check_cmd'] == cmd and marker.exists()
 
+    def test_model_auto_failure_escalates_to_next_tier(self):
+        configure(Paths(self.hub), self.work, 'codex:auto:auto')
+        result = self.ccx('run', '--role', 'build', '--tier', 'T1', '--mode', 'read', '--review', 'off',
+                          '--no-fallback', 'Read parser', env={'FAKE_STATUS': 'blocked_then_done'})
+        assert result.returncode == 0, result.stdout + result.stderr
+        rec = ledger.load_run(Paths(self.hub), json.loads(result.stdout)['run_id'])
+        assert [a['rung'] for a in rec['attempts']] == ['codex:gpt-6-luna:low', 'codex:gpt-6.1-sol:medium']
+        assert not rec['route'].get('role_fixed_model')
+
+    def test_fixed_model_real_run_is_not_marked_no_ab_or_excluded_from_ability(self):
+        from ccx import ability
+        p = Paths(self.hub)
+        configure(p, self.work)
+        out = self.json('run', '--role', 'build', '--tier', 'T1', '--mode', 'read', '--review', 'off', 'Read parser')
+        rec = ledger.load_run(p, out['run_id'])
+        assert 'no_ab' not in rec['route'] and 'no_ab' not in ledger.rows(p)[-1]
+        self.json('verify', out['run_id'], '--ok', '1')
+        assert any(r['model'] == 'gpt-6.1-sol' and r['n'] == 1 for r in ability.table(p, persist=False)['rows'])
+        excluded = self.json('run', '--role', 'build', '--tier', 'T1', '--mode', 'read', '--review', 'off',
+                             '--no-ab', '--new', 'Read another parser')
+        assert ledger.load_run(p, excluded['run_id'])['route']['no_ab']
+        assert ledger.is_eval(ledger.runs_by_id(ledger.rows(p))[excluded['run_id']])
+
+    def test_project_role_set_unset_preserves_all_unrelated_bytes_and_array_keys(self):
+        source = configure(Paths(self.hub), self.work)
+        prefix = '# unrelated header\r\ntitle = "keep"\r\n'
+        role = '[roles]\r\nbuild = "codex:gpt-6.1-sol:auto"\r\n[roles.defaults.build]\r\nreview = "off"\r\n'
+        rest = '[[tools]]\r\nbuild = "tool-value"\r\n# keep formatting\r\n[[jobs]]\r\nbuild="job-value"'
+        before = (prefix + role + rest).encode('utf-8')
+        source.write_bytes(before)
+        for args in (('set', 'build', 'codex:gpt-6.1-terra:auto'), ('unset', 'build')):
+            self.json('roles', *args, '--project')
+            after = source.read_bytes()
+            assert after.startswith(prefix.encode()) and after.endswith(rest.encode())
+            parsed = tomllib.loads(after.decode('utf-8'))
+            old = tomllib.loads(before.decode('utf-8'))
+            assert {k: v for k, v in parsed.items() if k != 'roles'} == {k: v for k, v in old.items() if k != 'roles'}
+            assert parsed['roles']['defaults'] == old['roles']['defaults']
+            if args[0] == 'set':
+                assert parsed['roles']['build'] == args[2]
+            else:
+                assert 'build' not in parsed['roles']
+
+    def test_abbreviated_explicit_check_overrides_global_role_default_and_is_recorded_canonically(self):
+        default, default_marker = self.marker_check('default_check')
+        explicit, explicit_marker = self.marker_check('explicit_check')
+        p = Paths(self.hub)
+        p.user_tiers.parent.mkdir(parents=True)
+        p.user_tiers.write_text('[roles]\nbuild="codex:gpt-6.1-sol:auto"\n[roles.defaults.build]\ncheck='
+                               + json.dumps(default) + '\n', encoding='utf-8')
+        out = self.json('run', '--role', 'build', '--tier', 'T1', '--mode', 'read', '--review', 'off',
+                        '--che', explicit, 'Read parser')
+        rec = ledger.load_run(p, out['run_id'])
+        assert rec['check_cmd'] == explicit and explicit_marker.exists() and not default_marker.exists()
+        assert '--check' in rec['route']['explicit_flags'] and '--che' not in rec['route']['explicit_flags']
+
+    def test_worktree_role_record_keeps_source_checkout(self):
+        for args in (('init', '-q'), ('config', 'user.name', 'test'), ('config', 'user.email', 'test@example.com')):
+            subprocess.run(['git', *args], cwd=self.work, check=True, capture_output=True)
+        (self.work / '.gitignore').write_text('.ccx/\n', encoding='utf-8')
+        (self.work / 'a.txt').write_text('base', encoding='utf-8')
+        subprocess.run(['git', 'add', '-A'], cwd=self.work, check=True, capture_output=True)
+        subprocess.run(['git', 'commit', '-qm', 'fixture'], cwd=self.work, check=True, capture_output=True)
+        configure(Paths(self.hub), self.work)
+        self.env['FAKE_WRITE'] = 'a.txt=changed by fake build'
+        out = self.json('run', '--role', 'build', '--tier', 'T1', '--worktree', '--mode', 'write', '--review', 'off',
+                        '--no-escalate', '--no-fallback', 'Edit a.txt')
+        rec = ledger.load_run(Paths(self.hub), out['run_id'])
+        assert Path(rec['source_cwd']) == self.work.resolve() and Path(rec['cwd']) != self.work.resolve()
+        assert roles.repository(Path(rec['cwd'])) == roles.repository(self.work)
+
 
 def test_template_no_template_and_literal_braces(project):
     p, root = project
@@ -380,6 +453,83 @@ def test_fixed_role_empty_ladder_does_not_restore_another_model(project):
         rungs = plan._plan(req, p, load_config(p), 1)
         learned.assert_not_called()
     assert [r['rung'] for r in rungs] == ['codex:gpt-6.1-sol:xhigh']
+
+
+@pytest.mark.parametrize('layout', ['sibling', 'inside'])
+def test_other_uses_actual_build_vendor_across_removed_worktrees(project, layout):
+    from ccx.workspace import worktree_path
+    p, root = project
+    source = configure(p, root)
+    source.write_text(source.read_text(encoding='utf-8') + 'review="other:auto:auto"\n', encoding='utf-8')
+    old_cwd = worktree_path(root, 'removed-build', layout)
+    # Initial dispatch was Codex; the actual final build attempt ran on Claude after a fallback.
+    ledger.append_event(p, {'run_id': 'b', 'role': 'build', 'to': 'codex', 'cwd': str(old_cwd),
+                            'rungs': ['codex:gpt-6.1-sol:medium', 'claude:opus:high']})
+    def picked(spec, *args):
+        return {'to': spec['to'], 'tier': 'T2'}, {}
+    with mock.patch('ccx.agents.others', return_value=['codex']) as others:
+        kw, _ = plan.resolve_role({'role': 'review', 'cwd': str(root)}, 'claude', p, load_config(p), picked)
+        others.assert_called_once_with('claude', load_config(p))
+    assert kw['to'] == 'codex'
+
+
+def test_model_auto_resolver_leaves_tier_model_unset(project):
+    from ccx.delegate import Request
+    p, root = project
+    configure(p, root, 'codex:auto:auto')
+    def picked(spec, *args):
+        return {'to': 'codex', 'tier': 'T1'}, {'tier': 'T1'}
+    kw, route = plan.resolve_role({'role': 'build', 'cwd': str(root)}, 'claude', p, load_config(p), picked)
+    assert not kw.get('model') and not route.get('role_fixed_model')
+    req = Request(brief='Read parser', cwd=root, **kw)
+    assert [r['tier'] for r in plan._plan(req, p, load_config(p), 1)] == ['T1', 'T2']
+
+
+def test_other_uses_recorded_source_and_final_attempt_over_initial_dispatch(project):
+    p, root = project
+    source = configure(p, root)
+    source.write_text(source.read_text(encoding='utf-8') + 'review="other:auto:auto"\n', encoding='utf-8')
+    ledger.append_event(p, {'run_id': 'b', 'role': 'build', 'to': 'codex',
+                            'cwd': str(root.parent / 'old-custom-worktree'), 'rungs': ['codex:gpt-6.1-sol:medium']})
+    d = p.runs / 'b'
+    d.mkdir(parents=True)
+    ledger.write_record(d, {'role': 'build', 'source_cwd': str(root), 'to': 'codex',
+        'attempts': [{'agent': 'claude', 'model': 'opus', 'rung': 'claude:opus:high'}]})
+    def picked(spec, *args):
+        return {'to': spec['to'], 'tier': 'T2'}, {}
+    with mock.patch('ccx.agents.others', return_value=['codex']) as others:
+        kw, _ = plan.resolve_role({'role': 'review', 'cwd': str(root)}, 'claude', p, load_config(p), picked)
+    assert others.call_args.args[0] == 'claude' and kw['to'] == 'codex'
+
+
+@pytest.mark.skipif(os.name != 'nt', reason='Windows extended-length path spelling')
+def test_role_history_repository_canonicalizes_extended_length_checkout(project):
+    p, root = project
+    extended = Path('//?/' + root.as_posix())
+    with mock.patch.object(roles, 'project_root', return_value=extended):
+        assert roles.repository(root) == root
+
+
+@pytest.mark.parametrize('value', ['1', '0', '"bad"', 'false'])
+def test_scalar_global_role_defaults_has_clear_error(project, value):
+    p, root = project
+    p.user_tiers.parent.mkdir(parents=True)
+    p.user_tiers.write_text('[roles]\ndefaults=' + value + '\n', encoding='utf-8')
+    with pytest.raises(ValueError, match=r'roles.defaults.*must be a table'):
+        roles.table(p, root)
+
+
+def test_roles_api_parses_each_configuration_document_once(server):
+    srv, p, root = server
+    configure(p, root)
+    p.user_tiers.parent.mkdir(parents=True, exist_ok=True)
+    p.user_tiers.write_text('[roles.defaults.build]\nreview="off"\n', encoding='utf-8')
+    with mock.patch.object(roles, 'load_config', wraps=load_config) as load, \
+            mock.patch.object(roles, '_read', wraps=roles._read) as read:
+        code, data = request(srv, '/api/roles?project=' + ui._pid(root))
+    assert code == 200 and data['roles'][0]['defaults']['review'] == 'off'
+    load.assert_called_once()
+    assert read.call_args_list == [mock.call(root / '.ccx' / 'roles.toml')]
 
 
 @pytest.mark.skipif(not os.environ.get('CCX_UI_BROWSER'), reason='set CCX_UI_BROWSER for role button browser smoke')

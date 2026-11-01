@@ -10,6 +10,10 @@
 
 # Opt-in assignments: [roles] build = "codex:gpt-6.1-sol:auto". Empty keeps existing behaviour.
 # 可选角色表，默认空；项目 .ccx/roles.toml 优先。参考表见 docs/features.md。
+# [roles.defaults.<role>] 可配 / optional keys (no implicit defaults):
+# mode = "read" | "write" (worker permission); worktree = true | false (isolate writes)
+# review = "auto" | "on" | "off" (independent review)
+# check = "command" (host-shell check; only global defaults or explicit --check are adopted)
 [roles]
 
 [defaults]

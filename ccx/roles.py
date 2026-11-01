@@ -52,24 +52,41 @@ def _read(path: Path) -> dict:
         raise ValueError(f"{path}: {e}") from e
 
 
+def repository(cwd: Path) -> Path:
+    """Identity for build history, including removed ccx worktrees in either supported layout."""
+    from .workspace import canonical, worktree_repo
+    return worktree_repo(cwd) or canonical(project_root(cwd))
+
+
+def _role_section(data: dict, source) -> dict:
+    section = data.get("roles", {})
+    if not isinstance(section, dict):
+        raise ValueError(f"{source}: [roles] must be a table")
+    defaults = section.get("defaults", {})
+    if not isinstance(defaults, dict):
+        raise ValueError(f"{source}: [roles.defaults] must be a table")
+    for name, opts in defaults.items():
+        if not isinstance(opts, dict):
+            raise ValueError(f"{source}: roles.defaults.{name} must be a table")
+    return section
+
+
 def table(p: Paths, cwd: Path, cfg: dict | None = None) -> dict:
-    cfg = cfg if cfg is not None else load_config(p)
+    documents = {} if cfg is None else None
+    cfg = cfg if cfg is not None else load_config(p, documents=documents)
     root = project_root(cwd)
-    merged = cfg.get("roles") or {}
-    if not isinstance(merged, dict):
-        raise ValueError("[roles] must be a table")
+    merged = _role_section(cfg, "global configuration")
     sources, default_sources = {}, {}
     for path in (DEFAULT_TIERS, p.user_tiers, p.settings):
-        for name, value in (_read(path).get("roles") or {}).items():
+        data = documents.get(path, {}) if documents is not None else _read(path)
+        for name, value in _role_section(data, path).items():
             if name == "defaults":
                 for r, opts in value.items():
                     default_sources.setdefault(r, {}).update({k: str(path) for k in opts})
             else:
                 sources[name] = str(path)
     local = root / ".ccx" / "roles.toml"
-    over = _read(local).get("roles") or {}
-    if not isinstance(over, dict):
-        raise ValueError(f"{local}: [roles] must be a table")
+    over = _role_section(_read(local), local)
     merged = _deep_merge(merged, over)
     defaults = merged.get("defaults") or {}
     if not isinstance(defaults, dict):
@@ -123,36 +140,68 @@ def get(p: Paths, cwd: Path, name: str, cfg: dict | None = None) -> dict:
     return row
 
 
+def _sections(text: str) -> list[tuple[tuple[str, ...], str]]:
+    """Keep exact section bytes; array-table headers always end the preceding ordinary table."""
+    parts, lines, section = [], [], ()
+    for line in text.splitlines(keepends=True):
+        header = re.fullmatch(r"\s*(\[\[.*\]\]|\[.*\])\s*(?:#.*)?", line.rstrip("\r\n"))
+        if header:
+            parts.append((section, "".join(lines)))
+            section, lines = (), []
+            if not header[1].startswith("[["):
+                node = tomllib.loads(header[1] + "\n__ccx_role_marker__ = true\n")
+                keys = []
+                while "__ccx_role_marker__" not in node:
+                    key = next(iter(node))
+                    keys.append(key)
+                    node = node[key]
+                section = tuple(keys)
+        lines.append(line)
+    parts.append((section, "".join(lines)))
+    return parts
+
+
+def _is_roles(section: tuple[str, ...]) -> bool:
+    return section == ("roles",) or section[:2] == ("roles", "defaults")
+
+
 def set_role(p: Paths, cwd: Path, name: str, value: str | None, *, project: bool = False) -> dict:
-    """Change only the role's assignment; preserve hand comments, unrelated settings and role defaults."""
+    """Edit a role assignment; check both the whole parsed file and every byte outside role sections."""
     role_name(name)
     if value is not None:
         parse(value, load_config(p))
     path = project_root(cwd) / ".ccx" / "roles.toml" if project else p.user_tiers
-    data = _read(path)
-    text = path.read_text(encoding="utf-8") if path.exists() else ""
-    lines, out, section, found, inserted = text.splitlines(), [], "", False, False
-    for line in lines:
-        header = re.fullmatch(r"\s*\[([^\]]+)\]\s*(?:#.*)?", line)
-        if header:
-            if section == "roles" and not inserted and value is not None:
-                out.append(f"{name} = {json.dumps(value, ensure_ascii=False)}")
-                inserted = True
-            section = header[1].strip()
-            found |= section == "roles"
-        if section == "roles" and re.match(r"\s*" + re.escape(name) + r"\s*=", line):
-            if value is not None:
-                out.append(f"{name} = {json.dumps(value, ensure_ascii=False)}")
-                inserted = True
-            continue
-        out.append(line)
-    if value is not None and not inserted:
-        if not found:
-            out.extend(["", "[roles]"])
-        elif section != "roles":
-            raise ValueError(f"{path}: unsupported roles layout; edit its [roles] table directly")
-        out.append(f"{name} = {json.dumps(value, ensure_ascii=False)}")
-    result = "\n".join(out) + "\n"
+    text = path.read_bytes().decode("utf-8") if path.exists() else ""
+    data = tomllib.loads(text)
+    _role_section(data, path)
+    parts = _sections(text)
+    newline = "\r\n" if "\r\n" in text else "\n"
+    assignment = f"{name} = {json.dumps(value, ensure_ascii=False)}" if value is not None else None
+    out, found = [], False
+    key_pattern = re.compile(r"\s*(" + re.escape(name) + r'|"' + re.escape(name) + r'"|\'' + re.escape(name) + r"')\s*=")
+    for section, block in parts:
+        if section == ("roles",):
+            found = True
+            lines, changed, updated = block.splitlines(keepends=True), False, []
+            for line in lines:
+                if key_pattern.match(line):
+                    if assignment is not None:
+                        ending = "\r\n" if line.endswith("\r\n") else "\n" if line.endswith("\n") else ""
+                        updated.append(assignment + ending)
+                    changed = True
+                else:
+                    updated.append(line)
+            if not changed and assignment is not None:
+                if not updated[0].endswith(("\r", "\n")):
+                    updated[0] += newline
+                updated.insert(1, assignment + newline)
+            block = "".join(updated)
+        out.append((section, block))
+    if not found and assignment is not None:
+        # Append a new role section as its own block; leave even a final non-newline byte untouched.
+        prefix = newline if text and not text.endswith(("\r", "\n")) else ""
+        out.append((("roles",), prefix + "[roles]" + newline + assignment + newline))
+    result = "".join(block for _, block in out)
     parsed = tomllib.loads(result)
     expected = dict(data.get("roles") or {})
     if value is None:
@@ -161,9 +210,13 @@ def set_role(p: Paths, cwd: Path, name: str, value: str | None, *, project: bool
         expected[name] = value
     if parsed.get("roles", {}) != expected:
         raise ValueError(f"{path}: unsupported roles layout; edit its [roles] table directly")
+    if ({k: v for k, v in parsed.items() if k != "roles"} != {k: v for k, v in data.items() if k != "roles"}
+            or "".join(b for s, b in parts if not _is_roles(s)).encode("utf-8") !=
+               "".join(b for s, b in out if not _is_roles(s)).encode("utf-8")):
+        raise ValueError(f"{path}: refusing to change content outside role sections")
     if value is not None or path.exists():
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(result, encoding="utf-8")
+        path.write_bytes(result.encode("utf-8"))
     return {"role": name, "value": value, "source": str(path)}
 
 

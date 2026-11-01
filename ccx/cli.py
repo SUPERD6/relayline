@@ -127,20 +127,43 @@ def parse(argv: list[str]) -> argparse.Namespace:
         raise SystemExit(0)
     ap = build_parser()
     a, rest = ap.parse_known_args(argv)
-    options = argv[:argv.index("--")] if "--" in argv else argv
+    normalized = _canonical_options(ap, a, argv)
+    options = normalized[:normalized.index("--")] if "--" in normalized else normalized
     a._explicit = {x.split("=", 1)[0] for x in options if x.startswith("--")}
     if rest and not (isinstance(getattr(a, "brief", None), list) and not any(r.startswith("-") for r in rest)):
         ap.error(f"unrecognized arguments: {' '.join(rest)}")
     if isinstance(getattr(a, "brief", None), list):
         # leftovers: after any free-text option; words argparse itself put in the brief: after --check only (the
         # acceptance gate), so that a one-word brief such as `--provider deepseek x` keeps working
-        hit = _split_value(ap, a.cmd, argv, rest) or _split_value(ap, a.cmd, argv, a.brief, only={"--check"})
+        hit = _split_value(ap, a.cmd, normalized, rest) or _split_value(ap, a.cmd, normalized, a.brief, only={"--check"})
         a.brief += rest
         if hit:
             opt, word = hit
             ap.error(f"{word!r} right after {opt}'s value: {opt} takes one value. Quote a value of several words "
                      f"({opt} \"make test\"), or put the brief before the options")
     return a
+
+
+def _canonical_options(ap: argparse.ArgumentParser, args, argv: list[str]) -> list[str]:
+    """Use the selected parsers' option names, including argparse's accepted long-option abbreviations."""
+    parsers = [ap]
+    while True:
+        sub = next((a for a in parsers[-1]._actions if isinstance(a, argparse._SubParsersAction)), None)
+        if sub is None or getattr(args, sub.dest, None) not in sub.choices:
+            break
+        parsers.append(sub.choices[getattr(args, sub.dest)])
+    known = {o for parser in parsers for action in parser._actions for o in action.option_strings}
+    out = []
+    for i, token in enumerate(argv):
+        if token == "--":
+            return out + argv[i:]
+        option, eq, value = token.partition("=")
+        if option.startswith("--") and option not in known:
+            matches = [o for o in known if o.startswith(option)]
+            if len(matches) == 1:
+                option = matches[0]
+        out.append(option + eq + value)
+    return out
 
 
 def _split_value(ap: argparse.ArgumentParser, cmd: str, argv: list[str], brief: list[str],

@@ -1058,6 +1058,7 @@ def _route(a) -> dict:
             agent, model, effort = out["rung"].split(":", 2)
             out["role_note"] = (f"角色 {a.role} 指定 {agent}:{model}，强度按难度 → {effort}"
                                 if out.get("role_effort_auto") else f"角色 {a.role} 指定 {agent}:{model}:{effort}")
+            out["role_note"] += "；优先级：角色 > 配额 > 难度 > 能力表（建议）"
         if routing_mode(cfg) == "off":
             _routing_off(out)
         return out

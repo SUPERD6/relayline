@@ -2743,7 +2743,7 @@ class UI:
                         from .roles import table
                         q = {k: v[0] for k, v in parse_qs(urlsplit(self.path).query).items() if v}
                         root = ui.chat_root(q.get("project", ""))
-                        data = table(ui.p, root, load_config(ui.p))
+                        data = table(ui.p, root)
                         return self._send(200, json.dumps(data, ensure_ascii=False).encode("utf-8"))
                     if path.startswith("/api/run/"):
                         return self._send(200, json.dumps(run_detail(ui.p, path[len("/api/run/"):]),

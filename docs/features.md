@@ -576,6 +576,8 @@ individual assignments and defaults per key for this checkout. Names use letters
 with a letter. `defaults` is reserved. Supported defaults: `mode`, `worktree`, `review`, `check`; none are enabled
 implicitly. Explicit CLI flags win, including `--no-worktree`, `--review off`, `--mode read`, and `--check`.
 `--to` naming another agent also releases the role's old model assignment unless `--model` is given.
+Argparse's accepted abbreviations (such as `--che`) have the same precedence; `route.explicit_flags` records
+their full option names. `roles set/unset` preserve every byte outside role sections, including array tables.
 
 **Check authority:** a check executes in ccx's host shell, outside the worker's sandbox. Project `check` values
 remain visible with their source in `defaults`, but are not adopted automatically. `effective_defaults` keeps
@@ -588,9 +590,12 @@ Templates include only the effective check. UI confirmation alone does not autho
   effort for tier routing), then replace only the model. No rubric flags still uses the existing text heuristic.
   The receipt marks this as “按难度”. Escalation keeps a named role model and raises its effort.
 - `model=auto` keeps the ordinary model routing and do-it-yourself advice within the selected agent. A named
-  effort overrides its effort. `auto:auto:auto` uses ordinary routing throughout.
+  effort overrides its initial effort. Tier-based escalation still advances to the next tier (T1 → T2 changes
+  Luna to Sol), rather than pinning the initial model. `auto:auto:auto` uses ordinary routing throughout.
 - `other` means a different vendor from the latest `build` run in this checkout, or the configured build agent
-  when there is no such run. `other:auto` is shorthand for `other:auto:auto`. Only installed, quota-eligible
+  when there is no such run. Build history includes sibling/inside worktrees after removal; role run records
+  retain `source_cwd`, and the last executed attempt identifies the builder after a quota fallback, rather than
+  its initial dispatch target. `other:auto` is shorthand for `other:auto:auto`. Only installed, quota-eligible
   other-vendor CLIs qualify. If none qualify, use the build vendor with a different configured model and say why
   in the receipt; refuse if no different model/CLI exists. No role bypasses `routing.mode`, budget or autonomy.
 
@@ -623,6 +628,8 @@ role runs. `ccx roles --ability` and `GET /api/ability?by_role=1` (or `?role=bui
 ability grouping dimension. They reuse #230's verdict exclusions, medians and Unknown values; workflow seeds
 stay separate, with no assigned role. The ability table remains advisory; a user's role assignment takes priority
 over its suggestions, and quota eligibility still gates the choice.
+Route explanations state the chain **角色 > 配额 > 难度 > 能力表（建议）**. Fixed-model difficulty sizing does not
+mark a real task as `no_ab`; an explicit `--no-ab` keeps its existing evaluation exclusion.
 
 ### Reference assignments (examples, not shipped configuration)
 

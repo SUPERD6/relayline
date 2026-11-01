@@ -130,9 +130,11 @@ def _plan(req: Request, p: Paths, cfg: dict, max_esc: int) -> list[dict]:
         if not cfg["tiers"].get(tier, {}).get(req.to):
             break
         spec = tier_spec(cfg, tier, req.to)
-        out.append({"agent": req.to, "model": spec["model"], "effort": spec["effort"],
+        effort = (req.effort if not out and (req.route or {}).get("role") and req.effort
+                  else spec["effort"])
+        out.append({"agent": req.to, "model": spec["model"], "effort": effort,
                     "lean": bool(spec.get("lean", False)), "tier": tier,
-                    "rung": f"{req.to}:{spec['model']}:{spec['effort']}"})
+                    "rung": f"{req.to}:{spec['model']}:{effort}"})
         tier = next_tier(tier)
     if not out:
         raise ValueError(f"tier {req.tier} has no {req.to} model configured")
@@ -291,16 +293,31 @@ def resolve_role(spec: dict, caller: str, p: Paths, cfg: dict, resolve=None) -> 
     different, fallback = None, None
     if selected.get("to") == "other":
         from .agents import others
-        # An actual build in this checkout wins over a configured or inferred build assignment.
-        root = roles.project_root(cwd)
-        previous = next((r for r in reversed(ledger.rows(p)) if not r.get("type") and r.get("role") == "build"
-                         and r.get("cwd") and roles.project_root(Path(r["cwd"])) == root), None)
+        # Use the executed attempt, never the initial target, across the checkout's worktrees.
+        root, previous = roles.repository(cwd), None
+        for row in reversed(ledger.rows(p)):
+            if row.get("type") or row.get("role") != "build":
+                continue
+            try:
+                record = ledger.load_run(p, row["run_id"])
+            except (FileNotFoundError, ValueError):
+                record = {}
+            origin = record.get("source_cwd") or row.get("cwd")
+            if not origin or roles.repository(Path(origin)) != root:
+                continue
+            last = (record.get("attempts") or [{}])[-1]
+            rungs = [r for r in row.get("rungs") or [] if r]
+            parts = (last.get("rung") or (rungs[-1] if rungs else "")).split(":", 2)
+            agent = last.get("agent") or (parts[0] if len(parts) == 3 else None)
+            model = last.get("model") or (parts[1] if len(parts) == 3 else None)
+            if agent and model:
+                previous = {"agent": agent, "model": model}
+                break
         build = next((r for r in roles.table(p, cwd, cfg)["roles"] if r["name"] == "build"), {})
-        build_agent = (previous or {}).get("to") or build.get("agent") or caller
+        build_agent = (previous or {}).get("agent") or build.get("agent") or caller
         if build_agent in ("auto", "other", "user"):
             build_agent = "codex" if caller != "codex" else "claude"
-        build_model = ((previous or {}).get("rungs") or [None])[-1]
-        build_model = build_model.split(":")[1] if build_model else build.get("model")
+        build_model = (previous or {}).get("model") or build.get("model")
         candidates = others(build_agent, cfg)
         ranked = quota_candidates(p, cfg, candidates, spec.get("quota"))
         if ranked["eligible"]:
@@ -324,9 +341,10 @@ def resolve_role(spec: dict, caller: str, p: Paths, cfg: dict, resolve=None) -> 
     if fixed:
         # Naming the model is the person's assignment, as with --model. Force ONLY the sizing lookup;
         # routing.mode, autonomy and budget gates still run outside it. No A/B task is opened for sizing.
-        sized.update(force=True, no_ab=True)
+        sized.update(force=True)
     kw, route = resolve(sized, caller, p, cfg)
     route.update(role=name, role_spec=role["spec"], role_source=role["source"])
+    route["explicit_flags"] = sorted(explicit)
     if (route.get("quota_routing") or {}).get("all_tight") and not spec.get("force"):
         return None, route
     if kw is None:
@@ -359,5 +377,9 @@ def resolve_role(spec: dict, caller: str, p: Paths, cfg: dict, resolve=None) -> 
                            if e in order and effort in order and order.index(e) > order.index(effort)]
     if fallback:
         route["role_fallback"] = fallback
-    kw.update(model=model, effort=effort, route=route)
+    if fixed or kw.get("model") or (different and model != base.get("model")):
+        kw.update(model=model, effort=effort)
+    elif spec.get("effort") or role["effort"] != "auto":
+        kw["effort"] = effort
+    kw["route"] = route
     return kw, route

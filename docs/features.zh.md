@@ -376,6 +376,8 @@ check = "python -m pytest -q tests/test_parser.py"
 角色名以字母开头，可含字母、数字、`_`、`-`；`defaults` 为保留名。支持的默认值是 `mode`、`worktree`、
 `review`、`check`，没有隐式开启项。显式旗标始终优先，包括 `--no-worktree`、`--review off`、`--mode read`、
 `--check`。`--to` 显式指定另一家时，也解除原角色的模型限定；仍可用 `--model` 明确指定。
+argparse 接受的缩写（如 `--che`）具有相同优先级，`route.explicit_flags` 保存完整旗标名。
+`roles set/unset` 保持角色节之外的字节不变，包括 `[[tools]]`、`[[jobs]]` 等数组表。
 
 **check 的执行权限**：验收命令在 ccx 主机 shell 中执行，不在子智能体沙箱里。项目 `check` 保留在 `defaults`
 中供查看，并注明来源，但不自动采用；`effective_defaults` 只保留已配置的全局 check。CLI 提示、收据和 UI
@@ -386,9 +388,12 @@ check = "python -m pytest -q tests/test_parser.py"
   给原任务定难度，沿用该 agent 选中的强度，再替换模型。按 tier 路由时读取配置中 T1–T4 的 effort。不带五问
   仍使用原文本启发式。收据标“按难度”；升档保留角色指定的模型，提升强度。
 - `model=auto` 使用原模型路由和“自己做”建议，agent 段仍限定候选；明确的 effort 覆盖路由强度。
+  effort 的覆盖用于首轮，按 tier 升档仍从 T1 进入 T2（Luna 换到 Sol），不会固定首轮模型。
   `auto:auto:auto` 全走原路由。
 - `other` 按本检出最近一次 `build` 运行确定另一家；没有运行记录时看 build 配置。`other:auto` 是
-  `other:auto:auto` 的简写。只考虑已安装且额度可用的其他厂商 CLI；没有合适的另一家时，退回 build 厂商的
+  `other:auto:auto` 的简写。历史包含已删除的 sibling/inside worktree；角色运行记录保留 `source_cwd`，
+  按最后实际执行的 attempt 确定 build 厂商，避免配额换家后仍按初始派发对象安排审查。
+  只考虑已安装且额度可用的其他厂商 CLI；没有合适的另一家时，退回 build 厂商的
   不同配置模型，并在收据说明。连不同模型或本家 CLI 都没有则拒绝。角色不会绕过总开关、预算和 autonomy。
 
 ```text
@@ -415,6 +420,8 @@ UI 对话框的“按角色”按钮行，每个合并后角色一个按钮。�
 `ccx roles --ability`、`GET /api/ability?by_role=1` 或 `?role=build` 把 role 作为能力表第四个可选分组维度。
 沿用 #230 的 verdict 排除规则、中位数和 Unknown；公开 workflow seed 仍单列，不分配角色。能力表仍是建议，
 用户指定的角色优先于建议，额度可用性仍限制候选。
+route 解释完整显示 **角色 > 配额 > 难度 > 能力表（建议）**。固定模型的难度计算不会给真实任务额外写入
+`no_ab`；显式 `--no-ab` 仍保留原来的评测排除语义。
 
 ### 参考角色表（示例，不写入默认配置）
 

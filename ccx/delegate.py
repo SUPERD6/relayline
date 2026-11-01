@@ -626,6 +626,7 @@ def run(req: Request, p: Paths) -> dict:
         "caller_vendor": _vendor(req.caller, cfg),
         "tier": plan[0].get("tier", "rung"), "start_tier": req.tier if not req.model else "rung",
         "mode": req.mode, "cwd": str(cwd), "session_id": prev.get("session_id") if prev else None,
+        **({"source_cwd": str(req.cwd.resolve())} if (req.route or {}).get("role") else {}),
         "resumed_from": req.resume_run, "attempts": [], "result": None, "ok": False,
         "review_round": req.review_round,      # >= 1: a review fix round (`ccx show` follows it; a later resume, 0, not)
         "state": "running", "error": None, "auth_problem": False, "kind": None,
