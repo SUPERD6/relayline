@@ -79,6 +79,8 @@ def cmd_q(a) -> int:
         out["closed_parents"] = wq.close_parents(root)
         moved = wq.propagate(root)
         out.update({k: v for k, v in moved.items() if v})
+        from ..ability import after_verdict
+        after_verdict(paths())
         _out(out)
     elif a.q_cmd == "accept":
         if not a.ids and not a.all_ready:
@@ -89,6 +91,9 @@ def cmd_q(a) -> int:
         p = paths()
         out, code = accept(p, load_config(p), root, a.ids or [], all_ready=a.all_ready, check=a.check,
                            dry_run=a.dry_run, into_protected=a.into_protected)
+        if not a.dry_run:
+            from ..ability import after_verdict
+            after_verdict(p)
         _out(out)
         return code
     elif a.q_cmd in ("run", "resume"):

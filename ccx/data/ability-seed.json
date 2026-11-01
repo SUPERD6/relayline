@@ -1,0 +1,22 @@
+{
+  "version": 1,
+  "note": "Published workflow measurements only, never pooled into local model statistics. code is a coarse family, not an observed per-task label. usd_per_success is total workflow spend divided by successes, not a median. Null means not published in docs/measured.md. Multiple r5 runs reuse a dev set; hc1, pg1 and r4 are different task sets and versions.",
+  "measurements": [
+    {"id":"hc1","arm":"self","vendor":"claude","model":"sonnet","effort":"medium","task":"code","n":30,"ok":29,"right":"29/30","usd_per_success":0.090,"wall_median_s":21.0,"source":"docs/measured.md#hold-out-set-hc1-2026-10-29"},
+    {"id":"hc1","arm":"builtin","vendor":null,"model":null,"effort":null,"task":"code","n":28,"ok":27,"right":"27/28","usd_per_success":0.103,"wall_median_s":123,"source":"docs/measured.md#hold-out-set-hc1-2026-10-29"},
+    {"id":"hc1","arm":"ccx2","vendor":"codex","model":"gpt-6-luna","effort":"low","task":"code","n":30,"ok":29,"right":"29/30","usd_per_success":0.063,"wall_median_s":60.7,"source":"docs/measured.md#hold-out-set-hc1-2026-10-29"},
+    {"id":"r5","arm":"self","vendor":"claude","model":"sonnet","effort":"medium","task":"code","n":20,"ok":19,"right":"19/20","usd_per_success":0.211,"wall_median_s":94,"source":"docs/measured.md#round-5-dev-set"},
+    {"id":"r5","arm":"builtin","vendor":null,"model":null,"effort":null,"task":"code","n":20,"ok":19,"right":"19/20","usd_per_success":0.155,"wall_median_s":278,"source":"docs/measured.md#round-5-dev-set"},
+    {"id":"r5d","arm":"builtin2","vendor":null,"model":null,"effort":null,"task":"code","n":20,"ok":17,"right":"17/20","usd_per_success":0.114,"wall_median_s":276,"source":"docs/measured.md#round-5-dev-set"},
+    {"id":"r5f","arm":"builtin","vendor":null,"model":null,"effort":null,"task":"code","n":20,"ok":17,"right":"17/20","usd_per_success":0.202,"wall_median_s":316,"source":"docs/measured.md#round-5-dev-set"},
+    {"id":"r5e","arm":"ccx2","vendor":"codex","model":"gpt-6-luna","effort":"low","task":"code","n":20,"ok":19,"right":"19/20","usd_per_success":0.131,"wall_median_s":251,"source":"docs/measured.md#round-5-dev-set"},
+    {"id":"r5f","arm":"ccx2","vendor":"codex","model":"gpt-6-luna","effort":"low","task":"code","n":20,"ok":20,"right":"20/20","usd_per_success":0.116,"wall_median_s":267,"source":"docs/measured.md#round-5-dev-set"},
+    {"id":"r5g","arm":"ccx2","vendor":"codex","model":"gpt-6-luna","effort":"low","task":"code","n":20,"ok":18,"right":"18/20","usd_per_success":null,"wall_median_s":null,"source":"docs/measured.md#round-5-dev-set"},
+    {"id":"r5h","arm":"ccx2","vendor":"codex","model":"gpt-6-luna","effort":"low","task":"code","n":20,"ok":19,"right":"19/20","usd_per_success":0.135,"wall_median_s":236,"source":"docs/measured.md#round-5-large-real-tasks-2026-10-2627-dev-set"},
+    {"id":"pg1","arm":"self","vendor":"claude","model":"sonnet","effort":"medium","task":"code","n":30,"ok":25,"right":"25/30","usd_per_success":0.037,"wall_median_s":11,"source":"docs/measured.md#external-benchmark-polyglot-pg1-2026-10-31"},
+    {"id":"pg1","arm":"ccx2","vendor":"codex","model":"gpt-6-luna","effort":"low","task":"code","n":30,"ok":12,"right":"12/30","usd_per_success":0.115,"wall_median_s":57,"source":"docs/measured.md#external-benchmark-polyglot-pg1-2026-10-31"},
+    {"id":"pg1","arm":"direct","vendor":"codex","model":"gpt-6-luna","effort":"low","task":"code","n":30,"ok":9,"right":"9/30","usd_per_success":0.021,"wall_median_s":44,"source":"docs/measured.md#external-benchmark-polyglot-pg1-2026-10-31"},
+    {"id":"r4","arm":"ccx2","vendor":null,"model":null,"effort":null,"task":"code","n":null,"ok":null,"right":null,"usd_per_success":0.595,"wall_median_s":null,"source":"docs/measured.md#round-5-dev-set"},
+    {"id":"r4","arm":"self","vendor":null,"model":null,"effort":null,"task":"code","n":null,"ok":null,"right":null,"usd_per_success":0.567,"wall_median_s":null,"source":"docs/measured.md#round-5-dev-set"}
+  ]
+}
