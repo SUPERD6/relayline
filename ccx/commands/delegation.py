@@ -599,6 +599,13 @@ def cmd_task(a) -> int:
 
 
 def cmd_verify(a) -> int:
+    result = _cmd_verify(a)
+    from ..ability import after_verdict
+    after_verdict(paths())
+    return result
+
+
+def _cmd_verify(a) -> int:
     if a.sweep:
         from ..delegate import soft_verdicts
         done = soft_verdicts(paths(), a.after_h)
@@ -936,6 +943,8 @@ def cmd_bench(a) -> int:
 
 def cmd_route(a) -> int:
     out = _route(a)
+    from ..ability import route_summary
+    out["ability"] = route_summary(paths(), out, " ".join(a.text or []), to=a.to, task_type=getattr(a, "kind", None))
     _out(out)
     human_tail(_route_summary(out))
     return 0

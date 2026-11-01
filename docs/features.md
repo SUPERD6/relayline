@@ -31,6 +31,81 @@ advanced (the hub, several projects, installing: `init`, `projects`, `where`, `i
 every command and option keeps its name and parses as before (`tests/data/cli_surface.json` froze the full list
 and a test checks it).
 
+## Ability table: evidence by vendor, model and task
+
+`ccx ability` (also listed by `ccx advanced`) learns separate cells for `plan`, `code`, `fix`, `test`,
+`review`, `docs` and `read` from the hub's ledger and available run records. Review runs (`review:` labels)
+are `review`; explicit read mode is `read`; otherwise the first action word in the task, in English or Chinese,
+decides ("fix the bug, then test" is `fix`, "add tests" is `test`). Explicit task types take priority over keywords.
+With no action word, the recorded five-question rubric's `novelty = new` suggests `plan`; otherwise the fallback
+is `code`. File count, coupling and risk alone cannot identify a task type.
+
+```bash
+ccx ability show --vendor codex --task fix
+ccx ability show --json
+ccx ability rebuild                         # backfill old runs / repair the cache
+ccx ability set claude.opus plan prefer
+ccx ability set codex.gpt-6-luna code avoid
+ccx ability set codex.gpt-6-luna code clear  # remove your setting
+```
+
+Each local cell has `n`, `ok`, `ok_self_checked`, `unverified`, `failed`, `success_rate` (`ok / n`), median known
+cost of independently successful runs, median recorded run seconds, effort counts and the latest run/verdict
+timestamp. `ok_self_checked` is **not independently verified**, never added to `ok`, even when its receipt is a
+pass; unknown evidence stays unverified. **What counts once:** `n` includes only runs with a non-soft verdict,
+excluding partial/running work and machine, quota or user stops. A right run also needs `kind = ok` and a positive
+verdict; a negative verdict counts as failed. `ok_self_checked` stays separate and is never right. Runs without
+a verdict (or with only a soft one) do not enter the denominator or count as failures; their unverified/self-checked
+counts and effort metadata may still be shown outside `n`. A positive verdict with an unknown kind stays
+unverified. Excluded stop
+kinds match the UI's open outcomes: `env` (including sandbox error 1223), `quota`, `user_stopped`, `over_budget`,
+`policy`, `needs_write`, `timeout`, `no_answer`. These stops do not count as failed even with a verdict.
+Missing costs/times are `null`, zero stays zero, and each median reports
+its known-sample count. Cost medians keep API-equivalent (`ae_usd`) and billed (`cost_usd`) USD separate; the displayed
+median prefers API-equivalent costs. This median is not total spend divided by successes. Recorded seconds cover
+the run's attempts, not the lead's or reviewer's entire workflow. Cells with **fewer than five local runs** say
+**"insufficient data / 数据不足"**; `n = 0` has no success rate. Evaluations, internal probes and dismissed
+runs do not train local cells. Each run counts once, attributed to its final model, with its whole recorded run
+cost/time (including earlier attempts); effort is retained as a count, not a separate cell.
+
+`<hub>/ccx/ability.json` is a versioned cache: `cells` holds summaries, `entries` holds a fingerprint and a numeric
+observation per run. Briefs are read to infer types, not copied into this cache. CLI verdict paths (`verify`, queue
+completion/acceptance, undo-as-wrong, the start-hook sweep) refresh it; unchanged runs reuse their observations and
+only changed cells are recalculated. A transient `PermissionError` does not cache the unread file's fingerprint;
+the next query retries. `q accept --dry-run` does not refresh or create ability cache/lock files.
+Queries also catch verdicts written directly through the Python API.
+`rebuild` reconstructs it from the ledger, using run.json/brief.md when still present. Unrecoverable metadata stays
+unknown. Repeated verdicts replace that run's observation rather than adding runs.
+
+You can also edit `<hub>/ccx/ability-overrides.toml`:
+
+```toml
+[claude.opus]
+plan = "prefer"
+[codex.gpt-6-luna]
+code = "avoid"
+[codex."gpt-6.1-sol"]
+review = "prefer"
+```
+
+Quote model names containing dots. A preference wins over observational advice and is labelled **"user setting /
+用户设定"** (`preference_source: "user"`); it does not rewrite counts or evidence. `set` preserves other entries and
+comments. Provider names resolve to their configured vendor, so DeepSeek through another CLI is still DeepSeek.
+
+Cold start shows `ccx/data/ability-seed.json` as **separate, sourced workflow measurements**, never synthetic local
+runs or pooled model rates. All 16 entries come from [Measured](measured.md): hc1's self/builtin/ccx2 rows (right,
+cost per success and median wall); r5 self, builtin, r5d builtin2, r5f builtin and r5e/r5f/r5g/r5h ccx2 rows (same
+three columns, r5g cost/wall unknown); pg1's all-30 self/ccx2/direct rows (same columns); and r4's two published
+cost-per-success numbers, $0.595 ccx2 / $0.567 self. r4's sample count, accuracy, wall and model are unknown;
+built-in model identities are also unknown. These are workflow costs (ccx2 includes a lead), from different task
+sets and versions; `code` is only a coarse benchmark family. They do not establish a vendor's strength at a
+particular type. The cold-start local count stays zero and local medians stay empty.
+
+This change **does not steer routing**: `ccx route` only gains an `ability` JSON field with the inferred type and
+candidate summaries; the pick, ladder and other fields remain unchanged. Roles and quota-aware selection will be
+combined with this evidence later. The authenticated, read-only `/api/ability?vendor=codex&task=fix` endpoint
+provides the same data for UI work; this change adds no page or frontend controls.
+
 ## See it live: `ccx ui`
 
 **The home page is one project on one map** (P2-10): in the middle the agents and what went between them (who sent

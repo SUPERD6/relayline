@@ -2213,6 +2213,11 @@ class UI:
                             data = collect(ui.p, ui.project, ui.days, ui.reader, quota_wait=False)
                             ui.remember_boards(data)
                         return self._send(200, json.dumps(data, ensure_ascii=False, default=list).encode("utf-8"))
+                    if path == "/api/ability":
+                        from .ability import table
+                        q = {k: v[0] for k, v in parse_qs(urlsplit(self.path).query).items() if v}
+                        data = table(ui.p, vendor=q.get("vendor"), task=q.get("task"), persist=False)
+                        return self._send(200, json.dumps(data, ensure_ascii=False).encode("utf-8"))
                     if path.startswith("/api/run/"):
                         return self._send(200, json.dumps(run_detail(ui.p, path[len("/api/run/"):]),
                                                           ensure_ascii=False).encode("utf-8"))
