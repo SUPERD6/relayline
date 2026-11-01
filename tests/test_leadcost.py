@@ -24,6 +24,67 @@ def write(path: Path, rows: list[dict]) -> Path:
     return path
 
 
+class TestBillingBreakdown(Env):
+    def lead_session(self):
+        return write(self.home_codex / "sessions" / "2026" / "10" / "24" / "rollout-billing-lead.jsonl", [
+            {"type": "session_meta", "payload": {"id": "billing-lead", "cwd": str(self.work),
+                                                  "base_instructions": "base " * 2000}},
+            {"type": "turn_context", "payload": {"model": "gpt-6.1-sol"}},
+            {"type": "world_state", "payload": {"state": {"agents_md": {
+                "directory": "/project", "text": "rule " * 2000}}}},
+            {"type": "event_msg", "payload": {"type": "token_count", "info": {
+                "last_token_usage": {"input_tokens": 10000, "cached_input_tokens": 0, "output_tokens": 9}}}}])
+
+    def test_subscription_breakdown_cli_puts_weighted_quota_first(self):
+        self.lead_session()
+        p = Paths(self.hub)
+        p.user_tiers.parent.mkdir(parents=True, exist_ok=True)
+        p.user_tiers.write_text('[billing.vendors.openai]\nmodels = { "gpt-6.1-sol" = 2 }\n', encoding="utf-8")
+        self.assertEqual(self.ccx("config", "set", "billing.mode", "subscription").returncode, 0)
+        r = self.ccx("lead", "--breakdown", "--as", "codex", "--session", "billing-lead")
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        b = json.loads(r.stdout)
+        self.assertEqual(b["billing"]["mode"], "subscription")
+        for part in b["parts"]:
+            self.assertEqual(part["quota_units"], part["tokens"] * 2)
+            self.assertEqual(part["quota_units_per_100_turns"], part["tokens"] * 200)
+            self.assertLess(list(part).index("quota_units_per_100_turns"), list(part).index("usd_per_100_turns"))
+            self.assertGreater(part["usd_per_100_turns"], 0)
+        self.assertTrue(any("quota units per 100 turns; API-equivalent $" in advice for advice in b["advice"]))
+        self.assertEqual(self.calls(), [])
+
+    def test_api_breakdown_cli_keeps_dollar_first_and_existing_advice(self):
+        self.lead_session()
+        r = self.ccx("lead", "--breakdown", "--as", "codex", "--session", "billing-lead")
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        b = json.loads(r.stdout)
+        self.assertEqual(b["billing"]["mode"], "api")
+        for part in b["parts"]:
+            self.assertEqual(part["quota_units"], part["tokens"])
+            self.assertLess(list(part).index("usd_per_100_turns"), list(part).index("quota_units"))
+        self.assertTrue(any("(≈ $" in advice for advice in b["advice"]))
+        self.assertFalse(any("quota units" in advice for advice in b["advice"]))
+        self.assertEqual(self.calls(), [])
+
+
+class TestUsageBilling(Env):
+    def test_lead_window_counts_each_turn_at_its_model_weight(self):
+        from ccx import usage
+        p = Paths(self.hub)
+        p.user_tiers.parent.mkdir(parents=True, exist_ok=True)
+        p.user_tiers.write_text('[billing]\nmode = "subscription"\n[billing.vendors.anthropic]\n'
+                               'models = { "claude-opus-5-5" = 2, "claude-sonnet-5-5" = 0.5 }\n',
+                               encoding="utf-8")
+        write(self.home_claude / "projects" / "p" / "s.jsonl", [
+            asst(0, "2026-10-24T10:00:00Z", 10, 20),
+            asst(1, "2026-10-24T10:01:00Z", 30, 40, "claude-sonnet-5-5")])
+        result = usage.window_usage("claude", 1, 2_000_000_000, set(), session="s")
+        self.assertEqual(result["quota_units"], (5 + 10 + 20 + 50) * 2 + (5 + 30 + 40 + 50) * 0.5)
+        self.assertEqual((result["billing"]["mode"], result["messages"]), ("subscription", 2))
+        events, _ = usage.lead_events(1, set())
+        self.assertEqual(sum(e["quota_units"] for e in events), result["quota_units"])
+
+
 class TestClaude(Env):
     def test_breakdown_from_shape_and_attachments(self):
         tools = [{"name": "Bash", "description": "x" * 4000},

@@ -6,12 +6,86 @@ routing can be tuned from real numbers instead of guesses.
 from __future__ import annotations
 
 import json
+import math
 import os
 import time
 from collections import defaultdict
 from pathlib import Path
 
-from .config import SUBAGENT_SWITCHES, Paths
+from .config import SUBAGENT_SWITCHES, Paths, load_config
+
+
+def billing_config(cfg: dict) -> dict:
+    """Validate billing settings where they are consumed, including hand-edited TOML."""
+    b = cfg.get("billing", {})
+    if not isinstance(b, dict):
+        raise ValueError("billing must be a table")
+    if b.get("mode", "api") not in ("api", "subscription"):
+        raise ValueError("billing.mode must be api or subscription")
+
+    def weight(v, key):
+        if isinstance(v, bool) or not isinstance(v, (int, float)) or not math.isfinite(v) or v < 0:
+            raise ValueError(f"{key} must be a finite non-negative number (units per token)")
+
+    weight(b.get("quota_unit", 1.0), "billing.quota_unit")
+    for group in ("vendors", "providers"):
+        entries = b.get(group, {})
+        if not isinstance(entries, dict):
+            raise ValueError(f"billing.{group} must be a table")
+        for name, entry in entries.items():
+            key = f"billing.{group}.{name}"
+            if not isinstance(entry, dict):
+                raise ValueError(f"{key} must be a table")
+            if "quota_unit" in entry:
+                weight(entry["quota_unit"], f"{key}.quota_unit")
+            models = entry.get("models", {})
+            if not isinstance(models, dict):
+                raise ValueError(f"{key}.models must be a table of model weights")
+            for model, value in models.items():
+                weight(value, f"{key}.models.{model}")
+    return {"mode": b.get("mode", "api"), "quota_unit": b.get("quota_unit", 1.0),
+            "vendors": b.get("vendors", {}), "providers": b.get("providers", {})}
+
+
+def _token_total(u: dict) -> int:
+    """Normalized buckets only: the 1-hour cache-write subset must not be counted twice."""
+    if any(k in u for k in ("input_tokens", "cache_write_tokens", "cached_input_tokens", "output_tokens")):
+        return sum(int(u.get(k) or 0) for k in
+                   ("input_tokens", "cache_write_tokens", "cached_input_tokens", "output_tokens"))
+    # Old compact usage: input already includes cache_write.
+    return sum(int(u.get(k) or 0) for k in ("input", "cached", "output"))
+
+
+def quota_units(cfg: dict, agent: str, model: str, u: dict) -> float:
+    """A configured token proxy, not the vendor's remaining quota or an invoice."""
+    from .agents import vendor
+    b = billing_config(cfg)
+    unit = b["quota_unit"]
+    for entry in (b["vendors"].get(vendor(agent, cfg), {}), b["providers"].get(agent, {})):
+        unit = entry.get("models", {}).get(model, entry.get("quota_unit", unit))
+    return round(_token_total(u) * unit, 6)
+
+
+def record_quota(record: dict, cfg: dict) -> dict[str, float]:
+    """Each attempt uses its own provider/model, including cross-provider fallback."""
+    billing_config(cfg)
+    out: dict[str, float] = {}
+    for a in record.get("attempts") or []:
+        agent = a.get("agent") or record.get("to") or ""
+        rung = (a.get("rung") or "").split(":")
+        model = a.get("model") or (rung[1] if len(rung) > 1 else "")
+        value = a.get("quota_units")
+        if value is None:
+            value = quota_units(cfg, agent, model, a.get("usage") or {})
+        out[agent] = round(out.get(agent, 0) + value, 6)
+    return out
+
+
+def row_quota(row: dict) -> float:
+    """Stored units win (including zero). Legacy rows use unweighted tokens, independent of today's weights."""
+    if row.get("quota_units") is not None:
+        return row["quota_units"]
+    return _token_total(row.get("usage4") or row.get("usage") or {})
 
 
 def new_run_id(p: Paths) -> str:
@@ -39,12 +113,13 @@ def append_event(p: Paths, event: dict) -> None:
 
 
 def append(p: Paths, record: dict) -> None:
+    slim = _slim(record, load_config(p))
     p.ledger.parent.mkdir(parents=True, exist_ok=True)
     with open(p.ledger, "a", encoding="utf-8") as f:
-        f.write(json.dumps(_slim(record), ensure_ascii=False) + "\n")
+        f.write(json.dumps(slim, ensure_ascii=False) + "\n")
 
 
-def _slim(record: dict) -> dict:
+def _slim(record: dict, cfg: dict | None = None) -> dict:
     slim = {k: record.get(k) for k in ("run_id", "label", "to", "caller", "caller_vendor", "tier", "start_tier",
                                        "mode", "ok", "ts", "kind", "task", "step", "cwd", "session_id",
                                        "lead_session", "continue_depth", "ephemeral", "mode_source")}
@@ -82,6 +157,8 @@ def _slim(record: dict) -> dict:
         if a.get("ae_usd") is not None:
             by[a["agent"]] = round(by.get(a["agent"], 0.0) + a["ae_usd"], 6)
     slim["ae_by_agent"] = by
+    slim["quota_by_agent"] = record_quota(record, cfg or {})
+    slim["quota_units"] = round(sum(slim["quota_by_agent"].values()), 6)
     slim["status"] = (record.get("result") or {}).get("status", "error")
     slim["usage"] = sum_usage(record["attempts"])
     u4: dict[str, int] = {}
@@ -143,7 +220,8 @@ def chain_cost(p: Paths, run_ids: list[str]) -> dict:
         known = [r[key] for r in mine if r.get(key) is not None]
         return round(sum(known), nd) if known else None
     return {"runs": ids, "reviews": sum(r.get("label") in labels for r in mine), "tokens": tok,
-            "ae_usd": total("ae_usd", 6), "cost_usd": total("cost_usd", 5)}
+            "ae_usd": total("ae_usd", 6), "cost_usd": total("cost_usd", 5),
+            "quota_units": round(sum(row_quota(r) for r in mine), 6)}
 
 
 def load_run(p: Paths, run_id: str) -> dict:
@@ -291,7 +369,10 @@ def rows(p: Paths) -> list[dict]:
     out = []
     for line in p.ledger.read_text(encoding="utf-8").splitlines():
         try:
-            out.append(json.loads(line))
+            row = json.loads(line)
+            if not row.get("type") or row.get("type") == "selfrun":
+                row["quota_units"] = row_quota(row)
+            out.append(row)
         except json.JSONDecodeError:
             continue
     return _mark_dismissed(out)
@@ -314,9 +395,11 @@ def _mark_dismissed(rows_: list[dict]) -> list[dict]:
 
 
 def stats(p: Paths) -> list[dict]:
+    billing_config(load_config(p))
     agg: dict[tuple, dict] = defaultdict(lambda: {"runs": 0, "done": 0, "escalated": 0,
                                                  "input": 0, "cached": 0, "output": 0,
-                                                 "seconds": 0.0, "cost_usd": 0.0, "cost_known": 0})
+                                                 "seconds": 0.0, "cost_usd": 0.0, "cost_known": 0,
+                                                 "quota_units": 0.0, "ae_usd": 0.0, "ae_known": 0})
     for r in rows(p):
         if r.get("type"):
             continue
@@ -327,6 +410,10 @@ def stats(p: Paths) -> list[dict]:
         for k in ("input", "cached", "output"):
             a[k] += r["usage"].get(k, 0)
         a["seconds"] += r.get("seconds", 0)
+        a["quota_units"] += row_quota(r)
+        if r.get("ae_usd") is not None:
+            a["ae_usd"] += r["ae_usd"]
+            a["ae_known"] += 1
         if r.get("cost_usd") is not None:
             a["cost_usd"] += r["cost_usd"]
             a["cost_known"] += 1
@@ -337,7 +424,9 @@ def stats(p: Paths) -> list[dict]:
                     "done_rate": round(a["done"] / n, 2), "escalated": a["escalated"],
                     "avg_input": a["input"] // n, "avg_cached": a["cached"] // n,
                     "avg_output": a["output"] // n, "avg_seconds": round(a["seconds"] / n, 1),
-                    "cost_usd": round(a["cost_usd"], 4) if a["cost_known"] else None})
+                    "cost_usd": round(a["cost_usd"], 4) if a["cost_known"] else None,
+                    "ae_usd": round(a["ae_usd"], 6) if a["ae_known"] else None,
+                    "quota_units": round(a["quota_units"], 6)})
     return out
 
 
@@ -402,7 +491,7 @@ def repair(p: Paths, apply: bool = False) -> dict:
                 new.append(line)
                 continue
             rid = row.get("run_id")
-            new.append(json.dumps(_slim(by_id[rid]), ensure_ascii=False)
+            new.append(json.dumps(_slim(by_id[rid], load_config(p)), ensure_ascii=False)
                        if not row.get("type") and rid in by_id else line)
         tmp = p.ledger.with_suffix(".jsonl.tmp")
         tmp.write_text("\n".join(new) + "\n", encoding="utf-8")
