@@ -130,6 +130,8 @@ ccx ui [--project 文件夹] [--no-open] [--export 文件]   # 本机实时页�
 ccx demo [--no-open] [--keep] [--export 文件]       # 同一个页面，用临时目录里编好的数据：不用账号，离线可用
 ccx config set ui.lang zh          # ccx ui 和 ccx 写进会话的提示用中文
 ccx config set defaults.tradeoff 0.3   # 省钱↔快 的旋钮：save / balanced / fast，或 0..1
+ccx config set routing.mode off       # 不派活：活都自己做；ccx ask / discuss / run --mode read（跨厂商审查）、mem、
+                                      # board 照常；run / batch / q run / q resume / way 不带 --force 就拒绝（auto = 出厂）
 ccx ab done <id> --ok 1             # 结束一次 A/B 抽样（主导自己做的那 10%）
 ccx run "任务" --to gemini --tier T2                       # 派给 Gemini CLI
 ccx run "任务" --to deepseek      # 通过 Claude Code 用 DeepSeek flash（密钥放环境变量 DEEPSEEK_API_KEY），思考强度按难度选
