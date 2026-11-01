@@ -285,7 +285,13 @@ def _quota_minutes(raw: str) -> float | bool:
     return False if raw.strip().lower() == "false" else float(raw)
 
 
+ROLE_DEFAULTS = {"mode": ("read", "write"), "review": ("auto", "on", "off"),
+                 "worktree": bool, "check": str}  # roles.defaults.<name>; no implicit defaults
+
+
 SETTINGS = {   # key -> (type, help). Only these can be set with `ccx config set`.
+    # Arbitrary roles.<name> and roles.defaults.<name> mode/worktree/review/check use ccx.roles
+    # (ccx roles set/unset), outside this scalar-key allowlist. Default role table: {}.
     "quota.auto_refresh_min": (_quota_minutes, "refresh existing readings older than N minutes (default 60); "
                                               "0/false disables"),
     "quota.avoid_above": (float, "used share above which quota routing prefers another subscription (default 0.8)"),

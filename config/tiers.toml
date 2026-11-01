@@ -8,6 +8,10 @@
 #   Claude Code CLI 2.1.309：--model 接受别名 haiku / sonnet / opus / fable，--effort 接受 low/medium/high/xhigh/max
 # 模型会更新，改这里即可，代码不用动。用户覆盖文件：<hub>/ccx/tiers.toml（同结构，只写要改的键）。
 
+# Opt-in assignments: [roles] build = "codex:gpt-6.1-sol:auto". Empty keeps existing behaviour.
+# 可选角色表，默认空；项目 .ccx/roles.toml 优先。参考表见 docs/features.md。
+[roles]
+
 [defaults]
 auto_escalate = true      # 子任务返回 blocked/failed 时，在同一会话里换更强一档继续（续接上下文，不重新喂背景）
 max_escalations = 1

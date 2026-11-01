@@ -24,7 +24,7 @@ GROUPS = (
     ("Memory and context", ("ctx", "project", "fresh", "inbox", "skills")),
     ("Accounting and reports", ("stats", "report", "quota")),
     ("Between agents", ("peek", "board", "say", "reply")),
-    ("Advanced", ("init", "projects", "where", "intake", "sync", "config", "uninstall", "repair", "agents", "ability")),
+    ("Advanced", ("init", "projects", "where", "intake", "sync", "config", "uninstall", "repair", "agents", "ability", "roles")),
     ("Maintenance", ("task", "send", "plan", "batch", "route", "propose", "way", "discuss", "turn", "sum", "archive",
                      "autonomy", "selftest")),
     ("Developer", ("trial", "ab", "bench", "improve", "namecheck")),
@@ -127,6 +127,8 @@ def parse(argv: list[str]) -> argparse.Namespace:
         raise SystemExit(0)
     ap = build_parser()
     a, rest = ap.parse_known_args(argv)
+    options = argv[:argv.index("--")] if "--" in argv else argv
+    a._explicit = {x.split("=", 1)[0] for x in options if x.startswith("--")}
     if rest and not (isinstance(getattr(a, "brief", None), list) and not any(r.startswith("-") for r in rest)):
         ap.error(f"unrecognized arguments: {' '.join(rest)}")
     if isinstance(getattr(a, "brief", None), list):
@@ -146,7 +148,7 @@ def _split_value(ap: argparse.ArgumentParser, cmd: str, argv: list[str], brief: 
     """(option, word) when a bare brief word comes right after the value of a free-text option (one value, no
     choices, not a number), else None. A brief word or a value with a space was quoted, so neither runs on."""
     sub = next(x for x in ap._actions if isinstance(x, argparse._SubParsersAction)).choices[cmd]
-    free = {o for act in sub._actions for o in act.option_strings
+    free = {o for act in sub._actions for o in act.option_strings if o != "--role"
             if act.nargs is None and act.choices is None and act.type not in (int, float) and (not only or o in only)}
     words = {w for w in brief if " " not in w.strip()}
     for i, tok in enumerate(argv):
