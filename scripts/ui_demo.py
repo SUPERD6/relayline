@@ -127,6 +127,13 @@ def main() -> int:
                                  "resets_at": now + 60 * 3600, "window_minutes": 10080}) + "\n")
     if a.lang:
         ccx(shop, "config", "set", "ui.lang", a.lang)
+    # The same complete-run artifacts as the offline `ccx demo`, using this script's fake-CLI run ids.
+    sys.path.insert(0, str(ROOT))
+    from ccx.config import Paths
+    from ccx.ui import seed_run_visibility
+    p = Paths(t / "hub")
+    seed_run_visibility(p, [f.parent.name for f in p.runs.glob("*/run.json")
+                            if not json.loads(f.read_text(encoding="utf-8")).get("ephemeral")])
     print(f"demo hub: {t / 'hub'}", flush=True)
     if a.export:
         print(ccx(shop, "ui", "--export", a.export))

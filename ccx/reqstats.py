@@ -34,6 +34,88 @@ from pathlib import Path
 KEEP = 200       # per-request inputs kept in run.json per attempt (a long session has fewer than this)
 
 
+def activity_event(event: dict, tools: dict | None = None) -> list[dict]:
+    """Read Codex exec JSON/rollout and Claude stream-json as display-only activity.
+
+    No request/token accounting is changed. Missing event times and command exits stay unknown; tool output is
+    untrusted text, never opened or executed. `tools` pairs Claude/rollout results with their calls across lines.
+    """
+    tools = tools if tools is not None else {}
+    ts = event.get("timestamp") or event.get("ts")
+    out = []
+
+    def add(kind, text, **extra):
+        out.append({"ts": ts, "kind": kind, "text": str(text or "")[:8000], **extra})
+
+    def call(name, args, ident):
+        if isinstance(args, str):
+            try:
+                args = json.loads(args)
+            except ValueError:
+                args = {"input": args}
+        args = args if isinstance(args, dict) else {}
+        low = str(name).lower()
+        kind = "command" if any(x in low for x in ("bash", "exec_command", "shell")) else (
+            "read" if any(x in low for x in ("read", "glob", "grep", "search", "view")) else (
+                "change" if any(x in low for x in ("edit", "write", "patch")) else "tool"))
+        text = (args.get("command") or args.get("cmd") or args.get("file_path") or args.get("path")
+                or args.get("input") or json.dumps(args, ensure_ascii=False))
+        tools[ident] = {"kind": kind, "text": str(text), "tool": name}
+        add(kind, text, tool=name, phase="started", call_id=ident, exit_code=None)
+
+    def result(ident, body, error=False):
+        import re
+        prev = tools.get(ident, {"kind": "tool", "text": ident})
+        code = body.get("exit_code") if isinstance(body, dict) else None
+        text = json.dumps(body, ensure_ascii=False) if not isinstance(body, str) else body
+        if code is None:
+            match = re.search(r'(?:exit[_ ]code|Process exited with code)\s*[:=]?\s*(-?\d+)', text, re.I)
+            code = int(match.group(1)) if match else None
+        add(prev["kind"], prev["text"], tool=prev.get("tool"), phase="completed", call_id=ident,
+            exit_code=code, error=bool(error), output=text[-8000:])
+
+    typ = event.get("type")
+    if typ in ("item.started", "item.updated", "item.completed"):
+        item = event.get("item") or {}
+        kind = item.get("type")
+        if kind == "command_execution":
+            add("command", item.get("command"), phase=typ.split(".")[-1], call_id=item.get("id"),
+                exit_code=item.get("exit_code"), output=str(item.get("aggregated_output") or "")[-8000:])
+        elif kind == "file_change":
+            for change in item.get("changes") or []:
+                add("change", change.get("path"), phase=typ.split(".")[-1], action=change.get("kind"))
+        elif kind in ("agent_message", "reasoning"):
+            add("message" if kind == "agent_message" else "reasoning", item.get("text"))
+        elif kind == "mcp_tool_call":
+            add("tool", item.get("tool"), phase=typ.split(".")[-1], output=str(item.get("result") or "")[-8000:])
+    elif typ == "response_item":
+        payload = event.get("payload") or {}
+        if payload.get("type") in ("function_call", "custom_tool_call"):
+            call(payload.get("name"), payload.get("arguments", payload.get("input")), payload.get("call_id"))
+        elif payload.get("type") in ("function_call_output", "custom_tool_call_output"):
+            result(payload.get("call_id"), payload.get("output"))
+        elif payload.get("type") == "message" and payload.get("role") == "assistant":
+            for block in payload.get("content") or []:
+                if block.get("text"):
+                    add("message", block["text"])
+    elif typ in ("assistant", "user"):
+        content = (event.get("message") or {}).get("content") or []
+        if isinstance(content, str):
+            if typ == "assistant":
+                add("message", content)
+        else:
+            for block in content:
+                if not isinstance(block, dict):
+                    continue
+                if block.get("type") == "tool_use":
+                    call(block.get("name"), block.get("input"), block.get("id"))
+                elif block.get("type") == "tool_result":
+                    result(block.get("tool_use_id"), block.get("content"), block.get("is_error"))
+                elif typ == "assistant" and block.get("type") == "text":
+                    add("message", block.get("text"))
+    return out
+
+
 def claude_inputs(lines) -> list[int]:
     """One entry per request of the main conversation, in order: the request's whole input (prefix)."""
     seen: set = set()
