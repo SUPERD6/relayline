@@ -126,6 +126,7 @@ ccx run ... --task <id> --step <n>   # session id saved into task-checkpoint at 
 ccx run ... --mode read          # analysis only (without --mode, ccx infers read/write from the brief; follow it)
 ccx run ... --check "CMD"        # acceptance command: the sub-agent runs it, ccx runs it again (failure = failure)
 ccx run ... --risk visible       # user-facing / critical work: another vendor's cheap model reviews the diff
+ccx run ... --max-usd 0.5        # stop the whole delegation (rungs, review, fix round) at $0.5; "budget cap reached"
 ccx run ... --review on|off      # force or skip it; default auto (risk, 50+ code lines, unsure, claims vs diff,
                                  # weak evidence: no check, a check running no tests, tests not naming the
                                  # changed files/functions, or a check that passed wrong work before;

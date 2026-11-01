@@ -92,6 +92,8 @@ class Request:
     progress: bool = False          # a foreground `ccx run`/`resume`: one stderr line every ~30 s while it waits
     finish_note: str | None = None  # `ccx batch --merge`: the merged run's own Finish text (ccx/merge.py FINISH)
     merge_of: str | None = None     # a follow-up / spun-off run of a merged run (`ccx batch --merge`): that run's id
+    max_usd: float | None = None    # P0-15 --max-usd: cap on this whole delegation (attempts, review, fix round)
+    chain_usd: float = 0.0          # what the chain spent before this run (a fix round: its first run + review)
 
 
 def _busy(p: Paths, prev: dict, scan: int = 300) -> str | None:
@@ -128,6 +130,19 @@ def refuse_if_busy(p: Paths, prev: dict) -> None:
             f"run {busy} is still working in that session (its check, review or fix round included): wait for it "
             f"with `ccx show {busy} --wait`, or stop it with `ccx stop {busy}`, then resume. Starting another run "
             "in the same session now would fail (Codex: 'thread already has an active writer').")
+
+
+def _capped(req: Request, record: dict, before: str) -> bool:
+    """P0-15 --max-usd: the chain has spent its cap, so `before` (the next attempt, the review, the fix round) does
+    not start; record["max_usd"] says so. An attempt already running is never cut: the cap is checked between steps,
+    so the chain can end up to one attempt over it. API-equivalent $ (ae_usd), as the receipt's cost."""
+    if req.max_usd is None:
+        return False
+    spent = req.chain_usd + _spent(record)
+    if spent < req.max_usd:
+        return False
+    record.setdefault("max_usd", {"cap": req.max_usd, "spent": round(spent, 4), "stopped_before": before})
+    return True
 
 
 def _start_review(req: Request, p: Paths, cfg: dict, record: dict, cwd: Path, run_dir: Path, result: dict | None) -> dict:
@@ -654,6 +669,11 @@ def run(req: Request, p: Paths) -> dict:
         if stop_file.exists():                    # stopped between attempts: start nothing more
             oc = Outcome(ok=False, kind="user_stopped", error="stopped by `ccx stop`") if not (oc and oc.ok) else oc
             break
+        if i > 0 and _capped(req, record, "attempt"):     # --max-usd: no further rung, the lead decides
+            if not (oc and oc.ok):
+                oc = Outcome(ok=False, kind="max_usd", error=f"budget cap reached: ${record['max_usd']['spent']} "
+                             f"of ${req.max_usd} spent before the next attempt")
+            break
         spec = plan[i]
         to = spec["agent"]
         record["to"] = to
@@ -861,7 +881,7 @@ def run(req: Request, p: Paths) -> dict:
             # "done" but ccx's own run of the check fails: that is a failure too, so climb while a rung is left.
             # Before, only blocked/failed escalated, and a cheap model that wrongly said done stopped there
             # (needed once tradeoff = save picks cheap models first, 2026-10-25)
-            if want_review:                    # reviewed while the check runs; dropped if the check fails
+            if want_review and not _capped(req, record, "review"):   # reviewed while the check runs (dropped if it fails)
                 bg_review = _start_review(req, p, cfg, record, cwd, run_dir, oc.result)
             # did this attempt change anything: told before the check runs, so files the check writes don't count
             left = _left_unchanged(p, record) if req.mode == "write" else None
@@ -951,7 +971,7 @@ def run(req: Request, p: Paths) -> dict:
         record["check"], record["kind"], check_passed = nc_fail, "check_failed", False
     elif req.check and oc.ok and status in ("done", "partial"):
         reuse = early_check and early_check[0] == len(record["attempts"])    # already run on this very attempt
-        if not reuse and want_review and bg_review is None:
+        if not reuse and want_review and bg_review is None and not _capped(req, record, "review"):
             # the review runs while ccx runs the check (it needs only the command, not its result); it counts
             # only if the check passes, and is stopped otherwise
             bg_review = _start_review(req, p, cfg, record, cwd, run_dir, oc.result)
@@ -966,7 +986,8 @@ def run(req: Request, p: Paths) -> dict:
             record["kind"] = "check_failed"
     if bg_review is not None:
         _finish_review(bg_review, record, p, keep=record.get("kind") not in ("check_failed", "check_broken"))
-    elif want_review and record.get("kind") not in ("check_failed", "check_broken"):
+    elif (want_review and record.get("kind") not in ("check_failed", "check_broken")
+          and not _capped(req, record, "review")):
         try:
             _review(req, p, cfg, record, cwd, run_dir)
         except Exception as e:  # noqa: BLE001 — a review that can't run never fails the work itself
@@ -1003,7 +1024,7 @@ def run(req: Request, p: Paths) -> dict:
     # `ccx verify` (the lead's verdict) adds or corrects this later.
     verified = check_passed is not None or (oc.result or {}).get("verification", "not-run") not in ("", "not-run")
     if oc.kind not in ("quota", "auth", "timeout", "model", "needs_write", "split", "over_budget", "user_stopped",
-                       "review_issues", "review_failed", "env") and record.get("kind") not in ("check_broken", "no_changes", "no_answer") and (status in ("blocked", "failed") or not oc.ok
+                       "max_usd", "review_issues", "review_failed", "env") and record.get("kind") not in ("check_broken", "no_changes", "no_answer") and (status in ("blocked", "failed") or not oc.ok
                                                         or (status == "done" and verified)):
         try:
             learn.record_outcomes(p, record, final_ok=oc.ok and status == "done" and check_passed is not False)
@@ -1065,6 +1086,10 @@ def run(req: Request, p: Paths) -> dict:
         record["archived"] = bool(archive.after_run(p, record))
     except Exception:  # noqa: BLE001 — housekeeping never fails the work
         pass
+    if (record.get("kind") == "review_issues" and record.get("session_id")
+            and _capped(req, record, "fix round")):
+        _write_record(run_dir, record)     # --max-usd: the issues go to the lead instead of a fix round
+        return record
     if record.get("kind") == "review_issues" and record.get("session_id"):
         # hand the problems back to the same sub-session once; its fix is reviewed again, against the same task
         # the reviewer's own text, up to review.ISSUE_FULL_CHARS an item: its fix and test notes reach the fixer
@@ -1087,7 +1112,8 @@ def run(req: Request, p: Paths) -> dict:
                           prior_issues=list(record["review"].get("issues_full") or record["review"].get("issues")
                                             or []),
                           merge_of=req.merge_of or (run_id if req.finish_note else None),
-                          finish_note=req.finish_note), p)
+                          finish_note=req.finish_note, max_usd=req.max_usd,
+                          chain_usd=req.chain_usd + _spent(record)), p)
         fix["review_of"], fix["first_review"] = run_id, record["review"]
         try:                               # the lead sees what the whole chain cost, not only its last run
             fix["cost_chain"] = ledger.chain_cost(p, [run_id, *((fix.get("cost_chain") or {}).get("runs")
@@ -1396,6 +1422,12 @@ def compact(record: dict) -> dict:
         out["cost_chain_error"] = record["cost_chain_error"]
     if record.get("cost_chain"):                  # tokens and $ of the whole fix round chain; tokens above: this run
         out["cost_chain"] = record["cost_chain"]
+    if record.get("max_usd"):                     # P0-15: --max-usd stopped the chain before its next step
+        m = record["max_usd"]
+        out["max_usd"] = {**m, "note": "budget cap reached"}
+        out["hint"] = (f"budget cap reached (${m['spent']} of ${m['cap']}): the {m['stopped_before']} did not run; "
+                       f"check the work yourself, or continue with `ccx resume {record['run_id']} --max-usd <more>`"
+                       + (f"; {out['hint']}" if out.get("hint") else ""))
     if record.get("first_review"):
         out.setdefault("review", {})["first_round"] = {k: record["first_review"].get(k) for k in ("verdict", "issues")}
         out["fixed_after_review_of"] = record["review_of"]
@@ -1452,10 +1484,17 @@ def recap(record: dict, res: dict) -> str:
         usd = cc["ae_usd"]
     ok = res.get("ok", record.get("ok"))
     lead = f" needs_lead={res['needs_lead'].split(':')[0]}" if res.get("needs_lead") else ""
+    cap = " max_usd=reached" if record.get("max_usd") else ""     # P0-15: budget cap reached
     return (f"ccx run {record['run_id']}: status={res.get('status')} ok={str(bool(ok)).lower()} "
-            f"check={check} review={review}{lead} cost=~${usd:.4f}"
+            f"check={check} review={review}{lead}{cap} cost=~${usd:.4f}"
             + (f" ({len(cc['runs'])} runs + {cc.get('reviews', 0)} reviews)" if cc.get("ae_usd") is not None else "")
             + f"; next: {_next(record)}")
+
+
+def _spent(record: dict) -> float:
+    """This run's own $: its attempts and its review (no fix round)."""
+    return (sum((a.get("ae_usd") if a.get("ae_usd") is not None else a.get("cost_usd")) or 0
+                for a in record.get("attempts") or []) + ((record.get("review") or {}).get("usd") or 0))
 
 
 def _usd(record: dict, res: dict) -> float:

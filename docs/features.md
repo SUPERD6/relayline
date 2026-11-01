@@ -163,6 +163,12 @@ In Claude Code you say: "make `loader.py` accept a custom delimiter and add test
      keeping the run's label, acceptance check and review setting (`ccx resume` takes `--check` / `--review` to
      change them; `ccx task resume` always keeps them).
    - You want it to stop: `ccx stop <run_id>` ends the sub-agent and everything it started; `ccx resume` goes on.
+   - You want a spending limit: `ccx run --max-usd 0.5` (or `ccx resume --max-usd`; default `[run] max_usd`, 0 = no
+     limit) stops the whole delegation once its attempts, review and fix round together have spent that much
+     (API-equivalent $, as on the receipt): the next rung, the review or the fix round does not start, and the result
+     says `max_usd: {cap, spent, stopped_before, note: "budget cap reached"}`, with `max_usd=reached` in the recap.
+     It is checked between steps, so an attempt already running finishes and the total can go over by one attempt.
+     Not the same as `--budget`, which caps only the sub-agent's own sub-agents.
 6. **Learn and report.** Every run goes into a ledger and back into task-routing / task-split, so the next pick is
    better. `ccx report` builds a dashboard: who spent how many tokens of which kind, quota use and spend; a saving only once `ccx trial` has measured one.
 
