@@ -84,6 +84,13 @@ Claude Code 和 Codex 每轮开始前都会跑 `UserPromptSubmit` hook（Claude 
 页面只发送项目 id、话题、消息 id 和正文；对话板在哪由服务端自己找。每次回复在 `<hub>/ccx/ui-actions.jsonl` 记一行
 （话题、id、长度；不记正文）。
 
+## 派活也记在对话板上
+
+`ccx run` 和 `ccx resume` 自己把一次派活的开始和结束写进项目的对话板（`kind: "run"`，话题 `run:<run_id>`：谁把什么派给谁；
+结束时写状态、API 等价花费和 `/runs/<run_id>`），所以 UI 没开时 `ccx board` 和 `ccx ui` 也能看到。审查后的修复轮是一次独立运行，
+有自己的一对记录；审查员的运行不记。只在不会动到项目文件时才写：项目已经有对话板，或者它的 `.gitignore` 里有 `.ccx/`。
+每次运行的每个阶段只写一次（`board.post_run`），谁先写都一样。
+
 ## 后台派活跑完主动告诉主导
 
 `ccx run --bg` / `ccx resume --bg`（不带 `--wait`）：run（含审查修复轮）结束，或被拒绝、没派出去、崩溃时，ccx 用 `--bg`

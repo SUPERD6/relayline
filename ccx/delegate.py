@@ -209,6 +209,28 @@ def _namecheck(req: Request, p: Paths, cfg: dict, record: dict, cwd: Path) -> di
     return namecheck.as_check(nc, req.check) if nc and nc["mode"] == "fail" and nc["hits"] else None
 
 
+def board_run(record: dict, phase: str) -> None:
+    """P2-12: a delegation's start and end (a review fix round is a run of its own) on its project's board, so
+    `ccx ui` and `ccx board` show it although no UI was open. Only where the board can be written without touching
+    the project: it has a board already, or its .gitignore covers .ccx/ (board.post_run would add lines to it). A
+    reviewer's run is part of the run it reviews; it is not posted."""
+    if record.get("caller") == "ccx-review":
+        return
+    try:
+        from . import board
+        from .ui import project_root
+        root = project_root(record.get("cwd"))
+        if not root or not root.is_dir():
+            return
+        gi = root / ".gitignore"
+        if not (board._file(root).exists()
+                or (gi.is_file() and ".ccx/" in gi.read_text(encoding="utf-8", errors="replace").splitlines())):
+            return
+        board.post_run(root, record, phase)
+    except Exception:  # noqa: BLE001 — the board is a view; it never fails the run
+        pass
+
+
 def _project_context(cwd: Path) -> Path | None:
     for d in [cwd, *cwd.parents]:
         f = d / ".ccx" / "context.md"
@@ -600,6 +622,7 @@ def run(req: Request, p: Paths) -> dict:
         **({"base_note": stale_base} if stale_base else {}),
     }
     _write_record(run_dir, record)          # visible to `ccx show` at once (background runs, crashes)
+    board_run({**record, "label": req.label or req.brief}, "started")      # as the UI shows it: what was asked
     if req.mode == "write":
         # a fresh task takes its own snapshot; a resume or review fix round inherits the one of the run it goes on
         # from (followed back the chain), so its review sees the whole change and `ccx undo` of any link in the
@@ -743,6 +766,7 @@ def run(req: Request, p: Paths) -> dict:
             try:
                 recover.close_dead(p, run_id, "killed", "interrupted",
                                    f"ccx itself was interrupted; continue with `ccx resume {run_id}`", "run")
+                board_run(ledger.load_run(p, run_id), "finished")
             except Exception:  # noqa: BLE001 — never hide the original exception
                 pass
             raise
@@ -1057,9 +1081,11 @@ def run(req: Request, p: Paths) -> dict:
             # nobody wrote a final state although the lock is taken: say so instead of an empty "not ok"
             closed.update(ok=False, error=closed.get("error") or "final.lock was already taken by "
                           + ((run_dir / "final.lock").read_text(encoding="utf-8", errors="replace")[:200]))
+        board_run(closed, "finished")
         return closed
     _write_record(run_dir, record)
     ledger.append(p, record)
+    board_run(record, "finished")          # before a review fix round, which posts its own start and end
     try:                                   # sessions.archive = after_run: a final result's session leaves the apps' lists
         from . import archive
         record["archived"] = bool(archive.after_run(p, record))
