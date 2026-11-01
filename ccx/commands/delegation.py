@@ -17,7 +17,7 @@ from ..delegate import Request, compact, exit_ok, human_summary, recap, run, ver
 from ..gitstate import SHARED_WHY, STALE_WHY, clean, in_git
 from ..runners import find_bin
 from ..workspace import missing_test_paths
-from .common import (_brief, _caller, _out, _routing_args, human_tail, _spec_from_args, _target, find_continuable,
+from .common import (_brief, _caller, _out, lead_out, _routing_args, human_tail, _spec_from_args, _target, find_continuable,
     apply_mode, find_seat, installed_agents, lead_session_id, parse_quota, person_named_to, picked_tier,
     provider_agents, resolve, tier_policy)
 from .install import tier_spec_safe
@@ -64,7 +64,9 @@ def _background(argv: list[str], p, procs: list | None = None) -> dict:
     from .common import detach
     run_id = ledger.new_run_id(p)                # its folder made here: no other run can draw the same id
     log = p.runs / run_id / "bg.log"
-    proc = detach(_without_wait(argv), log, {"CCX_RUN_ID": run_id})
+    # its stdout is a log the waiting parent reads (_child_extras): always the whole result there; the parent hands
+    # the lead the one line (ccx/leadview.py)
+    proc = detach(_without_wait(argv), log, {"CCX_RUN_ID": run_id, "CCX_LEAD_VIEW": "full"})
     if procs is not None:
         procs.append(proc)
     # peek: a look now, without waiting (it follows a review fix round too). Named `check` earlier: renamed so it
@@ -128,7 +130,7 @@ def _wait_loop(p, rid: str, bg: dict, proc, waiter, wait: float) -> int:
                 res.update({k: v for k, v in extra.items() if k not in res})
                 if rc is not None:
                     res["recap"] = rc            # last key: survives `| tail`
-            _out(res)
+            lead_out(res)
             return 0 if exit_ok(rec) else 2
         if time.time() - swept >= 20:            # a run whose ccx process died: interrupted, not running forever
             recover.sweep(p)
@@ -452,7 +454,7 @@ def _cmd_run(a) -> int:
         # an explicit pick with no size: its verdict reaches the ledger but not routing (seven-cores A/B, PR #30)
         res["route"]["learns"] = "no: give --minutes (or the rubric flags) so this run's verdict can teach routing"
     res["recap"] = recap(rec, res)              # last key: survives `| tail`
-    _out(res)
+    lead_out(res, cfg)
     human_tail(human_summary(rec, res))
     return 0 if exit_ok(rec) else 2
 
@@ -744,7 +746,7 @@ def _cmd_resume(a) -> int:
                 "send the task again as a fresh run with `ccx run --new ...`")
         res["hint"] = f"{res['hint']} Also: {gone}" if res.get("hint") else gone
     res["recap"] = recap(rec, res)
-    _out(res)
+    lead_out(res)
     human_tail(human_summary(rec, res))
     return 0 if exit_ok(rec) else 2
 
