@@ -130,6 +130,63 @@ class TestReport(ReportEnv):
         self.assertIn("publish_dir", r.stdout)
 
 
+class TestBillingReport(ReportEnv):
+    def test_subscription_stats_puts_quota_before_api_equivalent_usd(self):
+        (self.hub / "ccx").mkdir(parents=True, exist_ok=True)
+        (self.hub / "ccx" / "tiers.toml").write_text('[billing.providers.codex]\nquota_unit = 2\n',
+                                                      encoding="utf-8")
+        self.j("config", "set", "billing.mode", "subscription")
+        self.j("run", "--from", "claude", "--to", "codex", "--tier", "T1", "--no-ab", "read a file")
+        r = self.ccx("stats")
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        cols, values = [line.split() for line in r.stdout.splitlines()]
+        self.assertEqual(cols[-3:], ["quota_units", "api_equivalent_usd", "cost_usd"])
+        row = dict(zip(cols, values))
+        self.assertEqual(float(row["quota_units"]), 2700)
+        self.assertGreater(float(row["api_equivalent_usd"]), 0)
+        summary = self.j("stats", "--summary")
+        self.assertEqual(summary["billing"]["mode"], "subscription")
+        self.assertEqual(next(iter(summary["spend"])), "sub_agents_quota_units")
+        self.assertEqual(summary["spend"]["sub_agents_quota_units"], 2700)
+        self.assertEqual(summary["spend"]["cost_per_success_quota_units"], 2700)
+        self.assertEqual(summary["spend"]["sub_agents_usd"], summary["totals"]["sub_ae"])
+        self.j("config", "set", "billing.mode", "api")
+        summary = self.j("stats", "--summary")
+        self.assertEqual(next(iter(summary["spend"])), "sub_agents_usd")
+        self.assertEqual(summary["spend"]["sub_agents_quota_units"], 2700)
+
+    def test_api_table_keeps_its_existing_columns(self):
+        self.j("run", "--from", "claude", "--to", "codex", "--tier", "T1", "--no-ab", "read a file")
+        r = self.ccx("stats")
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertEqual(r.stdout.splitlines()[0].split(),
+                         ["agent", "tier", "runs", "done_rate", "escalated", "avg_input", "avg_cached",
+                          "avg_output", "avg_seconds", "cost_usd"])
+        self.j("report", "--no-lead")
+        f = self.hub / "ccx" / "report" / "index.html"
+        html = f.read_text(encoding="utf-8")
+        self.assertIn("Total spend (AE$)", html)
+        self.assertIn('<th class="r">tokens</th><th class="r">AE$</th>', html)
+        self.assertNotIn('<th class="r">quota units</th>', html)
+
+    def test_subscription_report_exposes_both_bases(self):
+        (self.hub / "ccx").mkdir(parents=True, exist_ok=True)
+        (self.hub / "ccx" / "tiers.toml").write_text(
+            '[billing]\nmode = "subscription"\n[billing.providers.codex]\nquota_unit = 2\n', encoding="utf-8")
+        self.j("run", "--from", "claude", "--to", "codex", "--tier", "T1", "--no-ab", "read a file")
+        out = self.j("report", "--no-lead")
+        self.assertEqual(out["billing"]["mode"], "subscription")
+        self.assertEqual((out["totals"]["quota_units"], out["totals"]["sub_quota_units"]), (2700, 2700))
+        html = (self.hub / "ccx" / "report" / "index.html").read_text(encoding="utf-8")
+        self.assertIn("Total usage (quota units)", html)
+        self.assertIn("API-equivalent USD", html)
+        self.assertIn('<th class="r">quota units</th><th class="r">AE$</th>', html)
+        summary = json.loads((self.hub / "ccx" / "report" / "summary.json").read_text(encoding="utf-8"))
+        self.assertEqual(summary["runs"][0]["quota_units"], 2700)
+        self.assertEqual(summary["quota_days_series"][0]["codex:sub"], 2700)
+        self.assertEqual(self.j("stats", "--summary")["totals"]["quota_units"], 2700)
+
+
 class TestKnob(ReportEnv):
     def test_set_and_get(self):
         self.j("config", "set", "defaults.tradeoff", "0.3")

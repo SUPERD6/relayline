@@ -22,7 +22,7 @@ import time
 from datetime import datetime
 from pathlib import Path
 
-from .config import claude_home, codex_home
+from .config import claude_home, codex_home, load_config
 from .runners import usage_dict
 
 
@@ -361,10 +361,16 @@ def thread_activity(thread: str, home: Path | None = None, now: float | None = N
     return {"busy": False, "why": "idle"}
 
 
-def lead_events(since: float, exclude: set[str]) -> tuple[list[dict], list[dict]]:
+def lead_events(since: float, exclude: set[str], cfg: dict | None = None) -> tuple[list[dict], list[dict]]:
+    from .ledger import billing_config, quota_units
+    cfg = load_config() if cfg is None else cfg
+    billing_config(cfg)
     ce = claude_events(since, exclude)
     xe, quota = codex_events(since, exclude)
-    return ce + xe, quota
+    events = ce + xe
+    for e in events:
+        e["quota_units"] = quota_units(cfg, e["agent"], e["model"], e["usage"])
+    return events, quota
 
 
 def window_usage(agent: str, start: float, end: float | None, exclude: set[str], session: str | None = None) -> dict:
@@ -373,10 +379,16 @@ def window_usage(agent: str, start: float, end: float | None, exclude: set[str],
     end = end or time.time()
     evs = claude_events(start, exclude) if agent == "claude" else codex_events(start, exclude)[0]
     tot = usage_dict()
+    from .ledger import billing_config, quota_units
+    cfg = load_config()
+    billing = billing_config(cfg)
+    units = 0.0
     models: dict[str, int] = {}
     for e in evs:
         if start <= e["ts"] <= end and (not session or session in (e.get("session"), e.get("parent"))):
             for k, v in e["usage"].items():
                 tot[k] += v
             models[e["model"]] = models.get(e["model"], 0) + 1
-    return {"usage": tot, "model": max(models, key=models.get) if models else None, "messages": sum(models.values())}
+            units += quota_units(cfg, agent, e["model"], e["usage"])
+    return {"usage": tot, "model": max(models, key=models.get) if models else None, "messages": sum(models.values()),
+            "quota_units": round(units, 6), "billing": {"mode": billing["mode"]}}

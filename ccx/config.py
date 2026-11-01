@@ -274,6 +274,7 @@ _bool.__name__ = "true/false"
 
 
 SETTINGS = {   # key -> (type, help). Only these can be set with `ccx config set`.
+    "billing.mode": (str, "api | subscription: API-equivalent USD first (default), or quota units first"),
     "defaults.tradeoff": (str, "tier: save | balanced | fast | cheapest, or a knob 0..1 (0 = cheapest, 1 = fastest)"),
     "policy.picked": (str, "save | balanced | fast | cheapest | none: the tier YOU pick for all work in this hub. It "
                            "pre-authorises what that tier delegates (`ccx propose` says authorized: true; project "
@@ -352,6 +353,8 @@ def set_setting(p: Paths, key: str, raw: str) -> dict:
     if key not in SETTINGS:
         raise ValueError(f"unknown setting {key!r}; known: {', '.join(SETTINGS)}")
     typ = SETTINGS[key][0]
+    if key == "billing.mode" and raw not in ("api", "subscription"):
+        raise ValueError("billing.mode must be api or subscription")
     if key == "defaults.tradeoff" and raw not in ("save", "balanced", "fast", "cheapest"):
         k = float(raw)
         if not 0 <= k <= 1:

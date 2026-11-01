@@ -350,6 +350,13 @@ def _tokens(rec: dict) -> int:
     return sum(int(v or 0) for a in rec.get("attempts") or [] for v in (a.get("usage") or {}).values())
 
 
+def _quota_units(rec: dict, cfg: dict) -> float:
+    from .ledger import record_quota
+    if rec.get("quota_units") is not None:
+        return rec["quota_units"]
+    return round(sum(record_quota(rec, cfg).values()), 6)
+
+
 def _q(s: str) -> str:
     """Quote one argument for the copied command line (double quotes work in PowerShell, cmd and sh)."""
     s = str(s).replace('"', "'")
@@ -690,7 +697,8 @@ def piece_of_run(rd: Reader, rec: dict, verdict: dict | None, now: float, title:
     piece = {
         "id": _sid(rec["run_id"]), "run_id": rec["run_id"], "title": title, "worker": rec.get("to"),
         "model": model, "effort": last.get("effort"), "mode": rec.get("mode"), "status": status, "step": step,
-        "skip": skip, "secs": secs, "usd": _usd(rec), "tokens": lv["tokens"] if running and lv["tokens"] else _tokens(rec),
+        "skip": skip, "secs": secs, "usd": _usd(rec), "quota_units": _quota_units(rec, rd.cfg()),
+        "tokens": lv["tokens"] if running and lv["tokens"] else _tokens(rec),
         "live": running, "beat": lv["beat"], "ts": rec.get("ts"),
         "reviewer": _who_rung(rv.get("by")) if rv.get("verdict") not in (None, "not-run") else None,
         "summary": res.get("summary") or rec.get("error") or "", "files": res.get("files_changed") or [],
@@ -1029,6 +1037,7 @@ def month_view(rd: Reader, wait: bool = True) -> dict | None:
         s = report.summarize(rd.p, report.collect(rd.p, max(1 / 24, (now - start) / 86400), include_lead=False))
         t = s["totals"]
         return {"since": start, "sub_usd": t["sub_ae"], "runs": t["runs"], "saving": t["saving"],
+                "quota_units": t["sub_quota_units"], "billing": s["billing"],
                 "kind": t["saving_kind"], "ci95": t["saving_ci95"], "n": t["saving_n"]}
     return _later(rd, "month", MONTH_EVERY_S, make, wait, None)
 
@@ -1298,7 +1307,8 @@ def receipt_row(rd: Reader, p: Paths, rec: dict, verdict: dict | None, piece_run
     return {"run_id": rec["run_id"], "piece": piece_run.get(rec["run_id"], rec["run_id"]), "ts": rec.get("ts"),
             "from": rec.get("caller"), "to": rec.get("to"), "tier": last.get("tier") or rec.get("tier"),
             "rung": last.get("rung") or rec.get("first_rung"), "rounds": len(atts),
-            "usd": _usd(rec), "running": rec.get("state") == "running", "ok": rec.get("ok"), "kind": rec.get("kind"),
+            "usd": _usd(rec), "quota_units": _quota_units(rec, rd.cfg()),
+            "running": rec.get("state") == "running", "ok": rec.get("ok"), "kind": rec.get("kind"),
             "check": check,
             "review": rv.get("verdict") if rv.get("verdict") not in (None, "not-run") else None,
             "reviewer": _who_rung(rv.get("by")) if rv.get("verdict") not in (None, "not-run") else None,
@@ -1400,7 +1410,8 @@ def project_map(rd: Reader, p: Paths, pr: dict, runs: list[dict], verdicts: dict
         "memory": {"total": len(live), "here": sum(memory.relevant(e, root.name) for e in live),
                    "carried": sum(1 for row in rows if row["notes"]), "notes": notes},
         "receipts": rows[:MAP_RECEIPTS_MAX], "receipts_total": len(rows),
-        "spend": {"usd": round(sum(_usd(r) for r in week), 4), "runs": len(week),
+        "spend": {"usd": round(sum(_usd(r) for r in week), 4),
+                  "quota_units": round(sum(_quota_units(r, rd.cfg()) for r in week), 6), "runs": len(week),
                   "rungs": sorted(rungs.values(), key=lambda x: -x["usd"])},
     }
 
@@ -1423,6 +1434,10 @@ def collect(p: Paths, project: Path | None = None, days: float = 7, rd: Reader |
     now = now or time.time()
     since = now - days * 86400
     cfg = load_config(p)
+    from . import ledger
+    billing = ledger.billing_config(cfg)
+    booked = {r.get("run_id"): r for r in rd.lines(p.ledger, _fold_rows, []) if not r.get("type")} \
+        if p.ledger.exists() else {}
     verdicts = rd.lines(p.ledger, _verdict_rows, {}) if p.ledger.exists() else {}
     recs: dict[str, dict] = {}
     if p.runs.exists():
@@ -1435,6 +1450,8 @@ def collect(p: Paths, project: Path | None = None, days: float = 7, rd: Reader |
                 continue
             rec = rd.json_file(f)
             if isinstance(rec, dict) and rec.get("run_id"):
+                if rec["run_id"] in booked and rec.get("state") != "running":
+                    rec = {**rec, "quota_units": ledger.row_quota(booked[rec["run_id"]])}
                 recs[rec["run_id"]] = rec
     proj = project.resolve() if project else None
     scratch = scratch_roots(p)
@@ -1625,6 +1642,7 @@ def collect(p: Paths, project: Path | None = None, days: float = 7, rd: Reader |
     from .demo import is_demo
     return {
         "v": 1, "generated": now, "lang": ui_lang(cfg), "poll_s": POLL_S, "beat_s": BEAT_S, "demo": is_demo(p),
+        "billing": {"mode": billing["mode"]},
         "start": start_hint(),                   # what an empty overview tells a new user to do first
         "projects": projects, "running": running, "quota": quota_view(rd, quota_wait), "leads": current,
         "agents": agents,
@@ -1633,6 +1651,7 @@ def collect(p: Paths, project: Path | None = None, days: float = 7, rd: Reader |
         "suggestions_total": n_sugs, "others": others, "others_total": len(quiet),
         "month": month_view(rd, quota_wait), "inbox": _inbox(rd),
         "week": {"usd": round(sum(_usd(r) for r in week), 4),
+                 "quota_units": round(sum(_quota_units(r, cfg) for r in week), 6),
                  "cash_usd": round(sum(_usd(r) for r in week if r.get("to") in providers or r.get("provider")), 4),
                  "runs": len(week), "verdicts": len(hard), "verdicts_needed": VERDICTS_TO_KNOW},
     }
@@ -1685,6 +1704,11 @@ def run_detail(p: Paths, run_id: str) -> dict:
     out = compact(rec)
     out["cwd"], out["mode"], out["ts"] = rec.get("cwd"), rec.get("mode"), rec.get("ts")
     out["logs"] = str(p.runs / run_id)
+    from . import ledger
+    cfg = load_config(p)
+    out["billing"] = {"mode": ledger.billing_config(cfg)["mode"]}
+    booked = next((r for r in ledger.rows(p) if not r.get("type") and r.get("run_id") == run_id), None)
+    out["quota_units"] = ledger.row_quota(booked) if booked is not None else _quota_units(rec, cfg)
     return out
 
 
@@ -2458,8 +2482,31 @@ class UI:
         elif project is None and self.project:
             project = _pid(project_root(str(self.project)) or self.project)
         rows = self._ledger_rows()
+        now = time.time()
         with self.flow_lock:
-            return self.flow.tokens(rows, period, project, tests)
+            out = self.flow.tokens(rows, period, project, tests, now=now)
+        from . import ledger, tokenflow
+        cfg = load_config(self.p)
+        out["billing"] = {"mode": ledger.billing_config(cfg)["mode"]}
+        since = tokenflow.since_of(out["period"], now)
+        scratch = scratch_roots(self.p)
+        selected = [r for r in rows if not r.get("type") and r.get("run_id") and not r.get("ephemeral")
+                    and (r.get("ts") or 0) >= since
+                    and (tests or not (ledger.is_eval(r) or is_scratch(r.get("cwd"), scratch)))
+                    and (not out["project"] or (project_root(r.get("cwd")) is not None
+                         and _pid(project_root(r.get("cwd"))) == out["project"]))]
+        out["totals"]["quota_units"] = round(sum(ledger.row_quota(r) for r in selected), 6)
+        by_id = {r["run_id"]: r for r in selected}
+        for task in out["tasks"]:
+            for run in task["runs"]:
+                run["quota_units"] = ledger.row_quota(by_id[run["run_id"]])
+        while len(json.dumps(out, ensure_ascii=False)) > tokenflow.BODY_MAX and out["tasks"]:
+            dropped = out["tasks"].pop()
+            out["cut"]["tasks"] += 1
+            out["cut"]["runs"] += dropped["runs_total"]
+            out["cut"]["tokens"] += dropped["tokens"]["total"]
+            out["cut"]["usd"] = round(out["cut"]["usd"] + dropped["usd"], 4)
+        return out
 
     def lead_cost(self, agent: str, session: str) -> dict:
         """/api/leadcost: one lead conversation's re-read parts and cache breaks (`ccx lead --breakdown` / `--cache`)."""
