@@ -57,6 +57,11 @@ SELFCHECK = (ANSWER + "Before you finish, check your own work: run the relevant 
              "targeted runs: one file, -x, -k NAME; run the full set once at the end), and re-read your changes against the task. " + WIRING + "List what you ran in commands_run and the outcome in verification. For a change, say in "
              "summary what changed and why; put anything you are unsure of, or that the lead must decide, in open_questions.")
 
+# P0-11 item 2, [prompt] slim (default on; not measured on a real sub-agent): a run the lead gave `--mode write`
+# (and no --check) is a change for sure, so the answer-only sentence (for a task that only asks for an answer) is
+# left out. A write mode ccx inferred from the brief keeps it: "What does add() return?" can read as a change.
+SELFCHECK_WRITE = SELFCHECK[len(ANSWER):]
+
 
 SELFCHECK_CMD = ("The acceptance check is `{check}`; ccx runs it again afterwards, outside your sandbox, and "
                  "that result counts. While you work, run only the targeted test(s) touching your change (-x, -k NAME "
