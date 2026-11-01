@@ -179,13 +179,15 @@ class TestDocsAgree(unittest.TestCase):
         for name, hold in (("README.md", ("Hold-out set (hc1", "default usage", "$0.063", "2026-10-29-hc1-holdout.md")),
                            ("README.zh.md", ("留出集（hc1", "默认用法", "$0.063", "2026-10-29-hc1-holdout.zh.md"))):
             s = self.read(name)
-            first = s.split("## ", 2)[1]                           # title block + the comparison section
+            first = s.split("## ", 2)[1]                           # the first section: the eight layers, two results first
             for must in hold:                                      # the hold-out row is filled, with its qualifier
                 self.assertIn(must, first, (name, must))
             self.assertNotIn("pending", first.lower(), name)
             self.assertNotIn("待测", first, name)
-            for must in ("builtin2", "$0.114", "$0.135", "$0.116–0.135"):
+            for must in ("12/30", "25/30", "3.1"):                 # P2-10: the pg1 result beside the hold-out one
                 self.assertIn(must, first, (name, must))
+            for must in ("builtin2", "$0.114", "$0.135", "$0.116–0.135"):   # the dev set: in the comparison below
+                self.assertIn(must, s, (name, must))
             self.assertNotIn("Four pillars", s)
             self.assertNotIn("四根柱子", s)
             quick = s.split("```bash", 2)[2]
