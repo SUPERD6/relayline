@@ -1,5 +1,6 @@
-"""`ccx ui`: a live view on this machine (proposal G1) and the manager's board (K6). Showing it never writes and
-never calls a model. Two kinds of clicks change something, both same-origin only: yes or no on a suggested note
+"""`ccx ui`: a live view on this machine (proposal G1) and the manager's board (K6). Reading data never calls a
+model. The run observer appends deduplicated lifecycle board notices while the UI is open (P2-12). Confirmed
+same-origin commands can start work; ordinary data GETs stay read-only. Existing controls include suggested notes
 (H5, POST /api/suggestion), and a button that runs one of a fixed set of ccx commands (stop, verify, resume, undo,
 q done / budget / accept / resume, run --mode write for a needs_write run; RUNS). Such a button is two requests: /api/act/prepare
 names the button (never a command), the server answers the exact command and a one-time nonce, the page shows it
@@ -58,6 +59,11 @@ Measured & where tokens go (B1, ccx/tokenflow.py): /api/tokens (period, project,
 numbers, the person's own, and one ledger across Claude and Codex grouped by task with each run's own child sessions;
 /api/leadcost (agent, session) parses one lead conversation the ledger names, only when asked, with the functions
 behind `ccx lead --breakdown` / `--cache`. Both read only, capped in size.
+
+P2-12 / P2-11: /runs and /runs/<id> serve the same authenticated app; /api/runs and /api/runs/<id> expose complete
+records and incremental activity. The home/board composer has its own /api/chat/prepare and /api/chat/run nonce
+namespace (60 seconds). A command/option allowlist produces argv, never shell text. UI audit ledger events are
+separate from spending rows; the demo confirms spending actions without executing them.
 """
 from __future__ import annotations
 
@@ -108,13 +114,16 @@ class Reader:
         self._found: dict[str, Path | None] = {}
         self._timed: dict[str, tuple[float, object]] = {}
         self._notes: dict[Path, tuple] = {}         # prompt.md -> the shared notes its brief carried (P2-10)
+        self._run_rows: dict[Path, tuple] = {}      # list rows: unchanged records/briefs are not re-read
+        self._briefs: dict[Path, tuple] = {}        # the sidebar/overview shares the five-second refresh
+        self._line_generation = 0
 
     def json_file(self, f: Path):
         try:
             st = f.stat()
         except OSError:
             return None
-        key = (st.st_mtime_ns, st.st_size)
+        key = (st.st_mtime_ns, st.st_size, st.st_ino, st.st_ctime_ns)
         hit = self._json.get(f)
         if hit and hit[0] == key:
             return hit[1]
@@ -128,20 +137,41 @@ class Reader:
     def lines(self, f: Path, fold, start):
         """Fold each new complete line into a running state (fold(state, line) -> state); returns the state."""
         try:
-            size = f.stat().st_size
+            st = f.stat()
+            size = st.st_size
         except OSError:
             return start
         key = (f, fold.__name__)                     # one file can be read for different things
         t = self._tail.get(key)
-        if t is None or size < t["pos"]:            # new, or rewritten (e.g. ccx repair): start over
-            t = self._tail[key] = {"pos": 0, "state": start, "rest": b""}
-        if size > t["pos"]:
-            try:
-                with open(f, "rb") as fh:
-                    fh.seek(t["pos"])
-                    chunk = fh.read(size - t["pos"])
-            except OSError:
-                return t["state"]
+        stamp = (st.st_dev, st.st_ino, size, st.st_mtime_ns, st.st_ctime_ns)
+        if t is not None and t["stamp"] == stamp:
+            return t["state"]
+        # A growing file is an append only if the bytes at both ends of the previous read still match.
+        # Same-length writes, replacement files and changed prefixes start a new cursor generation.
+        reset = t is None or size <= t["pos"] or stamp[:2] != t["stamp"][:2]
+        try:
+            with open(f, "rb") as fh:
+                if not reset:
+                    head = fh.read(min(t["pos"], 4096))
+                    fh.seek(max(0, t["pos"] - 4096))
+                    tail = fh.read(min(t["pos"], 4096))
+                    reset = (hashlib.sha256(head).digest(), hashlib.sha256(tail).digest()) != t["edges"]
+                if reset:
+                    self._line_generation += 1
+                    identity = json.dumps([str(f), stamp, self._line_generation]).encode()
+                    t = self._tail[key] = {"pos": 0, "state": start, "rest": b"",
+                                           "source": hashlib.sha256(identity).hexdigest()[:20]}
+                fh.seek(t["pos"])
+                chunk = fh.read(size - t["pos"])
+                fh.seek(0)
+                head = fh.read(min(size, 4096))
+                fh.seek(max(0, size - 4096))
+                tail = fh.read(min(size, 4096))
+                t["edges"] = (hashlib.sha256(head).digest(), hashlib.sha256(tail).digest())
+                t["stamp"] = stamp
+        except OSError:
+            return t["state"] if t else start
+        if chunk:
             t["pos"] = size
             data = t["rest"] + chunk
             *full, t["rest"] = data.split(b"\n")
@@ -190,7 +220,7 @@ def project_root(cwd: str | None) -> Path | None:
     except OSError:
         c = Path(cwd)
     c = worktree_repo(c) or c
-    home = Path.home()
+    home = Path.home().resolve()
     for d in (c, *c.parents):
         if d == home and c != home:                 # ~/.ccx is ccx's own settings, not a project
             break
@@ -216,7 +246,7 @@ def is_scratch(path: str | Path | None, roots: list[Path]) -> bool:
     if not path:
         return False
     c = _resolved(str(path))
-    return ".ccx" in c.parts or any(c == r or r in c.parents for r in roots)
+    return ".ccx" in c.parts or any(c == _resolved(str(r)) or _resolved(str(r)) in c.parents for r in roots)
 
 
 @functools.lru_cache(maxsize=4096)
@@ -233,22 +263,29 @@ def is_test(rec: dict, roots: list[Path]) -> bool:
 
 
 def _pid(root: Path) -> str:
-    return "p" + hashlib.sha1(str(root).lower().encode("utf-8")).hexdigest()[:10]
+    return "p" + hashlib.sha1(str(_resolved(str(root))).lower().encode("utf-8")).hexdigest()[:10]
 
 
 def _sid(text: str) -> str:
     return re.sub(r"[^A-Za-z0-9_-]", "_", text)[:64]
 
 
-def _brief_of(run_dir: Path) -> str:
+def _brief_of(run_dir: Path, rd: Reader | None = None) -> str:
+    f = run_dir / "prompt.md"
     try:
-        text = (run_dir / "prompt.md").read_text(encoding="utf-8", errors="replace")
+        st = f.stat()
+        key = st.st_ino, st.st_size, st.st_mtime_ns, st.st_ctime_ns
+        hit = rd._briefs.get(f) if rd else None
+        if hit and hit[0] == key:
+            return hit[1]
+        text = f.read_text(encoding="utf-8", errors="replace")
     except OSError:
         return ""
     m = re.search(r"## Task\n(.*?)(?:\n## Finish|\Z)", text, re.S)
-    if m:
-        return m.group(1).strip()
-    return "\n".join(text.splitlines()[1:]).strip()       # a follow-up: the brief follows its first line
+    brief = m.group(1).strip() if m else "\n".join(text.splitlines()[1:]).strip()
+    if rd:
+        rd._briefs[f] = key, brief
+    return brief
 
 
 def _short(text: str) -> str:
@@ -1345,7 +1382,7 @@ def project_map(rd: Reader, p: Paths, pr: dict, runs: list[dict], verdicts: dict
     """P2-10: one project on one page. Middle: the agents and what they said to each other (board threads, `ccx
     discuss` talks, who sent work to whom); left: shared memory and the runs whose brief carried a note, with how
     they ended; right: the receipts; top: this week's actual spend by the rung it ran on. Read only, never a model."""
-    root = Path(pr["path"])
+    root = Path(pr["path"]).resolve()
     runs = sorted(runs, key=lambda r: -float(r.get("ts") or 0))
     rows = [receipt_row(rd, p, r, verdicts.get(r["run_id"]), piece_run) for r in runs]
     threads, pairs = _map_threads(rd, root, (conv or {}).get("todos") or [], since)
@@ -1544,7 +1581,7 @@ def collect(p: Paths, project: Path | None = None, days: float = 7, rd: Reader |
             latest = shown[runs[-1]]
             piece_run.update({x: latest["run_id"] for x in runs})     # P2-10: a receipt opens its piece
             title = (shown[head].get("label") if shown[head].get("label") and not str(shown[head]["label"]).startswith("q:")
-                     else "") or _short(_brief_of(p.runs / head)) or head
+                     else "") or _short(_brief_of(p.runs / head, rd)) or head
             pc = piece_of_run(rd, latest, verdicts.get(latest["run_id"]), now, title)
             pc["id"] = _sid(head)
             pc["test"] = any(is_test(shown[x], scratch) for x in runs)
@@ -1628,7 +1665,7 @@ def collect(p: Paths, project: Path | None = None, days: float = 7, rd: Reader |
         if not is_test(r, scratch):
             real_by_root.setdefault(root_of(r), []).append(r)
     for pr in projects:
-        root = Path(pr["path"])
+        root = Path(pr["path"]).resolve()
         try:
             maps.append(project_map(rd, p, pr, real_by_root.get(root, []), verdicts,
                                     piece_run, conv_of.get(pr["id"]), talks, now - 7 * 86400, since))
@@ -1712,6 +1749,221 @@ def run_detail(p: Paths, run_id: str) -> dict:
     booked = next((r for r in ledger.rows(p) if not r.get("type") and r.get("run_id") == run_id), None)
     out["quota_units"] = ledger.row_quota(booked) if booked is not None else _quota_units(rec, cfg)
     return out
+
+
+# ------------------------------------------------------------------ P2-12: full run pages (separate from the compact side panel)
+RUN_TEXT_MAX, RUN_EVENTS_MAX = 120_000, 1200
+CHAT_TTL_S = 60
+CHAT_COMMANDS = ("run", "say", "review", "discuss", "show")
+
+
+def _activity_ts(value) -> float | None:
+    return float(value) if isinstance(value, (int, float)) else _ts(value) if isinstance(value, str) else None
+
+
+def _run_record(rd: Reader, rid: str) -> tuple[Path, dict]:
+    if not re.fullmatch(r"[A-Za-z0-9_-]{1,64}", rid or ""):
+        raise ValueError("bad run id")
+    d = (rd.p.runs / rid).resolve()
+    if d.parent != rd.p.runs.resolve():
+        raise ValueError("bad run id")
+    rec = rd.json_file(d / "run.json")
+    if not isinstance(rec, dict):
+        raise FileNotFoundError(f"no ccx run {rid!r}")
+    return d, {**rec, "run_id": rid}
+
+
+def _run_text(d: Path, name: str, cap: int = RUN_TEXT_MAX) -> dict:
+    f = d / name
+    if f.resolve().parent != d.resolve():
+        return {"text": "", "cut": False}
+    try:
+        with open(f, encoding="utf-8", errors="replace") as fh:
+            text = fh.read(cap + 1)
+    except OSError:
+        text = ""
+    return {"text": text[:cap], "cut": len(text) > cap}
+
+
+def _visible_brief(d: Path) -> str:
+    brief = _run_text(d, "brief.md")["text"]
+    if brief:
+        return brief
+    prompt = _run_text(d, "prompt.md")["text"]
+    match = re.search(r"## Task\n(.*?)(?:\n## Finish|\Z)", prompt, re.S)
+    return match.group(1).strip() if match else prompt
+
+
+def _run_row(rd: Reader, rec: dict) -> dict:
+    atts = rec.get("attempts") or []
+    last = atts[-1] if atts else {}
+    root = project_root(rec.get("cwd"))
+    ts = _activity_ts(rec.get("ts")) or 0
+    seconds = sum(float(a.get("seconds") or 0) for a in atts)
+    running = rec.get("state") == "running"
+    if running and ts:
+        seconds = max(seconds, time.time() - ts)
+    status = "running" if running else rec.get("kind") or ("ok" if rec.get("ok") else (
+        (rec.get("result") or {}).get("status") or rec.get("state") or "unknown"))
+    d = rd.p.runs / rec["run_id"]
+    task = _visible_brief(d)
+    return {"run_id": rec["run_id"], "ts": ts, "project": _pid(root) if root else None,
+            "project_name": root.name if root else "", "from": rec.get("caller"), "to": rec.get("to"),
+            "rung": last.get("rung") or rec.get("first_rung"), "task": _short(task or rec.get("label") or ""),
+            "status": status, "running": running, "usd": _usd(rec), "seconds": seconds,
+            "summary": _short((rec.get("result") or {}).get("summary") or rec.get("error") or ""),
+            "kind": rec.get("kind"), "href": f"/runs/{rec['run_id']}"}
+
+
+def _cached_run_row(rd: Reader, f: Path) -> dict:
+    def stamp(path):
+        try:
+            st = path.stat()
+            return st.st_ino, st.st_size, st.st_mtime_ns, st.st_ctime_ns
+        except OSError:
+            return None
+    key = tuple(stamp(path) for path in (f, f.parent / "brief.md", f.parent / "prompt.md"))
+    hit = rd._run_rows.get(f)
+    if hit is None or hit[0] != key:
+        _, rec = _run_record(rd, f.parent.name)
+        hit = rd._run_rows[f] = key, _run_row(rd, rec)
+    row = dict(hit[1])
+    if row["running"] and row["ts"]:
+        row["seconds"] = max(row["seconds"], time.time() - row["ts"])
+    return row
+
+
+def runs_view(rd: Reader, project: str = "", status: str = "", date: str = "", until: str = "",
+              page: int = 0, limit: int = 200) -> dict:
+    """All saved runs, including live and internal ones. Filters never hide a running record by age."""
+    rows, projects = [], {}
+    for f in rd.p.runs.glob("*/run.json"):
+        try:
+            row = _cached_run_row(rd, f)
+        except (OSError, ValueError, KeyError, TypeError):
+            continue
+        projects[row["project"]] = row["project_name"]
+        day = time.strftime("%Y-%m-%d", time.localtime(row["ts"])) if row["ts"] else ""
+        if project and project != row["project"] or status and status != row["status"]:
+            continue
+        if date and day < date or until and day > until:
+            continue
+        rows.append(row)
+    rows.sort(key=lambda r: (r["ts"], r["run_id"]), reverse=True)
+    limit = max(1, min(200, limit))
+    total = len(rows)
+    page = max(0, min(page, max(0, (total - 1) // limit)))
+    return {"runs": rows[page * limit:(page + 1) * limit], "total": total, "page": page, "page_size": limit,
+            "has_next": (page + 1) * limit < total, "has_previous": page > 0,
+            "projects": [{"id": k, "name": v} for k, v in projects.items() if k], "poll_s": 5}
+
+
+def _activity_lines(state: dict, line: str) -> dict:
+    from .reqstats import activity_event
+    try:
+        e = json.loads(line)
+        if isinstance(e, dict):
+            added = activity_event(e, state["tools"])
+            for item in added:
+                item["seq"] = state["count"]
+                state["count"] += 1
+            state["events"].extend(added)
+            state["events"] = state["events"][-RUN_EVENTS_MAX:]
+    except (ValueError, TypeError, AttributeError, RecursionError):
+        pass                                  # incomplete / non-JSON stderr is not an invented event
+    return state
+
+
+def run_activity(rd: Reader, d: Path, rec: dict, after: int = 0, source: str = "") -> dict:
+    files = sorted({*d.glob("events.*.log"), *d.glob("stream*.jsonl"), *d.glob("stderr.*.log")})
+    files = [f for f in files if f.resolve().parent == d.resolve()]
+    # ccx buffers exec stdout until an attempt ends. The tool's own session is the live source meanwhile.
+    session_source = False
+    if rec.get("state") == "running" and rec.get("session_id"):
+        cli = cli_of(rec.get("to"), rd.cfg())
+        sid = str(rec["session_id"])
+        if cli in ("codex", "claude") and re.fullmatch(r"[A-Za-z0-9_-]{1,100}", sid):
+            f = _session_file(rd, cli, sid)
+            if f:
+                files = [f]
+                session_source = True
+    events = []
+    generations = []
+    for f in files:
+        st = rd.lines(f, _activity_lines, {"events": [], "tools": {}, "count": 0})
+        generations.append([str(f), (rd._tail.get((f, _activity_lines.__name__)) or {}).get("source")])
+        for e in st["events"]:
+            if session_source:
+                event_time, since = _activity_ts(e.get("ts")), _activity_ts(rec.get("ts"))
+                if event_time is not None and since is not None and event_time < since:
+                    continue
+                if event_time is None and (rec.get("resumed_from") or rec.get("continued")):
+                    continue                    # an undated historical session row cannot be assigned to this run
+            events.append({**e, "id": f"{f.name}:{e['seq']}", "source": f.name})
+    # Timestamps are absent in some exec versions. Keep source order there and say unknown in the page.
+    if events and all(_activity_ts(e.get("ts")) is not None for e in events):
+        events.sort(key=lambda e: _activity_ts(e["ts"]))
+    events = events[-RUN_EVENTS_MAX:]
+    key = hashlib.sha1(json.dumps([generations, rec.get("ts") if session_source else None]).encode()).hexdigest()[:16]
+    # Include the first retained id so a capped/replaced file resets a client's cursor instead of losing rows.
+    key += ":" + (events[0]["id"] if events else "empty")
+    reset = source != key or after < 0 or after > len(events)
+    return {"events": events[0 if reset else after:], "cursor": len(events), "source": key, "reset": reset,
+            "limit": RUN_EVENTS_MAX}
+
+
+def full_run(rd: Reader, rid: str, after: int = 0, source: str = "") -> dict:
+    from .reqstats import run_fields
+    d, rec = _run_record(rd, rid)
+    check = rec.get("check") or {}
+    review = rec.get("review") or {}
+    fixes = []
+    try:
+        history = json.loads(_run_text(d, "repair-rounds.json")["text"] or "[]")
+        if isinstance(history, list):
+            fixes.extend({"round": item.get("round"), "summary": _clip(item.get("summary"), 2000),
+                          "kind": item.get("kind"), "run_id": None} for item in history[:20] if isinstance(item, dict))
+    except ValueError:
+        pass
+    for f in rd.p.runs.glob("*/run.json"):
+        r = rd.json_file(f)
+        if isinstance(r, dict) and (r.get("review_of") == rid or
+                                    (r.get("resumed_from") == rid and r.get("review_round"))):
+            fixes.append({"run_id": r.get("run_id"), "kind": r.get("kind"),
+                          "summary": _clip((r.get("result") or {}).get("summary"), 2000)})
+    for key in ("fix_run", "fix_run_id", "fix_round"):
+        fix = review.get(key) or rec.get(key)
+        if isinstance(fix, str) and re.fullmatch(r"[A-Za-z0-9_-]{1,64}", fix) and not any(x["run_id"] == fix for x in fixes):
+            try:
+                _, r = _run_record(rd, fix)
+                fixes.append({"run_id": fix, "kind": r.get("kind"), "summary": (r.get("result") or {}).get("summary")})
+            except FileNotFoundError:
+                pass
+    units = rec.get("quota_units")
+    if units is None:
+        vals = [a["quota_units"] for a in rec.get("attempts") or [] if a.get("quota_units") is not None]
+        units = sum(vals) if vals and all(isinstance(x, (float, int)) for x in vals) else vals or None
+    if units is None:
+        rows = rd.lines(rd.p.ledger, _fold_rows, [])
+        units = next((r.get("quota_units") for r in reversed(rows) if r.get("run_id") == rid
+                      and r.get("quota_units") is not None), None)
+    return {**_run_row(rd, rec),
+            "dispatch": {"brief": {"text": _visible_brief(d), "cut": _run_text(d, "brief.md")["cut"]}, "context": _run_text(d, "shared-context.md"),
+                         "prompt": _run_text(d, "prompt.md")},
+            "activity": run_activity(rd, d, rec, after, source),
+            "checks": {**(check_view(check) or {}), "covers": check.get("covers"),
+                       "basis_changed": check.get("basis_changed", (check.get("covers") or {}).get("basis_changed")),
+                       "added_to": check.get("added_to", (check.get("covers") or {}).get("added_to"))},
+            "review": {"by": review.get("by"), "verdict": review.get("verdict"),
+                       "summary": review.get("summary"), "issues": review.get("issues_full") or review.get("issues") or [],
+                       "notes": review.get("notes") or [],
+                       "fixes": fixes, "round": rec.get("review_round")},
+            "receipt": {"requests": None, "prefix_tokens": None, "first_input": None,
+                        **run_fields(rec.get("attempts") or []), "usd": _usd(rec), "quota_units": units,
+                        "kind": rec.get("kind"), "via": rec.get("via") or next((r.get("via") for r in reversed(
+                            rd.lines(rd.p.ledger, _fold_rows, [])) if r.get("run_id") == rid and r.get("type") == "ui_command"), None),
+                        "seconds": _run_row(rd, rec)["seconds"],
+                        "show": f"ccx show {rid}", "diff": f"/api/judge/{rid}", "undo": f"ccx undo {rid}"}}
 
 
 # ------------------------------------------------------------------ U1: is the sub-agent's work right? (the card)
@@ -2019,6 +2271,8 @@ def conversation(rd: Reader, root: Path, cfg: dict, pid: str, name: str) -> dict
     asks = {w["id"] for w in waits if w["kind"] == "asks"}
     by: dict[str, list[dict]] = {}
     for e in es:
+        if e.get("kind") == "run":
+            continue
         by.setdefault(str(e.get("thread")), []).append(e)
     order = sorted(by, key=lambda th: -by[th][-1]["id"])
     used, threads = 0, []
@@ -2042,9 +2296,14 @@ def conversation(rd: Reader, root: Path, cfg: dict, pid: str, name: str) -> dict
                 "who": _field(board.vendor_of(str(e.get("from") or ""))), "to": _field(e.get("to")),
                 "via": _field(e.get("via")), "reply_to": rt if isinstance(rt, int) and not isinstance(rt, bool) else None,
                 "text": shown, "cut": len(shown) < len(text), "chars": len(text), "asks": e["id"] in asks,
-                "remote": bool(e.get("remote"))})
+                "remote": bool(e.get("remote")), "kind": e.get("kind"), "run_id": e.get("run_id"),
+                "phase": e.get("phase")})
         threads.append(item)
+    notices = [{"kind": "run", "run_id": _field(e.get("run_id")), "phase": e.get("phase"),
+                "text": _clip(e.get("text"), CONV_MSG_CHARS), "ts": _board_ts(e.get("ts")), "via": _field(e.get("via"))}
+               for e in es if e.get("kind") == "run"][-80:]
     return {"project": {"id": pid, "name": name, "path": str(root)}, "threads": threads, "threads_total": len(by),
+            "run_messages": notices,
             "max_machine": _max_machine(cfg), "say_max": SAY_MAX, "generated": time.time()}
 
 
@@ -2129,6 +2388,236 @@ def execute(p: Paths, argv: list[str], background: bool) -> dict:
     return out
 
 
+# ------------------------------------------------------------------ P2-11: deterministic dialogue commands, never a shell
+def chat_argv(text: str, root: Path, rd: Reader) -> list[str]:
+    """A deliberately small UI grammar. Text becomes ONE task argument; flags have explicit allowlists.
+
+    No arbitrary cwd, file-input, check/shell command, autonomy override, stop/undo/resume, or CLI abbreviation.
+    The installed CLI has no `review` verb: that UI shorthand previews an ordinary read-only run instead.
+    """
+    import shlex
+    if not isinstance(text, str) or not text.strip() or len(text) > SAY_MAX or "\0" in text:
+        raise ValueError(f"text: 1..{SAY_MAX} characters, no NUL")
+    text = text.strip()
+    words = shlex.split(text) if text.startswith("ccx ") else ["run", text]
+    if words and words[0] == "ccx":
+        words.pop(0)
+    if not words or words[0] not in CHAT_COMMANDS:
+        raise ValueError("allowed: ccx run, say, review, discuss, show")
+    op, args = words[0], words[1:]
+    if op in ("show", "review"):
+        if len(args) != 1 or not re.fullmatch(r"[A-Za-z0-9_-]{1,64}", args[0]):
+            raise ValueError(f"ccx {op}: one run id")
+        d, rec = _run_record(rd, args[0])
+        if op == "show":
+            return ["ccx", "show", args[0]]
+        if project_root(rec.get("cwd")) != root.resolve():
+            raise ValueError("review: select the run's project")
+        brief = _visible_brief(d)
+        snapshot = judge(rd.p, args[0])
+        # Keep the complete, server-generated review material in the reviewed run's record. Even the capped
+        # snapshot diff can exceed Windows' CreateProcess command-line limit; only this short path goes in argv.
+        material = (f"Review run {args[0]} against its task. Report [must]/[should] issues; do not edit.\n"
+                    f"Task:\n{brief}\nReported result:\n{json.dumps(rec.get('result'), ensure_ascii=False)}\n"
+                    f"Recorded snapshot diff (missing means unknown):\n{snapshot.get('diff') or snapshot.get('note')}")
+        brief_file = d / f"ui-review-{secrets.token_hex(8)}.md"
+        brief_file.write_text(material, encoding="utf-8")
+        return ["ccx", "run", "--from", "user", "--cwd", str(root), "--mode", "read", "--review", "off",
+                "--brief-file", str(brief_file)]
+    allowed = {"run": {"--to", "--tier", "--model", "--effort", "--mode", "--review", "--budget", "--label"},
+               "say": {"--to", "--thread"}, "discuss": {"--with", "--rounds", "--tier"}}[op]
+    flags, body, used = [], [], set()
+    i = 0
+    while i < len(args):
+        arg = args[i]
+        if arg == "--":
+            body.extend(args[i + 1:])
+            break
+        if arg.startswith("-"):
+            if arg not in allowed or arg in used or i + 1 >= len(args):
+                raise ValueError(f"unsupported or repeated UI option: {arg}")
+            val = args[i + 1]
+            if val.startswith("-") or "\0" in val:
+                raise ValueError(f"a value for {arg}")
+            if arg == "--to" and val not in (*agents.NAMES, "auto", "all", *_ui_providers(rd)):
+                raise ValueError("unknown destination")
+            if arg == "--to" and op == "say":
+                board.norm(val, allow_all=True)
+            enums = {"--mode": ("read", "write"), "--review": ("auto", "on", "off"),
+                     "--tier": ("auto", "T0", "T1", "T2", "T3", "T4"),
+                     "--effort": ("low", "medium", "high", "xhigh", "max", "ultra")}
+            if arg in enums and val not in enums[arg]:
+                raise ValueError(f"invalid {arg}")
+            if arg == "--budget" and (not re.fullmatch(r"\d+(?:\.\d+)?", val) or float(val) <= 0):
+                raise ValueError("budget: a positive number")
+            if arg == "--rounds" and val not in ("1", "2", "3"):
+                raise ValueError("rounds: 1..3")
+            if arg == "--with" and any(x not in (*agents.NAMES, *_ui_providers(rd)) for x in val.split(",")):
+                raise ValueError("unknown discussion participant")
+            used.add(arg)
+            flags.extend([arg, val])
+            i += 2
+        else:
+            body.append(arg)
+            i += 1
+    if not body:
+        raise ValueError("give the task, message or question")
+    if op == "say":
+        if "--to" not in used:
+            flags.extend(["--to", "all"])
+        # say is written directly with board.post, retaining via=ui and the person's identity.
+        return ["ccx", "say", *flags, "--", " ".join(body)]
+    if op == "run":
+        if "--to" in used and flags[flags.index("--to") + 1] == "all":
+            raise ValueError("run: one destination")
+        if "--mode" not in used:
+            flags.extend(["--mode", "read"])
+    return ["ccx", op, "--from", "user", "--cwd", str(root), *flags,
+            *(["--confirmed"] if op == "discuss" else []), "--", " ".join(body)]
+
+
+def _ui_providers(rd: Reader) -> tuple:
+    return tuple((rd.cfg().get("providers") or {}).keys())
+
+
+def execute_chat(p: Paths, argv: list[str], root: Path) -> dict:
+    """Start exactly the confirmed argv in the background; audit events are separate from cost rows.
+
+    CCX_RUN_ID binds the receipt link before launch. `ui_command` ledger events carry via=ui without duplicating
+    the CLI's spending entries. The board notice and run record carry the same provenance.
+    """
+    import subprocess
+    from . import ledger
+    from .config import ccx_argv
+    from .winproc import BACKGROUND
+    if len(argv) < 3 or argv[0] != "ccx" or argv[1] not in ("run", "discuss", "show"):
+        raise ValueError("not a confirmed dialogue command")
+    rid = ledger.new_run_id(p) if argv[1] == "run" else None
+    ident = rid or secrets.token_hex(8)
+    # The CLI's detached-refusal path needs bg.log to persist a not_delegated record before any agent starts.
+    log = p.runs / rid / "bg.log" if rid else p.state / "ui-actions" / f"chat-{ident}.log"
+    log.parent.mkdir(parents=True, exist_ok=True)
+    status_file = p.state / "ui-actions" / f"chat-{ident}.json"
+    status_file.parent.mkdir(parents=True, exist_ok=True)
+    env = {**os.environ, "CCX_HUB": str(p.hub), "PYTHONUTF8": "1"}
+    env.pop("CCX_RUN_ID", None)
+    if rid:
+        env["CCX_RUN_ID"] = rid
+    did = None
+    if argv[1] == "discuss":
+        from .discuss import new_id
+        did = new_id()
+        env["CCX_DISCUSS_ID"] = did
+    status = {"action": ident, "command": argv[1], "run_id": rid, "discussion_id": did,
+              "log": str(log), "state": "starting", "show_run": argv[2] if argv[1] == "show" else None}
+    status_file.write_text(json.dumps(status), encoding="utf-8")
+    try:
+        with open(log, "wb") as fh:
+            proc = subprocess.Popen([*ccx_argv(), *argv[1:]], cwd=str(root), env=env, stdin=subprocess.DEVNULL,
+                                    stdout=fh, stderr=subprocess.STDOUT, close_fds=True, **BACKGROUND)
+    except OSError as exc:
+        ledger.append_event(p, {"type": "ui_command_done", "via": "ui", "ts": time.time(), "run_id": rid,
+                                "command": argv[1], "exit": None, "error": str(exc)[:600]})
+        return {"ok": False, "error": str(exc)[:600]}
+    ledger.append_event(p, {"type": "ui_command", "via": "ui", "ts": time.time(), "run_id": rid,
+                            "command": argv[1], "pid": proc.pid, "log": str(log)})
+
+    def finish():
+        rc = proc.wait()
+        tmp = status_file.with_suffix(".tmp")
+        tmp.write_text(json.dumps({**status, "state": "finished", "exit": rc}), encoding="utf-8")
+        ledger.replace(tmp, status_file)
+        ledger.append_event(p, {"type": "ui_command_done", "via": "ui", "ts": time.time(),
+                                "run_id": rid, "command": argv[1], "exit": rc, "log": str(log)})
+    threading.Thread(target=finish, daemon=True).start()
+    return {"ok": True, "started": True, "pending": True, "pid": proc.pid, "run_id": rid, "log": str(log),
+            "href": None, "action": ident, "result_url": f"/api/chat/result/{ident}"}
+
+
+def chat_result(rd: Reader, ident: str) -> dict:
+    """A started command is not a delegated run until its record exists. Expose routing refusals as advice."""
+    if not re.fullmatch(r"[A-Za-z0-9_-]{1,64}", ident or ""):
+        raise ValueError("bad action id")
+    status = rd.json_file(rd.p.state / "ui-actions" / f"chat-{ident}.json")
+    if not isinstance(status, dict):
+        raise FileNotFoundError("no UI command")
+    done = status.get("state") == "finished"
+    out = {"ok": status.get("exit", 0) == 0, "pending": not done, "action": ident,
+           "result_url": f"/api/chat/result/{ident}", "href": None}
+    rid = status.get("run_id")
+    def decision(route):
+        return ((route.get("policy") or {}).get("mode") or (route.get("choice") or {}).get("recommend")
+                or ("self" if route.get("tier") == "T0" else "not_delegated"))
+    if rid:
+        rec = rd.json_file(rd.p.runs / rid / "run.json")
+        if isinstance(rec, dict):
+            if rec.get("kind") in ("not_delegated", "refused"):
+                route = rec.get("route") or {}
+                return {**out, "pending": False, "delegated": False, "route": route,
+                        "decision": decision(route),
+                        "reason": rec.get("error") or route.get("advice") or (rec.get("result") or {}).get("summary")}
+            out["href"] = f"/runs/{rid}"
+        elif done:
+            # Foreground CLI output is also understood for older/refusing entry points without a record.
+            text = _run_text(rd.p.runs / rid, "bg.log")["text"]
+            try:
+                result = json.loads(text)
+            except (ValueError, RecursionError):
+                result = {}
+            if isinstance(result, dict) and result.get("delegated") is False:
+                route = result.get("route") or {}
+                out.update(delegated=False, route=route, decision=decision(route),
+                           reason=result.get("advice") or route.get("advice"))
+            else:
+                out.update(ok=False, error=text[-1500:] or "command ended without a run record")
+    elif status.get("command") == "show":
+        if (rd.p.runs / str(status.get("show_run")) / "run.json").is_file():
+            out["href"] = f"/runs/{status['show_run']}"
+    elif status.get("discussion_id"):
+        out["href"] = f"/#/discuss/{status['discussion_id']}"
+    return out
+
+
+def seed_run_visibility(p: Paths, run_ids: list[str] | None = None) -> None:
+    """Enrich the isolated demo's existing records without changing its states or cost samples."""
+    rd = Reader(p)
+    for rid in run_ids or ("demo-r-ok", "demo-r-review", "demo-r-running"):
+        try:
+            d, rec = _run_record(rd, rid)
+        except FileNotFoundError:
+            continue
+        ts = float(rec["ts"])
+        iso = lambda n: time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(ts + n))
+        artifacts = {"brief.md": _visible_brief(d), "shared-context.md": "Demo project: keep the public API stable.\n"}
+        if rec.get("to") == "claude":
+            ev = [{"timestamp": iso(1), "type": "assistant", "message": {"content": [
+                {"type": "tool_use", "id": "read-1", "name": "Read", "input": {"file_path": "orders.py"}}]}}]
+        else:
+            ev = [{"timestamp": iso(1), "type": "item.completed", "item": {"type": "command_execution",
+                   "id": "c1", "command": "python -m pytest -q tests/test_orders.py", "exit_code": 0,
+                   "aggregated_output": "2 passed"}},
+                  {"timestamp": iso(2), "type": "item.completed", "item": {"type": "file_change",
+                   "changes": [{"path": "orders.py", "kind": "update"}]}},
+                  {"timestamp": iso(3), "type": "item.completed", "item": {"type": "agent_message",
+                   "text": "Demo repair round: adjusted the expiry boundary and reran the focused check."}}]
+        artifacts["events.visibility.log"] = "".join(json.dumps(e) + "\n" for e in ev)
+        for name, text in artifacts.items():
+            if not (d / name).exists():
+                (d / name).write_text(text, encoding="utf-8")
+        root = project_root(rec.get("cwd"))
+        if root:
+            board.post_run(root, rec, "started")
+            if rec.get("state") != "running":
+                board.post_run(root, rec, "finished")
+        if rid == "demo-r-review":
+            # A historical summary inside this fixture keeps its eight-run safety invariant and cost ruler.
+            f = d / "repair-rounds.json"
+            if not f.exists():
+                f.write_text(json.dumps([{"round": 1, "kind": "review_failed", "summary":
+                    "Demo repair attempt: added an expiry check and reran the focused fixture; review still found the UTC boundary wrong."}]),
+                    encoding="utf-8")
+
+
 # ------------------------------------------------------------------ the server
 def _static(name: str) -> bytes:
     return (STATIC / name).read_bytes()
@@ -2156,6 +2645,7 @@ class UI:
         self.lock = threading.Lock()
         self.pending: dict[str, dict] = {}
         self.says: dict[str, dict] = {}            # I1: prepared replies, by nonce
+        self.chats: dict[str, dict] = {}           # P2-11: separate 60-second nonce namespace
         self.boards: dict[str, tuple[Path, str]] = {}   # U2: project id -> (folder, name) of the boards shown
         self.why_stopped = ""
         from .tokenflow import Flow
@@ -2163,6 +2653,10 @@ class UI:
         self.flow_lock = threading.Lock()
         from .demo import is_demo
         self.demo = is_demo(p)                    # U6: a `ccx demo` hub: commands that start an agent are not run
+        if self.demo:
+            seed_run_visibility(p)
+        self.run_seen = {f.parent.name: "finished" for f in p.runs.glob("*/run.json")
+                         if (self.reader.json_file(f) or {}).get("state") != "running"}
         ui = self
 
         class Handler(BaseHTTPRequestHandler):
@@ -2201,6 +2695,8 @@ class UI:
                     return self._deny("host")
                 path = urlsplit(self.path).path
                 name = {"/": "index.html"}.get(path, path.lstrip("/"))
+                if re.fullmatch(r"/runs(?:/[A-Za-z0-9_-]{1,64})?/?", path):
+                    name = "index.html"
                 if name in TYPES:
                     return self._send(200, _static(name), TYPES[name])
                 if not path.startswith("/api/"):
@@ -2213,6 +2709,18 @@ class UI:
                             data = collect(ui.p, ui.project, ui.days, ui.reader, quota_wait=False)
                             ui.remember_boards(data)
                         return self._send(200, json.dumps(data, ensure_ascii=False, default=list).encode("utf-8"))
+                    if path == "/api/runs" or path.startswith("/api/runs/"):
+                        q = {k: v[0] for k, v in parse_qs(urlsplit(self.path).query).items() if v}
+                        with ui.lock:
+                            out = (runs_view(ui.reader, q.get("project", ""), q.get("status", ""),
+                                             q.get("date", ""), q.get("until", ""), int(q.get("page", "0")),
+                                             int(q.get("limit", "200"))) if path == "/api/runs" else
+                                   full_run(ui.reader, path[len("/api/runs/"):], int(q.get("after", "0")), q.get("source", "")))
+                        return self._send(200, json.dumps(out, ensure_ascii=False).encode("utf-8"))
+                    if path.startswith("/api/chat/result/"):
+                        with ui.lock:
+                            out = chat_result(ui.reader, path[len("/api/chat/result/"):])
+                        return self._send(200, json.dumps(out, ensure_ascii=False).encode("utf-8"))
                     if path == "/api/ability":
                         from .ability import table
                         q = {k: v[0] for k, v in parse_qs(urlsplit(self.path).query).items() if v}
@@ -2252,6 +2760,8 @@ class UI:
                     return self._act(urlsplit(self.path).path.rsplit("/", 1)[1])
                 if urlsplit(self.path).path in ("/api/say/prepare", "/api/say/run"):
                     return self._act(urlsplit(self.path).path.rsplit("/", 1)[1], say=True)
+                if urlsplit(self.path).path in ("/api/chat/prepare", "/api/chat/run"):
+                    return self._act(urlsplit(self.path).path.rsplit("/", 1)[1], chat=True)
                 return self._send(404, b'{"error":"not found"}')
 
             def _drain(self):
@@ -2272,7 +2782,7 @@ class UI:
                     raise ValueError("a JSON object")
                 return body
 
-            def _act(self, step: str, say: bool = False):
+            def _act(self, step: str, say: bool = False, chat: bool = False):
                 """K6, a button that runs a ccx command, in two requests. prepare {project, task, piece|null, btn,
                 fill}: the server finds that button in what it shows now, fills and checks the form values and
                 answers the exact command with a one-time nonce. run {nonce}: the page's second click (the person
@@ -2284,8 +2794,10 @@ class UI:
                 if not self.headers.get("Content-Type", "").startswith("application/json"):
                     return self._send(415, b'{"error":"json only"}')
                 try:
-                    body = self._body(SAY_BODY_MAX if say else 4000)
-                    if say:
+                    body = self._body(SAY_BODY_MAX if say or chat else 4000)
+                    if chat:
+                        out = ui.prepare_chat(body) if step == "prepare" else ui.run_chat(str(body.get("nonce") or ""))
+                    elif say:
                         out = ui.prepare_say(body) if step == "prepare" else ui.run_say(str(body.get("nonce") or ""))
                     elif step == "prepare":
                         out = ui.prepare(body)
@@ -2397,6 +2909,90 @@ class UI:
         return {**out, "cmd": " ".join(_q(x) for x in job["argv"])}
 
     # ---------------------------------------------------------------- U2 / I1: the conversation and the reply
+    def chat_root(self, pid: str) -> Path:
+        """Select a server-known project, including one that has no board yet."""
+        if pid and not _PID.fullmatch(pid):
+            raise ValueError("bad project id")
+        roots = { _pid(r): r for r in _catalog(self.reader) }
+        if self.project:
+            root = project_root(str(self.project)) or self.project
+            roots[_pid(root)] = root
+        for f in self.p.runs.glob("*/run.json"):
+            rec = self.reader.json_file(f)
+            root = project_root(rec.get("cwd")) if isinstance(rec, dict) else None
+            if root:
+                roots[_pid(root)] = root
+        if not pid and len(roots) == 1:
+            return next(iter(roots.values()))
+        if pid not in roots:
+            raise ValueError("select a project shown on the page")
+        return roots[pid]
+
+    def prepare_chat(self, want: dict) -> dict:
+        root = self.chat_root(str(want.get("project") or ""))
+        if not root.is_dir():
+            raise ValueError("the selected project no longer exists")
+        with self.lock:
+            argv = chat_argv(want.get("text"), root, self.reader)
+            now = time.time()
+            self.chats = {k: v for k, v in self.chats.items() if v["until"] > now}
+            if len(self.chats) >= 20:
+                raise LookupError("too many unconfirmed commands")
+            nonce = secrets.token_urlsafe(18)
+            self.chats[nonce] = {"argv": argv, "root": root, "until": now + CHAT_TTL_S}
+        return {"nonce": nonce, "argv": argv, "cmd": "ccx " + " ".join(json.dumps(x, ensure_ascii=False) for x in argv[1:]),
+                "estimate": "unknown" if argv[1] in ("run", "discuss") else 0, "ttl_s": CHAT_TTL_S,
+                "demo": self.demo, "spends": argv[1] in ("run", "discuss")}
+
+    def run_chat(self, nonce: str) -> dict:
+        from . import ledger
+        with self.lock:
+            job = self.chats.pop(nonce, None)
+        if not job or job["until"] < time.time():
+            raise LookupError("this confirmation has expired or was used: preview again")
+        argv, root = job["argv"], job["root"]
+        op = argv[1]
+        if self.demo and op in ("run", "discuss"):
+            return {"ok": True, "demo": True, "executed": False, "href": "/runs/demo-r-ok"}
+        if op == "say":
+            to = argv[argv.index("--to") + 1]
+            thread = argv[argv.index("--thread") + 1] if "--thread" in argv else None
+            e = board.post(root, "user", to, argv[-1], thread=thread, via="ui",
+                           max_machine=_max_machine(self.reader.cfg()))
+            ledger.append_event(self.p, {"type": "ui_command", "via": "ui", "ts": time.time(), "command": "say",
+                                         "board_id": e["id"], "cwd": str(root)})
+            return {"ok": True, "posted": e["id"], "href": f"/#/conv/{_pid(root)}"}
+        out = execute_chat(self.p, argv, root)
+        if not out.get("ok"):
+            return out
+        board.post(root, "user", "all", f"UI {op}: {argv[-1]}", thread=f"ui:{out.get('action') or nonce}", via="ui")
+        if out.get("run_id"):
+            rec = {"run_id": out["run_id"], "caller": "user", "to": argv[argv.index("--to") + 1] if "--to" in argv else "auto",
+                   "label": argv[-1], "via": "ui"}
+            board.post_run(root, rec, "started", via="ui")
+        return out
+
+    def observe_runs(self) -> None:
+        """While UI is open, append lifecycle transitions outside the read-only HTTP handlers."""
+        from . import ledger
+        ui_runs = {r.get("run_id") for r in ledger.rows(self.p) if r.get("type") == "ui_command" and r.get("via") == "ui"}
+        for f in self.p.runs.glob("*/run.json"):
+            with self.lock:
+                rec = self.reader.json_file(f)
+            if not isinstance(rec, dict) or not rec.get("run_id"):
+                continue
+            rid, state = rec["run_id"], rec.get("state")
+            if self.run_seen.get(rid) == state:
+                continue
+            root = project_root(rec.get("cwd"))
+            if root and root.is_dir():
+                via = "ui" if rid in ui_runs else "ccx"
+                rec = {**rec, "label": rec.get("label") or _short(_visible_brief(f.parent))}
+                board.post_run(root, rec, "started", via=via)
+                if state != "running":
+                    board.post_run(root, rec, "finished", via=via)
+            self.run_seen[rid] = state
+
     def remember_boards(self, data: dict) -> None:
         self.boards = {c["id"]: (Path(c["path"]), c["name"]) for c in data.get("conversations") or []}
 
@@ -2570,7 +3166,14 @@ class UI:
         return self.idle_for(now) > limit
 
     def _watch(self):
+        observed = 0.0
         while not self._done.wait(1.0):
+            if time.time() - observed >= 5:
+                try:
+                    self.observe_runs()
+                except (OSError, ValueError):          # run.json may be replaced while a process finishes
+                    pass
+                observed = time.time()
             if self.should_stop():
                 self.why_stopped = "page closed" if self.last_beat else "page never opened"
                 self.httpd.shutdown()
@@ -2601,8 +3204,8 @@ def export(p: Paths, out: Path, project: Path | None = None, days: float = 7) ->
 
     def inline_json(obj_text: str) -> str:      # nothing in the data can close the script element
         return obj_text.replace("<", "\\u003c").replace(">", "\\u003e").replace("&", "\\u0026")
-    page = page.replace('<link rel="stylesheet" href="app.css">', f"<style>{css}</style>")
-    page = page.replace('<script src="app.js"></script>',
+    page = page.replace('<link rel="stylesheet" href="/app.css">', f"<style>{css}</style>")
+    page = page.replace('<script src="/app.js"></script>',
                         f'<script type="application/json" id="ccx-strings">{inline_json(strings)}</script>'
                         f'<script type="application/json" id="ccx-snapshot">'
                         f'{inline_json(json.dumps(data, ensure_ascii=False, default=list))}</script>'

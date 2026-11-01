@@ -11,6 +11,11 @@
   let ACT = null, FLASH = null;     /* the one button being prepared / confirmed, and the last outcome line */
   let NEXT = null;                  /* after a verdict: the panel moved on to the next waiting piece ({sel, n}) */
   let LEADJUMP = "";                /* #/<project>/_lead: scroll to the project's lead panel once */
+  let RUNLIST = null, RUNPAGE = null, RUNERR = "", RUNBUSY = false, RUNSTAMP = 0, RUNDIFF = null;
+  let RUNFILTER = {project: "", status: "", date: "", until: ""};
+  let RUNPAGE_NO = 0;
+  let CHATDRAFT = "", CHATPROJECT = "", CHATPREP = null, CHATRESULT = null;
+  let CHATGEN = 0;
   /* DeepSeek's own agent is shown with its command name (ccx handoff --to dsh, or deepseek); `deepseek` alone is
      the deepseek provider (Claude Code on DeepSeek's API) in run records, the DeepSeek session on the board */
   const KNOWN = {claude: "Claude", codex: "Codex", deepseek: "DeepSeek", dsh: "DeepSeek (dsh)", gemini: "Gemini"};
@@ -137,6 +142,7 @@
       <input class="search" id="search" placeholder="${esc(t("search"))}" value="${esc(query)}" aria-label="${esc(t("search"))}">
       <nav class="nav" id="nav"><a href="#/" class="${!route.length || route[0] === "map" ? "cur" : ""}">${t("map_nav")}</a><a href="#/all" class="${route[0] === "all" ? "cur" : ""}">${t("overview")}${all.length ? `<span class="badge">${all.length}</span>` : ""}</a>`;
     h += `<a href="#/tokens" class="${route[0] === "tokens" ? "cur" : ""}">${t("tok_nav")}</a>`;
+    h += `<a href="/#/runs" class="${route[0] === "runs" ? "cur" : ""}">${t("runs_nav")}</a>`;
     const talks = (D && D.discussions) || [];
     if (talks.length) h += `<a href="#/discuss" class="${route[0] === "discuss" ? "cur" : ""}">${t("disc_nav")}<span class="mini-n">${talks.length}</span></a>`;
     for (const c of convs()) h += `<a href="${convHref(c.id)}" class="${route[0] === "conv" && route[1] === c.id ? "cur" : ""}">${t("conv_nav")} · ${esc(c.name)}${(c.todos || []).length ? `<span class="badge">${c.todos.length}</span>` : `<span class="mini-n">${c.threads}</span>`}</a>`;
@@ -462,7 +468,7 @@
       return `<li class="o-${esc(r.outcome)}"><div>${whoOrYou(r.from)} → ${who(r.to)} <b>${usd(r.usd || 0)}</b> `
         + `<span class="mono cost">${esc([r.tier, r.rung].filter(Boolean).join(" · "))}${r.rounds > 1 ? " · " + t("map_rounds", {n: r.rounds}) : ""}</span></div>`
         + `<div class="said">${checkLine(r.check)}</div><div class="said">${rv} · <span class="${v === "map_v_bad" || v === "map_v_wrong" ? "warn" : v === "map_v_ok" ? "good" : ""}">${t(v)}</span>`
-        + `${link ? ` · <a href="${link}">${t("map_open")}</a>` : ""}${r.ts ? ` · ${ago(r.ts)}` : ""}</div></li>`;
+        + `${link ? ` · <a href="${link}">${t("map_open")}</a>` : ""} · <a href="${runHref(r.run_id)}">${t("runs_open")}</a>${r.ts ? ` · ${ago(r.ts)}` : ""}</div></li>`;
     }).join("") + `</ul>`;
     return h + ((m.receipts_total || 0) > rs.length ? `<p class="cost">${t("map_rcpt_more", {n: m.receipts_total - rs.length})}</p>` : "");
   }
@@ -682,7 +688,7 @@
   function msgHTML(m) {
     const via = m.via && m.via !== m.from ? " · " + t("conv_via", {v: m.via}) : "";
     return `<div class="msg bmsg${m.who === "user" ? " you" : ""}${m.asks ? " asks" : ""}"><div class="hd">${msgWho(m)}<span>→ ${esc(toName(m.to))}</span><span class="mono">#${esc(m.id)}${m.reply_to ? " re #" + esc(m.reply_to) : ""}</span><span class="cost">${clock(m.ts)}${via}</span></div>`
-      + `<p class="btext">${esc(m.text)}</p>${m.cut ? `<p class="cost">${t("conv_cut", {n: m.chars})}</p>` : ""}${m.asks ? `<p class="warn">${t("conv_asks_you")}</p>` : ""}</div>`;
+      + `<p class="btext">${esc(m.text)}</p>${m.kind === "run" && /^[A-Za-z0-9_-]{1,64}$/.test(m.run_id || "") ? `<a href="/runs/${encodeURIComponent(m.run_id)}">${t("runs_open")}</a>` : ""}${m.cut ? `<p class="cost">${t("conv_cut", {n: m.chars})}</p>` : ""}${m.asks ? `<p class="warn">${t("conv_asks_you")}</p>` : ""}</div>`;
   }
   function threadHead(pid, x, open) {
     const flags = (x.stuck ? ` <span class="warn">${t("conv_stuck", {n: x.run})}</span>` : "") + ((x.asks || []).length ? ` <span class="warn">${t("conv_asks_badge")}</span>` : "");
@@ -714,6 +720,7 @@
     }
     if (CONVKEY !== pid || (!CONV && !CONVERR)) { wantConv(pid); return h + `<p class="lead">${t("conv_loading")}</p>`; }
     if (CONVERR || !CONV) return h + `<p class="lead">${t("conv_gone")}</p>`;
+    h += `<div class="run-notices">${(CONV.run_messages || []).map(m => `<p class="card">${clock(m.ts)} · ${esc(m.text)} <a href="${runHref(m.run_id)}">${t("runs_open")}</a></p>`).join("")}</div>`;
     if (!CONV.threads.length) return h + `<p class="lead">${t("conv_none")}</p>`;
     if (th) {
       const x = CONV.threads.find(z => z.key === th);
@@ -735,7 +742,7 @@
   function drawConv(pid, th) {
     const ta = $("saytext"), focused = ta && document.activeElement === ta, a = focused ? ta.selectionStart : 0, b = focused ? ta.selectionEnd : 0;
     const keep = window.scrollY;
-    $("main").innerHTML = renderConv(pid, th);
+    $("main").innerHTML = renderConv(pid, th) + chatPanel();
     const nt = $("saytext");
     if (focused && nt) { nt.focus(); try { nt.setSelectionRange(a, b); } catch (e) { /* ok */ } }
     window.scrollTo(0, keep);
@@ -1209,10 +1216,116 @@
     document.body.appendChild(ta); ta.select(); let ok = false; try { ok = document.execCommand("copy"); } catch (e) { ok = false; } ta.remove(); return ok;
   }
 
-  /* ---------- routing: #/ (the map)  #/map/project  #/all (overview)  #/project  #/project/task  #/project/task/piece/... ---------- */
+  /* ---------- complete run pages and the confirmed command composer ---------- */
+  const runHref = rid => "/runs/" + encodeURIComponent(rid);
+  function runText(x) { return `<pre class="run-text">${esc(x && x.text || "")}</pre>${x && x.cut ? `<p>${t("runs_cut")}</p>` : ""}`; }
+  function runValue(v) { return v == null ? t("runs_unknown") : typeof v === "object" ? JSON.stringify(v, null, 2) : String(v); }
+  async function loadRuns(rid, force) {
+    if (SNAP || RUNBUSY || (!force && Date.now() - RUNSTAMP < 5000)) return false;
+    RUNBUSY = true;
+    try {
+      if (rid) {
+        const old = RUNPAGE && RUNPAGE.run_id === rid ? RUNPAGE : null;
+        const qs = old ? "?after=" + old.activity.cursor + "&source=" + encodeURIComponent(old.activity.source) : "";
+        const data = await api("/api/runs/" + encodeURIComponent(rid) + qs);
+        if (old && !data.activity.reset) data.activity.events = old.activity.events.concat(data.activity.events);
+        RUNPAGE = data;
+      } else {
+        const qs = new URLSearchParams(RUNFILTER);
+        qs.set("page", RUNPAGE_NO);
+        RUNLIST = await api("/api/runs?" + qs);
+        RUNPAGE_NO = RUNLIST.page;
+      }
+      RUNERR = ""; RUNSTAMP = Date.now(); return true;
+    } catch (e) { RUNERR = e.message; return true; }
+    finally { RUNBUSY = false; }
+  }
+  function runListHTML() {
+    if (!RUNLIST && !RUNBUSY && !RUNERR && !SNAP) loadRuns(null, true).then(render);
+    const projects = RUNLIST && RUNLIST.projects || [];
+    const statuses = ["running", "ok", "ok_self_checked", "review_failed", "review_issues", "blocked", "over_budget", "quota", "env", "failed", "user_stopped", "timeout"];
+    return banner() + `<h1>${t("runs_nav")}</h1><p>${t("runs_lead")}</p><div class="run-filters">`
+      + `<label>${t("runs_project")}<select data-runfilter="project"><option value="">${t("runs_all")}</option>${projects.map(p => `<option value="${esc(p.id)}"${RUNFILTER.project === p.id ? " selected" : ""}>${esc(p.name)}</option>`).join("")}</select></label>`
+      + `<label>${t("runs_status")}<select data-runfilter="status"><option value="">${t("runs_all")}</option>${statuses.map(s => `<option${RUNFILTER.status === s ? " selected" : ""}>${esc(s)}</option>`).join("")}</select></label>`
+      + ["date", "until"].map(k => `<label>${t(k === "date" ? "runs_from" : "runs_until")}<input type="date" data-runfilter="${k}" value="${esc(RUNFILTER[k])}"></label>`).join("") + `</div>`
+      + (RUNERR ? `<p role="alert">${esc(RUNERR)}</p>` : "")
+      + `<div class="run-table"><table><thead><tr>${["runs_time", "runs_who", "runs_task", "runs_status", "runs_cost", "runs_wall", "runs_receipt"].map(k => `<th>${t(k)}</th>`).join("")}</tr></thead><tbody>`
+      + ((RUNLIST && RUNLIST.runs) || []).map(r => `<tr><td>${clock(r.ts)}</td><td>${esc(r.from)} → ${esc(r.rung || r.to)}</td><td><a href="${runHref(r.run_id)}">${esc(r.task || r.run_id)}</a><small>${esc(r.project_name)}</small></td><td>${esc(r.status)}</td><td>${usd(r.usd)}</td><td>${dur(r.seconds)}</td><td>${esc(r.summary)}</td></tr>`).join("") + `</tbody></table></div>`
+      + (RUNLIST ? `<nav class="acts" aria-label="${esc(t("runs_pages"))}"><button class="btn" data-run-page="${RUNLIST.page - 1}"${RUNLIST.has_previous ? "" : " disabled"}>${t("runs_previous")}</button><span>${t("runs_page", {n: RUNLIST.page + 1, total: RUNLIST.total})}</span><button class="btn" data-run-page="${RUNLIST.page + 1}"${RUNLIST.has_next ? "" : " disabled"}>${t("runs_next")}</button></nav>` : "");
+  }
+  function runPageHTML(rid) {
+    if ((!RUNPAGE || RUNPAGE.run_id !== rid) && !RUNBUSY && !RUNERR && !SNAP) loadRuns(rid, true).then(render);
+    if (SNAP) return `<h1>${t("runs_nav")}</h1><p>${t("conv_snap")}</p>`;
+    if (RUNERR) return `<p role="alert">${esc(RUNERR)}</p>`;
+    const r = RUNPAGE && RUNPAGE.run_id === rid ? RUNPAGE : null;
+    if (!r) return `<p>${t("conv_loading")}</p>`;
+    const c = r.checks || {}, rv = r.review || {}, receipt = r.receipt || {};
+    let h = banner() + `<p><a href="/runs">${t("runs_nav")}</a> › ${esc(rid)}</p><h1>${esc(r.task || rid)}</h1><p>${esc(r.from)} → ${esc(r.rung || r.to)} · ${esc(r.status)}</p>`;
+    h += `<section class="card run-section" id="run-dispatch"><h2>${t("runs_dispatch")}</h2>${runText(r.dispatch.brief)}<h3>${t("runs_context")}</h3>${runText(r.dispatch.context)}<details><summary>${t("runs_prompt")}</summary>${runText(r.dispatch.prompt)}</details></section>`;
+    h += `<section class="card run-section" id="run-activity"><h2>${t("runs_activity")}</h2><p class="cost">${t("runs_event_note")}</p><ol class="run-events">${r.activity.events.map(e => `<li><span class="cost">${esc(e.ts || t("runs_unknown"))} · ${esc(e.kind)} · ${esc(e.phase || "")}</span><pre>${esc(e.text)}</pre>${e.kind === "command" ? `<small>${t("runs_exit")}: ${esc(runValue(e.exit_code))}</small>` : ""}${e.output ? `<details><summary>${t("runs_output")}</summary><pre>${esc(e.output)}</pre></details>` : ""}</li>`).join("")}</ol></section>`;
+    h += `<section class="card run-section" id="run-checks"><h2>${t("runs_checks")}</h2><pre>${esc(c.cmd || t("runs_unknown"))}</pre><p>${t("runs_exit")}: ${esc(runValue(c.exit))}</p><h3>${t("runs_covers")}</h3><pre>${esc(runValue(c.covers))}</pre><p>basis_changed: ${esc(runValue(c.basis_changed))} · added_to: ${esc(runValue(c.added_to))}</p><pre>${esc(c.tail || "")}</pre></section>`;
+    h += `<section class="card run-section" id="run-review"><h2>${t("runs_review")}</h2><p>${esc(rv.by || t("runs_unknown"))} · ${esc(rv.verdict || t("runs_unknown"))}</p><pre>${esc(rv.summary || "")}</pre>${rv.issues.map(i => `<pre>${esc(runValue(i))}</pre>`).join("")}${(rv.notes || []).map(n => `<pre>${esc(runValue(n))}</pre>`).join("")}<h3>${t("runs_fixes")}</h3><p>${t("runs_round")}: ${esc(runValue(rv.round))}</p>${rv.fixes.map(f => `<p>${f.run_id ? `<a href="${runHref(f.run_id)}">${esc(f.run_id)}</a>` : t("runs_round") + " " + esc(runValue(f.round))} · ${esc(f.kind)}<br>${esc(f.summary)}</p>`).join("")}</section>`;
+    h += `<section class="card run-section" id="run-receipt"><h2>${t("runs_receipt")}</h2><p>${t("runs_cost")}: ${usd(receipt.usd)} · ${t("runs_wall")}: ${dur(receipt.seconds)}</p><pre>${esc(JSON.stringify(receipt, null, 2))}</pre><button class="btn" data-run-diff="${esc(rid)}">${t("runs_diff")}</button> <a href="${judgeHref(rid)}">${t("runs_decide")}</a>${RUNDIFF && RUNDIFF.run_id === rid ? `<pre>${esc(RUNDIFF.diff || t(RUNDIFF.note || "runs_unknown"))}</pre>` : ""}</section>`;
+    return h;
+  }
+  function judgeHref(rid) {
+    for (const p of D.projects || []) for (const tk of p.tasks || []) {
+      let link = ""; walk(tk.pieces, (x, chain) => { if (x.run_id === rid) link = href([p.id, tk.id].concat(chain.map(c => c.id)), x.id); });
+      if (link) return link;
+    }
+    return "/#/all";
+  }
+  function selectChatProject(pid) {
+    if (pid !== CHATPROJECT) { CHATPROJECT = pid; CHATGEN++; CHATPREP = null; CHATRESULT = null; }
+  }
+  function chatOutcome() {
+    if (!CHATRESULT) return "";
+    const body = CHATRESULT.delegated === false ? `${t("chat_not_delegated")} · ${esc(CHATRESULT.decision)}<pre>${esc(CHATRESULT.reason)}</pre>`
+      : esc(CHATRESULT.error || (CHATRESULT.demo ? t("act_demo") : t("chat_sent")));
+    return `<div role="status">${body} ${CHATRESULT.href ? `<a href="${esc(CHATRESULT.href)}">${t("runs_open")}</a>` : ""}</div>`;
+  }
+  async function refreshChatResult() {
+    if (!CHATRESULT || !CHATRESULT.pending || !CHATRESULT.result_url || SNAP) return false;
+    const old = CHATRESULT, generation = CHATGEN;
+    const result = await api(old.result_url);
+    if (CHATGEN !== generation || CHATRESULT !== old) return false;
+    CHATRESULT = Object.assign({}, old, result); return true;
+  }
+  function chatPanel() {
+    if (SNAP) return "";
+    const projects = D.projects || [];
+    if (!CHATPROJECT && projects.length) selectChatProject(projects[0].id);
+    return `<section class="card ui-chat"><h2>${t("chat_title")}</h2><p>${t("chat_rule")}</p><label for="chat-project">${t("runs_project")}</label><select id="chat-project">${projects.map(p => `<option value="${esc(p.id)}"${p.id === CHATPROJECT ? " selected" : ""}>${esc(p.name)}</option>`).join("")}</select><label for="chat-input">${t("chat_input")}</label><textarea id="chat-input" maxlength="4000" rows="4">${esc(CHATDRAFT)}</textarea><button class="btn" data-chat="preview">${t("chat_preview")}</button>`
+      + (CHATPREP ? `<div class="cmd"><p>${t("chat_will")}</p><pre>${esc(CHATPREP.cmd)}</pre><p>${t("chat_estimate")}: ${CHATPREP.estimate === "unknown" ? t("runs_unknown") : usd(CHATPREP.estimate)} · ${t("chat_ttl")}</p><button class="btn primary" data-chat="confirm">${t("chat_confirm")}</button></div>` : "")
+      + chatOutcome() + `</section>`;
+  }
+  function repaintChat() {
+    const el = document.querySelector(".ui-chat"); if (el) el.outerHTML = chatPanel();
+  }
+  document.addEventListener("input", e => { if (e.target.id === "chat-input") { CHATDRAFT = e.target.value; CHATPREP = null; const cmd = document.querySelector(".ui-chat .cmd"); if (cmd) cmd.remove(); } });
+  document.addEventListener("change", e => {
+    if (e.target.id === "chat-project") { selectChatProject(e.target.value); repaintChat(); }
+    if (e.target.dataset.runfilter) { RUNFILTER[e.target.dataset.runfilter] = e.target.value; RUNPAGE_NO = 0; RUNLIST = null; RUNERR = ""; loadRuns(null, true).then(render); }
+  });
+  document.addEventListener("click", async e => {
+    const page = e.target.closest("[data-run-page]");
+    if (page) { if (!page.disabled && !RUNBUSY) { RUNPAGE_NO = Math.max(0, Number(page.dataset.runPage)); loadRuns(null, true).then(render); } return; }
+    const diff = e.target.closest("[data-run-diff]");
+    if (diff) { try { RUNDIFF = await api("/api/judge/" + encodeURIComponent(diff.dataset.runDiff)); render(); } catch (err) { RUNERR = err.message; render(); } return; }
+    const btn = e.target.closest("[data-chat]"); if (!btn || btn.disabled) return;
+    btn.disabled = true;
+    try {
+      if (btn.dataset.chat === "preview") { CHATRESULT = null; const project = CHATPROJECT, text = CHATDRAFT, generation = CHATGEN; const prep = await post("/api/chat/prepare", {project, text}); CHATPREP = generation === CHATGEN && project === CHATPROJECT && text === CHATDRAFT ? prep : null; }
+      else if (CHATPREP) { const nonce = CHATPREP.nonce, generation = CHATGEN; CHATPREP = null; const result = await post("/api/chat/run", {nonce}); if (generation === CHATGEN) CHATRESULT = result; }
+    } catch (err) { CHATRESULT = {error: err.message}; CHATPREP = null; }
+    repaintChat();
+  });
+
+  /* ---------- routing: existing pages plus /runs and /runs/<id> ---------- */
   function route() {
     const [path, qs] = (location.hash.replace(/^#\/?/, "") || "").split("?");
-    const r = path ? path.split("/").map(decodeURIComponent).filter(Boolean) : [];
+    const real = /^\/runs(?:\/|$)/.test(location.pathname) ? location.pathname : "";
+    const r = (path || real) ? (path || real).split("/").map(decodeURIComponent).filter(Boolean) : [];
     const s = new URLSearchParams(qs || "").get("sel");
     return {r, s};
   }
@@ -1223,18 +1336,21 @@
     document.documentElement.lang = LANG === "zh" ? "zh-CN" : "en";
     const {r, s} = route();
     const key = r.join("/");
-    if (key !== lastRoute) { lastRoute = key; filt = "all"; sel = s || null; }
+    const sameRoute = key === lastRoute;
+    if (key !== lastRoute) { if (r[0] === "conv" && r[1]) selectChatProject(r[1]); lastRoute = key; filt = "all"; sel = s || null; RUNERR = ""; RUNSTAMP = 0; }
     else if (s && pending !== s) { sel = s; }
     pending = s;
     renderSide(r);
+    if (sameRoute && document.activeElement && document.activeElement.id === "chat-input" && document.querySelector(".ui-chat")) return;
     const main = $("main");
+    if (r[0] === "runs") { main.innerHTML = r[1] ? runPageHTML(r[1]) : runListHTML(); return; }
     if (r[0] === "discuss") { main.innerHTML = discHTML(r[1]); return; }
     if (r[0] === "conv") { drawConv(r[1], r[2]); return; }
     if (r[0] === "tokens") { drawTokens(); return; }
     const pr = r.length ? findProject(r[0]) : null;
     const tk = pr && r[1] ? findTask(pr, r[1]) : null;
     if (r[0] === "all") { main.innerHTML = renderOverview(); paintAct(); return; }
-    if (!pr) { main.innerHTML = renderMap(r[0] === "map" ? r[1] : null); paintAct(); return; }   /* P2-10: #/ and #/map/<project> */
+    if (!pr) { main.innerHTML = renderMap(r[0] === "map" ? r[1] : null) + chatPanel(); paintAct(); return; }   /* P2-10: #/ and #/map/<project> */
     if (!tk) {
       main.innerHTML = renderProject(pr); paintAct();
       if (r[1] === "_lead" && LEADJUMP !== key) { LEADJUMP = key; const lp = $("leadpanel"); if (lp) lp.scrollIntoView({block: "start"}); }
@@ -1393,13 +1509,15 @@
   async function poll() {
     try {
       let changed = await refresh();
+      changed = (await refreshChatResult()) || changed;
       const rt = route().r;
+      if (rt[0] === "runs") changed = (await loadRuns(rt[1], true)) || changed;
       if (rt[0] === "conv" && rt[1] && !SNAP) { try { changed = (await loadConv(rt[1])) || changed; } catch (e) { /* shown on the page */ } }
       if (changed) { render(); announce(); } else patchLive();
     } catch (e) {
       if (!OFFLINE && Date.now() - lastOk > 8000) { OFFLINE = true; render(); }
     }
-    setTimeout(poll, ((D && D.poll_s) || 3) * 1000);
+    setTimeout(poll, route().r[0] === "runs" ? 5000 : ((D && D.poll_s) || 3) * 1000);
   }
   /* "still open"; hidden=1 from a background tab, whose timers the browser wakes about once a minute: the server then
      waits several minutes instead of one before it decides the page is gone */
@@ -1430,6 +1548,7 @@
     } else {
       try { TOKEN = sessionStorage.getItem("ccx-token") || ""; } catch (e) { TOKEN = ""; }
     }
+    if (/^\/runs(?:\/|$)/.test(location.pathname)) history.replaceState(null, "", "/#" + location.pathname);
     try { STR = await (await fetch("/strings.json", {cache: "no-store"})).json(); } catch (e) { /* keys show */ }
     LANG = chooseLang();
     if (!TOKEN) { $("main").innerHTML = `<h1>ccx ui</h1><p class="lead">${t("no_token")}</p>`; return; }

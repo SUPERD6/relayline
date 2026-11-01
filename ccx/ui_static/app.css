@@ -296,3 +296,19 @@ details.tflow summary .cost{display:inline;margin-left:6px}
 .rcpts code{font-size:12.5px}
 @media (max-width:1100px){.map{grid-template-columns:minmax(0,1fr);grid-template-areas:"top" "mid" "right" "left" "bottom"}}
 .map .rungs .chip{white-space:normal;overflow-wrap:anywhere}
+/* Complete run records and the confirmed dialogue composer (P2-12 / P2-11). */
+.run-filters { display:flex; gap:12px; flex-wrap:wrap; margin:18px 0; }
+.run-filters label, .ui-chat label { display:block; font-weight:600; }
+.run-filters input, .run-filters select, .ui-chat select { display:block; padding:7px; max-width:100%; }
+.run-table { overflow-x:auto; }
+.run-table td { vertical-align:top; min-width:90px; }
+.run-table small { display:block; color:var(--muted); }
+.run-section { margin:20px 0; padding:20px; }
+.run-section pre { white-space:pre-wrap; overflow-wrap:anywhere; max-height:28rem; overflow:auto; }
+.run-events { padding-left:22px; }
+.run-events li { border-bottom:1px solid var(--line); padding:10px 0; }
+.run-events pre { margin:6px 0; }
+.ui-chat { margin-top:28px; padding:20px; }
+.ui-chat textarea { display:block; box-sizing:border-box; width:100%; margin:10px 0; padding:10px; color:inherit; background:var(--bg); }
+.ui-chat .cmd { display:block; margin-top:12px; }
+.ui-chat pre { white-space:pre-wrap; overflow-wrap:anywhere; }

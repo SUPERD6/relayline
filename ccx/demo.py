@@ -46,13 +46,13 @@ def is_demo(p: Paths) -> bool:
 
 def env(base: Path) -> dict[str, str]:
     """The environment that keeps a demo process inside `base`: its hub and its own (fake) tool homes."""
-    base = Path(base)
+    base = Path(base).resolve()
     return {"CCX_HUB": str(base / "hub"), "CLAUDE_CONFIG_DIR": str(base / "homes" / "claude"),
             "CODEX_HOME": str(base / "homes" / "codex"), "DSH_HOME": str(base / "homes" / "dsh")}
 
 
 def new_base() -> Path:
-    return Path(tempfile.mkdtemp(prefix="ccx-demo-"))
+    return Path(tempfile.mkdtemp(prefix="ccx-demo-")).resolve()
 
 
 # ------------------------------------------------------------------ git, inside the demo projects only
@@ -357,7 +357,7 @@ def _claude_session(home: Path, root: Path, now: float) -> None:
 def build(base: Path | None = None, now: float | None = None) -> Paths:
     """Write the demo under `base` (default: a new folder in the system's temporary folder) and return its hub.
     CCX_DEMO_WORKTREE_LOCATION seeds this demo's own config without reading the caller's hub."""
-    base = Path(base) if base else new_base()
+    base = Path(base).resolve() if base else new_base()
     now = now or time.time()
     e = env(base)
     hub = Path(e["CCX_HUB"])
