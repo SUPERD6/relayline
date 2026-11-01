@@ -274,19 +274,22 @@ def cmd_stats(a) -> int:
     recover.sweep(paths())              # count runs whose ccx process died, with what they spent
     if a.summary:
         p = paths()
-        s = report.summarize(p, report.collect(p, a.days))
+        s = report.output_summary(report.summarize(p, report.collect(p, a.days)))
         t = s["totals"]
         spend = {"sub_agents_usd": t["sub_ae"], "runs": t["runs"], "cost_per_success_usd": t["cps"]}
-        units = {"sub_agents_quota_units": t["sub_quota_units"],
-                 "cost_per_success_quota_units": t["quota_units_per_success"]}
-        spend = {**units, **spend} if s["billing"]["mode"] == "subscription" else {**spend, **units}
+        if "billing" in s:
+            spend = {"sub_agents_quota_units": t["sub_quota_units"],
+                     "cost_per_success_quota_units": t["quota_units_per_success"], **spend}
         # what was spent comes first; a saving is a measurement only from `ccx trial`, else a labelled model estimate
-        _out({"spend": spend,
-              "saving": {"usd": t["saving"], "kind": t["saving_kind"], "ci95": t["saving_ci95"],
-                         "note": t.get("saving_note")},
-              "totals": t, "streams": [{k: v for k, v in x.items() if k not in ("agent", "role")}
-                                                 for x in s["streams"] if x["events"]], "ab": s["ab"],
-              "quota": s["quota"], "billing": s["billing"]})
+        result = {"spend": spend,
+                  "saving": {"usd": t["saving"], "kind": t["saving_kind"], "ci95": t["saving_ci95"],
+                             "note": t.get("saving_note")},
+                  "totals": t, "streams": [{k: v for k, v in x.items() if k not in ("agent", "role")}
+                                           for x in s["streams"] if x["events"]], "ab": s["ab"],
+                  "quota": s["quota"]}
+        if "billing" in s:
+            result["billing"] = s["billing"]
+        _out(result)
         return 0
     p = paths()
     rows = ledger.stats(p)

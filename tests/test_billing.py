@@ -2,11 +2,22 @@
 import json
 import time
 import unittest
+from pathlib import Path
 from unittest import mock
 
 from ccx import ledger, report, ui
 from ccx.config import Paths, load_config
 from test_ccx import Env
+
+
+def api_sample_row():
+    """The input used for the main-branch JSON golden; local noon makes its day independent of timezone."""
+    return {"run_id": "api-golden", "label": "api-golden", "to": "codex", "caller": "user", "tier": "T1",
+            "start_tier": "T1", "status": "done", "kind": "ok", "ok": True, "attempts": 1, "seconds": 1.0,
+            "ts": time.mktime((2026, 10, 31, 12, 0, 0, 0, 0, -1)), "rungs": ["codex:gpt-6-luna:low"],
+            "sessions": [], "ae_usd": 0.03, "ae_by_agent": {"codex": 0.03}, "cost_usd": 0.02,
+            "usage": {"input": 140, "cache_write": 40, "cached": 20, "output": 10},
+            "usage4": {"input_tokens": 100, "cache_write_tokens": 40, "cached_input_tokens": 20, "output_tokens": 10}}
 
 
 class TestUnits(unittest.TestCase):
@@ -123,6 +134,48 @@ class TestBilling(Env):
         streams = {x["agent"]: x["quota_units"] for x in s["streams"] if x["role"] == "sub"}
         self.assertEqual((s["totals"]["quota_units"], streams["codex"], streams["claude"]), (110, 50, 60))
 
+    def test_cross_provider_success_counts_once_for_110_units_per_success(self):
+        self.billing('[billing]\nmode = "subscription"\n')
+        rec = {"to": "claude", "attempts": [
+            {"agent": "codex", "rung": "codex:m:low", "seconds": 1, "usage": {"input_tokens": 100},
+             "ae_usd": 0.01},
+            {"agent": "claude", "rung": "claude:opus:high", "seconds": 2, "usage": {"output_tokens": 20},
+             "ae_usd": 0.02}]}
+        cfg = {"billing": {"vendors": {"anthropic": {"models": {"opus": 3}}},
+                            "providers": {"codex": {"quota_unit": 0.5}}}}
+        r = ledger._slim(rec, cfg)
+        r.update(run_id="cross-provider", start_tier="T1", status="done", ts=time.time())
+        ledger.append_event(self.p, r)
+        ledger.append_event(self.p, {"type": "verify", "run_id": r["run_id"], "ok": True, "ts": time.time()})
+        s = report.summarize(self.p, report.collect(self.p, include_lead=False))
+        self.assertEqual((s["totals"]["runs"], s["totals"]["done_rate"], s["totals"]["verified"]), (1, 1.0, 1))
+        self.assertEqual((s["totals"]["quota_units"], s["totals"]["quota_units_per_success"]), (110, 110))
+        self.assertEqual((len(s["runs"]), s["runs"][0]["quota_units"], s["runs"][0]["ae"]), (1, 110, 0.03))
+        self.assertEqual(s["totals"]["cps"], 0.03)
+
+    def test_api_json_matches_complete_main_golden(self):
+        golden = json.loads((Path(__file__).parent / "data" / "billing_api_main.json").read_text(encoding="utf-8"))
+        for case in ("empty", "one_run"):
+            with self.subTest(case=case):
+                if case == "one_run":
+                    ledger.append_event(self.p, api_sample_row())
+                r = self.ccx("stats", "--summary", "--days", "36500")
+                self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+                self.assertEqual(json.loads(r.stdout), golden["cases"][case]["stats"])
+                r = self.ccx("report", "--no-lead", "--days", "36500")
+                self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+                actual = json.loads(r.stdout)
+                expected = golden["cases"][case]["report"]
+                # Output paths and the generated timestamp are the only machine/time-dependent values.
+                expected["report"] = str(self.p.state / "report" / "index.html")
+                expected["summary"] = str(self.p.state / "report" / "summary.json")
+                self.assertEqual(actual, expected)
+                actual = json.loads(Path(actual["summary"]).read_text(encoding="utf-8"))
+                expected = golden["cases"][case]["summary"]
+                expected["generated"] = actual["generated"]
+                self.assertEqual(actual, expected)
+        self.assertEqual(self.calls(), [])
+
     def test_unpriced_attempt_units_do_not_add_an_api_run(self):
         rec = {"to": "claude", "attempts": [
             {"agent": "codex", "rung": "codex:m:low", "seconds": 1, "usage": {"input_tokens": 100}},
@@ -167,8 +220,7 @@ class TestBilling(Env):
         d = ui.run_detail(self.p, out["run_id"])
         self.assertEqual((d["billing"]["mode"], d["quota_units"]), ("subscription", 2700))
         with mock.patch.object(ui, "quota_view", return_value=[]), \
-                mock.patch.object(ui, "leads", return_value=[]), \
-                mock.patch.object(ui, "month_view", return_value=None):
+                mock.patch.object(ui, "leads", return_value=[]):
             d = ui.collect(self.p)
         self.assertEqual((d["billing"]["mode"], d["week"]["quota_units"]), ("subscription", 2700))
         srv = ui.UI(self.p)
@@ -179,3 +231,25 @@ class TestBilling(Env):
             self.assertGreater(d["totals"]["usd"], 0)
         finally:
             srv.httpd.server_close()  # data-only call: serve_forever was never started
+
+    def test_real_month_and_project_map_follow_mode_changes_on_the_same_reader(self):
+        self.billing('[billing]\nquota_unit = 2\n')
+        out = self.fake_run()
+        rec = ledger.load_run(self.p, out["run_id"])
+        rd = ui.Reader(self.p)
+        pr = {"id": "billing", "name": "billing", "path": str(self.work), "tasks": []}
+        api_spend = None
+        for mode in ("api", "subscription", "api"):
+            with self.subTest(mode=mode):
+                r = self.ccx("config", "set", "billing.mode", mode)
+                self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+                # Keep the same reader and its cached config/month across immediate mode switches.
+                rd.cfg()
+                month = ui.month_view(rd)
+                self.assertEqual((month["billing"]["mode"], month["runs"], month["quota_units"]), (mode, 1, 2700))
+                self.assertEqual(ui.month_view(rd, wait=False)["billing"]["mode"], mode)
+                m = ui.project_map(rd, self.p, pr, [rec], {}, {}, None, [], 0)
+                if api_spend is None:
+                    api_spend = m["spend"]
+                expected = {**api_spend, "quota_units": 2700} if mode == "subscription" else api_spend
+                self.assertEqual(m["spend"], expected)

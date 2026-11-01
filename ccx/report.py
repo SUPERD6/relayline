@@ -195,9 +195,19 @@ def summarize(p: Paths, data: dict) -> dict:
         by_stream[s]["quota_units"] += units
         quota_by_day[_day(e["ts"])][s] += units
 
+    sub_runs = {}
+    for e in (x for x in data["events"] if x["role"] == "sub"):
+        rid = e["run"]["run_id"]
+        if rid not in sub_runs:
+            sub_runs[rid] = {**e, "ae": 0.0, "usage": {}, "quota_units": ledger.row_quota(e["run"])}
+        run = sub_runs[rid]
+        run["ae"] += e["ae"]
+        for k, v in e["usage"].items():
+            run["usage"][k] = run["usage"].get(k, 0) + v
+
     savings, uppers, run_rows = [], [], []
     done = verified_ok = 0
-    for e in (x for x in data["events"] if x["role"] == "sub"):
+    for e in sub_runs.values():
         r = e["run"]
         verdict = data["verdicts"].get(r["run_id"])
         ok = verdict if verdict is not None else (r.get("status") == "done")
@@ -328,6 +338,18 @@ def summarize(p: Paths, data: dict) -> dict:
         "ab": ab, "trial": tr, "quota": list(quota.values()), "compare": compare,
         "accuracy": accuracy.summary(p, include_evals=bool(data.get("include_evals"))),
     }
+
+
+def output_summary(s: dict) -> dict:
+    """API-mode JSON retains its original schema; internal summaries still carry both accounting bases."""
+    if (s.get("billing") or {}).get("mode") == "subscription":
+        return s
+    out = {k: v for k, v in s.items() if k not in ("billing", "quota_days_series")}
+    quota_keys = ("quota_units", "sub_quota_units", "lead_quota_units", "quota_units_per_success")
+    out["totals"] = {k: v for k, v in s["totals"].items() if k not in quota_keys}
+    for key in ("streams", "runs"):
+        out[key] = [{k: v for k, v in r.items() if k != "quota_units"} for r in s[key]]
+    return out
 
 
 # ------------------------------------------------------------------ HTML
@@ -618,9 +640,12 @@ def write(p: Paths, days: int = 30, out: Path | None = None, include_lead: bool 
     out = out or p.state / "report" / "index.html"
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(render_html(s), encoding="utf-8")
+    s = output_summary(s)
     (out.parent / "summary.json").write_text(json.dumps(s, ensure_ascii=False, indent=1), encoding="utf-8")
-    return {"report": str(out), "summary": str(out.parent / "summary.json"), "totals": s["totals"],
-            "billing": s["billing"]}
+    result = {"report": str(out), "summary": str(out.parent / "summary.json"), "totals": s["totals"]}
+    if "billing" in s:
+        result["billing"] = s["billing"]
+    return result
 
 
 def publish(p: Paths, report_dir: Path) -> dict:

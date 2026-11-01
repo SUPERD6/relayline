@@ -1030,6 +1030,7 @@ def month_view(rd: Reader, wait: bool = True) -> dict | None:
     """This calendar month's sub-agent spend and the saving `ccx report` computes (the same rule: measured by
     `ccx trial` when it has enough tasks, else a model estimate against the lead's own price). Read from the
     ledger in the background every few minutes; None until the first read is done."""
+    mode = (load_config(rd.p).get("billing") or {}).get("mode", "api")
     def make():
         from . import report
         now = time.time()
@@ -1039,7 +1040,8 @@ def month_view(rd: Reader, wait: bool = True) -> dict | None:
         return {"since": start, "sub_usd": t["sub_ae"], "runs": t["runs"], "saving": t["saving"],
                 "quota_units": t.get("sub_quota_units", 0), "billing": s.get("billing", {"mode": "api"}),
                 "kind": t["saving_kind"], "ci95": t["saving_ci95"], "n": t["saving_n"]}
-    return _later(rd, "month", MONTH_EVERY_S, make, wait, None)
+    key = "month" if mode == "api" else f"month:{mode}"
+    return _later(rd, key, MONTH_EVERY_S, make, wait, None)
 
 
 # ------------------------------------------------------------------ U7: who leads a project, and switching
@@ -1402,7 +1404,7 @@ def project_map(rd: Reader, p: Paths, pr: dict, runs: list[dict], verdicts: dict
             rungs[k]["runs"] += 1
     spend = {"usd": round(sum(_usd(r) for r in week), 4), "runs": len(week),
              "rungs": sorted(rungs.values(), key=lambda x: -x["usd"])}
-    cfg = rd.cfg()
+    cfg = load_config(p)
     if (cfg.get("billing") or {}).get("mode", "api") == "subscription":
         spend["quota_units"] = round(sum(_quota_units(r, cfg) for r in week), 6)
     return {

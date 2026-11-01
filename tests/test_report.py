@@ -146,6 +146,7 @@ class TestBillingReport(ReportEnv):
         self.assertGreater(float(row["api_equivalent_usd"]), 0)
         summary = self.j("stats", "--summary")
         self.assertEqual(summary["billing"]["mode"], "subscription")
+        self.assertEqual(summary["totals"]["quota_units"], 2700)
         self.assertEqual(next(iter(summary["spend"])), "sub_agents_quota_units")
         self.assertEqual(summary["spend"]["sub_agents_quota_units"], 2700)
         self.assertEqual(summary["spend"]["cost_per_success_quota_units"], 2700)
@@ -153,7 +154,12 @@ class TestBillingReport(ReportEnv):
         self.j("config", "set", "billing.mode", "api")
         summary = self.j("stats", "--summary")
         self.assertEqual(next(iter(summary["spend"])), "sub_agents_usd")
-        self.assertEqual(summary["spend"]["sub_agents_quota_units"], 2700)
+        self.assertNotIn("sub_agents_quota_units", summary["spend"])
+        self.assertNotIn("quota_units", summary["totals"])
+        self.assertNotIn("billing", summary)
+        self.assertNotIn("billing_mode", summary)
+        for stream in summary["streams"]:
+            self.assertNotIn("quota_units", stream)
 
     def test_api_table_keeps_its_existing_columns(self):
         self.j("run", "--from", "claude", "--to", "codex", "--tier", "T1", "--no-ab", "read a file")
