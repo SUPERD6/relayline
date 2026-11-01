@@ -53,7 +53,7 @@ def line(res: dict) -> dict:
         said = said[: SUMMARY_CHARS - 3] + "..."
     out = {"run_id": res["run_id"], "agent": res.get("agent"), "model": res.get("model"), "ok": True,
            "status": "done", "summary": said, "files_changed": res.get("files_changed", [])}
-    for k in ("diffstat", "worktree", "continued_from", "chain", "escalated"):
+    for k in ("diffstat", "worktree", "continued_from", "chain", "escalated", "quota_fallback"):
         if res.get(k):
             out[k] = res[k]
     out["check"] = res["check"]       # as it was (cmd, passed, exit, covers): leads, scripts and the receipt read it

@@ -13,6 +13,15 @@ from fake_log import locked_append  # noqa: E402  (several fakes may append at o
 
 argv = sys.argv[1:]
 prompt = sys.stdin.read()
+if os.environ.get("FAKE_QUOTA_CODEX"):
+    from datetime import datetime, timezone
+    from pathlib import Path
+    now = datetime.now(timezone.utc)
+    f = Path(os.environ["CODEX_HOME"]) / "sessions" / now.strftime("%Y/%m/%d") / "rollout-quota-fake.jsonl"
+    f.parent.mkdir(parents=True, exist_ok=True)
+    f.write_text(json.dumps({"timestamp": now.isoformat(), "type": "event_msg", "payload": {
+        "type": "token_count", "rate_limits": json.loads(os.environ["FAKE_QUOTA_CODEX"])}}) + "\n",
+        encoding="utf-8")
 if argv[:1] == ["--version"]:
     print(os.environ.get("FAKE_CODEX_VERSION", "codex-cli 0.163.0 (fake)")); sys.exit(0)
 log = os.environ.get("FAKE_LOG")
@@ -21,6 +30,7 @@ if log:
         f.write(json.dumps({"agent": "codex", "argv": argv, "prompt": prompt,
                             "depth": os.environ.get("CCX_DEPTH"),
                             "deepseek_key": os.environ.get("DEEPSEEK_API_KEY"),
+                            "credential_vars": [k for k in os.environ if k.endswith(("_API_KEY", "_AUTH_TOKEN", "_BASE_URL"))],
                             "openai_key": bool(os.environ.get("OPENAI_API_KEY"))}) + "\n")
 
 if argv[:2] == ["login", "status"]:

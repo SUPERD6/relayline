@@ -281,7 +281,15 @@ def _bool(raw: str) -> bool:
 _bool.__name__ = "true/false"
 
 
+def _quota_minutes(raw: str) -> float | bool:
+    return False if raw.strip().lower() == "false" else float(raw)
+
+
 SETTINGS = {   # key -> (type, help). Only these can be set with `ccx config set`.
+    "quota.auto_refresh_min": (_quota_minutes, "refresh existing readings older than N minutes (default 60); "
+                                              "0/false disables"),
+    "quota.avoid_above": (float, "used share above which quota routing prefers another subscription (default 0.8)"),
+    "quota.routing": (str, "on | off: prefer subscriptions with available quota (default on)"),
     "billing.mode": (str, "api | subscription: API-equivalent USD first (default), or quota units first"),
     "defaults.tradeoff": (str, "tier: save | balanced | fast | cheapest, or a knob 0..1 (0 = cheapest, 1 = fastest)"),
     "policy.picked": (str, "save | balanced | fast | cheapest | none: the tier YOU pick for all work in this hub. It "
@@ -404,6 +412,8 @@ def set_setting(p: Paths, key: str, raw: str) -> dict:
         raise ValueError("escalate.on_self_checked must be review, rung or off")
     if key == "routing.mode" and raw not in ("auto", "off"):
         raise ValueError("routing.mode must be auto or off")
+    if key == "quota.routing" and raw not in ("on", "off"):
+        raise ValueError("quota.routing must be on or off")
     if key == "routing.small_self_by" and raw not in ("cost", "files"):
         raise ValueError("routing.small_self_by must be cost or files")
     if key == "run.max_usd" and not float(raw) >= 0:

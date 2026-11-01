@@ -980,7 +980,8 @@ def quota_view(rd: Reader, wait: bool = True) -> list[dict]:
         for agent, readings in (("codex", _codex_rates(rd)), ("claude", quota.claude_readings(rd.p))):
             for win, w in (quota.pace(readings) if readings else {}).items():
                 out.append({"agent": agent, "window": win, **{k: w.get(k) for k in (
-                    "used", "projected", "resets_at", "hours_left", "reading_age_min", "note")},
+                    "used", "projected", "projected_at_reset", "resets_at", "hours_left", "reading_age_min",
+                    "freshness", "note")},
                     "minutes": next((r.get("window_minutes") for r in readings if r["window"] == win), None)})
         return out
 

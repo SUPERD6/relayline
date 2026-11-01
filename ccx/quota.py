@@ -15,12 +15,36 @@ from __future__ import annotations
 
 import json
 import time
+from contextlib import contextmanager
+from contextvars import ContextVar
 from pathlib import Path
 
 WINDOW_MIN = {"five_hour": 300, "seven_day": 10080}
 RATE_HOURS = 48
 MIN_SPAN_HOURS = 6
 PROBE_AFTER_S = 3600
+_READINGS = ContextVar("quota_readings", default=None)
+
+
+@contextmanager
+def reading_scope():
+    """Share disk readings inside one route/run, including nested helpers; never across calls or threads."""
+    token = _READINGS.set({}) if _READINGS.get() is None else None
+    try:
+        yield
+    finally:
+        if token is not None:
+            _READINGS.reset(token)
+
+
+def _readings(p, agent: str, *, write_cache: bool = True) -> list[dict]:
+    cache, key = _READINGS.get(), (p.state, agent)
+    if cache is not None and key in cache:
+        return cache[key]
+    rows = codex_readings(p=p, write_cache=write_cache) if agent == "codex" else claude_readings(p)
+    if cache is not None:
+        cache[key] = rows
+    return rows
 
 
 def _file(p) -> Path:
@@ -42,6 +66,9 @@ def save_claude(p, events: list[dict]) -> int:
         with open(f, "a", encoding="utf-8") as fh:
             for r in out:
                 fh.write(json.dumps(r) + "\n")
+        cache = _READINGS.get()
+        if cache is not None and (p.state, "claude") in cache:
+            cache[p.state, "claude"] = cache[p.state, "claude"] + out
     return len(out)
 
 
@@ -106,7 +133,8 @@ def _tail_readings(f: Path) -> list[dict]:
     return out
 
 
-def codex_readings(days: float = 8, p=None, home: Path | None = None, now: float | None = None) -> list[dict]:
+def codex_readings(days: float = 8, p=None, home: Path | None = None, now: float | None = None,
+                   *, write_cache: bool = True) -> list[dict]:
     """Codex's quota readings, read only from the end of its newest session files (seconds -> milliseconds: a week
     of logs was read whole before, 9.65 of `ccx route`'s 10 s, PR #30). With a hub `p`, each file's readings are
     kept by (path, mtime, size) in <hub>/ccx/codex-quota-cache.json, so a later call re-reads only changed files."""
@@ -145,7 +173,7 @@ def codex_readings(days: float = 8, p=None, home: Path | None = None, now: float
                 continue
         new_cache[str(f)] = [mtime, size, rs]
         out += rs
-    if cf and new_cache != cache:
+    if write_cache and cf and new_cache != cache:
         try:
             cf.parent.mkdir(parents=True, exist_ok=True)
             cf.write_text(json.dumps(new_cache), encoding="utf-8")
@@ -162,9 +190,11 @@ def pace(readings: list[dict], now: float | None = None) -> dict:
         rs = sorted((r for r in readings if r["window"] == win), key=lambda r: r["ts"])
         last = rs[-1]
         reset = last.get("resets_at")
+        freshness = round(max(0, now - last["ts"]) / 60, 1)
         if reset and reset <= now:
             # the window has reset since the last reading: what it says no longer applies
             out[win] = {"used": None, "projected": 0.0, "resets_at": reset, "hours_left": 0.0,
+                        "freshness": freshness, "reading_age_min": round(freshness),
                         "note": "window has reset since the last reading"}
             continue
         # the current window: same reset time as the latest reading, and no drop in use since
@@ -179,6 +209,7 @@ def pace(readings: list[dict], now: float | None = None) -> dict:
         row = {"used": round(last["used"], 3), "resets_at": reset,
                "hours_left": round(hours_left, 1) if hours_left is not None else None,
                "reading_age_min": round((now - last["ts"]) / 60),
+               "freshness": freshness,
                "read_at": time.strftime("%Y-%m-%d %H:%M", time.localtime(last["ts"]))}   # when the reading was taken
         if span >= MIN_SPAN_HOURS and hours_left is not None:
             per_h = max(0.0, (last["used"] - recent[0]["used"]) / span)
@@ -186,24 +217,28 @@ def pace(readings: list[dict], now: float | None = None) -> dict:
         else:
             row.update(projected=round(last["used"], 3), note="too early to project (less than 6 h of readings)")
         out[win] = row
+    for row in out.values():
+        row["projected_at_reset"] = row["projected"] if row["used"] is not None else None
     return out
 
 
-def pressure(p, given: dict | None = None) -> dict:
+def pressure(p, given: dict | None = None, *, write_cache: bool = True) -> dict:
     """agent -> projected share of its tightest window by its reset (what the total cost prices quota with).
     Explicit values (--quota claude=0.8) win; else Codex from its logs and Claude from kept readings."""
     q = dict(given or {})
     detail = {}
-    for agent, readings in (("codex", codex_readings(p=p)), ("claude", claude_readings(p))):
-        if agent in q or not readings:
+    for agent in ("codex", "claude"):
+        readings = _readings(p, agent, write_cache=write_cache)
+        if not readings:
             continue
         pc = pace(readings)
         if pc:
             detail[agent] = pc
-            q[agent] = max(w["projected"] for w in pc.values())
-            if all(w.get("used") is None for w in pc.values()):
-                del q[agent]                     # every window reset since: no current reading
-    return {"quota": q, "pace": detail}
+            if agent not in q and any(w.get("used") is not None for w in pc.values()):
+                q[agent] = max(w["projected"] for w in pc.values())
+    return {"quota": q, "pace": detail,
+            "freshness": {ag: min((w["freshness"] for w in detail.get(ag, {}).values()), default=None)
+                          for ag in ("claude", "codex")}}
 
 
 def backfill(p) -> int:
@@ -294,9 +329,155 @@ def claude_reading_age(p) -> float | None:
 
 
 def probe(p) -> int:
-    """One tiny, history-free Claude request just to read its quota windows (a few thousand tokens)."""
-    from .delegate import Request, run
-    rec = run(Request(to="claude", brief="Reply with the single word OK.", mode="read", caller="user",
-                      escalate=False, fallback=False, label="quota-probe", model="haiku", effort="low",
-                      ephemeral=True, cwd=Path.cwd()), p)
-    return len(claude_readings(p, days=0.01)) if rec else 0
+    """Legacy --probe: keep the option, using the same tiny Claude probe as --refresh."""
+    return refresh(p, ["claude"])["claude"].get("readings", 0)
+
+
+def _refresh_file(p) -> Path:
+    return p.state / "quota-refresh.json"
+
+
+def _refresh_state(p) -> dict:
+    try:
+        return json.loads(_refresh_file(p).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+
+
+def subscription_env(env: dict) -> dict:
+    """Use the CLI's own login, without inherited API endpoints or credentials from the lead."""
+    from .delegate import HOST_AUTH
+    drop = {*HOST_AUTH, "CLAUDECODE", "CLAUDE_CODE_SIMPLE", "CLAUDE_CODE_USE_BEDROCK",
+            "CLAUDE_CODE_USE_VERTEX", "CLAUDE_CODE_USE_FOUNDRY"}
+    return {k: v for k, v in env.items() if k not in drop
+            and not k.endswith(("_API_KEY", "_AUTH_TOKEN", "_BASE_URL"))}
+
+
+def _probe_agent(p, agent: str) -> dict:
+    """No project context or delegation; Claude has no tools, Codex is read-only.
+    Flags checked: Claude 2.1.316 / Codex 0.164.0 --help.
+    Cost is the CLI's reported cost or an API-equivalent estimate, never invented when unavailable."""
+    import os
+    import subprocess
+    import tempfile
+    from . import learn
+    from .runners import bin_argv
+    from .agents.claude import parse_claude
+    from .agents.codex import parse_codex
+
+    row = {"ts": time.time(), "agent": agent, "source": "probe", "readings": 0,
+           "cost_usd": None, "ae_usd": None, "target_usd": 0.005}
+    model = "haiku" if agent == "claude" else "gpt-6-luna"
+    try:
+        argv = bin_argv(agent)
+        if agent == "claude":
+            argv += ["-p", "--model", model, "--effort", "low", "--output-format", "stream-json", "--verbose",
+                     "--system-prompt", "Reply OK.", "--tools", "", "--strict-mcp-config",
+                     "--disable-slash-commands", "--setting-sources", "", "--no-session-persistence",
+                     "--max-budget-usd", "0.005"]
+        else:
+            argv += ["exec", "--json", "-m", model, "-s", "read-only", "--skip-git-repo-check",
+                     "--ignore-user-config", "-c", 'model_reasoning_effort="low"',
+                     "-c", 'web_search="disabled"', "-c", "features.multi_agent=false",
+                     "-c", "features.plugins=false", "-c", "features.apps=false", "-"]
+        env = subscription_env(os.environ)
+        with tempfile.TemporaryDirectory(prefix="ccx-quota-") as tmp:
+            r = subprocess.run(argv, input="Reply OK. Do not use tools.", cwd=tmp, env=env,
+                               capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=30)
+        events = []
+        for line in r.stdout.splitlines():
+            try:
+                events.append(json.loads(line))
+            except ValueError:
+                pass
+        if agent == "claude":
+            row["readings"] = save_claude(p, events)
+            oc = parse_claude(r.stdout, r.stderr, r.returncode)
+        else:
+            # The probe writes new session data: discard only that vendor's pre-probe readings.
+            cache = _READINGS.get()
+            if cache is not None:
+                cache.pop((p.state, "codex"), None)
+            row["readings"] = sum(r["ts"] >= row["ts"] for r in _readings(p, "codex"))
+            oc = parse_codex(r.stdout, r.stderr, r.returncode, None)
+        row.update(exit_code=r.returncode, usage=oc.usage, cost_usd=oc.cost_usd,
+                   ae_usd=learn.price_usd(p, agent, model, oc.usage) if oc.usage else None)
+        if not row["readings"]:
+            row["error"] = "probe returned no quota windows; reading remains Unknown/stale"
+        if r.returncode:
+            row["error"] = oc.error or oc.kind
+    except (OSError, subprocess.SubprocessError) as e:
+        row["error"] = f"{type(e).__name__}: {e}"
+    return row
+
+
+def refresh(p, agents: list[str] | None = None, *, max_age_min: float | None = None) -> dict:
+    """Refresh each subscription once; Codex reuses current disk readings before spending a request.
+    Attempts, including failures, are recorded so an unreadable quota cannot cause a probe on every command."""
+    from .config import load_config
+    if max_age_min is None:
+        max_age_min = float((load_config(p).get("quota") or {}).get("auto_refresh_min", 60) or 60)
+    if max_age_min <= 0:
+        max_age_min = 60                       # explicit refresh still works with automatic refresh off
+    state, out = _refresh_state(p), {}
+    for agent in dict.fromkeys(agents if agents is not None else ("claude", "codex")):
+        if agent not in ("claude", "codex"):
+            continue
+        rs = _readings(p, "codex") if agent == "codex" else []
+        windows = pace(rs)
+        current = bool(windows) and all(w.get("used") is not None and w["freshness"] <= max_age_min
+                                        for w in windows.values())
+        row = ({"ts": time.time(), "agent": agent, "source": "session_files", "readings": len(rs),
+                "cost_usd": 0.0, "ae_usd": 0.0} if current else _probe_agent(p, agent))
+        state[agent] = row
+        out[agent] = row
+        p.state.mkdir(parents=True, exist_ok=True)
+        with open(p.state / "quota-refresh.jsonl", "a", encoding="utf-8") as fh:
+            fh.write(json.dumps(row, ensure_ascii=False) + "\n")
+    f = _refresh_file(p)
+    f.parent.mkdir(parents=True, exist_ok=True)
+    f.write_text(json.dumps(state, ensure_ascii=False), encoding="utf-8")
+    return out
+
+
+def maybe_refresh(p, cfg: dict, agents: list[str] | None = None, given: dict | None = None) -> dict:
+    """Refresh only an existing reading older than the interval; unknown subscriptions need --refresh.
+    0/false disables automatic refresh; explicit --refresh still works."""
+    import os
+    from .runners import find_bin
+    minutes = (cfg.get("quota") or {}).get("auto_refresh_min", 60)
+    if not minutes or float(minutes) <= 0 or os.environ.get("CCX_NO_QUOTA_PROBE") == "1":
+        return {}
+    pr, state, due = pressure(p), _refresh_state(p), []
+    for ag in agents if agents is not None else ("claude", "codex"):
+        if ag not in ("claude", "codex") or ag in (given or {}) or not find_bin(ag):
+            continue
+        if ag == "claude" and not (cfg.get("quota") or {}).get("probe_claude", True):
+            continue                         # retain the existing opt-out
+        age = pr["freshness"].get(ag)
+        stale = age is not None and age > float(minutes)
+        if stale and time.time() - (state.get(ag) or {}).get("ts", 0) >= float(minutes) * 60:
+            due.append(ag)
+    return refresh(p, due, max_age_min=float(minutes)) if due else {}
+
+
+def at_start(p) -> dict:
+    """Read the snapshot for run.json only; no probe, run directory or ledger row."""
+    return pressure(p, write_cache=False)
+
+
+def summary(p) -> str:
+    """Read-only doctor line: Unknown stays Unknown and expired windows never imply zero use."""
+    pr = pressure(p)
+    parts = []
+    for ag in ("claude", "codex"):
+        wins = pr["pace"].get(ag) or {}
+        desc = ", ".join(f"{win} {w['used']:.0%}" if w.get("used") is not None else f"{win} Unknown"
+                         for win, w in wins.items()) or "Unknown"
+        age = pr["freshness"].get(ag)
+        parts.append(f"{ag}: {desc}" + (f" ({age:g} min old)" if age is not None else ""))
+    return "; ".join(parts)
+
+
+def reset_text(ts) -> str:
+    return time.strftime("%Y-%m-%d %H:%M:%S %Z", time.localtime(ts)) if ts else "Unknown reset time"
