@@ -8,12 +8,13 @@ import json
 import os
 import re
 import subprocess
+import sys
 import threading
 import time
 from pathlib import Path
 
 from . import ledger
-from .config import Paths
+from .config import Paths, load_config, worktree_location
 from .verdicts import _hard_verdict, verify
 
 # `git worktree add` reads every worktree already registered; one another `worktree add` is creating at that moment
@@ -23,27 +24,72 @@ from .verdicts import _hard_verdict, verify
 _WT_RACE = re.compile(r"worktrees[\\/][^\\/\r\n]+[\\/](commondir|gitdir)")
 _WT_LOCKS: dict[str, threading.Lock] = {}
 _WT_LOCKS_GUARD = threading.Lock()
+SIBLING_WORKTREE_DIR = ".ccx-worktrees"
+
+
+def canonical(path: str | Path) -> Path:
+    """Resolve aliases while keeping paths usable by Git (Windows can return an extended-length prefix)."""
+    resolved = str(Path(path).resolve())
+    if resolved.startswith("\\\\?\\UNC\\"):
+        resolved = "\\\\" + resolved[8:]
+    elif resolved.startswith("\\\\?\\"):
+        resolved = resolved[4:]
+    return Path(resolved)
+
+
+def worktree_path(root: Path, run_id: str, location: str = "sibling") -> Path:
+    """The configured layout for a new worktree, with one spelling for symlinks and Windows short names."""
+    root = canonical(root)
+    if location == "inside":
+        return canonical(root / ".ccx" / "worktrees" / run_id)
+    return canonical(root.parent / SIBLING_WORKTREE_DIR / root.name / run_id)
+
+
+def worktree_repo(cwd: str | Path | None, *, root_only: bool = False) -> Path | None:
+    """Repository owning a ccx worktree in either layout, regardless of today's location setting.
+    Resolve aliases without requiring the worktree to exist: saved runs and the UI also need this after removal.
+    root_only preserves check statistics' historic treatment of a worktree's subdirectories."""
+    if not cwd:
+        return None
+    parts = canonical(str(cwd).replace("\\", "/")).parts
+    compared = tuple(p.casefold() for p in parts) if os.name == "nt" else parts
+    for i in range(len(parts) - 2, -1, -1):
+        if root_only and i + 3 != len(parts):
+            continue
+        if compared[i] == SIBLING_WORKTREE_DIR and i + 2 < len(parts):
+            return canonical(Path(*parts[:i]) / parts[i + 1])
+        if compared[i:i + 2] == (".ccx", "worktrees") and i + 2 < len(parts):
+            return canonical(Path(*parts[:i]))
+    return None
 
 
 def _worktree_lock(root: Path) -> threading.Lock:
     """One lock per repository: keyed by its common git folder, which every linked worktree of it shares."""
     rc, common = _git(root, "rev-parse", "--path-format=absolute", "--git-common-dir")
-    key = os.path.normcase(os.path.abspath(common if rc == 0 and common else str(root)))
+    key = os.path.normcase(str(canonical(common if rc == 0 and common else root)))
     with _WT_LOCKS_GUARD:
         return _WT_LOCKS.setdefault(key, threading.Lock())
 
 
 def make_worktree(cwd: Path, run_id: str, tries: int = 3) -> Path:
-    """A new worktree on branch ccx/<run_id> beside the repo. Threads of this process (the writers of one `ccx q run`
+    """A new worktree on branch ccx/<run_id> in the configured location (beside the repo by default).
+    Threads of this process (the writers of one `ccx q run`
     or `ccx batch`) add theirs one at a time, so they never meet git's race above. Another process (a second ccx, a
     `ccx run --bg --worktree` beside it) still can: then this one tries again, up to `tries` times, on the branch git
     already made for it (deleting it first would read the worktrees again and meet the same race)."""
+    cwd = canonical(cwd)
     top = subprocess.run(["git", "rev-parse", "--show-toplevel"], cwd=cwd,
                          capture_output=True, text=True, encoding="utf-8", errors="replace")
     if top.returncode != 0:
         raise RuntimeError("--worktree needs a git repository")
-    root = Path(top.stdout.strip())
-    wt = root.parent / f".ccx-worktrees" / root.name / run_id
+    root = canonical(top.stdout.strip())
+    location = worktree_location(load_config())
+    wt = worktree_path(root, run_id, location)
+    if location == "inside":
+        if _git(root, "check-ignore", "-q", ".ccx/")[0] != 0:
+            print("ccx: warning: worktree.location = inside, but git does not ignore .ccx/ in "
+                  f"{root}. Add .ccx/ to {root / '.gitignore'} to keep worktrees out of git status; "
+                  "ccx will not edit .gitignore.", file=sys.stderr)
     wt.parent.mkdir(parents=True, exist_ok=True)
     branch = f"ccx/{run_id}"
     with _worktree_lock(root):

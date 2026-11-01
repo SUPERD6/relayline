@@ -18,7 +18,7 @@ import time
 from pathlib import Path
 
 from . import autonomy, ledger, queue as wq
-from .workspace import run_check
+from .workspace import run_check, worktree_repo
 
 FAILED_WHY = {
     "no_changes": "its run changed nothing: there is nothing to merge",
@@ -172,7 +172,7 @@ def _writer_here(p, q: dict, root: Path) -> str | None:
             continue
         rec = _rec(p, it.get("live") or it.get("run")) or {}
         cwd = str(rec.get("cwd") or "")
-        if rec.get("mode") == "write" and cwd and "/.ccx-worktrees/" not in cwd.replace("\\", "/"):
+        if rec.get("mode") == "write" and cwd and worktree_repo(cwd) is None:
             try:
                 if Path(cwd).resolve() == root.resolve():
                     return i

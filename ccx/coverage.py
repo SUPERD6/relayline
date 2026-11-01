@@ -31,7 +31,7 @@ _PYTEST_SHORT_VAL = set("kmpcoWn")        # -xk EXPR: a cluster ending in one of
 _UNITTEST_VAL = {"-k", "-s", "-p", "-t", "--start-directory", "--pattern", "--top-level-directory"}
 _FILTERS = {"-k", "-m", "--deselect"}     # options that run only part of what the paths name
 _DOTTED = re.compile(r"[A-Za-z_]\w*(\.[A-Za-z_]\w*)*")
-_SKIP_DIRS = {".git", ".ccx", ".ccx-worktrees", "node_modules", ".venv", "venv", "env", "__pycache__", ".tox", "build",
+_SKIP_DIRS = {".git", ".ccx", "node_modules", ".venv", "venv", "env", "__pycache__", ".tox", "build",
               "dist", "site-packages", ".mypy_cache", ".pytest_cache", "vendor", "target"}
 
 
@@ -213,18 +213,20 @@ def _wanted(n: str, pattern: str | None) -> bool:
 
 def _folder_tests(d: Path, pattern: str | None = None) -> tuple[list[Path], bool]:
     """Test files in a folder: from git (fast, .gitignore respected), else a capped walk. (files, complete)."""
+    from .workspace import SIBLING_WORKTREE_DIR
+    skip_dirs = _SKIP_DIRS | {SIBLING_WORKTREE_DIR}
     try:
         r = subprocess.run(["git", "-C", str(d), "ls-files", "-z", "--cached", "--others", "--exclude-standard"],
                            capture_output=True, timeout=20)
         if r.returncode == 0:
             names = [n for n in r.stdout.decode("utf-8", "replace").split("\0") if n]
             return [d / n for n in sorted(names) if _wanted(n.rsplit("/", 1)[-1], pattern)
-                    and not set(n.split("/")[:-1]) & _SKIP_DIRS], True
+                    and not set(n.split("/")[:-1]) & skip_dirs], True
     except (OSError, subprocess.SubprocessError):
         pass
     found, seen = [], 0
     for root, sub, files in os.walk(d):
-        sub[:] = sorted(x for x in sub if x not in _SKIP_DIRS and not x.startswith("."))
+        sub[:] = sorted(x for x in sub if x not in skip_dirs and not x.startswith("."))
         for n in sorted(files):
             seen += 1
             if seen > WALK_CAP:

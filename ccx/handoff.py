@@ -20,18 +20,21 @@ from pathlib import Path
 
 from . import ledger, memory, project
 from .config import Paths
+from .workspace import canonical, worktree_repo
 
 
 def _recent_runs(p: Paths, root: Path, hours: float = 24, limit: int = 12) -> list[dict]:
     since = time.time() - hours * 3600
-    here = str(root.resolve())
+    root = canonical(root)
     verdicts = {r["run_id"]: r["ok"] for r in ledger.rows(p) if r.get("type") == "verify"}
     out = []
     for r in ledger.rows(p):
         if r.get("type") or (r.get("ts") or 0) < since or r.get("ephemeral"):
             continue
-        cwd = r.get("cwd") or ""
-        if not (cwd == here or cwd.startswith(here + "/") or cwd.startswith(here + "\\") or "/.ccx-worktrees/" in cwd):
+        if not r.get("cwd"):
+            continue
+        cwd = canonical(r["cwd"])
+        if not (cwd.is_relative_to(root) or worktree_repo(cwd) == root):
             continue
         try:
             res = (ledger.load_run(p, r["run_id"]).get("result") or {})
