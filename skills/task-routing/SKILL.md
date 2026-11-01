@@ -71,13 +71,25 @@ pre-authorised proposal covers one run of that task at the size you proposed: a 
 smaller one, is refused.
 The default tier stays `save` until a confirmation run decides.
 
+**Delegation off** (`[routing] mode = "off"`, `ccx config set routing.mode off`; `auto` as shipped): `ccx route` /
+`ccx propose` answer `do-it-yourself` with `routing_mode: "off"` (the pick is still shown; a `choice` keeps its
+`recommend_before`), over a picked tier and `small_self`; `ccx run` / `batch` / `q run` / `q resume` / `way`
+refuse without `--force`. `ccx run --mode read` (a cross-vendor review or second opinion), `ccx ask`, `ccx discuss`,
+memory, the board and `ccx resume` of a run already started are unchanged.
+
 **Small tasks yourself** (`routing.small_self`, off as shipped; the person turns it on): with no tier picked,
-`ccx route` / `ccx propose` advise `do-it-yourself` for a task you estimate at `small_self_files` (1) source file
-by `--files` (else the files the brief names; `--minutes` does not gate it). Not when the
-person picked a tier, `--needs` asks for what only ccx gives, your context reaches `lead_ctx_large`, or your quota
-reaches `small_self_quota` (0.9): `small_self.why` says which. The rung, ladder and tier plan are shown as before;
-`ccx run` is unchanged. Basis: on the r5 and hold-out task sets, one-file tasks done by the lead and the rest by
-`ccx2` lost no task and cut wall time, for a few percent more cost (provisional until a measured round).
+`ccx route` / `ccx propose` advise `do-it-yourself` when doing the task yourself costs less than delegating's fixed
+cost. By `small_self_by = "files"` (default): at most `small_self_files` (1) source files. By `"cost"`
+(experimental): requests (`--requests`, else 2 + 1.5 per `--files`, else per file the
+brief names) x what each re-reads (your conversation, `--lead-ctx` or read as `ccx lead` does, else 25k) at your
+model's price, plus the files written into the cache, against `small_self_overhead_usd` ($0.035: the pg1 median of
+the lead's own share of a delegation on a fresh Sonnet conversation, scaled to your model and plus what your longer
+conversation adds to its ~3 requests); `small_self.self_cost` shows both. With the shipped constants it comes to
+about one file on any model and context; `--requests` and big file reads move it. `--minutes` does not gate it. Not when the person picked a tier, `--needs` asks for what only ccx gives, your context reaches
+`lead_ctx_large`, or your quota reaches `small_self_quota` (0.9) (a lead with no price is priced on Sonnet):
+`small_self.why` says which. The rung, ladder and tier plan are shown as before; `ccx run` is unchanged. Basis:
+pg1 put 82 % of a delegation's spend on the lead's side, so the question is whether doing it yourself is dear,
+not how hard the task is (provisional until a measured round).
 
 **Lead model by task** (off unless the person runs `ccx config set lead.model_by_task on`): a running
 conversation keeps its model (switching drops its cache). From the same b, `ccx route` / `ccx propose` add

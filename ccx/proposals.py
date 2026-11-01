@@ -29,8 +29,10 @@ def new(p: Paths, route: dict, text: str, lead_session: str | None) -> dict:
                    tier_explicit=bool(tp.get("explicit")), estimate_minutes=(tp.get("signals") or {}).get("minutes"),
                    estimate_files=(tp.get("signals") or {}).get("files"))
         # a tier the person picked decided this one: no offer, nobody is asked (left out of the H12 chain in stats)
-        if tp.get("explicit") and tp.get("mode") in ("ccx2", "direct"):
+        if tp.get("explicit") and tp.get("mode") in ("ccx2", "direct") and route.get("routing_mode") != "off":
             row["preauthorized"] = True
+    if route.get("routing_mode") == "off":     # routing.mode=off said do it yourself: nothing was offered
+        row["routing_mode"] = "off"
     ledger.append_event(p, row)
     return row
 
