@@ -1,0 +1,13 @@
+## Added / 新增
+
+- Prepare the P0-13 discussion A/B runner and bilingual preregistration: six existing r5 design tasks,
+  two arms, one round, hidden acceptance scoring, cost per success, lead tokens and separate discussion spend.
+  Shared clean-room preflight (including the Codex shell canary), quiet-machine waiting, unclean evidence
+  tracking and an explicit `--execute` gate precede any paid run. Dry-run and a fake-provider one-task path
+  require no real provider calls. No paid measurement or correctness improvement is claimed.
+- 准备 P0-13 讨论 A/B 脚本和双语预登记：复用六道 r5 设计题，两组一轮，报告隐藏测试、每成功成本、主导 token
+  和单列讨论成本。复用隔离 preflight、Codex shell 金丝雀、等待空闲和污染标记；真实付费运行需显式 `--execute`。
+  干跑及一题 fake 通路不调用真实 provider。本次没有进行付费测量，也不声称做对率提升。
+
+No existing command or option is changed or removed; only a standalone evaluation script, documentation and
+tests are added. / 未改动或移除已有命令与选项，仅新增独立评测脚本、文档和测试。
