@@ -34,7 +34,7 @@ class TestRealQuotaSignals(Env):
         lines = fixture_lines("claude_rate_limit_20261031.jsonl")
         r = subprocess.run([sys.executable, str(FAKES / "fake_claude.py"), "-p", "--output-format",
                             "stream-json", "--verbose"], cwd=self.work,
-                           env={**self.env, "FAKE_STATUS_CLAUDE": "real_quota", "PYTHONIOENCODING": "utf-8"},
+                           env={**self.env, "FAKE_STATUS_CLAUDE": "real_quota"},
                            input="Reply OK.", capture_output=True, text=True, encoding="utf-8")
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertEqual(r.stdout.splitlines()[1:], lines)
@@ -51,6 +51,16 @@ class TestRealQuotaSignals(Env):
                          "2026-11-01T05:00:00+00:00")
         self.assertEqual(json.loads(lines[1])["message"]["content"][0]["text"],
                          "You've hit your 5-hour limit · resets 1am (America/New_York)")
+
+    def test_real_refusal_writes_utf8_under_legacy_console_encoding(self):
+        # Force a non-UTF-8 child stream so a UTF-8 parent cannot mask the regression.
+        r = subprocess.run([sys.executable, str(FAKES / "fake_claude.py"), "-p", "--output-format",
+                            "stream-json", "--verbose"], cwd=self.work,
+                           env={**self.env, "FAKE_STATUS_CLAUDE": "real_quota", "PYTHONIOENCODING": "cp1252"},
+                           input=b"Reply OK.", capture_output=True)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        expected = [line.encode("utf-8") for line in fixture_lines("claude_rate_limit_20261031.jsonl")]
+        self.assertEqual(r.stdout.splitlines()[1:], expected)
 
     def test_real_refusal_falls_back_once_and_receipt_preserves_reset(self):
         r = self.ccx("run", "--from", "user", "--to", "claude", "--tier", "T2", "--review", "off", "x",
