@@ -24,8 +24,15 @@ else:
     # Tests must explicitly bind every provider path to fakes before a command can be dispatched.
     for key in ("CCX_CODEX_BIN", "CCX_CLAUDE_BIN"):
         assert workspace.canonical(os.environ[key]).parent == workspace.canonical(__file__).parent
+    hub = workspace.canonical(os.environ["CCX_HUB"])
+    assert hub.is_relative_to(workspace.canonical(os.environ["FAKE_P13_TEST_ROOT"]))
     result = subprocess.run(argv, input="", capture_output=True, text=True, encoding="utf-8", timeout=120)
-    ledger_file = Path(os.environ["CCX_HUB"]) / "ccx/ledger.jsonl"
+    ledger_file = hub / "ccx/ledger.jsonl"
+    # ccx writes these records from the fake adapters' fixed usage. Label them; never fill missing cost with zero.
+    rows = [json.loads(s) for s in ledger_file.read_text(encoding="utf-8").splitlines()]
+    for row in rows:
+        row.update(synthetic=True, cost_source="fake-cli-usage")
+    ledger_file.write_text("".join(json.dumps(r) + "\n" for r in rows), encoding="utf-8")
     if os.environ.get("FAKE_P13_WORKER_KIND"):
         # A CLI can finish the Bash tool normally with either a completed or infrastructure-stopped worker.
         rows = [json.loads(s) for s in ledger_file.read_text(encoding="utf-8").splitlines()]
