@@ -99,6 +99,16 @@ the run's attempts, not the lead's or reviewer's entire workflow. Cells with **f
 runs do not train local cells. Each run counts once, attributed to its final model, with its whole recorded run
 cost/time (including earlier attempts); effort is retained as a count, not a separate cell.
 
+`median_usd_per_success` remains the median known cost of judged successes; `cost_totals` instead separates
+each cost basis's `spend_all_usd` (known spend across all observations, including failed/unjudged runs and recorded
+costs of quota/budget/timeout/user stops or partial/running work in the same cell), `right_n`
+(judged successes), `missing_cost_n` (observations missing that basis) and `usd_per_success_all = spend_all_usd / right_n`,
+with matching top-level fields preferring `ae_usd`, then `cost_usd`, then `usd` (`spend_all_cost_basis` names the basis;
+no known costs means `null` spend, and no successes means a `null` ratio).
+Cost-only records do not create ability cells or alter success counts; missing costs remain unknown, so the ratio
+may be incomplete; the final model bears the entire chain's recorded
+cost, which is workflow evidence rather than intrinsic model ability.
+
 `<hub>/ccx/ability.json` is a versioned cache: `cells` holds summaries, `entries` holds a fingerprint and a numeric
 observation per run. Briefs are read to infer types, not copied into this cache. CLI verdict paths (`verify`, queue
 completion/acceptance, undo-as-wrong, the start-hook sweep) refresh it; unchanged runs reuse their observations and

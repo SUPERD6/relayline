@@ -87,6 +87,14 @@ API 等价成本 `ae_usd` 与实际计费 `cost_usd` 分开取中位数，显示
 **本地 n < 5 显示“数据不足”**；`n = 0` 时做对率为空。评测、内部探针和 dismissed 运行不进入本地统计。
 一个 run 只计一次，归最后实际执行的模型，成本/时长使用整次 run 的记录（含之前的尝试），effort 保留为分布。
 
+`median_usd_per_success` 仍是已判成功样本的已知成本中位数；`cost_totals` 则按费用口径分别给出
+`spend_all_usd`（该格全部观察的已知费用累计，含失败、未验证运行，以及配额/预算/超时/人为停止或
+partial/running 运行已有的费用）、`right_n`（已判成功数）、
+`missing_cost_n`（缺少该口径费用的观察数）和 `usd_per_success_all = spend_all_usd / right_n`，顶层同名字段
+依次优先 `ae_usd`、`cost_usd`、`usd`，由 `spend_all_cost_basis` 标明口径（全部费用未知时累计为 `null`，成功数为零时比值为 `null`）。
+仅有费用的记录不创建能力格子、不改变成功计数；缺失费用保留未知，因此比值可能不完整；
+最终模型承担整条链的记录成本，这反映工作流，不等于模型固有能力。
+
 `<hub>/ccx/ability.json` 是带版本的缓存：`cells` 存统计摘要，`entries` 存每个 run 的指纹和数值观察。
 brief 仅用于判断类型，不复制进缓存。命令层的 verdict 路径（`verify`、队列完成/接受、undo 标错、启动 hook
 的 sweep）会刷新；未变的 run 复用观察，只重算受影响的格子。短暂 `PermissionError` 不会缓存未读文件的指纹，
