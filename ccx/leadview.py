@@ -34,7 +34,7 @@ def mode(cfg: dict) -> str:
 def clean(res: dict) -> bool:
     """A result that asks nothing of the lead: done, ok, its check passed on this run's own work, review passed or
     none ran."""
-    if not res.get("ok") or res.get("status") != "done" or any(res.get(k) for k in ATTENTION):
+    if not res.get("ok") or res.get("status") != "done" or res.get("max_usd") or any(res.get(k) for k in ATTENTION):
         return False
     c = res.get("check") or {}
     if c.get("passed") is not True or c.get("weak") or c.get("status") or c.get("note") \
@@ -47,13 +47,48 @@ def clean(res: dict) -> bool:
     return True                       # route (and its "learns" tip about routing, not this result) stays out
 
 
+def receipt_notes(res: dict) -> list[str]:
+    """Facts that must survive a compact receipt; no claim that an unstarted fallback ran."""
+    notes = []
+    fallback = res.get("quota_fallback") or {}
+    if fallback.get("from") and fallback.get("to") == res.get("agent"):
+        notes.append(f"reassigned {fallback['from']}→{fallback['to']} (quota)")
+    elif res.get("substituted_for"):
+        before = res["substituted_for"]
+        after = f"{res.get('agent')}:{str(res.get('model') or '').replace('/', ':')}"
+        if before != after:
+            notes.append(f"reassigned {before}→{after} (model)")
+    review = res.get("review") or {}
+    cap = res.get("max_usd") or {}
+    if cap:
+        step = cap.get("stopped_before") or "next step"
+        stopped = f"{step} not run" if review.get("verdict") in ("pass", "issues") else "review not run"
+        if step != "review" and stopped == "review not run":
+            stopped += f"; {step} not run"
+        notes.append(f"stopped: budget ${cap['cap']:g} reached, {stopped}")
+    if review.get("error") and not (cap and cap.get("stopped_before") == "review"):
+        why = " ".join(str(review["error"]).split())
+        why = why if len(why) <= 80 else why[:77] + "..."
+        notes.append(f"review not run ({why})")
+    return notes
+
+
+def receipt_status(res: dict) -> str | None:
+    if res.get("max_usd"):
+        return "stopped"
+    if res.get("status") == "done" and receipt_notes(res) and res.get("kind") != "ok_self_checked":
+        return "partial"
+    return res.get("status")
+
+
 def line(res: dict) -> dict:
     said = " ".join(str(res.get("summary") or "").split())
     if len(said) > SUMMARY_CHARS:
         said = said[: SUMMARY_CHARS - 3] + "..."
     out = {"run_id": res["run_id"], "agent": res.get("agent"), "model": res.get("model"), "ok": True,
-           "status": "done", "summary": said, "files_changed": res.get("files_changed", [])}
-    for k in ("diffstat", "worktree", "continued_from", "chain", "escalated", "quota_fallback"):
+           "status": receipt_status(res), "summary": said, "files_changed": res.get("files_changed", [])}
+    for k in ("effort", "requested_agent", "requested_model", "substituted_for", "diffstat", "worktree",
+              "continued_from", "chain", "escalated", "quota_fallback", "role", "role_receipt"):
         if res.get(k):
             out[k] = res[k]
     if "base_behind" in res:
@@ -61,8 +96,13 @@ def line(res: dict) -> dict:
     out["check"] = res["check"]       # as it was (cmd, passed, exit, covers): leads, scripts and the receipt read it
     if res.get("review"):
         out["review"] = {k: res["review"][k] for k in ("verdict", "by") if res["review"].get(k)}
+    if (res.get("route") or {}).get("role_effort_reason"):
+        out["route"] = res["route"]
     out["view"] = "line"              # the rest: `ccx show <run_id>`
     out["recap"] = res.get("recap", "")
+    for note in receipt_notes(res):
+        if note not in out["recap"]:
+            out["recap"] += ("; " if out["recap"] else "") + note
     return out
 
 

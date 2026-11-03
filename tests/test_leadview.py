@@ -2,6 +2,7 @@
 otherwise, with `output.lead full`, and from `ccx show <id>`. Fake CLIs only; never a real claude/codex."""
 import json
 import os
+import subprocess
 import sys
 import unittest
 from pathlib import Path
@@ -139,6 +140,120 @@ class TestRunOutput(Env):
         self.assertNotIn("view", out)
         self.assertIn("tokens", out)
         self.assertIn("route", out)
+
+
+class TestReceiptHonesty(Env):
+    def run_json(self, *args, env=None):
+        result = self.ccx(*args, env=env)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        return json.loads(result.stdout)
+
+    def record(self, out):
+        return json.loads(self.record_path(out).read_text(encoding="utf-8"))
+
+    def record_path(self, out):
+        return self.hub / "ccx" / "runs" / out["run_id"] / "run.json"
+
+    def init_repo(self):
+        subprocess.run(["git", "init", "-q"], cwd=self.work, check=True)
+        (self.work / "a.py").write_text("x = 1\n", encoding="utf-8")
+        subprocess.run(["git", "add", "a.py"], cwd=self.work, check=True)
+        subprocess.run(["git", "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qm", "init"],
+                       cwd=self.work, check=True)
+
+    def test_quota_reassignment_names_requested_and_final_executor_in_line_and_show(self):
+        out = self.run_json("run", "--from", "user", "--to", "claude", "--tier", "T2",
+                            "--no-escalate", "--review", "off", "--check", "python -c pass", "implement parser",
+                            env={"FAKE_STATUS_CLAUDE": "quota"})
+        rec = self.record(out)
+        last = rec["attempts"][-1]
+        self.assertEqual(out["view"], "line")
+        self.assertEqual((out["requested_agent"], out["requested_model"]), ("claude", "sonnet"))
+        self.assertEqual((rec["requested_agent"], rec["requested_model"]), ("claude", "sonnet"))
+        self.assertEqual((rec["agent"], rec["model"], rec["effort"]),
+                         (last["agent"], last["model"], last["effort"]))
+        self.assertEqual((out["agent"], out["model"], out["effort"]),
+                         ("codex", f"{last['model']}/{last['effort']}", last["effort"]))
+        self.assertEqual(out["status"], "partial")
+        self.assertIn("reassigned claude→codex (quota)", out["recap"])
+        self.assertIn("status=partial ok?", out["recap"])
+        self.assertNotIn("ok=true", out["recap"])
+        shown = self.run_json("show", out["run_id"])
+        self.assertEqual(shown["agent"], "codex")
+        self.assertIn("reassigned claude→codex (quota)", shown["recap"])
+
+    def test_budget_stop_names_the_missing_review_without_plain_ok(self):
+        self.init_repo()
+        out = self.run_json("run", "--from", "user", "--to", "codex", "--model", "gpt-6-luna", "--effort", "low",
+                            "--review", "on", "--max-usd", "0.0000001", "--check", "python -c pass",
+                            "change x to 2", env={"FAKE_WRITE": "a.py=x = 2\n"})
+        self.assertEqual(out["max_usd"]["stopped_before"], "review")
+        self.assertEqual(out["review"]["verdict"], "not-run")
+        self.assertIn("status=stopped ok?", out["recap"])
+        self.assertIn("stopped: budget $1e-07 reached, review not run", out["recap"])
+        self.assertNotIn("ok=true", out["recap"])
+        self.assertFalse(any("[ccx review" in c["prompt"] for c in self.calls()))
+        shown = self.run_json("show", out["run_id"])
+        self.assertIn("stopped: budget $1e-07 reached, review not run", shown["recap"])
+
+    def test_review_error_is_not_reported_as_plain_ok(self):
+        self.init_repo()
+        config = self.hub / "ccx" / "tiers.toml"
+        config.parent.mkdir(parents=True, exist_ok=True)
+        config.write_text('[review.by]\ncodex="invalid-rung"\n', encoding="utf-8")
+        out = self.run_json("run", "--from", "user", "--to", "codex", "--model", "gpt-6-luna", "--effort", "low",
+                            "--review", "on", "--check", "python -c pass", "change x to 2",
+                            env={"FAKE_WRITE": "a.py=x = 2\n"})
+        self.assertIn("ValueError", self.record(out)["review"]["error"])
+        self.assertIn("review not run (ValueError:", out["recap"])
+        self.assertIn("status=partial ok?", out["recap"])
+        self.assertNotIn("ok=true", out["recap"])
+        self.assertIn("review not run (ValueError:", self.run_json("show", out["run_id"])["recap"])
+
+    def test_old_record_without_requested_fields_uses_the_last_attempt(self):
+        out = self.run_json("run", "--from", "user", "--to", "claude", "--tier", "T2", "--review", "off",
+                            "implement parser", env={"FAKE_STATUS_CLAUDE": "quota"})
+        rec = self.record(out)
+        for key in ("requested_agent", "requested_model", "agent", "model", "effort"):
+            rec.pop(key, None)
+        rec["to"] = "claude"             # legacy records could retain the initial target
+        self.record_path(out).write_text(json.dumps(rec), encoding="utf-8")
+        shown = self.run_json("show", out["run_id"])
+        self.assertEqual(shown["agent"], "codex")
+        self.assertNotIn("requested_agent", shown)
+        self.assertIn("reassigned claude→codex (quota)", shown["recap"])
+
+    def test_model_substitution_keeps_original_request_before_and_after_it_is_learned(self):
+        for unused in range(2):
+            out = self.run_json("run", "--from", "user", "--to", "codex", "--model", "gpt-6-luna",
+                                "--effort", "low", "--mode", "read", "--review", "off", "--new",
+                                "Read the parser", env={"FAKE_UNSUPPORTED": "gpt-6-luna"})
+            rec = self.record(out)
+            self.assertEqual((rec["requested_agent"], rec["requested_model"]), ("codex", "gpt-6-luna"))
+            self.assertNotEqual(rec["model"], "gpt-6-luna")
+            self.assertEqual(rec["agent"], "codex")
+            self.assertEqual(out["substituted_for"], "codex:gpt-6-luna:low")
+            self.assertEqual(out["model"], f"{rec['model']}/{rec['effort']}")
+
+    def test_a_budget_blocked_fix_round_does_not_claim_review_never_ran(self):
+        from ccx.delegate import recap
+        rec = {"run_id": "r", "ok": False, "attempts": []}
+        res = {"status": "done", "ok": False, "max_usd": {"cap": 1, "stopped_before": "fix round"},
+               "review": {"verdict": "issues"}}
+        text = recap(rec, res)
+        self.assertIn("status=stopped", text)
+        self.assertIn("stopped: budget $1 reached, fix round not run", text)
+        self.assertNotIn("review not run", text)
+
+    def test_self_checked_wording_and_an_unstarted_fallback_remain_honest(self):
+        from ccx.delegate import recap
+        rec = {"run_id": "r", "ok": True, "kind": "ok_self_checked", "attempts": []}
+        res = {"status": "done", "ok": True, "kind": "ok_self_checked", "agent": "claude",
+               "needs_lead": "ok_self_checked: not independently verified",
+               "quota_fallback": {"from": "claude", "to": "codex"}}
+        self.assertEqual(leadview.receipt_notes(res), [])
+        self.assertIn("status=done ok=true", recap(rec, res))
+        self.assertIn("needs_lead=ok_self_checked", recap(rec, res))
 
 
 if __name__ == "__main__":
