@@ -256,6 +256,22 @@ def worktree_location(cfg: dict) -> str:
     return location
 
 
+def worktree_fetch(cfg: dict) -> bool:
+    """Refresh the current upstream before a new worktree, unless explicitly disabled."""
+    fetch = (cfg.get("worktree") or {}).get("fetch", True)
+    if not isinstance(fetch, bool):
+        raise ValueError("worktree.fetch must be true or false")
+    return fetch
+
+
+def worktree_fetch_timeout(cfg: dict) -> int:
+    """Bound the optional network request without changing the local worktree base."""
+    timeout = (cfg.get("worktree") or {}).get("fetch_timeout", 15)
+    if type(timeout) is not int or timeout <= 0:
+        raise ValueError("worktree.fetch_timeout must be a positive integer (seconds)")
+    return timeout
+
+
 # [subagent] (config/tiers.toml): experimental switches for what a sub-agent loads, each at today's behaviour until a
 # before / after measurement passes (scripts/eval/r5.py, arms ccx2daily*). Not [subagents]: that one caps the
 # sub-agent's own sub-agents.
@@ -337,6 +353,9 @@ SETTINGS = {   # key -> (type, help). Only these can be set with `ccx config set
     "defaults.max_parallel": (int, "parallel sub-agents in ccx batch"),
     "worktree.location": (str, "sibling | inside: new git worktrees beside the repository (default) or in "
                                "<repo>/.ccx/worktrees/<run_id> (ignore .ccx/ in .gitignore)"),
+    "worktree.fetch": (_bool, "true | false: fetch the current upstream before a new worktree (default true; "
+                              "warn only, never pull or change the local base)"),
+    "worktree.fetch_timeout": (int, "positive seconds to wait for the upstream fetch (default 15)"),
     "defaults.timeout_sec": (int, "per-attempt timeout"),
     "lanes.default": (int, "warm lanes for ccx batch / q run: small pieces for the same project and agent share at "
                            "most N sub-sessions, one after another (0 = off: every piece its own session)"),
@@ -437,6 +456,8 @@ def set_setting(p: Paths, key: str, raw: str) -> dict:
         val = typ(raw)
     except ValueError as e:
         raise ValueError(f"{key} needs a {typ.__name__}: {e}") from e
+    if key == "worktree.fetch_timeout":
+        worktree_fetch_timeout({"worktree": {"fetch_timeout": val}})
     cur = {}
     if p.settings.exists():
         cur = tomllib.loads(p.settings.read_text(encoding="utf-8"))

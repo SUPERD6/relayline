@@ -36,6 +36,8 @@ namecheck = "warn"        # 写入运行后，静态查改动过的函数里有�
 [worktree]
 location = "sibling"      # sibling = <repo parent>/.ccx-worktrees/<repo>/<run_id> (unchanged default)
 # inside = <repo>/.ccx/worktrees/<run_id>; ignore .ccx/ in the project's .gitignore
+fetch = true              # refresh only the current upstream; warn if behind, never pull or change the base
+fetch_timeout = 15        # seconds; a failed or timed-out fetch only warns (set fetch = false when offline)
 
 # 整个流程的档位（task-routing 的 tier_plan，docs/DECISIONS.md「档位」）：--tradeoff save|balanced|fast|cheapest
 # 不只选模型，还决定每块活谁做：self = 主导自己做；ccx2 = 交给 ccx、主导验收（模型按 save 选）；
