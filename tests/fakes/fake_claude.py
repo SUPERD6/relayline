@@ -49,6 +49,7 @@ if stream:
         print(json.dumps({"type": "rate_limit_event", "rate_limit_info": {
             "unifiedWindows": json.loads(os.environ["FAKE_QUOTA_CLAUDE"])}}))
 if mode == "real_quota":
+    sys.stdout.reconfigure(encoding="utf-8")
     fixture = Path(__file__).resolve().parents[1] / "data/real_signals/claude_rate_limit_20261031.jsonl"
     for line in fixture.read_text(encoding="utf-8").splitlines():
         if line and not line.startswith("#"):

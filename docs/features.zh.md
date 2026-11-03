@@ -350,10 +350,12 @@ UI 数据原有 `quota` 数组补充 `freshness`、`projected_at_reset`，用量
   改设置不会移动已有运行；undo、stop、resume 和会话归档仍使用运行记录里的路径。确认改动可丢弃后，可用
   `git worktree remove <路径>` 清理已完成的 worktree。
   创建前，ccx 只 fetch 当前分支的 upstream（默认 `[worktree] fetch = true`、`fetch_timeout = 15` 秒），
-  本地落后时提示，仍从本地 HEAD 创建；fetch 失败或超时只警告一行，不中断运行。
+  本地落后时提示，仍从本地 HEAD 创建；fetch 失败或超时只警告一行，不中断运行；超时会一起停止 Git 及其 helper 进程。
+  upstream 查询使用完整分支引用，避免同名 tag 干扰。
   用 `ccx config set worktree.fetch false` 关闭网络请求（此时按本地缓存的 upstream 计数），
   或用 `ccx config set worktree.fetch_timeout 30` 调整超时。
-  收据在可计算时记录 `base_behind`（包括零；无 upstream 或 fetch 失败时省略），只在 `ccx show --full` 显示，紧凑输出不增加字段。
+  收据在可计算时记录 `base_behind`（包括零；无 upstream 或 fetch 失败时省略），运行结果及主导的一行输出都保留该字段。
+  落后时主导的 recap 追加 `base: N behind upstream`，`--bg --wait` 和 `ccx show <id> --wait` 也能看到。
   运行结果、队列跟踪与接收、lane 提交、自动合并、验收可信度分组和 UI 项目归类同时识别两种布局，改设置后也能识别已有运行。
   inside 仍为实验性：已用假智能体 CLI 和 Git 验证，尚未用真实智能体 CLI 或 Codex 项目信任继承验证。
 - 子智能体不能再派子智能体（`CCX_DEPTH`）。

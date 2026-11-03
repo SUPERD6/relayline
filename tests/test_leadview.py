@@ -68,6 +68,34 @@ class TestClean(unittest.TestCase):
         obj, _ = leadview.render(dict(PASSED, summary="w " * 500), {})
         self.assertLessEqual(len(obj["summary"]), leadview.SUMMARY_CHARS)
 
+    def test_behind_base_remains_in_one_line_and_is_visible_in_the_recap(self):
+        res = dict(PASSED, base_behind=3)
+        with mock.patch.dict(os.environ, {"CCX_LEAD_VIEW": "line"}):
+            obj, one = leadview.render(res, {})
+        self.assertTrue(one)
+        self.assertEqual(obj["base_behind"], 3)
+        self.assertTrue(obj["recap"].endswith("; base: 3 behind upstream"))
+        self.assertEqual(res["recap"], PASSED["recap"])
+        self.assertEqual(len(leadview.dumps(obj, one).splitlines()), 1)
+        again, _ = leadview.render(obj, {})
+        self.assertEqual(again["recap"].count("base: 3 behind upstream"), 1)
+
+    def test_known_zero_is_retained_without_a_behind_note(self):
+        obj, _ = leadview.render(dict(PASSED, base_behind=0), {})
+        self.assertEqual(obj["base_behind"], 0)
+        self.assertEqual(obj["recap"], PASSED["recap"])
+
+    def test_behind_base_is_also_visible_when_the_whole_result_is_needed(self):
+        res = dict(PASSED, base_behind=2, needs_lead="review this")
+        obj, one = leadview.render(res, {})
+        self.assertFalse(one)
+        self.assertEqual(obj["base_behind"], 2)
+        self.assertIn("base: 2 behind upstream", obj["recap"])
+        with mock.patch.dict(os.environ, {"CCX_LEAD_VIEW": "full"}):
+            obj, one = leadview.render(dict(PASSED, base_behind=2), {})
+        self.assertFalse(one)
+        self.assertIn("base: 2 behind upstream", obj["recap"])
+
 
 class TestRunOutput(Env):
     def test_run_with_a_passing_check_prints_one_line_and_show_the_whole(self):

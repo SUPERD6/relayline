@@ -545,11 +545,13 @@ check; no improvement in task success or savings has been measured here.
   finished worktree with `git worktree remove <path>` when its changes are safe to discard.
   Before creating a worktree, ccx fetches only the current branch's upstream (default `[worktree] fetch = true`,
   `fetch_timeout = 15` seconds), warns if the local branch is behind, and still starts from the local HEAD;
-  a failed or timed-out fetch prints one warning and does not stop the run.
+  a failed or timed-out fetch prints one warning and does not stop the run; timeouts stop Git and its helper
+  processes together. Upstream lookup uses the full branch reference even when a tag has the same name.
   Set `ccx config set worktree.fetch false` to skip the network request (distance then uses the cached upstream),
   or `ccx config set worktree.fetch_timeout 30` to change the timeout.
   The run receipt records `base_behind` when the distance is known (including zero; omitted without an upstream
-  or after a failed fetch); it appears in `ccx show --full`, not the compact output.
+  or after a failed fetch), and results retain this field, including the lead's one-line output.
+  When behind, the lead's recap adds `base: N behind upstream`, including `--bg --wait` and `ccx show <id> --wait`.
   Both layouts are recognized in run results, queues and acceptance, lane commits, automatic merging, check-trust
   grouping and UI project grouping, even after the setting changes. Inside placement is experimental: checked
   with fake agent CLIs and Git, not yet with real agent CLIs or Codex project trust inheritance.

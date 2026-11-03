@@ -26,7 +26,7 @@ python -m pytest -q tests            # 每次提交前都必须全部通过
 - **每个改动都带测试。** 修 bug 要附一个没有这个修复就会失败的测试。
 - **核心功能不丢。** 不删命令或选项；改到某个命令的 PR 用一行写清保留了什么、怎么验证的。没真跑过的路径在说明处标“实验性”。
 - **仓库里不放个人内容**：不放名字、本机路径、邮箱、机器名或数据。个人的东西放在用户自己的 hub 里。每次 push 都会用 `tests/test_repo_hygiene.py` 检查所有跟踪的文件（文本，以及图片里的字符串）；截图还要自己看一眼，画在像素里的路径查不出来。
-- **文档两种语言**：`x.md`（英文）和 `x.zh.md`（中文），互相链接。真正的决定写进 `docs/DECISIONS.md`。
+- **文档两种语言**：`x.md`（英文）和 `x.zh.md`（中文），互相链接。真正的决定写进 `changes/<PR>.decision.md`，发版时折入 `docs/DECISIONS.md`（见 [changes/README.zh.md](changes/README.zh.md)）。仍可直接改 `docs/DECISIONS.md`，但并行 PR 会在这里冲突。
 - **每个 PR 一个变更说明**：加一个 `changes/<PR 编号>.md`，写要进 CHANGELOG 的内容，不直接改 `CHANGELOG.md`（见 [changes/README.zh.md](changes/README.zh.md)）；发版时统一合进去，并行的 PR 就不会冲突。`docs/STATUS.md` 由维护者更新。
 - **核对外部事实**：依赖的参数、事件字段或价格，都要用 `--help` 或官方文档确认，并写明核对的版本（`ccx/runners.py` 里的 `TESTED_VERSIONS`，[docs/measured.zh.md](docs/measured.zh.md) 的“已核对的外部事实”）。
 - **不碰账号凭据**，也不改工具配置里 ccx 标记块以外的地方。

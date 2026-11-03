@@ -74,14 +74,20 @@ def _worktree_lock(root: Path) -> threading.Lock:
 def _worktree_base_behind(root: Path, cfg: dict) -> int | None:
     """Refresh just this upstream and report its distance; a fetch failure leaves the distance unknown."""
     from .config import worktree_fetch, worktree_fetch_timeout
+    from .runners import group_flags, kill_tree
 
     fetch, timeout = worktree_fetch(cfg), worktree_fetch_timeout(cfg)
     if not (root / ".git").exists() and not os.environ.get("GIT_DIR"):
         return None
-    rc, upstream = _git(root, "rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}")
+    rc, ref = _git(root, "symbolic-ref", "--quiet", "HEAD")
     if rc != 0:
         return None
-    rc, branch = _git(root, "symbolic-ref", "--quiet", "--short", "HEAD")
+    branch = ref.removeprefix("refs/heads/")
+    # Git does not accept refs/heads/<branch>@{u}; resolve its full upstream ref without short-name lookup.
+    rc, upstream_ref = _git(root, "for-each-ref", "--format=%(upstream)", ref)
+    if rc != 0 or not upstream_ref:
+        return None
+    rc, upstream = _git(root, "rev-parse", "--abbrev-ref", "--symbolic-full-name", upstream_ref)
     if rc != 0:
         return None
     if fetch:
@@ -92,12 +98,20 @@ def _worktree_base_behind(root: Path, cfg: dict) -> int | None:
         remote_branch = merge.removeprefix("refs/heads/")
         error = ""
         try:
-            r = subprocess.run(["git", "fetch", "--", remote, remote_branch], cwd=root,
-                               capture_output=True, text=True, encoding="utf-8", errors="replace",
-                               stdin=subprocess.DEVNULL, timeout=timeout,
-                               env={**os.environ, "GIT_TERMINAL_PROMPT": "0"})
-            if r.returncode != 0:
-                error = next(iter((r.stderr or "").strip().splitlines()), f"exit {r.returncode}")
+            proc = subprocess.Popen(["git", "fetch", "--", remote, remote_branch], cwd=root,
+                                    stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+                                    encoding="utf-8", errors="replace", stdin=subprocess.DEVNULL,
+                                    env={**os.environ, "GIT_TERMINAL_PROMPT": "0"}, **group_flags())
+            try:
+                _, stderr = proc.communicate(timeout=timeout)
+            except subprocess.TimeoutExpired:
+                if not kill_tree(proc.pid):
+                    proc.kill()
+                # Bound the drain too if a helper could not be stopped and still owns a pipe.
+                proc.communicate(timeout=5)
+                raise
+            if proc.returncode != 0:
+                error = next(iter((stderr or "").strip().splitlines()), f"exit {proc.returncode}")
         except subprocess.TimeoutExpired:
             error = f"timed out after {timeout}s"
         except OSError as e:
@@ -106,7 +120,7 @@ def _worktree_base_behind(root: Path, cfg: dict) -> int | None:
             print(f"ccx: warning: git fetch {remote} {remote_branch} failed: {error}; "
                   "continuing from local HEAD", file=sys.stderr)
             return None
-    rc, count = _git(root, "rev-list", "--count", "HEAD..@{u}")
+    rc, count = _git(root, "rev-list", "--count", f"HEAD..{upstream_ref}")
     if rc != 0 or not count.isdigit():
         return None
     behind = int(count)

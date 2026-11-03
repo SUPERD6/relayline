@@ -1397,6 +1397,8 @@ def compact(record: dict) -> dict:
     }
     if record.get("diffstat"):
         out["diffstat"] = record["diffstat"]          # `git diff --shortstat` since the run's undo snapshot
+    if "base_behind" in record:
+        out["base_behind"] = record["base_behind"]
     if record.get("quota_fallback"):
         out["quota_fallback"] = record["quota_fallback"]
     if record.get("quota_stop"):

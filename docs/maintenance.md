@@ -140,8 +140,9 @@ Until then, treat a round started next to other sessions as supplementary, as th
 
 ## 5. Releasing
 
-1. `python scripts/collect_changes.py` previews the CHANGELOG entry from `changes/*.md`; with `--version X.Y.Z
-   --title "..." --apply` it writes it and removes the notes.
+1. `python scripts/collect_changes.py` previews the CHANGELOG entry from `changes/<PR>.md` and decision rows from
+   `changes/<PR>.decision.md` for `docs/DECISIONS.md`; with `--version X.Y.Z --title "..." --apply` it writes both
+   documents and removes the folded notes.
 2. Bump the version in `ccx/__init__.py`, `pyproject.toml`, `.claude-plugin/plugin.json` and
    `.codex-plugin/plugin.json`; update [STATUS](STATUS.md) (one page, both languages).
 3. Tag `vX.Y.Z`; the full CI matrix runs on tags. Publishing (GitHub release, PyPI) is the maintainer's decision.
@@ -170,8 +171,8 @@ Dollar amounts are planning estimates, not measured spend or subscription charge
 | Candidate | Prerequisites | Estimated cost | Where the decision rule lives |
 |---|---|---|---|
 | P0-10 external-repository benchmark | Pin the candidate; select new external issues and hidden repository tests; register the arms and use a quiet, separate clone | about $15 for one round | Local release-plan §9 / §11 defines scope; a dedicated public plan with a decision rule is still needed |
-| P0-7 five large-task groups | Register tasks, independent pieces, hidden tests and merged-tree checks; freeze the five arms before running | about $12 in §11 (the earlier §7 / §10 estimates were $8–10 plus $4) | Local release-plan §7 / §10: correctness, wall time, spend, conflicts, rework and lead turns; a dedicated rule for the final five arms is still needed |
+| P0-7 five large-task groups | Register tasks, independent pieces, hidden tests and merged-tree checks; freeze the five arms before running | about $12 in §11 (the earlier §2 / §8 estimates were $8–10, plus $4 in §10) | Local release-plan §2 (P0 additions) / §8 / §10: correctness, wall time, spend, conflicts, rework and lead turns; a dedicated rule for the final five arms is still needed |
 | P0-13 discuss A/B | Register design tasks, with/without-discussion arms and independent judging; approve the paid run separately | about $2 | Local release-plan §9 states the question; a dedicated plan and correctness rule are still needed |
 | P0-14 tier matrix | Pin save / balanced / fast settings; register the hold-out and large-task sets, arms and checks | about $10 | Local release-plan §10 / §11 names correctness, cost per success and wall time; register the matrix rule before running |
-| B3 switch measurements | Freeze functionality and daily snapshots; check applied switches and clean paired rows, on a quiet machine | about $7.2 in §11 for the pending fewer-runs batch | [B3 registered plan](research/2026-10-30-b3-lean-switches-plan.md), including “Fewer runs”; retain Unknown / Fail in the [existing report](research/2026-10-31-b3-lean-switches.md) |
+| B3 switch measurements | Freeze functionality and daily snapshots; check applied switches and clean paired rows, on a quiet machine | about $10; use the registration made before the run | [B3 registered plan](research/2026-10-30-b3-lean-switches-plan.md), including “Fewer runs”; retain Unknown / Fail in the [existing report](research/2026-10-31-b3-lean-switches.md) |
 | P0-17 real quota-limit recovery | Wait for a natural limit; have another logged-in eligible vendor; capture the stop, reset, retry and receipt | $0 allocated in §13; actual retry/probe usage is unknown | Local release-plan §13 / §14 requires live recovery evidence; register the trial checklist first; fake-only checks and the probe cost target are not live validation |
