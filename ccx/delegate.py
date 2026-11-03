@@ -532,6 +532,7 @@ def run(req: Request, p: Paths) -> dict:
 
     cwd = req.cwd.resolve()
     stale_base = None
+    base_info = {}
     if req.worktree and req.mode == "write" and not prev:
         try:              # a worktree starts from HEAD: say so when the project has work it will not see
             from . import gitstate
@@ -539,7 +540,7 @@ def run(req: Request, p: Paths) -> dict:
                 stale_base = gitstate.BASE_NOTE
         except Exception:  # noqa: BLE001 — a note only; never stops the run
             stale_base = None
-        cwd = make_worktree(cwd, run_id)
+        cwd = make_worktree(cwd, run_id, base_info=base_info)
 
     ctx = _project_context(cwd)
     # "read-only" alone made gpt-6-luna/low answer once that it had no tool to read files (E8 run, 2026-10-24)
@@ -649,6 +650,7 @@ def run(req: Request, p: Paths) -> dict:
         "subagent_switches": switches,         # [subagent]: what this run's sub-agent loaded (ledger / eval group by it)
         **({"parallel_fork_turns": fork_turns} if fork_turns else {}),
         **({"base_note": stale_base} if stale_base else {}),
+        **base_info,
     }
     _write_record(run_dir, record)          # visible to `ccx show` at once (background runs, crashes)
     board_run({**record, "label": req.label or req.brief}, "started")      # as the UI shows it: what was asked

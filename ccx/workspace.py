@@ -71,7 +71,53 @@ def _worktree_lock(root: Path) -> threading.Lock:
         return _WT_LOCKS.setdefault(key, threading.Lock())
 
 
-def make_worktree(cwd: Path, run_id: str, tries: int = 3) -> Path:
+def _worktree_base_behind(root: Path, cfg: dict) -> int | None:
+    """Refresh just this upstream and report its distance; a fetch failure leaves the distance unknown."""
+    from .config import worktree_fetch, worktree_fetch_timeout
+
+    fetch, timeout = worktree_fetch(cfg), worktree_fetch_timeout(cfg)
+    if not (root / ".git").exists() and not os.environ.get("GIT_DIR"):
+        return None
+    rc, upstream = _git(root, "rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}")
+    if rc != 0:
+        return None
+    rc, branch = _git(root, "symbolic-ref", "--quiet", "--short", "HEAD")
+    if rc != 0:
+        return None
+    if fetch:
+        rc, remote = _git(root, "config", "--get", f"branch.{branch}.remote")
+        merge_rc, merge = _git(root, "config", "--get", f"branch.{branch}.merge")
+        if rc != 0 or merge_rc != 0:
+            return None
+        remote_branch = merge.removeprefix("refs/heads/")
+        error = ""
+        try:
+            r = subprocess.run(["git", "fetch", "--", remote, remote_branch], cwd=root,
+                               capture_output=True, text=True, encoding="utf-8", errors="replace",
+                               stdin=subprocess.DEVNULL, timeout=timeout,
+                               env={**os.environ, "GIT_TERMINAL_PROMPT": "0"})
+            if r.returncode != 0:
+                error = next(iter((r.stderr or "").strip().splitlines()), f"exit {r.returncode}")
+        except subprocess.TimeoutExpired:
+            error = f"timed out after {timeout}s"
+        except OSError as e:
+            error = next(iter(str(e).splitlines()), type(e).__name__)
+        if error:
+            print(f"ccx: warning: git fetch {remote} {remote_branch} failed: {error}; "
+                  "continuing from local HEAD", file=sys.stderr)
+            return None
+    rc, count = _git(root, "rev-list", "--count", "HEAD..@{u}")
+    if rc != 0 or not count.isdigit():
+        return None
+    behind = int(count)
+    if behind > 0:
+        print(f"ccx: warning: {branch} is {behind} commit(s) behind {upstream}; "
+              "the worktree starts from the local HEAD (git pull first if you want the newer base)",
+              file=sys.stderr)
+    return behind
+
+
+def make_worktree(cwd: Path, run_id: str, tries: int = 3, *, base_info: dict | None = None) -> Path:
     """A new worktree on branch ccx/<run_id> in the configured location (beside the repo by default).
     Threads of this process (the writers of one `ccx q run`
     or `ccx batch`) add theirs one at a time, so they never meet git's race above. Another process (a second ccx, a
@@ -83,7 +129,11 @@ def make_worktree(cwd: Path, run_id: str, tries: int = 3) -> Path:
     if top.returncode != 0:
         raise RuntimeError("--worktree needs a git repository")
     root = canonical(top.stdout.strip())
-    location = worktree_location(load_config())
+    cfg = load_config()
+    location = worktree_location(cfg)
+    behind = _worktree_base_behind(root, cfg)
+    if base_info is not None and behind is not None:
+        base_info["base_behind"] = behind
     wt = worktree_path(root, run_id, location)
     if location == "inside":
         if _git(root, "check-ignore", "-q", ".ccx/")[0] != 0:

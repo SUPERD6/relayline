@@ -543,6 +543,13 @@ check; no improvement in task success or savings has been measured here.
   `--skip-git-repo-check`). `ccx doctor` shows the selected placement. Existing runs keep their recorded paths, so
   changing the setting does not move them or change where undo, stop, resume or session archiving act; remove a
   finished worktree with `git worktree remove <path>` when its changes are safe to discard.
+  Before creating a worktree, ccx fetches only the current branch's upstream (default `[worktree] fetch = true`,
+  `fetch_timeout = 15` seconds), warns if the local branch is behind, and still starts from the local HEAD;
+  a failed or timed-out fetch prints one warning and does not stop the run.
+  Set `ccx config set worktree.fetch false` to skip the network request (distance then uses the cached upstream),
+  or `ccx config set worktree.fetch_timeout 30` to change the timeout.
+  The run receipt records `base_behind` when the distance is known (including zero; omitted without an upstream
+  or after a failed fetch); it appears in `ccx show --full`, not the compact output.
   Both layouts are recognized in run results, queues and acceptance, lane commits, automatic merging, check-trust
   grouping and UI project grouping, even after the setting changes. Inside placement is experimental: checked
   with fake agent CLIs and Git, not yet with real agent CLIs or Codex project trust inheritance.
