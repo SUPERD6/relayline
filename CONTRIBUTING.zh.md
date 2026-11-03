@@ -24,6 +24,7 @@ python -m pytest -q tests            # 每次提交前都必须全部通过
 ## 规则
 
 - **每个改动都带测试。** 修 bug 要附一个没有这个修复就会失败的测试。
+- **路径比较统一经过 `workspace.canonical()`。** 本仓库的代码在比较、打印或将路径存入运行记录前先用它处理；测试期望值也用它构造，不用裸 `tmp_path`。macOS 的 `/var` 是指向 `/private/var` 的符号链接；Windows 有 8.3 短名和 `\\?\` 前缀。CI 在 Linux、Windows 和 macOS 三个平台都跑，不能只依赖本机的路径写法。
 - **核心功能不丢。** 不删命令或选项；改到某个命令的 PR 用一行写清保留了什么、怎么验证的。没真跑过的路径在说明处标“实验性”。
 - **仓库里不放个人内容**：不放名字、本机路径、邮箱、机器名或数据。个人的东西放在用户自己的 hub 里。每次 push 都会用 `tests/test_repo_hygiene.py` 检查所有跟踪的文件（文本，以及图片里的字符串）；截图还要自己看一眼，画在像素里的路径查不出来。
 - **文档两种语言**：`x.md`（英文）和 `x.zh.md`（中文），互相链接。真正的决定写进 `changes/<PR>.decision.md`，发版时折入 `docs/DECISIONS.md`（见 [changes/README.zh.md](changes/README.zh.md)）。仍可直接改 `docs/DECISIONS.md`，但并行 PR 会在这里冲突。
