@@ -1,0 +1,1 @@
+| 2026-11-03 | Receipt agent/model/effort identify the final executor; requested_agent/requested_model retain the initial pick | 收据 agent/model/effort 表示最终执行者；requested_agent/requested_model 保留原始选择 | Keep attribution honest after reassignment and tolerate old records / 改派后归属如实且兼容旧记录 | ccx/delegate.py; ccx/leadview.py |

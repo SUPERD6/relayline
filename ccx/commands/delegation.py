@@ -485,7 +485,8 @@ def _cmd_run(a) -> int:
         res["continued_from"] = prev          # same sub-session: it remembers the earlier task(s)
     res["route"] = {k: v for k, v in route.items() if k in ("source", "b", "rung", "p", "chain_p", "tier",
                                                               "stale", "mode", "trial", "cheaper_self", "role",
-                                                              "role_effort_auto", "role_fallback")}
+                                                              "role_effort_auto", "role_fallback", "why", "rubric",
+                                                              "difficulty", "role_effort_reason")}
     if proj:
         res["project"] = {k: proj[k] for k in ("name", "path", "approval_rules") if proj.get(k)}
     if auto:

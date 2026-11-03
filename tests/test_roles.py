@@ -176,6 +176,36 @@ class TestRoleCommands(Env):
         assert route['rung'] == run['route']['rung']
         assert '强度按难度' in route['role_note']
 
+    def test_auto_effort_evidence_survives_run_record_and_compact_show(self):
+        configure(Paths(self.hub), self.work)
+        out = self.json('run', '--role', 'build', '--files', '9', '--coupling', 'system', '--clarity', 'unknown',
+                        '--risk', 'critical', '--novelty', 'new', '--mode', 'read', '--review', 'off',
+                        '--no-escalate', '--no-fallback', '--from', 'user', 'Read the parser')
+        route = out['route']
+        note = route['role_effort_reason']
+        effort = route['rung'].rsplit(':', 1)[-1]
+        assert note.startswith(f'effort=auto → {effort}: difficulty b=10')
+        for trigger in ('files=9', 'coupling=system', 'clarity=unknown', 'risk=critical', 'novelty=new'):
+            assert trigger in note
+        assert 'rubric' in route and 'difficulty' in route and note in out['role_receipt']
+        saved = ledger.load_run(Paths(self.hub), out['run_id'])['route']
+        assert saved['role_effort_reason'] == note
+        for flags in ((), ('--wait', '5')):
+            shown = self.json('show', out['run_id'], *flags)
+            assert shown['route']['role_effort_reason'] == note
+            assert note in shown['role_receipt']
+
+    def test_auto_keyword_evidence_keeps_score_and_trigger_names(self):
+        configure(Paths(self.hub), self.work)
+        out = self.json('run', '--role', 'build', '--mode', 'read', '--review', 'off',
+                        '--no-escalate', '--no-fallback', '--from', 'user', 'Read and design a security architecture')
+        route = out['route']
+        why = route['why']
+        assert f"score={why['score']}" in route['role_effort_reason']
+        for reason in why['reasons']:
+            assert reason in route['role_effort_reason']
+        assert self.json('show', out['run_id'])['route']['why'] == why
+
     def test_empty_config_keeps_null_role_in_record_only(self):
         assert self.json('roles')['roles'] == []
         out = self.json('run', '--to', 'codex', '--tier', 'T1', '--mode', 'read', 'Read the parser')

@@ -183,6 +183,16 @@ def _result(rec: dict, asked: str, rid: str, full: bool) -> dict:
     if full:
         return rec
     res = compact(rec)
+    route = rec.get("route") or {}
+    if route.get("role"):
+        from .. import roles
+        res.update(role=route["role"], role_receipt=roles.receipt(route))
+        res["route"] = {key: route[key] for key in ("role", "source", "rung", "b", "tier", "why", "rubric",
+                                                  "difficulty", "role_effort_auto", "role_effort_reason")
+                        if key in route}
+        auto = roles.effort_receipt(route)
+        if auto:
+            res["route"]["role_effort_reason"] = auto
     if rid != asked:
         res["chain"] = f"{asked} -> {rid}"          # the review fix round's result is the final one
     res["recap"] = recap(rec, res)
@@ -233,7 +243,7 @@ def cmd_show(a) -> int:
             print(f"\nlogs of {run_id}: {p.runs / run_id}")
         print(f"\nlogs: {p.runs / rid}")
         return 0
-    res = _result(rec, run_id, rid, False) if rid != run_id else compact(rec)   # as --wait reports the chain
+    res = _result(rec, run_id, rid, False)           # as --wait reports the chain, including role evidence
     if fix_round_due(p, rec):
         # the review found problems and its fix round is about to start: this record is not the result yet
         res.update(ok=False, fix_round="starting", next=f"ccx show {run_id} --wait")
@@ -241,6 +251,7 @@ def cmd_show(a) -> int:
         # the fix round has ended; its parent adds review_of, first_review and cost_chain a moment later (the gap
         # RunWaiter's tag_due waits out)
         res.update(ok=False, fix_round="finishing", next=f"ccx show {run_id} --wait")
+    res["recap"] = recap(rec, res)                # pending fix-round flags must agree with the printed recap
     _out(res)
     return 0
 
