@@ -1,6 +1,7 @@
 """P0-12: fake ledgers, public measurements and actual command/API wiring; never run an agent CLI."""
 from __future__ import annotations
 
+import hashlib
 import http.client
 import json
 import os
@@ -15,7 +16,7 @@ import pytest
 
 from ccx import ability, cli, ledger, ui
 from ccx.commands import delegation
-from ccx.config import Paths
+from ccx.config import Paths, load_config
 
 REPO = Path(__file__).resolve().parents[1]
 
@@ -245,6 +246,33 @@ def test_additive_cost_fields_backfill_existing_cache_without_rereading_runs(p):
         assert read.call_count == 0
     assert cell["usd_per_success_all"] == 1 and cell["median_usd_per_success"] == 1
     assert ability.refresh(p) == ability.refresh(p, rebuild=True)
+
+
+def test_legacy_fingerprint_with_null_stopped_sample_migrates_recorded_cost(p):
+    add(p, "right", verdict={"ok": True}, ae_usd=1)
+    legacy = ability.refresh(p)
+    add(p, "stopped", kind="max_usd", ok=False, verdict={"ok": False}, ae_usd=9)
+    legacy["entries"]["stopped"] = {"stamp": "", "sample": None}
+    cfg = load_config(p)
+    for rid, row in ledger.runs_by_id(ledger.rows(p)).items():
+        # Exact pre-upgrade fingerprint: no all_run_costs marker, verify event or metadata files.
+        legacy["entries"][rid]["stamp"] = hashlib.sha256(json.dumps(
+            [row, None, cfg.get("providers"), sorted(ability.NOT_WRONG), None, None],
+            sort_keys=True).encode("utf-8")).hexdigest()
+    before = dict(legacy["cells"][0])
+    assert before["spend_all_usd"] == 1 and legacy["entries"]["stopped"]["sample"] is None
+    (p.state / "ability.json").write_text(json.dumps(legacy), encoding="utf-8")
+
+    migrated = ability.refresh(p)
+    cell = migrated["cells"][0]
+    assert migrated["entries"]["stopped"]["stamp"] != legacy["entries"]["stopped"]["stamp"]
+    assert migrated["entries"]["stopped"]["sample"]["ae_usd"] == 9
+    assert cell["spend_all_usd"] == 10 and cell["usd_per_success_all"] == 10
+    assert (cell["n"], cell["right_n"], cell["failed"], cell["success_rate"]) == (1, 1, 0, 1)
+    assert cell["median_usd_per_success"] == 1
+    for field in ("n", "ok", "failed", "success_rate", "median_usd_per_success", "cost_medians",
+                  "median_wall_s", "wall_n", "ok_self_checked", "unverified", "efforts", "updated"):
+        assert cell[field] == before[field]
 
 
 def test_cost_fields_and_explanation_through_command_outside_repository(tmp_path, p):
