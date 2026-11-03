@@ -138,6 +138,12 @@ python -m pytest -q tests        # 或 python -m unittest discover -s tests
 
 ## 已核对的外部事实（2026-10-22/24）
 
+- **真实配额样本（2026-11-03 导入）**：`tests/data/real_signals/` 保存了本地 hub 的 Claude Code 2.1.316
+  stream-json 拒绝事件 `ccx/runs/20261031-223738-d679/events.0.log:6-8`（本地 2026-10-31 / UTC 2026-11-01）、
+  `ccx/quota-refresh.jsonl:1-4` 的四次探针成本（UTC 2026-11-01 至 03；每次 $0.0001826–$0.000185，均低于 $0.005），
+  以及 `ccx/quota.jsonl:393-394,401-402,411-414` 的对应窗口读数。回放检查分类、一次改派、重置时间收据和历史时刻的 CLI
+  预测计算；真实自动改派仍未验证。扫描 477 份事件日志（271 份识别为 Codex）未找到真实 Codex 限额错误，其 429 覆盖仍为
+  **synthetic**。会话、事件、消息、请求 ID 已替换，字段结构、拒绝原文、时间戳与成本保留；选中行不含路径、机器名或邮箱。
 - codex-cli 0.164.0 `exec --help`：`--json`、`-m`、`-c`、`--output-schema`、`-o`、`--ignore-user-config`、`--ephemeral`、`exec resume <id>`（resume 不接受 `-s`，所以沙箱统一用 `-c sandbox_mode=…`）；精简启动（`--ignore-user-config`）必须带上用户的 `windows.sandbox`，否则 Windows 上只读模式会拒绝所有命令
 - Claude Code 2.1.309 `--help`：`-p --output-format json|stream-json`（stream-json 必须加 `--verbose`）、`--model`、`--effort low..max`、`--json-schema`、`--resume`、`--strict-mcp-config`；实测：第一条事件带 session_id，最后的 result 事件带 `structured_output`、`usage`、`total_cost_usd`；`--resume` 报的是单次用量；默认参数无头启动约 4.6 万 token，写入 1 小时缓存；用 ccx 的精简参数约 2 万，一小时内再次启动（哪个项目都行）只新写入约 650–2000 token
 - OpenAI GPT-6 文档：`gpt-6-astra` / `gpt-6.1-sol` / `gpt-6-luna`；6.1-sol 的 effort 为 low/medium/high/xhigh/max
