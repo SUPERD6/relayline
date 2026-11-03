@@ -16,7 +16,7 @@
   let RUNPAGE_NO = 0;
   let CHATDRAFT = "", CHATPROJECT = "", CHATPREP = null, CHATRESULT = null;
   let CHATGEN = 0;
-  let CHATROLES = [], CHATROLEPROJECT = "";
+  let CHATROLES = [], CHATROLEPROJECT = "", CHATROLE = "", CHATMODE = "";
   /* DeepSeek's own agent is shown with its command name (ccx handoff --to dsh, or deepseek); `deepseek` alone is
      the deepseek provider (Claude Code on DeepSeek's API) in run records, the DeepSeek session on the board */
   const KNOWN = {claude: "Claude", codex: "Codex", deepseek: "DeepSeek", dsh: "DeepSeek (dsh)", gemini: "Gemini"};
@@ -122,15 +122,16 @@
     if (!q.length) return `<div class="qnote">${t("q_none")}</div>`;
     return q.map(w => {
       const used = w.used == null ? null : Math.round(w.used * 100), pj = w.projected == null ? null : Math.round(w.projected * 100);
-      const win = w.minutes === 300 || w.window === "five_hour" ? t("w_5h") : w.minutes === 10080 || w.window === "seven_day" ? t("w_7d") : w.minutes ? t("w_min", {n: Math.round(w.minutes / 60)}) : esc(w.window);
+      const win = w.minutes === 300 || w.window === "five_hour" ? t("w_5h") : w.minutes === 10080 || w.window === "seven_day" ? t("w_7d") : w.minutes ? t("w_min", {n: Math.round(w.minutes / 60)}) : esc(w.window || "");
       let note = "";
-      if (used == null) note = t("q_reset");
+      if (used == null) note = t("q_unknown") + (w.window ? " · " + t("q_reset") : "");
       else if (w.note) note = t("q_early");
       else note = `<span class="${pj > 100 ? "fail" : ""}">${t("q_proj", {p: pj})}</span>`;
-      const reset = w.resets_at ? t("q_resets", {at: clock(w.resets_at)}) : "";
-      return `<div class="qrow"><span>${esc(agentName(w.agent))} · ${win}</span><span>${used == null ? "—" : used + "%"}</span></div>
+      const reset = w.resets_at ? t("q_resets", {at: clock(w.resets_at)}) : t("q_reset_unknown");
+      const age = w.freshness == null ? t("q_age_unknown") : t("q_age", {n: Math.floor(w.freshness)});
+      return `<div class="quota-window${w.stale ? " quota-stale" : ""}"><div class="qrow"><span>${esc(agentName(w.agent))}${win ? " · " + win : ""}</span><span>${used == null ? "Unknown" : used + "%"}</span></div>
         <div class="qbar"><i style="width:${Math.min(100, used || 0)}%"></i>${pj != null && !w.note ? `<span class="pj" style="left:calc(${Math.min(100, pj)}% - 2px)"></span>` : ""}</div>
-        <div class="qnote">${note}${reset ? " · " + reset : ""}</div>`;
+        <div class="qnote">${note} · ${reset}<br>${age}${w.stale ? " · " + t("q_stale") : ""}${w.error ? `<br><span class="fail">${t("q_probe_error", {e: w.error})}</span>` : ""}</div></div>`;
     }).join("");
   }
   function renderSide(route) {
@@ -171,7 +172,7 @@
       if (!pmatch && !inner) continue;
       h += `<a class="proj ${route[0] === pr.id && !route[1] ? "cur" : ""}" href="${href([pr.id])}" title="${esc(pr.path)}">▾ ${esc(pr.name)}${need ? `<span class="badge">${need}</span>` : ""}</a>` + inner;
     }
-    h += `</nav><div class="foot"><div>${t("quota")}</div>${quotaHTML()}
+    h += `</nav><div class="foot" id="quota-panel"><div>${t("quota")}</div>${quotaHTML()}
       <div class="tools"><button data-do="lang">${t("lang_other")}</button><button data-do="theme">${t("theme")}</button>
       <button data-do="tests" aria-pressed="${TESTS}">${TESTS ? t("tests_hide") : t("tests_show", {n: HIDDEN})}</button></div></div>`;
     const side = $("side");
@@ -204,7 +205,7 @@
       walk(tk.pieces, (p, ch) => { if (p.status === "run") running++; if (p.act) todos.push({pr, tk, p, ch}); });
     }
     const ct = convTodos();
-    let h = banner() + `<h1>${t("ov_title")}</h1>`;
+    let h = banner() + `<h1>${t("ov_title")}</h1>` + todayHTML();
     if (!tasks) {
       h += `<p class="lead">${t("empty")}</p>` + startHTML() + (ct.length ? `<h2>${t("todo_all")}</h2><div class="todo">${convTodoHTML(ct)}</div>` : "")
         + sugHTML() + leadsHTML() + discRecentHTML() + othersHTML() + weekHTML();
@@ -320,6 +321,14 @@
     let h = `<h2>${t("worth")}</h2>` + monthSpentHTML() + `<p class="stat">${t("week_spent", {u: usd(w.usd || 0), n: w.runs || 0})}${w.cash_usd ? " " + t("week_cash", {u: usd(w.cash_usd)}) : ""}</p>` + monthSavingHTML();
     return h + trackHTML();
   }
+  function todayHTML() {
+    const d = D && D.today;
+    if (!d) return "";
+    const amount = t("today_spend", {u: usd(d.usd || 0), n: d.runs || 0});
+    const units = D.billing && D.billing.mode === "subscription" ? " · " + t("today_units", {n: tok(d.quota_units)}) : "";
+    const quotas = ((D && D.quota) || []).map(w => `${esc(agentName(w.agent))}${w.window ? " " + esc(w.window) : ""}: ${w.used == null ? "Unknown" : Math.round(w.used * 100) + "%"}${w.stale ? " (" + t("q_stale") + ")" : ""}`).join(" · ");
+    return `<section class="today" aria-label="${t("today_title")}"><b>${t("today_title")}</b> <a href="#/tokens?period=today">${amount}${units}</a> · <a href="#/all">${t("today_waiting", {n: d.waiting})}</a><br><a href="#/quota">${quotas || t("q_none")}</a><small>${t("today_basis")}</small></section>`;
+  }
   /* H9: who is right the first time, per kind of work (judged pieces only) */
   function trackHTML() {
     const tr = (D && D.track) || {}, rows = [];
@@ -361,7 +370,7 @@
     if (!ms.length) return renderOverview();          /* nothing worked on yet: the overview's first steps */
     const m = ms.find(x => x.id === pid) || ms.find(x => x.id === MAPPID) || busiest(ms), pr = findProject(m.id);
     MAPPID = m.id;                                    /* the next poll keeps this project, it never jumps */
-    let h = banner() + `<h1>${t("map_title", {p: m.name})}</h1><p class="lead">${t("map_intro")}</p>`;
+    let h = banner() + `<h1>${t("map_title", {p: m.name})}</h1>` + todayHTML() + `<p class="lead">${t("map_intro")}</p>`;
     if (ms.length > 1) h += `<nav class="mapproj" aria-label="${esc(t("projects"))}">` + ms.map(x =>
       `<a class="chip${x.id === m.id ? " cur" : ""}" href="${mapHref(x.id)}"${x.id === m.id ? ` aria-current="page"` : ""}>${esc(x.name)}</a>`).join("") + `</nav>`;
     return h + mapWaitHTML() + `<div class="map"><section class="m-top">${mapSpendHTML(m)}</section>`
@@ -1220,6 +1229,17 @@
   /* ---------- complete run pages and the confirmed command composer ---------- */
   const runHref = rid => "/runs/" + encodeURIComponent(rid);
   function runText(x) { return `<pre class="run-text">${esc(x && x.text || "")}</pre>${x && x.cut ? `<p>${t("runs_cut")}</p>` : ""}`; }
+  function runStatus(r) {
+    const cap = r.max_usd && (typeof r.max_usd === "number" ? r.max_usd : r.max_usd.cap);
+    const before = r.max_usd && r.max_usd.stopped_before;
+    let status = r.max_usd ? t(before && before !== "review" ? "runs_budget_step" : "runs_budget_stop", {
+      u: typeof cap === "number" ? usd(cap) : t("runs_unknown"),
+      step: before === "attempt" ? t("runs_next_attempt") : before === "fix round" ? t("runs_fix_round") : before})
+      : r.review_error ? t("runs_review_error", {e: r.review_error}) : esc(r.status);
+    if (r.max_usd && r.review_error) status += `<br>${t("runs_review_error", {e: r.review_error})}`;
+    for (const move of r.substitutions || []) status += `<br>${t(move.reason === "quota" ? "runs_substitution" : "runs_substitution_other", {from: move.from, to: move.to})}`;
+    return status;
+  }
   function runValue(v) { return v == null ? t("runs_unknown") : typeof v === "object" ? JSON.stringify(v, null, 2) : String(v); }
   async function loadRuns(rid, force) {
     if (SNAP || RUNBUSY || (!force && Date.now() - RUNSTAMP < 5000)) return false;
@@ -1244,14 +1264,14 @@
   function runListHTML() {
     if (!RUNLIST && !RUNBUSY && !RUNERR && !SNAP) loadRuns(null, true).then(render);
     const projects = RUNLIST && RUNLIST.projects || [];
-    const statuses = ["running", "ok", "ok_self_checked", "review_failed", "review_issues", "blocked", "over_budget", "quota", "env", "failed", "user_stopped", "timeout"];
+    const statuses = ["running", "ok", "ok_self_checked", "review_failed", "review_issues", "review_error", "max_usd", "blocked", "over_budget", "quota", "env", "failed", "user_stopped", "timeout"];
     return banner() + `<h1>${t("runs_nav")}</h1><p>${t("runs_lead")}</p><div class="run-filters">`
       + `<label>${t("runs_project")}<select data-runfilter="project"><option value="">${t("runs_all")}</option>${projects.map(p => `<option value="${esc(p.id)}"${RUNFILTER.project === p.id ? " selected" : ""}>${esc(p.name)}</option>`).join("")}</select></label>`
       + `<label>${t("runs_status")}<select data-runfilter="status"><option value="">${t("runs_all")}</option>${statuses.map(s => `<option${RUNFILTER.status === s ? " selected" : ""}>${esc(s)}</option>`).join("")}</select></label>`
       + ["date", "until"].map(k => `<label>${t(k === "date" ? "runs_from" : "runs_until")}<input type="date" data-runfilter="${k}" value="${esc(RUNFILTER[k])}"></label>`).join("") + `</div>`
       + (RUNERR ? `<p role="alert">${esc(RUNERR)}</p>` : "")
       + `<div class="run-table"><table><thead><tr>${["runs_time", "runs_who", "runs_task", "runs_status", "runs_cost", "runs_wall", "runs_receipt"].map(k => `<th>${t(k)}</th>`).join("")}</tr></thead><tbody>`
-      + ((RUNLIST && RUNLIST.runs) || []).map(r => `<tr><td>${clock(r.ts)}</td><td>${esc(r.from)} → ${esc(r.rung || r.to)}</td><td><a href="${runHref(r.run_id)}">${esc(r.task || r.run_id)}</a><small>${esc(r.project_name)}</small></td><td>${esc(r.status)}</td><td>${usd(r.usd)}</td><td>${dur(r.seconds)}</td><td>${esc(r.summary)}</td></tr>`).join("") + `</tbody></table></div>`
+      + ((RUNLIST && RUNLIST.runs) || []).map(r => `<tr><td>${clock(r.ts)}</td><td>${esc(r.from)} → ${esc(r.rung || r.to)}</td><td><a href="${runHref(r.run_id)}">${esc(r.task || r.run_id)}</a><small>${esc(r.project_name)}</small></td><td>${runStatus(r)}</td><td>${usd(r.usd)}</td><td>${dur(r.seconds)}</td><td>${esc(r.summary)}</td></tr>`).join("") + `</tbody></table></div>`
       + (RUNLIST ? `<nav class="acts" aria-label="${esc(t("runs_pages"))}"><button class="btn" data-run-page="${RUNLIST.page - 1}"${RUNLIST.has_previous ? "" : " disabled"}>${t("runs_previous")}</button><span>${t("runs_page", {n: RUNLIST.page + 1, total: RUNLIST.total})}</span><button class="btn" data-run-page="${RUNLIST.page + 1}"${RUNLIST.has_next ? "" : " disabled"}>${t("runs_next")}</button></nav>` : "");
   }
   function runPageHTML(rid) {
@@ -1261,11 +1281,11 @@
     const r = RUNPAGE && RUNPAGE.run_id === rid ? RUNPAGE : null;
     if (!r) return `<p>${t("conv_loading")}</p>`;
     const c = r.checks || {}, rv = r.review || {}, receipt = r.receipt || {};
-    let h = banner() + `<p><a href="/runs">${t("runs_nav")}</a> › ${esc(rid)}</p><h1>${esc(r.task || rid)}</h1><p>${esc(r.from)} → ${esc(r.rung || r.to)} · ${esc(r.status)}</p>`;
+    let h = banner() + `<p><a href="/runs">${t("runs_nav")}</a> › ${esc(rid)}</p><h1>${esc(r.task || rid)}</h1><p>${esc(r.from)} → ${esc(r.rung || r.to)} · ${runStatus(r)}</p>`;
     h += `<section class="card run-section" id="run-dispatch"><h2>${t("runs_dispatch")}</h2>${runText(r.dispatch.brief)}<h3>${t("runs_context")}</h3>${runText(r.dispatch.context)}<details><summary>${t("runs_prompt")}</summary>${runText(r.dispatch.prompt)}</details></section>`;
     h += `<section class="card run-section" id="run-activity"><h2>${t("runs_activity")}</h2><p class="cost">${t("runs_event_note")}</p><ol class="run-events">${r.activity.events.map(e => `<li><span class="cost">${esc(e.ts || t("runs_unknown"))} · ${esc(e.kind)} · ${esc(e.phase || "")}</span><pre>${esc(e.text)}</pre>${e.kind === "command" ? `<small>${t("runs_exit")}: ${esc(runValue(e.exit_code))}</small>` : ""}${e.output ? `<details><summary>${t("runs_output")}</summary><pre>${esc(e.output)}</pre></details>` : ""}</li>`).join("")}</ol></section>`;
     h += `<section class="card run-section" id="run-checks"><h2>${t("runs_checks")}</h2><pre>${esc(c.cmd || t("runs_unknown"))}</pre><p>${t("runs_exit")}: ${esc(runValue(c.exit))}</p><h3>${t("runs_covers")}</h3><pre>${esc(runValue(c.covers))}</pre><p>basis_changed: ${esc(runValue(c.basis_changed))} · added_to: ${esc(runValue(c.added_to))}</p><pre>${esc(c.tail || "")}</pre></section>`;
-    h += `<section class="card run-section" id="run-review"><h2>${t("runs_review")}</h2><p>${esc(rv.by || t("runs_unknown"))} · ${esc(rv.verdict || t("runs_unknown"))}</p><pre>${esc(rv.summary || "")}</pre>${rv.issues.map(i => `<pre>${esc(runValue(i))}</pre>`).join("")}${(rv.notes || []).map(n => `<pre>${esc(runValue(n))}</pre>`).join("")}<h3>${t("runs_fixes")}</h3><p>${t("runs_round")}: ${esc(runValue(rv.round))}</p>${rv.fixes.map(f => `<p>${f.run_id ? `<a href="${runHref(f.run_id)}">${esc(f.run_id)}</a>` : t("runs_round") + " " + esc(runValue(f.round))} · ${esc(f.kind)}<br>${esc(f.summary)}</p>`).join("")}</section>`;
+    h += `<section class="card run-section" id="run-review"><h2>${t("runs_review")}</h2><p>${rv.error ? t("runs_review_error", {e: rv.error}) : esc(rv.by || t("runs_unknown")) + " · " + esc(rv.verdict || t("runs_unknown"))}</p><pre>${esc(rv.summary || "")}</pre>${rv.issues.map(i => `<pre>${esc(runValue(i))}</pre>`).join("")}${(rv.notes || []).map(n => `<pre>${esc(runValue(n))}</pre>`).join("")}<h3>${t("runs_fixes")}</h3><p>${t("runs_round")}: ${esc(runValue(rv.round))}</p>${rv.fixes.map(f => `<p>${f.run_id ? `<a href="${runHref(f.run_id)}">${esc(f.run_id)}</a>` : t("runs_round") + " " + esc(runValue(f.round))} · ${esc(f.kind)}<br>${esc(f.summary)}</p>`).join("")}</section>`;
     h += `<section class="card run-section" id="run-receipt"><h2>${t("runs_receipt")}</h2><p>${t("runs_cost")}: ${usd(receipt.usd)} · ${t("runs_wall")}: ${dur(receipt.seconds)}</p><pre>${esc(JSON.stringify(receipt, null, 2))}</pre><button class="btn" data-run-diff="${esc(rid)}">${t("runs_diff")}</button> <a href="${judgeHref(rid)}">${t("runs_decide")}</a>${RUNDIFF && RUNDIFF.run_id === rid ? `<pre>${esc(RUNDIFF.diff || t(RUNDIFF.note || "runs_unknown"))}</pre>` : ""}</section>`;
     return h;
   }
@@ -1277,7 +1297,7 @@
     return "/#/all";
   }
   function selectChatProject(pid) {
-    if (pid !== CHATPROJECT) { CHATPROJECT = pid; CHATGEN++; CHATPREP = null; CHATRESULT = null; CHATROLES = []; CHATROLEPROJECT = ""; }
+    if (pid !== CHATPROJECT) { CHATPROJECT = pid; CHATGEN++; CHATPREP = null; CHATRESULT = null; CHATROLES = []; CHATROLEPROJECT = ""; CHATROLE = ""; CHATMODE = ""; }
     if (pid && pid !== CHATROLEPROJECT && !SNAP) {
       CHATROLEPROJECT = pid;
       api("/api/roles?project=" + encodeURIComponent(pid)).then(r => {
@@ -1298,21 +1318,49 @@
     if (CHATGEN !== generation || CHATRESULT !== old) return false;
     CHATRESULT = Object.assign({}, old, result); return true;
   }
+  function roleTask() {
+    const wrapped = /^ccx run --role [A-Za-z][A-Za-z0-9_-]* -- ([\s\S]*)$/.exec(CHATDRAFT);
+    if (wrapped) {
+      const task = JSON.parse(wrapped[1]);
+      if (typeof task !== "string") throw new Error(t("chat_task_string"));
+      return task;
+    }
+    return CHATDRAFT;
+  }
+  async function previewChat() {
+    CHATRESULT = null;
+    const project = CHATPROJECT, text = CHATDRAFT, generation = CHATGEN;
+    const body = CHATROLE ? {project, role: CHATROLE, task: roleTask(), ...(CHATMODE ? {mode: CHATMODE} : {})} : {project, text};
+    const prep = await post("/api/chat/prepare", body);
+    CHATPREP = generation === CHATGEN && project === CHATPROJECT && text === CHATDRAFT ? prep : null;
+  }
+  function chatModeHTML() {
+    if (!CHATPREP || !CHATPREP.role || !CHATPREP.mode_hint) return "";
+    const hint = CHATPREP.mode_hint;
+    return `<label for="chat-mode">${t("chat_mode")}</label><select id="chat-mode">${["read", "write"].map(m => `<option value="${m}"${hint.mode === m ? " selected" : ""}>${t("chat_mode_" + m)}</option>`).join("")}</select><p role="note">${t("chat_mode_" + hint.source, {evidence: hint.evidence})}</p>`;
+  }
   function chatPanel() {
     if (SNAP) return "";
     const projects = D.projects || [];
     if (!CHATPROJECT && projects.length) selectChatProject(projects[0].id);
     const roleButtons = CHATROLES.length ? `<div class="chat-roles" role="group" aria-label="${t("chat_roles")}"><span>${t("chat_roles")}</span> ${CHATROLES.map(r => `<button class="btn" data-chat-role="${esc(r.name)}" title="${esc(r.spec)}">${esc(r.name)}</button>`).join(" ")}</div>` : "";
     return `<section class="card ui-chat"><h2>${t("chat_title")}</h2><p>${t("chat_rule")}</p><label for="chat-project">${t("runs_project")}</label><select id="chat-project">${projects.map(p => `<option value="${esc(p.id)}"${p.id === CHATPROJECT ? " selected" : ""}>${esc(p.name)}</option>`).join("")}</select>${roleButtons}<label for="chat-input">${t("chat_input")}</label><textarea id="chat-input" maxlength="4000" rows="4">${esc(CHATDRAFT)}</textarea><button class="btn" data-chat="preview">${t("chat_preview")}</button>`
-      + (CHATPREP ? `<div class="cmd"><p>${t("chat_will")}</p><pre>${esc(CHATPREP.cmd)}</pre>${CHATPREP.role ? `<p>${esc(CHATPREP.role.spec)}</p><pre>${esc(JSON.stringify(CHATPREP.role.effective_defaults))}</pre>${CHATPREP.role.check_notice ? `<p role="note">${esc(CHATPREP.role.check_notice)}</p>` : ""}<pre>${esc(CHATPREP.brief)}</pre>` : ""}<p>${t("chat_estimate")}: ${CHATPREP.estimate === "unknown" ? t("runs_unknown") : usd(CHATPREP.estimate)} · ${t("chat_ttl")}</p><button class="btn primary" data-chat="confirm">${t("chat_confirm")}</button></div>` : "")
+      + (CHATPREP ? `<div class="cmd"><p>${t("chat_will")}</p><pre>${esc(CHATPREP.cmd)}</pre>${CHATPREP.role ? `<p>${esc(CHATPREP.role.spec)}</p><pre>${esc(JSON.stringify(CHATPREP.role.effective_defaults))}</pre>${CHATPREP.role.check_notice ? `<p role="note">${esc(CHATPREP.role.check_notice)}</p>` : ""}<pre>${esc(CHATPREP.brief)}</pre>${chatModeHTML()}` : ""}<p>${t("chat_estimate")}: ${CHATPREP.estimate === "unknown" ? t("runs_unknown") : usd(CHATPREP.estimate)} · ${t("chat_ttl")}</p><button class="btn primary" data-chat="confirm">${t("chat_confirm")}</button></div>` : "")
       + chatOutcome() + `</section>`;
   }
   function repaintChat() {
     const el = document.querySelector(".ui-chat"); if (el) el.outerHTML = chatPanel();
   }
-  document.addEventListener("input", e => { if (e.target.id === "chat-input") { CHATDRAFT = e.target.value; CHATPREP = null; const cmd = document.querySelector(".ui-chat .cmd"); if (cmd) cmd.remove(); } });
-  document.addEventListener("change", e => {
+  document.addEventListener("input", e => { if (e.target.id === "chat-input") { CHATDRAFT = e.target.value; CHATGEN++; CHATPREP = null; CHATROLE = ""; CHATMODE = ""; const cmd = document.querySelector(".ui-chat .cmd"); if (cmd) cmd.remove(); } });
+  document.addEventListener("change", async e => {
     if (e.target.id === "chat-project") { selectChatProject(e.target.value); repaintChat(); }
+    if (e.target.id === "chat-mode" && CHATPREP) {
+      // A mode change always gets another server-generated argv and nonce before it can run.
+      CHATROLE = CHATPREP.role.name; CHATDRAFT = `ccx run --role ${CHATROLE} -- ${JSON.stringify(CHATPREP.argv[CHATPREP.argv.length - 1])}`;
+      CHATMODE = e.target.value; CHATGEN++; CHATPREP = null; repaintChat();
+      try { await previewChat(); } catch (err) { CHATRESULT = {error: err.message}; }
+      repaintChat();
+    }
     if (e.target.dataset.runfilter) { RUNFILTER[e.target.dataset.runfilter] = e.target.value; RUNPAGE_NO = 0; RUNLIST = null; RUNERR = ""; loadRuns(null, true).then(render); }
   });
   document.addEventListener("click", async e => {
@@ -1321,6 +1369,7 @@
       let task = CHATDRAFT;
       const previous = /^ccx run --role [A-Za-z][A-Za-z0-9_-]* -- ([\s\S]*)$/.exec(task);
       if (previous) { try { task = JSON.parse(previous[1]); } catch (_) { task = previous[1]; } }
+      CHATROLE = roleButton.dataset.chatRole; CHATMODE = "";
       CHATDRAFT = `ccx run --role ${roleButton.dataset.chatRole} -- ${JSON.stringify(task)}`;
       CHATGEN++; CHATPREP = null; CHATRESULT = null; repaintChat();
       const input = $("chat-input"); if (input) input.focus();
@@ -1333,7 +1382,7 @@
     const btn = e.target.closest("[data-chat]"); if (!btn || btn.disabled) return;
     btn.disabled = true;
     try {
-      if (btn.dataset.chat === "preview") { CHATRESULT = null; const project = CHATPROJECT, text = CHATDRAFT, generation = CHATGEN; const prep = await post("/api/chat/prepare", {project, text}); CHATPREP = generation === CHATGEN && project === CHATPROJECT && text === CHATDRAFT ? prep : null; }
+      if (btn.dataset.chat === "preview") { await previewChat(); }
       else if (CHATPREP) { const nonce = CHATPREP.nonce, generation = CHATGEN; CHATPREP = null; const result = await post("/api/chat/run", {nonce}); if (generation === CHATGEN) CHATRESULT = result; }
     } catch (err) { CHATRESULT = {error: err.message}; CHATPREP = null; }
     repaintChat();
@@ -1353,7 +1402,7 @@
     LANG = chooseLang();
     document.documentElement.lang = LANG === "zh" ? "zh-CN" : "en";
     const {r, s} = route();
-    const key = r.join("/");
+    const key = r.join("/") + (r[0] === "tokens" ? location.hash.split("?")[1] || "" : "");
     const sameRoute = key === lastRoute;
     if (key !== lastRoute) { if (r[0] === "conv" && r[1]) selectChatProject(r[1]); lastRoute = key; filt = "all"; sel = s || null; RUNERR = ""; RUNSTAMP = 0; }
     else if (s && pending !== s) { sel = s; }
@@ -1364,7 +1413,12 @@
     if (r[0] === "runs") { main.innerHTML = r[1] ? runPageHTML(r[1]) : runListHTML(); return; }
     if (r[0] === "discuss") { main.innerHTML = discHTML(r[1]); return; }
     if (r[0] === "conv") { drawConv(r[1], r[2]); return; }
-    if (r[0] === "tokens") { drawTokens(); return; }
+    if (r[0] === "tokens") {
+      const period = new URLSearchParams(location.hash.split("?")[1] || "").get("period");
+      if (!sameRoute && ["today", "7d", "all"].includes(period)) TOKPERIOD = period;
+      drawTokens(); return;
+    }
+    if (r[0] === "quota") { main.innerHTML = banner() + `<h1>${t("quota")}</h1>` + quotaHTML(); return; }
     const pr = r.length ? findProject(r[0]) : null;
     const tk = pr && r[1] ? findTask(pr, r[1]) : null;
     if (r[0] === "all") { main.innerHTML = renderOverview(); paintAct(); return; }

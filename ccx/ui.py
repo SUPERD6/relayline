@@ -977,15 +977,41 @@ def quota_view(rd: Reader, wait: bool = True) -> list[dict]:
     def make():
         from . import quota
         out = []
-        for agent, readings in (("codex", _codex_rates(rd)), ("claude", quota.claude_readings(rd.p))):
+        for agent in dict.fromkeys((*agents.NAMES, *_ui_providers(rd))):
+            readings = (_codex_rates(rd) if agent == "codex" else
+                        quota.claude_readings(rd.p) if agent == "claude" else [])
             for win, w in (quota.pace(readings) if readings else {}).items():
                 out.append({"agent": agent, "window": win, **{k: w.get(k) for k in (
                     "used", "projected", "projected_at_reset", "resets_at", "hours_left", "reading_age_min",
                     "freshness", "note")},
-                    "minutes": next((r.get("window_minutes") for r in readings if r["window"] == win), None)})
+                    "read_at": max(r["ts"] for r in readings if r["window"] == win),
+                    "minutes": next((r.get("window_minutes") for r in reversed(readings) if r["window"] == win), None)})
+            if not any(w["agent"] == agent for w in out):
+                out.append({"agent": agent, "window": None, "used": None, "projected": None,
+                            "resets_at": None, "read_at": None, "freshness": None, "reading_age_min": None})
         return out
 
-    return _later(rd, "quota", QUOTA_EVERY_S, make, wait, [])
+    # Reading errors and freshness change independently of the cached session-file scan. Never probe here.
+    empty = [{"agent": agent, "window": None, "used": None, "projected": None, "resets_at": None,
+              "read_at": None} for agent in dict.fromkeys((*agents.NAMES, *_ui_providers(rd)))]
+    rows = _later(rd, "quota", QUOTA_EVERY_S, make, wait, empty)
+    probes = rd.json_file(rd.p.state / "quota-refresh.json") or {}
+    threshold = float((rd.cfg().get("quota") or {}).get("auto_refresh_min", 60) or 60)
+    threshold = threshold if threshold > 0 else 60
+    now, out = time.time(), []
+    for row in rows:
+        row = dict(row)
+        stamp = row.get("read_at")
+        age = max(0, (now - stamp) / 60) if stamp is not None else None
+        probe = probes.get(row["agent"]) if isinstance(probes, dict) else None
+        row.update(freshness=round(age, 1) if age is not None else None,
+                   reading_age_min=round(age) if age is not None else None,
+                   stale=age is not None and age > threshold, auto_refresh_min=threshold,
+                   unknown=row.get("used") is None,
+                   error=(_clip(probe.get("error"), 240) or None) if isinstance(probe, dict) else None,
+                   probe_at=probe.get("ts") if isinstance(probe, dict) else None)
+        out.append(row)
+    return out
 
 
 def _later(rd: Reader, key: str, seconds: float, make, wait: bool, empty):
@@ -1690,11 +1716,23 @@ def collect(p: Paths, project: Path | None = None, days: float = 7, rd: Reader |
         "discussions": talks, "conversations": convs[:CONV_PROJECTS_MAX], "track": track, "track_min": ways.MIN_JUDGED, "suggestions": sugs,
         "suggestions_total": n_sugs, "others": others, "others_total": len(quiet),
         "month": month_view(rd, quota_wait), "inbox": _inbox(rd),
+        "today": today_view(rd, shown.values(), cfg, scratch, now),
         "week": {"usd": round(sum(_usd(r) for r in week), 4),
                  "quota_units": round(sum(_quota_units(r, cfg) for r in week), 6),
                  "cash_usd": round(sum(_usd(r) for r in week if r.get("to") in providers or r.get("provider")), 4),
                  "runs": len(week), "verdicts": len(hard), "verdicts_needed": VERDICTS_TO_KNOW},
     }
+
+
+def today_view(rd: Reader, records, cfg: dict, scratch: list, now: float) -> dict:
+    """Recorded delegation totals by local start date, like the week's run totals (not lead conversations)."""
+    day = time.localtime(now)
+    start = time.mktime((day.tm_year, day.tm_mon, day.tm_mday, 0, 0, 0, 0, 0, -1))
+    runs = [r for r in records if start <= float(r.get("ts") or 0) <= now and not is_test(r, scratch)]
+    return {"date": time.strftime("%Y-%m-%d", day), "since": start, "until": now,
+            "usd": round(sum(_usd(r) for r in runs), 4),
+            "quota_units": round(sum(_quota_units(r, cfg) for r in runs), 6), "runs": len(runs),
+            "waiting": waiting(rd.p), "scope": "delegated_runs", "basis": "run_start_local_date"}
 
 
 def running_now(projects: list[dict]) -> list[dict]:
@@ -1749,6 +1787,11 @@ def run_detail(p: Paths, run_id: str) -> dict:
     out["billing"] = {"mode": ledger.billing_config(cfg)["mode"]}
     booked = next((r for r in ledger.rows(p) if not r.get("type") and r.get("run_id") == run_id), None)
     out["quota_units"] = ledger.row_quota(booked) if booked is not None else _quota_units(rec, cfg)
+    # Keep compact()'s existing annotated budget object as well as the new display fields.
+    notices = _run_notices(rec)
+    if out.get("max_usd"):
+        notices["max_usd"] = out["max_usd"]
+    out.update(notices)
     return out
 
 
@@ -1795,6 +1838,32 @@ def _visible_brief(d: Path) -> str:
     return match.group(1).strip() if match else prompt
 
 
+def _run_notices(rec: dict) -> dict:
+    """Display facts from both old substitution records and newer explicit receipt fields."""
+    attempts = rec.get("attempts") or []
+    actual = rec.get("actual_agent") or (attempts[-1].get("agent") if attempts else None) or rec.get("to")
+    moves = []
+    for entry in [rec, *attempts]:
+        old = entry.get("substituted_for")
+        new = entry.get("rung") or entry.get("actual_agent") or entry.get("agent") or actual
+        if old and new and old != new:
+            # Both model-unavailable paths replace a rung on the same agent. Legacy cross-agent
+            # substitution receipts describe quota fallback; substituted_for alone is not a quota reason.
+            reason = entry.get("substitution_reason") or entry.get("dispatch_reason")
+            if not reason:
+                reason = "quota" if str(old).split(":")[0] != str(new).split(":")[0] else "unknown"
+            move = {"from": old, "to": new, "reason": reason}
+            if move not in moves:
+                moves.append(move)
+    requested = rec.get("requested_agent") or (str(moves[0]["from"]).split(":")[0] if moves else rec.get("to"))
+    reason = rec.get("substitution_reason") or rec.get("dispatch_reason")
+    if not moves and requested and actual and requested != actual and (reason == "quota" or any(
+            a.get("kind") == "quota" for a in attempts)):
+        moves.append({"from": requested, "to": actual, "reason": "quota"})
+    return {"max_usd": rec.get("max_usd"), "review_error": (rec.get("review") or {}).get("error"),
+            "requested_agent": requested, "actual_agent": actual, "substitutions": moves}
+
+
 def _run_row(rd: Reader, rec: dict) -> dict:
     atts = rec.get("attempts") or []
     last = atts[-1] if atts else {}
@@ -1806,6 +1875,12 @@ def _run_row(rd: Reader, rec: dict) -> dict:
         seconds = max(seconds, time.time() - ts)
     status = "running" if running else rec.get("kind") or ("ok" if rec.get("ok") else (
         (rec.get("result") or {}).get("status") or rec.get("state") or "unknown"))
+    notices = _run_notices(rec)
+    if not running:
+        if notices["max_usd"]:
+            status = "max_usd"
+        elif notices["review_error"]:
+            status = "review_error"
     d = rd.p.runs / rec["run_id"]
     task = _visible_brief(d)
     return {"run_id": rec["run_id"], "ts": ts, "project": _pid(root) if root else None,
@@ -1813,7 +1888,7 @@ def _run_row(rd: Reader, rec: dict) -> dict:
             "rung": last.get("rung") or rec.get("first_rung"), "task": _short(task or rec.get("label") or ""),
             "status": status, "running": running, "usd": _usd(rec), "seconds": seconds,
             "summary": _short((rec.get("result") or {}).get("summary") or rec.get("error") or ""),
-            "kind": rec.get("kind"), "href": f"/runs/{rec['run_id']}"}
+            "kind": rec.get("kind"), "href": f"/runs/{rec['run_id']}", **notices}
 
 
 def _cached_run_row(rd: Reader, f: Path) -> dict:
@@ -1956,10 +2031,12 @@ def full_run(rd: Reader, rid: str, after: int = 0, source: str = "") -> dict:
                        "basis_changed": check.get("basis_changed", (check.get("covers") or {}).get("basis_changed")),
                        "added_to": check.get("added_to", (check.get("covers") or {}).get("added_to"))},
             "review": {"by": review.get("by"), "verdict": review.get("verdict"),
+                       "error": review.get("error"),
                        "summary": review.get("summary"), "issues": review.get("issues_full") or review.get("issues") or [],
                        "notes": review.get("notes") or [],
                        "fixes": fixes, "round": rec.get("review_round")},
             "receipt": {"requests": None, "prefix_tokens": None, "first_input": None,
+                        **_run_notices(rec),
                         **run_fields(rec.get("attempts") or []), "usd": _usd(rec), "quota_units": units,
                         "kind": rec.get("kind"), "via": rec.get("via") or next((r.get("via") for r in reversed(
                             rd.lines(rd.p.ledger, _fold_rows, [])) if r.get("run_id") == rid and r.get("type") == "ui_command"), None),
@@ -2403,6 +2480,37 @@ def chat_argv(text: str, root: Path, rd: Reader) -> list[str]:
     words = shlex.split(text) if text.startswith("ccx ") else ["run", text]
     if words and words[0] == "ccx":
         words.pop(0)
+    return _chat_words_argv(words, root, rd)
+
+
+def role_chat_argv(want: dict, root: Path, rd: Reader) -> list[str]:
+    """Structured role requests never tokenize the task; the existing UI flag allowlist still applies."""
+    if set(want) - {"project", "role", "task", "mode"}:
+        raise ValueError("role request: only project, role, task and mode are allowed")
+    task, name, mode = want.get("task"), want.get("role"), want.get("mode")
+    if not isinstance(task, str) or not task.strip() or len(task) > SAY_MAX or "\0" in task:
+        raise ValueError(f"task: 1..{SAY_MAX} characters, no NUL")
+    if not isinstance(name, str) or not re.fullmatch(r"[A-Za-z][A-Za-z0-9_-]{0,63}", name):
+        raise ValueError("role: select a configured role")
+    if mode is not None and mode not in ("read", "write"):
+        raise ValueError("mode: read or write")
+    return _chat_words_argv(["run", "--role", name, *(["--mode", mode] if mode else []), "--", task], root, rd)
+
+
+def _role_mode(role: dict, task: str) -> dict:
+    from .modes import resolve_mode
+    configured = (role.get("effective_defaults") or role.get("defaults") or {}).get("mode")
+    if configured:
+        return {"mode": configured, "source": "role", "why": "role default", "evidence": ""}
+    inferred = resolve_mode(None, task)
+    # Keep the UI's conservative read default for an ambiguous task, but share the CLI's edit-verb inference.
+    if inferred["source"] == "default":
+        return {"mode": "read", "source": "default", "why": "no edit verb: UI default read", "evidence": ""}
+    evidence = re.search(r"\((.*?)\)", inferred["why"])
+    return {**inferred, "evidence": evidence.group(1) if evidence else ""}
+
+
+def _chat_words_argv(words: list[str], root: Path, rd: Reader) -> list[str]:
     if not words or words[0] not in CHAT_COMMANDS:
         raise ValueError("allowed: ccx run, say, review, discuss, show")
     op, args = words[0], words[1:]
@@ -2479,7 +2587,7 @@ def chat_argv(text: str, root: Path, rd: Reader) -> list[str]:
             if "--role" in used:
                 from . import roles
                 row = roles.get(rd.p, root, flags[flags.index("--role") + 1], load_config(rd.p))
-                mode = row["defaults"].get("mode", "read")
+                mode = _role_mode(row, " ".join(body))["mode"]
             flags.extend(["--mode", mode])
     return ["ccx", op, "--from", "user", "--cwd", str(root), *flags,
             *(["--confirmed"] if op == "discuss" else []), "--", " ".join(body)]
@@ -2718,6 +2826,10 @@ class UI:
                             data = collect(ui.p, ui.project, ui.days, ui.reader, quota_wait=False)
                             ui.remember_boards(data)
                         return self._send(200, json.dumps(data, ensure_ascii=False, default=list).encode("utf-8"))
+                    if path == "/api/quota":
+                        with ui.lock:
+                            out = {"quota": quota_view(ui.reader)}
+                        return self._send(200, json.dumps(out, ensure_ascii=False).encode("utf-8"))
                     if path == "/api/runs" or path.startswith("/api/runs/"):
                         q = {k: v[0] for k, v in parse_qs(urlsplit(self.path).query).items() if v}
                         with ui.lock:
@@ -2952,7 +3064,8 @@ class UI:
         if not root.is_dir():
             raise ValueError("the selected project no longer exists")
         with self.lock:
-            argv = chat_argv(want.get("text"), root, self.reader)
+            argv = (role_chat_argv(want, root, self.reader) if "task" in want else
+                    chat_argv(want.get("text"), root, self.reader))
             role_preview = self.role_preview(root, argv)
             now = time.time()
             self.chats = {k: v for k, v in self.chats.items() if v["until"] > now}
@@ -2961,9 +3074,13 @@ class UI:
             nonce = secrets.token_urlsafe(18)
             self.chats[nonce] = {"argv": argv, "root": root, "until": now + CHAT_TTL_S,
                                  **({"role_preview": role_preview} if role_preview else {})}
+        hint = role_preview["mode_hint"] if role_preview else None
+        if hint and want.get("mode"):
+            hint = {**hint, "source": "explicit", "why": "--mode given", "evidence": ""}
         return {"nonce": nonce, "argv": argv, "cmd": "ccx " + " ".join(json.dumps(x, ensure_ascii=False) for x in argv[1:]),
                 "estimate": "unknown" if argv[1] in ("run", "discuss") else 0, "ttl_s": CHAT_TTL_S,
                 **({"role": role_preview["role"], "brief": role_preview["brief"]} if role_preview else {}),
+                **({"mode_hint": hint} if hint else {}),
                 "demo": self.demo, "spends": argv[1] in ("run", "discuss")}
 
     def role_preview(self, root: Path, argv: list[str]) -> dict | None:
@@ -2977,7 +3094,11 @@ class UI:
         text = roles.brief(self.p, root, name, argv[-1], cfg)
         if len(text) > SAY_MAX:
             raise ValueError(f"role template and task exceed {SAY_MAX} characters; shorten the template or use CLI")
-        return {"role": role, "brief": text, "configuration": roles.table(self.p, root, cfg)}
+        hint = _role_mode(role, argv[-1])
+        selected = argv[argv.index("--mode") + 1]
+        if selected != hint["mode"]:
+            hint = {"mode": selected, "source": "explicit", "why": "--mode given", "evidence": ""}
+        return {"role": role, "brief": text, "mode_hint": hint, "configuration": roles.table(self.p, root, cfg)}
 
     def run_chat(self, nonce: str) -> dict:
         from . import ledger

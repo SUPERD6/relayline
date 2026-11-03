@@ -121,6 +121,214 @@ def test_list_filters_and_full_five_sections_are_read_only(server):
     assert request(srv, "/api/runs/..%2Foutside")[0] == 404
 
 
+@pytest.mark.parametrize("notice,status", [
+    ({"max_usd": {"cap": 0.5, "spent": 0.51, "stopped_before": "review"}}, "max_usd"),
+    ({"review": {"verdict": "not-run", "error": "reviewer unavailable <reason>"}}, "review_error"),
+])
+def test_daily_run_status_keeps_budget_and_review_failure_even_when_agent_ok(server, notice, status):
+    srv, p, root = server
+    put_run(p.hub, "notice", root, ok=True, **notice)
+    code, listing = request(srv, "/api/runs?status=" + status)
+    assert code == 200 and [r["run_id"] for r in listing["runs"]] == ["notice"]
+    _, full = request(srv, "/api/runs/notice")
+    assert full["status"] == status
+    if status == "max_usd":
+        assert full["max_usd"] == full["receipt"]["max_usd"] == notice["max_usd"]
+    else:
+        assert full["review"]["error"] == full["review_error"] == notice["review"]["error"]
+    _, compact = request(srv, "/api/run/notice")
+    assert (compact["max_usd"] or {}).get("cap") == (full["max_usd"] or {}).get("cap")
+    assert compact["review_error"] == full["review_error"]
+
+
+@pytest.mark.parametrize("modern", [False, True])
+def test_daily_run_quota_substitution_old_and_new_receipts(server, modern):
+    srv, p, root = server
+    attempt = {"agent": "claude", "rung": "claude:sonnet:high"}
+    extra = {"requested_agent": "codex", "actual_agent": "claude", "substitution_reason": "quota"} if modern else {}
+    if not modern:
+        attempt["substituted_for"] = "codex:gpt-6.1-sol:high"
+    put_run(p.hub, "moved", root, to="codex", attempts=[attempt], **extra)
+    for path in ("/api/runs", "/api/runs/moved"):
+        code, out = request(srv, path)
+        row = next(r for r in out["runs"] if r["run_id"] == "moved") if path == "/api/runs" else out
+        assert code == 200 and row["requested_agent"] == "codex" and row["actual_agent"] == "claude"
+        assert len(row["substitutions"]) == 1 and row["substitutions"][0]["reason"] == "quota"
+        assert row["substitutions"][0]["from"].startswith("codex")
+        assert row["substitutions"][0]["to"].startswith("claude")
+
+
+@pytest.mark.parametrize("prior_failure", [False, True], ids=["preflight", "runtime"])
+def test_daily_model_substitution_is_not_reported_as_quota(server, prior_failure):
+    srv, p, root = server
+    old, new = "codex:unavailable:high", "codex:available:high"
+    attempts = [{"agent": "codex", "rung": old, "kind": "model"}] if prior_failure else []
+    attempts.append({"agent": "codex", "rung": new, "substituted_for": old})
+    put_run(p.hub, "model-swap", root, attempts=attempts)
+    for path in ("/api/runs", "/api/runs/model-swap", "/api/run/model-swap"):
+        code, out = request(srv, path)
+        row = next(r for r in out["runs"] if r["run_id"] == "model-swap") if path == "/api/runs" else out
+        assert code == 200
+        assert row["substitutions"] == [{"from": old, "to": new, "reason": "unknown"}]
+
+
+@pytest.mark.parametrize("reason", ["quota", "model"])
+def test_daily_substitution_explicit_reason_overrides_legacy_inference(server, reason):
+    srv, p, root = server
+    old, new = "codex:old:high", "claude:new:high"
+    put_run(p.hub, "explicit-swap", root, attempts=[{"agent": "claude", "rung": new,
+        "substituted_for": old, "substitution_reason": reason}])
+    code, row = request(srv, "/api/runs/explicit-swap")
+    assert code == 200 and row["substitutions"] == [{"from": old, "to": new, "reason": reason}]
+    assert row["receipt"]["substitutions"] == row["substitutions"]
+
+
+def test_daily_quota_endpoint_fresh_stale_unknown_reset_and_probe_errors_are_read_only(server, monkeypatch):
+    from ccx import quota
+    srv, p, _ = server
+    now = time.time()
+    samples = [
+        {"ts": now - 12 * 60, "window": "primary", "used": 0.8, "resets_at": now + 3600, "window_minutes": 300},
+        {"ts": now - 45 * 60, "window": "secondary", "used": 0.9, "resets_at": now + 7200, "window_minutes": 10080},
+        {"ts": now - 29.75 * 60, "window": "near", "used": 0.2, "resets_at": now + 7200},
+        {"ts": now - 60, "window": "expired", "used": 0.99, "resets_at": now - 10},
+    ]
+    p.user_tiers.parent.mkdir(parents=True, exist_ok=True)
+    p.user_tiers.write_text("[quota]\nauto_refresh_min=30\n", encoding="utf-8")
+    p.state.mkdir(parents=True, exist_ok=True)
+    (p.state / "quota-refresh.json").write_text(json.dumps({"claude": {"ts": now, "error": "login required <error>"}}), encoding="utf-8")
+    scan = mock.Mock(return_value=samples)
+    monkeypatch.setattr(ui, "_codex_rates", scan)
+    monkeypatch.setattr(quota, "claude_readings", lambda p: [])
+    probe = mock.Mock(side_effect=AssertionError("GET must not probe"))
+    monkeypatch.setattr(quota, "refresh", probe)
+    before = {str(f): f.read_bytes() for f in p.hub.rglob("*") if f.is_file()}
+    assert request(srv, "/api/quota", token=False)[0] == 403
+    code, out = request(srv, "/api/quota")
+    assert code == 200
+    windows = {(w["agent"], w["window"]): w for w in out["quota"]}
+    fresh, stale = windows["codex", "primary"], windows["codex", "secondary"]
+    assert fresh["used"] == 0.8 and fresh["freshness"] == pytest.approx(12, abs=0.1) and not fresh["stale"]
+    assert fresh["read_at"] == samples[0]["ts"] and fresh["resets_at"] == samples[0]["resets_at"]
+    assert stale["stale"] and stale["auto_refresh_min"] == 30
+    assert not windows["codex", "near"]["stale"]
+    assert windows["codex", "expired"]["used"] is None and windows["codex", "expired"]["unknown"]
+    assert windows["claude", None]["unknown"] and windows["claude", None]["error"] == "login required <error>"
+    assert windows["gemini", None]["used"] is None and windows["dsh", None]["freshness"] is None
+    # Freshness is recomputed even while the costly session scan remains cached.
+    with mock.patch.object(ui.time, "time", return_value=now + 30):
+        _, later = request(srv, "/api/quota")
+    assert next(w for w in later["quota"] if w["agent"] == "codex" and w["window"] == "near")["stale"]
+    scan.assert_called_once()
+    probe.assert_not_called()
+    assert before == {str(f): f.read_bytes() for f in p.hub.rglob("*") if f.is_file()}
+
+
+@pytest.mark.parametrize("mode", ["api", "subscription"])
+def test_daily_home_totals_use_local_midnight_and_waiting_without_replacing_week(server, monkeypatch, mode):
+    srv, p, root = server
+    now = time.time()
+    day = time.localtime(now)
+    start = time.mktime((day.tm_year, day.tm_mon, day.tm_mday, 0, 0, 0, 0, 0, -1))
+    # Remove the fixture run's spend without changing what any existing test sets up.
+    put_run(p.hub, "run-one", root, ts=start - 1, attempts=[], verdict={"ok": True})
+    attempts = [{"agent": "codex", "ae_usd": 0.4, "usage": {"input_tokens": 100}}]
+    put_run(p.hub, "today", root, ts=start, attempts=attempts, review={"usd": 0.1}, quota_units=7)
+    put_run(p.hub, "yesterday", root, ts=start - 1, attempts=attempts, quota_units=9)
+    put_run(p.hub, "test", root, ts=now, label="eval-fixture", attempts=attempts, quota_units=99)
+    put_run(p.hub, "ephemeral", root, ts=now, ephemeral=True, attempts=attempts)
+    put_run(p.hub, "probe", root, ts=now, label="quota-probe", attempts=attempts)
+    put_run(p.hub, "future", root, ts=now + 86400, attempts=attempts)
+    p.user_tiers.parent.mkdir(parents=True, exist_ok=True)
+    p.user_tiers.write_text(f'[billing]\nmode="{mode}"\n', encoding="utf-8")
+    monkeypatch.setattr(ui, "month_view", lambda *a: None)
+    monkeypatch.setattr(ui, "quota_view", lambda *a: [])
+    monkeypatch.setattr(ui, "leads", lambda *a: [])
+    code, out = request(srv, "/api/data")
+    assert code == 200 and out["billing"]["mode"] == mode
+    today = out["today"]
+    assert today["date"] == time.strftime("%Y-%m-%d", day) and today["since"] == start
+    assert today["usd"] == 0.5 and today["quota_units"] == 7 and today["runs"] == 1
+    assert today["waiting"] == ui.waiting(p) and today["scope"] == "delegated_runs"
+    assert "week" in out and out["week"]["runs"] > today["runs"]
+
+
+def daily_role(root, defaults=""):
+    path = root / ".ccx" / "roles.toml"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text('[roles]\nbuild="codex:gpt-6.1-sol:auto"\n' + defaults, encoding="utf-8")
+    return path
+
+
+def test_daily_role_multiline_structured_task_launches_verbatim_outside_repository(server, monkeypatch, tmp_path):
+    from ccx import config
+    srv, p, root = server
+    daily_role(root)
+    task = 'Implement "parser"\n\n  保留缩进和 C:\\data\\x\n--mode read; $(whoami) & <script>\n'
+    helper = tmp_path / "capture_task.py"
+    helper.write_text('import json, os, sys\nprint(json.dumps({"task": sys.argv[-1], "cwd": os.getcwd()}))\n', encoding="utf-8")
+    monkeypatch.setattr(config, "ccx_argv", lambda: [os.sys.executable, str(helper)])
+    with mock.patch("shlex.split", side_effect=AssertionError("structured task must not use shlex")):
+        code, prep = request(srv, "/api/chat/prepare", {"project": ui._pid(root), "role": "build", "task": task})
+    assert code == 200 and prep["argv"][-2:] == ["--", task] and prep["brief"] == task
+    assert prep["argv"][prep["argv"].index("--mode") + 1] == "write"
+    assert prep["mode_hint"]["source"] == "inferred" and "Implement" in prep["mode_hint"]["evidence"]
+    assert not p.ledger.exists()
+    assert request(srv, "/api/chat/run", {"nonce": prep["nonce"]}, origin=False)[0] == 403
+    code, launched = request(srv, "/api/chat/run", {"nonce": prep["nonce"]})
+    assert code == 200 and launched["started"]
+    end = time.monotonic() + 10
+    while not any(r.get("type") == "ui_command_done" for r in ledger.rows(p)) and time.monotonic() < end:
+        time.sleep(0.01)
+    done = [r for r in ledger.rows(p) if r.get("type") == "ui_command_done"]
+    assert done and done[-1]["exit"] == 0
+    captured = json.loads(Path(launched["log"]).read_text(encoding="utf-8"))
+    assert captured["task"] == task and Path(captured["cwd"]) == root and root != ROOT
+    assert request(srv, "/api/chat/run", {"nonce": prep["nonce"]})[0] == 409
+
+
+@pytest.mark.parametrize("task,mode,source", [
+    ("Implement parser", "write", "inferred"), ("修复解析器", "write", "inferred"),
+    ("Read parser", "read", "inferred"), ("read-only: implement parser", "read", "inferred"),
+    ("parser", "read", "default"),
+])
+def test_daily_unconfigured_role_mode_shares_edit_inference_and_read_default(server, task, mode, source):
+    srv, _, root = server
+    daily_role(root)
+    _, prep = request(srv, "/api/chat/prepare", {"role": "build", "task": task})
+    assert prep["mode_hint"]["mode"] == mode and prep["mode_hint"]["source"] == source
+    assert prep["argv"][prep["argv"].index("--mode") + 1] == mode
+
+
+def test_daily_role_mode_switch_regenerates_preview_and_configuration_stays_bound(server, monkeypatch):
+    srv, _, root = server
+    config = daily_role(root, '[roles.defaults.build]\nmode="read"\n')
+    body = {"role": "build", "task": "Implement parser\n第二行"}
+    _, first = request(srv, "/api/chat/prepare", body)
+    _, switched = request(srv, "/api/chat/prepare", {**body, "mode": "write"})
+    assert first["mode_hint"]["source"] == "role" and first["mode_hint"]["mode"] == "read"
+    assert switched["mode_hint"]["mode"] == "write" and switched["nonce"] != first["nonce"]
+    calls = []
+    monkeypatch.setattr(ui, "execute_chat", lambda p, argv, root: calls.append(argv) or {"ok": True, "started": True, "action": "fake"})
+    assert request(srv, "/api/chat/run", {"nonce": switched["nonce"], "mode": "read"})[0] == 200
+    assert calls == [switched["argv"]]  # confirm cannot replace the nonce's selected mode or task
+    config.write_text('[roles]\nbuild="claude:sonnet:auto"\n', encoding="utf-8")
+    assert request(srv, "/api/chat/run", {"nonce": first["nonce"]})[0] == 409
+    assert len(calls) == 1
+
+
+@pytest.mark.parametrize("extra", [
+    {"task": "x" * 4001}, {"task": ""}, {"task": "\0"}, {"task": ["x"]},
+    {"role": "missing"}, {"role": "build --check bad"}, {"mode": "auto"},
+    {"argv": ["ccx", "stop", "run-one"]}, {"text": "ccx stop run-one"}, {"check": "whoami"},
+])
+def test_daily_structured_role_keeps_types_length_and_option_allowlist(server, extra):
+    srv, _, root = server
+    daily_role(root)
+    body = {"project": ui._pid(root), "role": "build", "task": "Read parser", **extra}
+    assert request(srv, "/api/chat/prepare", body)[0] == 400
+
+
 def test_running_incremental_append_waits_for_complete_lines(fixture_run):
     p, root, rec = fixture_run
     rec.update(state="running")
@@ -656,5 +864,69 @@ def test_headless_project_switch_discards_preview_and_notes_and_route_are_visibl
         browser.wait_for("!!document.querySelector('.ui-chat [role=status]') && document.querySelector('.ui-chat [role=status]').textContent.includes('delegating costs more')")
         assert browser.evaluate("document.querySelector('.ui-chat [role=status]').textContent.includes('self')")
         assert not browser.evaluate("!!document.querySelector('.ui-chat [role=status] a')")
+    finally:
+        browser.close()
+
+
+@pytest.mark.skipif(not os.environ.get("CCX_UI_BROWSER"), reason="set CCX_UI_BROWSER for the role draft edit regression")
+@pytest.mark.parametrize("command,op", [("ccx say --to codex hello", "say"), ("ccx show run-one", "show")])
+def test_headless_editing_role_draft_restores_command_preview(server, tmp_path, command, op):
+    srv, p, root = server
+    srv.demo = True
+    daily_role(root)
+    browser = HeadlessBrowser(os.environ["CCX_UI_BROWSER"], tmp_path / "role-edit-browser")
+    try:
+        browser.call("Page.navigate", {"url": srv.url})
+        browser.wait_for("!!document.querySelector('[data-chat-role=build]')")
+        browser.evaluate("document.querySelector('#chat-input').value = 'Read parser'; "
+            "document.querySelector('#chat-input').dispatchEvent(new Event('input', {bubbles:true})); "
+            "document.querySelector('[data-chat-role=build]').click(); document.querySelector('[data-chat=preview]').click();")
+        browser.wait_for("!!document.querySelector('[data-chat=confirm]')")
+        first = next(iter(srv.chats))
+        assert srv.chats[first]["role_preview"]["role"]["name"] == "build"
+        assert srv.chats[first]["argv"][-1] == "Read parser"  # unchanged button draft keeps the role path
+        browser.evaluate("document.querySelector('#chat-input').value = " + json.dumps(command) +
+            "; document.querySelector('#chat-input').dispatchEvent(new Event('input', {bubbles:true}));")
+        assert not browser.evaluate("!!document.querySelector('[data-chat=confirm]')")
+        browser.evaluate("document.querySelector('[data-chat=preview]').click()")
+        browser.wait_for("!!document.querySelector('[data-chat=confirm]')")
+        second = next(n for n in srv.chats if n != first)
+        assert srv.chats[second]["argv"][:2] == ["ccx", op]
+        assert "role_preview" not in srv.chats[second] and "--role" not in srv.chats[second]["argv"]
+        assert not p.ledger.exists()  # both clicks only prepared a command
+    finally:
+        browser.close()
+
+
+@pytest.mark.skipif(not os.environ.get("CCX_UI_BROWSER"), reason="set CCX_UI_BROWSER for the daily role regression")
+def test_headless_daily_role_multiline_mode_switch_and_budget_status(server, tmp_path):
+    srv, p, root = server
+    srv.demo = True
+    daily_role(root)
+    put_run(p.hub, "capped", root, max_usd={"cap": 0.5, "spent": 0.6, "stopped_before": "review"})
+    task = 'Implement parser\n  保留 C:\\data\\x\n--mode read; <script>literal</script>'
+    browser = HeadlessBrowser(os.environ["CCX_UI_BROWSER"], tmp_path / "daily-browser")
+    try:
+        browser.call("Page.navigate", {"url": srv.url})
+        browser.wait_for("!!document.querySelector('[data-chat-role=build]') && !!document.querySelector('.today')")
+        browser.evaluate("document.querySelector('#chat-input').value = " + json.dumps(task) +
+            "; document.querySelector('#chat-input').dispatchEvent(new Event('input', {bubbles:true})); "
+            "document.querySelector('[data-chat-role=build]').click(); document.querySelector('[data-chat=preview]').click();")
+        browser.wait_for("!!document.querySelector('#chat-mode') && document.querySelector('#chat-mode').value === 'write'")
+        first = next(iter(srv.chats))
+        assert srv.chats[first]["argv"][-1] == task
+        browser.evaluate("document.querySelector('#chat-mode').value = 'read'; document.querySelector('#chat-mode').dispatchEvent(new Event('change', {bubbles:true}));")
+        browser.wait_for("!!document.querySelector('[data-chat=confirm]') && !!document.querySelector('#chat-mode') && document.querySelector('#chat-mode').value === 'read'")
+        second = next(n for n in srv.chats if n != first)
+        argv = srv.chats[second]["argv"]
+        assert argv[-1] == task and argv[argv.index("--mode") + 1] == "read"
+        browser.evaluate("document.querySelector('[data-chat=confirm]').click()")
+        browser.wait_for("!!document.querySelector('.ui-chat [role=status]') && !document.querySelector('[data-chat=confirm]')")
+        assert not any(r.get("type") == "ui_command" for r in ledger.rows(p))
+        browser.call("Page.navigate", {"url": f"http://127.0.0.1:{srv.port}/runs/capped"})
+        browser.wait_for("!!document.querySelector('#run-receipt')")
+        text = browser.evaluate("document.querySelector('main').textContent")
+        assert "review did not run" in text or "审查未跑" in text
+        assert "$0.5" in text
     finally:
         browser.close()
