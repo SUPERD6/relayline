@@ -30,6 +30,10 @@ the installed `ccx` (`tests/smoke_installed.py`).
 ## Rules
 
 - **Tests with every change.** A fix comes with a test that fails without it.
+- **Compare paths through `workspace.canonical()`.** In this repo, canonicalize paths before comparing, printing
+  or saving them in run records; construct test expectations with it too, not raw `tmp_path` values. macOS has
+  `/var` symlinks to `/private/var`; Windows has 8.3 short names and `\\?\` prefixes. CI runs on Linux, Windows
+  and macOS, so local spelling alone is not portable.
 - **Keep the core.** Commands and options are not removed; a PR that changes one says in a line what it kept and how
   that was checked. Paths not run for real are called experimental where they are described.
 - **Nothing personal in the repo**: no names, local paths, e-mail addresses, machine names or data. Personal things live in the

@@ -136,6 +136,8 @@ def close_dead(p: Paths, run_id: str, kind: str, state: str, why: str, by: str,
             "cost_usd": None, "ae_usd": round(ae, 6) if ae is not None else None, "error": why,
             "auth_problem": False, "retry_after": None, "session_id": sid, "recovered": True,
             **({"codex_total": total} if total else {})})
+    last = (rec.get("attempts") or [{}])[-1]
+    rec.update({key: last[key] for key in ("agent", "model", "effort") if key in last})
     rec.update(state=state, kind=kind, ok=False, error=why)
     ledger.write_record(run_dir, rec)
     ledger.append(p, rec)

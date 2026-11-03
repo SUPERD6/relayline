@@ -295,6 +295,23 @@ In Claude Code you say: "make `loader.py` accept a custom delimiter and add test
    decides what else happens: `review` (default) has it reviewed against the task text, `rung` has one stronger
    rung redo it first, `off` only labels it. A read run that answers nothing (an empty summary) is
    not ok: kind `no_answer`, with a hint to ask again on a stronger tier.
+   Receipts use `agent` / `model` / `effort` for the final executor (`model` remains `model/effort` in compact output),
+   retain the initial pick as `requested_agent` / `requested_model`, and add `reassigned claude→codex (quota)` to the
+   one-line result and recap after a quota reassignment; old records without the new fields remain readable.
+   Budget stops say `stopped: budget $X reached, review not run` (or name the fix round when review already ran),
+   review errors say `review not run (<reason>)`, and these summaries use `stopped` / `partial` and `ok?` instead
+   of plain ok while preserving the existing `ok_self_checked` wording and command exit codes.
+   Role receipts, `route` and compact `ccx show` retain `effort=auto → xhigh: <basis>`, including the difficulty
+   score and triggered rubric items or keyword reasons.
+   Failure keeps its original status and `ok=false` even when a notice is present; only successful work reported
+   as done becomes `stopped` for a budget stop, or `partial ok?` for quota reassignment or an unavailable review
+   (including `verdict=not-run` without an error field).
+   Same-vendor model substitution adds a `(model)` note without changing success status; terminal summaries use
+   the same notices/status as the recap and direct uncertain results to inspection rather than a positive verdict.
+   Review fix rounds inherit the initial `requested_*` and quota reassignment, recovered attempts update the
+   top-level executor, and compact receipts retain the worker's original status as `reported_status` when their
+   displayed status changes; `ok` and exit codes retain their execution meaning, and a budget-stopped
+   `ok_self_checked` still says its check is not independent.
 5. **Recover from problems.**
    - Codex reports `blocked`: ccx continues **in the same Codex session** one rung up (high), with no re-briefing.
    - Codex says done but ccx's own `--check` fails: it climbs a rung too (in the same session when the agent stays

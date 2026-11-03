@@ -618,13 +618,20 @@ def run(req: Request, p: Paths) -> dict:
         req.to = req.provider                  # a provider is its own agent: own rungs, prices and learning
     elif provider_of(cfg, req.to):
         req.provider = req.to
-    plan = [_usable(p, x) for x in _plan(req, p, cfg, max_esc)]
+    plan = _plan(req, p, cfg, max_esc)
+    requested = plan[0]
+    plan = [_usable(p, x) for x in plan]
     pv_env = _provider_envs(cfg, plan)       # missing key for the first rung -> clear error before anything runs
     plan = _within_budget(p, cfg, plan)
     from . import quota
     quota.maybe_refresh(p, cfg, [req.to], (req.route or {}).get("quota"))
+    if req.route and req.route.get("role_effort_auto"):
+        from .roles import effort_receipt
+        req.route["role_effort_reason"] = effort_receipt(req.route)
     record = {
         "run_id": run_id, "label": req.label, "to": plan[0]["agent"], "caller": req.caller,
+        "requested_agent": requested["agent"], "requested_model": requested["model"],
+        "agent": None, "model": None, "effort": None,  # populated only after an attempt actually ran
         "caller_vendor": _vendor(req.caller, cfg),
         "tier": plan[0].get("tier", "rung"), "start_tier": req.tier if not req.model else "rung",
         "mode": req.mode, "cwd": str(cwd), "session_id": prev.get("session_id") if prev else None,
@@ -653,6 +660,12 @@ def run(req: Request, p: Paths) -> dict:
         **({"base_note": stale_base} if stale_base else {}),
         **base_info,
     }
+    if req.review_round and prev:
+        first = (prev.get("attempts") or [{}])[0]
+        record["requested_agent"] = prev.get("requested_agent") or first.get("agent") or requested["agent"]
+        record["requested_model"] = prev.get("requested_model") or first.get("model") or requested["model"]
+        if prev.get("quota_fallback"):
+            record["quota_fallback"] = dict(prev["quota_fallback"])
     _write_record(run_dir, record)          # visible to `ccx show` at once (background runs, crashes)
     board_run({**record, "label": req.label or req.brief}, "started")      # as the UI shows it: what was asked
     if req.mode == "write":
@@ -859,6 +872,7 @@ def run(req: Request, p: Paths) -> dict:
             pass
         record["session_id"] = session
         record["tier"] = spec.get("tier", "rung")
+        record.update(agent=to, model=spec["model"], effort=spec["effort"])
         _write_record(run_dir, record)
         if oc.kind == "quota":
             try:                       # H2: what made this a quota stop, kept to check the call later
@@ -1382,8 +1396,10 @@ def compact(record: dict) -> dict:
     tok = ledger.sum_usage(record["attempts"])
     last = (record.get("attempts") or [{}])[-1]
     out = {
-        "run_id": record["run_id"], "agent": record["to"], "tier": record["tier"],
-        "model": f"{last.get('model')}/{last.get('effort')}",
+        "run_id": record["run_id"], "agent": last.get("agent") or record.get("agent") or record["to"],
+        "tier": record["tier"],
+        "model": f"{last.get('model', record.get('model'))}/{last.get('effort', record.get('effort'))}",
+        "effort": last.get("effort", record.get("effort")),
         # a sub-agent that answered blocked/failed did not do the task: never ok, whatever its CLI exited with
         # (2026-10-29 walkthrough: status=blocked with ok:true)
         "ok": exit_ok(record) and r.get("status") not in ("blocked", "failed") and record.get("kind") != "env",
@@ -1395,6 +1411,11 @@ def compact(record: dict) -> dict:
         "next_step": r.get("next_step", ""),
         "tokens": tok,
     }
+    for key in ("requested_agent", "requested_model"):
+        if key in record:
+            out[key] = record[key]
+    if last.get("substituted_for"):
+        out["substituted_for"] = last["substituted_for"]
     if record.get("diffstat"):
         out["diffstat"] = record["diffstat"]          # `git diff --shortstat` since the run's undo snapshot
     if "base_behind" in record:
@@ -1527,12 +1548,17 @@ def compact(record: dict) -> dict:
                        "run; check the work yourself, or go on with "
                        f"`ccx resume {record['run_id']} \"...\" --max-usd <USD for the follow-up>`"
                        + (f"; {out['hint']}" if out.get("hint") else ""))
+    from .leadview import receipt_status
+    status = receipt_status(out)
+    if status != out["status"]:
+        out["reported_status"], out["status"] = out["status"], status
     return out
 
 
 def recap(record: dict, res: dict) -> str:
     """One line for the end of `ccx run`'s output (its last key), so a lead that pipes it through `tail` still has
     the run_id: status, check, review, API-equivalent cost and what to run next."""
+    from .leadview import receipt_notes, receipt_outcome, receipt_status
     c = res.get("check")
     check = "none" if not c else (NO_CHANGES_NOTE.replace(" ", "-") if c.get("status") == NO_CHANGES_NOTE else
                                   "passed" if c.get("passed") else
@@ -1544,11 +1570,13 @@ def recap(record: dict, res: dict) -> str:
     cc = record.get("cost_chain") or {}
     if cc.get("ae_usd") is not None:              # after a fix round: what the whole chain cost
         usd = cc["ae_usd"]
-    ok = res.get("ok", record.get("ok"))
     lead = f" needs_lead={res['needs_lead'].split(':')[0]}" if res.get("needs_lead") else ""
-    return (f"ccx run {record['run_id']}: status={res.get('status')} ok={str(bool(ok)).lower()} "
+    notes = receipt_notes(res)
+    receipt = {"ok": record.get("ok"), "kind": record.get("kind"), **res}
+    return (f"ccx run {record['run_id']}: status={receipt_status(receipt)} {receipt_outcome(receipt)} "
             f"check={check} review={review}{lead} cost=~${usd:.4f}"
             + (f" ({len(cc['runs'])} runs + {cc.get('reviews', 0)} reviews)" if cc.get("ae_usd") is not None else "")
+            + ("; " + "; ".join(notes) if notes else "")
             + f"; next: {_next(record)}")
 
 
@@ -1577,16 +1605,28 @@ def _next(record: dict) -> str:
 def human_summary(record: dict, res: dict) -> list[str]:
     """Three plain lines after `ccx run`'s JSON when its stdout is a terminal (a person reading, not a lead or a
     script): what came of it, what it cost, what to run next."""
-    rid, status = record["run_id"], res.get("status")
+    from .coverage import reviewed_ok
+    from .leadview import receipt_notes, receipt_outcome, receipt_status
+    rid, status = record["run_id"], receipt_status(res)
+    notes, outcome = receipt_notes(res), receipt_outcome(res)
     said = " ".join(str(res.get("summary") or "").split())
     said = said if len(said) <= 160 else said[:157] + "..."
-    head = "done" if res.get("ok") else f"not done (status {status}" + (f", {res['kind']}" if res.get("kind") else "") + ")"
+    if not res.get("ok"):
+        head = f"not done (status {status}" + (f", {res['kind']}" if res.get("kind") else "") + ")"
+    elif status in ("stopped", "partial"):
+        head = f"{status} ({outcome})"
+    else:
+        head = "done"
     if res.get("ok") and res.get("kind") == SELF_CHECKED:
-        head = "done, but its check is not independent: every test it ran was written or changed by the sub-agent"
+        head = ("done, but" if status == "done" else head + ";") + (
+            " its check is not independent: every test it ran was written or changed by the sub-agent")
+    if notes:
+        head += "; " + "; ".join(notes)
     cost = f"Cost: ~${_usd(record, res):.4f} on {res.get('agent')} {res.get('model')}"
     if res.get("escalated"):
         cost += f" (escalated {res['escalated']})"
-    if res.get("ok"):
+    if (res.get("ok") and status == "done" and outcome == "ok=true"
+            and (res.get("kind") != SELF_CHECKED or reviewed_ok(record))):
         nxt = f"look at the result, then record your verdict: ccx verify {rid} --ok 1   (wrong: --ok 0)"
     elif res.get("hint"):
         nxt = res["hint"]
