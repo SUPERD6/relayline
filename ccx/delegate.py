@@ -622,7 +622,7 @@ def run(req: Request, p: Paths) -> dict:
     pv_env = _provider_envs(cfg, plan)       # missing key for the first rung -> clear error before anything runs
     plan = _within_budget(p, cfg, plan)
     from . import quota
-    quota.maybe_refresh(p, cfg)
+    quota.maybe_refresh(p, cfg, [req.to], (req.route or {}).get("quota"))
     record = {
         "run_id": run_id, "label": req.label, "to": plan[0]["agent"], "caller": req.caller,
         "caller_vendor": _vendor(req.caller, cfg),

@@ -318,6 +318,7 @@ SETTINGS = {   # key -> (type, help). Only these can be set with `ccx config set
     "quota.auto_refresh_min": (_quota_minutes, "refresh existing readings older than N minutes (default 60); "
                                               "0/false disables"),
     "quota.avoid_above": (float, "used share above which quota routing prefers another subscription (default 0.8)"),
+    "quota.probe_timeout": (float, "quota probe timeout in seconds (default 15; must be positive)"),
     "quota.routing": (str, "on | off: prefer subscriptions with available quota (default on)"),
     "billing.mode": (str, "api | subscription: API-equivalent USD first (default), or quota units first"),
     "defaults.tradeoff": (str, "tier: save | balanced | fast | cheapest, or a knob 0..1 (0 = cheapest, 1 = fastest)"),
@@ -328,6 +329,7 @@ SETTINGS = {   # key -> (type, help). Only these can be set with `ccx config set
                           "delegates no new work (route and propose say do it yourself; run, batch, q run / resume "
                           "and way refuse without --force); cross-vendor review and talk work as before: ccx ask, "
                           "ccx discuss, ccx run --mode read, mem, board"),
+    "routing.require_ready": (_bool, "true | false: prefer installed CLIs with local login evidence (default true)"),
     "routing.small_self": (_bool, "true | false: `ccx route` / `ccx propose` advise doing a small task yourself "
                                   "instead of delegating it, sized by routing.small_self_by; `ccx run` still "
                                   "delegates (default false until a measured round backs it)"),
@@ -456,6 +458,8 @@ def set_setting(p: Paths, key: str, raw: str) -> dict:
         val = typ(raw)
     except ValueError as e:
         raise ValueError(f"{key} needs a {typ.__name__}: {e}") from e
+    if key == "quota.probe_timeout" and not 0 < val < float("inf"):
+        raise ValueError("quota.probe_timeout must be a finite positive number")
     if key == "worktree.fetch_timeout":
         worktree_fetch_timeout({"worktree": {"fetch_timeout": val}})
     cur = {}

@@ -34,10 +34,25 @@ def quota_candidates(p: Paths, cfg: dict, agents: list[str], given: dict | None 
     """Stable partition: tight subscriptions last; unknown readings remain eligible, explicitly labelled.
     Filtering the first group before the cost pick prevents a cheap but exhausted subscription winning again."""
     from . import quota
+    from .agents import readiness, require_ready
     agents = list(dict.fromkeys(agents))
+    states = readiness(p, cfg, agents) if require_ready(cfg) else {}
+    ready_agents = [ag for ag in agents if states.get(ag, {}).get("ready")]
+    unready = {ag: state["why"] for ag, state in states.items() if not state["ready"]}
+    why = "; ".join(unready.values())
+    if states and not ready_agents:
+        why += "; all candidates lack readiness evidence; retaining the existing fallback order"
+        why += "; " + "; ".join(f"no login evidence for {ag}, trying anyway" for ag in agents)
+    readiness_info = {"readiness": states, "unready": unready, "all_unready": bool(states) and not ready_agents,
+                      "why": why} if states else {}
+    # Keep every candidate: readiness selects the preferred group for the cost pick, not a login veto.
+    # If all lack evidence (e.g. keychain logins), keep the original order and try anyway.
+    eligible_agents = ready_agents or agents
+    agents = eligible_agents + [ag for ag in agents if ag not in eligible_agents]
     opts = cfg.get("quota") or {}
     if not quota_routing(cfg):
-        return {"candidates": agents, "eligible": agents, "tight": {}, "all_tight": False}
+        return {"candidates": agents, "eligible": eligible_agents, "tight": {}, "all_tight": False,
+                **readiness_info}
     pr = quota.pressure(p, given)
     tight = {}
     for ag in agents:
@@ -50,10 +65,16 @@ def quota_candidates(p: Paths, cfg: dict, agents: list[str], given: dict | None 
             tight[ag] = {"used": max(w["used"] for w in hit),
                          "projected_at_reset": max(w.get("projected", w["used"]) for w in hit),
                          "resets_at": max((w.get("resets_at") or 0 for w in hit), default=0) or None}
-    available = [ag for ag in agents if ag not in tight]
-    out = {"candidates": available + [ag for ag in agents if ag in tight],
-           "eligible": available, "tight": tight, "all_tight": bool(agents) and not available,
-           "freshness": pr["freshness"]}
+    available = [ag for ag in eligible_agents if ag not in tight]
+    if not available:
+        # No ready subscription has room: missing login evidence must not discard a healthy fallback.
+        available = [ag for ag in agents if ag not in tight]
+        if available and readiness_info:
+            readiness_info["why"] += "; " + "; ".join(
+                f"no login evidence for {ag}, trying anyway" for ag in available if ag in unready)
+    out = {"candidates": sorted(agents, key=lambda ag: (bool(ready_agents) and ag not in ready_agents, ag in tight)),
+           "eligible": available, "tight": tight, "all_tight": bool(eligible_agents) and not available,
+           "freshness": pr["freshness"], **readiness_info}
     if tight:
         why = "; ".join(f"{ag} quota {w['used']:.0%}, projected {w['projected_at_reset']:.0%}"
                         for ag, w in tight.items())
@@ -64,6 +85,8 @@ def quota_candidates(p: Paths, cfg: dict, agents: list[str], given: dict | None 
             reset = min(resets) if resets else None
             out["resets_at"] = reset
             out["message"] = f"{why}; all quotas tight: do it yourself or wait until {quota.reset_text(reset)}"
+    if ready_agents and unready:
+        out["message"] = "; ".join(filter(None, (out.get("message"), readiness_info["why"])))
     return out
 
 
@@ -150,13 +173,15 @@ def _fallback_plan(req: Request, p: Paths, cfg: dict, failed: dict) -> dict | No
     candidates = ranked["eligible"]
     if not candidates:
         return None
+    if ranked.get("why") and req.route is not None:
+        req.route["fallback"] = {"candidates": ranked["candidates"], "why": ranked["why"]}
     to = candidates[0]
     b = (req.route or {}).get("b")
     if b is not None:
         try:
             pk = learn.pick(p, float(b), candidates,
                             (req.route or {}).get("tradeoff", "save"), mode=req.mode)
-            return _rung_spec(pk["rung"])
+            return _rung_spec(pk["rung"]) | {"why": ranked.get("why", "")}
         except Exception:  # noqa: BLE001
             pass
     tier = failed.get("tier") or req.tier
@@ -164,7 +189,7 @@ def _fallback_plan(req: Request, p: Paths, cfg: dict, failed: dict) -> dict | No
         spec = tier_spec(cfg, tier, to)
         return {"agent": to, "model": spec["model"], "effort": spec["effort"],
                 "lean": bool(spec.get("lean", False)), "tier": tier,
-                "rung": f"{to}:{spec['model']}:{spec['effort']}"}
+                "rung": f"{to}:{spec['model']}:{spec['effort']}", "why": ranked.get("why", "")}
     return None
 
 
@@ -290,7 +315,7 @@ def resolve_role(spec: dict, caller: str, p: Paths, cfg: dict, resolve=None) -> 
     selected = dict(spec)
     if "--to" not in explicit and selected.get("to", "auto") == "auto":
         selected["to"] = role["agent"]
-    different, fallback = None, None
+    different, fallback, ready_why = None, None, ""
     if selected.get("to") == "other":
         from .agents import others
         # Use the executed attempt, never the initial target, across the checkout's worktrees.
@@ -319,7 +344,19 @@ def resolve_role(spec: dict, caller: str, p: Paths, cfg: dict, resolve=None) -> 
             build_agent = "codex" if caller != "codex" else "claude"
         build_model = (previous or {}).get("model") or build.get("model")
         candidates = others(build_agent, cfg)
+        from . import quota
+        quota.maybe_refresh(p, cfg, [build_agent, *candidates], spec.get("quota"))
         ranked = quota_candidates(p, cfg, candidates, spec.get("quota"))
+        ready_why = ranked.get("why", "")
+        from .agents import ready, require_ready
+        if (require_ready(cfg) and ranked["eligible"] and
+                not any(ranked.get("readiness", {}).get(ag, {}).get("ready") for ag in ranked["eligible"]) and
+                ready(build_agent, cfg, p=p)):
+            # Prefer a known login for review; all-unknown discovery keeps the existing fallback order.
+            reviewers = ranked["eligible"]
+            ranked["eligible"] = []
+            ready_why = "; ".join([*(ranked.get("unready") or {}).values(), *(
+                f"reviewer vendor {ag}: no login evidence → same-vendor other model" for ag in reviewers)])
         if ranked["eligible"]:
             selected["to"] = ranked["eligible"][0]
         else:
@@ -344,6 +381,11 @@ def resolve_role(spec: dict, caller: str, p: Paths, cfg: dict, resolve=None) -> 
         sized.update(force=True)
     kw, route = resolve(sized, caller, p, cfg)
     route.update(role=name, role_spec=role["spec"], role_source=role["source"])
+    if ready_why:
+        if isinstance(route.get("why"), dict):
+            route["why"]["readiness"] = ready_why
+        else:
+            route["why"] = "; ".join(filter(None, (route.get("why"), ready_why)))
     route["explicit_flags"] = sorted(explicit)
     if (route.get("quota_routing") or {}).get("all_tight") and not spec.get("force"):
         return None, route

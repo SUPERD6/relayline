@@ -264,6 +264,23 @@ API 等价美元。原有美元字段和 API 模式建议文案保留。
 
 固定分级是后备方案；带打分参数时由 task-routing 按成功率和每次成功的花费来选，并且会根据实际结果自动校准。
 
+`[routing] require_ready = true` 默认优先已安装且有本地登录证据的 CLI，然后沿用原配额与成本排序；
+设为 `false` 恢复此前的就绪排序。带难度参数的路由、关键词 `run` 和角色 `other` 使用此优先级。
+显式 `--to X` 保持指定目标，并只刷新 X。`quota_routing.why` 写明缺失证据，例如
+`codex: installed, not logged in`；全部缺乏证据时保留原回退顺序，并说明
+`no login evidence for X, trying anyway`。一般路由中，缺乏证据只让回退降序，不删除该回退，因为文件检查可能漏掉
+真实的钥匙串登录。就绪候选配额用尽时，也仍可尝试缺乏登录证据且有可用配额的候选。显式 CLI/模型选择仍保留。
+角色 `other` 中，build 厂商有登录证据、但可用审查厂商均无登录证据时，使用已有的同厂家不同模型回退，
+`why` 写明 `reviewer vendor claude: no login evidence → same-vendor other model`（替换为实际厂商）。
+所有厂商都没有登录证据时，保留原发现与回退顺序。
+就绪检查只看文件是否存在：`CODEX_HOME/auth.json`、`CLAUDE_CONFIG_DIR/.credentials.json`、
+`~/.gemini/oauth_creds.json`（实验性适配器）。DSH 只检查 `DEEPSEEK_API_KEY` 是否已设置，
+其适配器没有已知的登录状态命令或凭据文件信号。
+`ccx doctor` 已执行的登录检查也可提供带时间的布尔缓存，覆盖系统钥匙串登录；路由不读取凭据内容，
+不执行登录请求。快照写在 `<hub>/ccx/agent-readiness.json`；只有 doctor 结果与规范化的工具 home 关联、
+按 `quota.auto_refresh_min` 复用（0/false 时不复用）。文件存在性每次重新检查，登录文件出现后立即生效。
+文件存在不保证令牌仍有效；provider 原密钥和预算门槛保留。
+
 | 级 | 任务 | Codex | Claude Code | Gemini CLI（实验性） |
 |---|---|---|---|---|
 | T0 | 两三步就做完 | 不派 | 不派 | 不派 |
@@ -339,11 +356,17 @@ Claude 报告的 `cost_usd`、token 用量及 API 等价估算 `ae_usd` 只写�
 ```toml
 [quota]
 auto_refresh_min = 60  # 0 或 false 关闭自动刷新；显式 --refresh 仍可用
+probe_timeout = 15    # 每家探针超时秒数
 avoid_above = 0.8
 routing = "on"        # "off" 关闭新增的配额排序
 ```
 
-这三个配置键也支持 `ccx config set/get`，例如 `ccx config set quota.routing off`。
+这些配置键也支持 `ccx config set/get`，例如 `ccx config set quota.routing off`。
+显式指定目标的 run 和 route 只刷新该候选；角色 `other` 考虑 build 厂商和其他厂商候选。
+有就绪候选时，自动刷新跳过缺乏登录证据的候选。关键词 route 传入当前 tier 配置的候选，
+显式 `--to` 时只传该目标。`other` 用于角色配置，不是 `--to` 的可选值。
+探针开始时 stderr 显示 `refreshing codex quota…`（或对应 CLI），失败只警告并保留旧读数。
+每家探针使用 `quota.probe_timeout`（默认 15 秒），默认 60 分钟重试冷却保留。
 `ccx route` 和 `ccx run` 只在某家已有读数、且最新读数超过 `auto_refresh_min` 分钟时自动刷新。
 从未有读数的家不会自动探针，需要时手动运行 `ccx quota --refresh` 初始化。
 各家的 `freshness` 表示最新读数的年龄，各窗口另保留自己的读数年龄。原有 `probe_claude = false` 和
@@ -440,6 +463,9 @@ ccx run --role build "实现解析器"
 
 `roles` / `roles show` 显示合并表及逐项来源。`set` / `unset` 默认改全局，`--project` 改项目；删除覆盖后显示
 下层配置，已有 defaults 保留供复用。关闭方法：删除两个层级中的角色赋值。
+
+合并后的角色表为空时，stdout 保持 JSON，stderr 另给三行可复制的 `roles set` / `run --role` 示例，
+并提示 `--project` 写入项目级配置。有角色时输出不变。
 
 可选模板 `.ccx/briefs/templates/build.md` 中写 `实现：{task}`，并填写明确的“只动”范围。只替换字面量
 `{task}`，JSON 和代码的其他花括号不受影响。展开后自动附项目 `AGENTS.md` 路径、范围提醒和实际 check。

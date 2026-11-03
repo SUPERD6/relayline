@@ -413,12 +413,18 @@ def resolve(spec: dict, caller: str, p, cfg: dict) -> tuple[dict | None, dict]:
     candidates = [ag for ag in AGENTS if cfg["tiers"].get(tier, {}).get(ag)]
     ranked = quota_candidates(p, cfg, candidates if to == "auto" else [target], spec.get("quota"))
     route["quota_routing"] = ranked
+    if ranked.get("why"):
+        if isinstance(route.get("why"), dict):
+            route["why"]["readiness"] = ranked["why"]
+        else:
+            route["why"] = ranked["why"]
     if ranked.get("message"):
         route["quota_note"] = ranked["message"]
     if to == "auto" and ranked["all_tight"] and not spec.get("force"):
         route["advice"] = ranked["message"]
         return None, route
-    if to == "auto" and target in ranked["tight"] and ranked["eligible"]:
+    if to == "auto" and ranked["eligible"] and (target in ranked["tight"] or
+            (target in ranked.get("unready", {}) and target not in ranked["eligible"])):
         target = ranked["eligible"][0]
     return {"to": target, "tier": tier, "route": route}, route
 

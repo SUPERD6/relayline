@@ -106,6 +106,7 @@ hard = "direct"
 # 时不生效。依据：pg1 派活花费 82% 在主导侧；hc1 / pg1 self 账本校准（一个文件 3–4 次请求、每次约 25k token）。
 [routing]
 mode = "auto"             # ccx config set routing.mode off
+require_ready = true      # prefer installed + login evidence; false restores ordering / 优先已安装且有登录证据
 small_self = false        # ccx config set routing.small_self on
 small_self_by = "files"   # files（#200 的规则，默认）| cost（实验：自己做贵不贵）
 small_self_overhead_usd = 0.035
@@ -122,6 +123,7 @@ self_output_per_request = 100
 # Avoid wasting a run on a nearly exhausted subscription. / 避免快用满的一家白跑。
 [quota]
 auto_refresh_min = 60     # stale readings: one tiny probe; 0/false disables / 超过 60 分钟刷新，0/false 关
+probe_timeout = 15        # seconds per quota probe / 单家配额探针超时秒数
 avoid_above = 0.8         # any window > 80%, or projected > 100%, sorts last / 任一窗口用量或预测超线则降序
 routing = "on"           # off keeps the previous routing / off 关闭配额排序
 

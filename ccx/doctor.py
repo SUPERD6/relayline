@@ -356,6 +356,8 @@ def doctor(p: Paths, codex_lead: bool = False, verbose: bool = False) -> bool:
             js = _j.loads(out)
             if isinstance(js, dict) and "loggedIn" in js:
                 ok_ = bool(js["loggedIn"])
+                from .agents import cache_login
+                cache_login(p, agent, ok_)
                 add(f"{agent} login", "ok" if ok_ else "FAIL",
                     (js.get("authMethod") or "") if ok_ else
                     f"not logged in -> run {LOGIN_CMD.get(agent, agent)}")
@@ -370,6 +372,9 @@ def doctor(p: Paths, codex_lead: bool = False, verbose: bool = False) -> bool:
             state = "FAIL"
         else:
             state = "Unknown"
+        if state in ("ok", "FAIL"):
+            from .agents import cache_login
+            cache_login(p, agent, state == "ok")
         add(f"{agent} login", state, line[:90] + (f" -> run {LOGIN_CMD.get(agent, agent)}"
                                                     if state == "FAIL" else ""))
 
