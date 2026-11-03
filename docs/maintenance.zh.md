@@ -143,3 +143,18 @@ python scripts/eval/r5.py summary --taskset holdout
      `pipx install --index-url https://test.pypi.org/simple/ relayline`（没有依赖，不用第二个源），跑 `ccx -h`。
    - pypi.org 一样，换成 pypi.org 的 token 和 `--repository pypi`（或者用 GitHub Actions 的 Trusted Publishing，
      不用存 token；那是仓库设置，由维护者决定）。
+
+## 6. 发布后候选（按 release-plan §13 / §14）
+
+以下是候选，不是发布日期，也不授权付费评测。维护者本地 `release-plan` §13 / §14 优先保证每日可用；
+下列预算来自其 §11 批次及 §9 / §10，是计划估算，不是实测花费或订阅账单。每项运行前先在
+`docs/research/` 登记新计划；缺少判定规则时，先补规则，不能临场决定。
+
+| 候选 | 前置 | 估多少钱 | 判定规则在哪 |
+|---|---|---|---|
+| P0-10 外部仓库基准 | 固定候选提交，选新外部 issue 与仓库隐藏测试，登记分组，使用空闲的独立 clone | 一轮约 $15 | 本地 release-plan §9 / §11 定范围；仍需公开的专门计划与判定规则 |
+| P0-7 大任务五组 | 登记任务、独立块、隐藏测试与合并后检查，运行前冻结五组设计 | §11 约 $12（早期 §7 / §10 估 $8–10 再加 $4） | 本地 release-plan §7 / §10 列正确数、墙钟、花费、冲突、返工和主导轮次；最终五组仍需专门判定规则 |
+| P0-13 discuss A/B | 登记设计题、有无讨论两组及独立判分，付费运行另行批准 | 约 $2 | 本地 release-plan §9 提出问题；仍需专门计划与正确性规则 |
+| P0-14 档位矩阵 | 固定 save / balanced / fast 设置，登记留出集与大任务集、分组和检查 | 约 $10 | 本地 release-plan §10 / §11 列正确数、每成功成本和墙钟；运行前登记矩阵判定规则 |
+| B3 开关测量 | 功能与每日快照冻结，核对开关实际生效及干净配对，机器空闲 | §11 待跑的少跑几趟批次约 $7.2 | [B3 已登记计划](research/2026-10-30-b3-lean-switches-plan.zh.md)的少跑几趟部分；保留[已有报告](research/2026-10-31-b3-lean-switches.zh.md)的 Unknown / Fail |
+| P0-17 真实限额恢复 | 等自然限额，另一家已登录且可接手，保存停止、重置、改派和收据证据 | §13 分配 $0；实际改派及探针用量未知 | 本地 release-plan §13 / §14 要求真机恢复证据；先登记试验清单，假 CLI 检查与探针费用目标不算真机验证 |
