@@ -1,6 +1,7 @@
 """P0-12: fake ledgers, public measurements and actual command/API wiring; never run an agent CLI."""
 from __future__ import annotations
 
+import hashlib
 import http.client
 import json
 import os
@@ -15,7 +16,7 @@ import pytest
 
 from ccx import ability, cli, ledger, ui
 from ccx.commands import delegation
-from ccx.config import Paths
+from ccx.config import Paths, load_config
 
 REPO = Path(__file__).resolve().parents[1]
 
@@ -167,6 +168,122 @@ def test_distinct_cost_bases_and_zero_are_not_fabricated_or_mixed():
     assert c["cost_medians"] == {"ae_usd": {"median": 0, "n": 1},
         "cost_usd": {"median": 5, "n": 2}, "usd": {"median": 99, "n": 1}}
     assert c["median_wall_s"] == 0 and c["wall_n"] == 1
+
+
+def test_all_spend_per_success_includes_failures_without_changing_success_median(p):
+    add(p, "wrong", kind="check_failed", ok=False, verdict={"ok": False}, ae_usd=9, cost_usd=90)
+    add(p, "right", verdict={"ok": True}, ae_usd=1, cost_usd=10)
+    cell = ability.table(p, vendor="codex", task="code")["rows"][0]
+    assert (cell["n"], cell["right_n"], cell["failed"]) == (2, 1, 1)
+    assert cell["median_usd_per_success"] == 1
+    assert cell["spend_all_usd"] == 10 and cell["usd_per_success_all"] == 10
+    assert cell["missing_cost_n"] == 0 and cell["spend_all_cost_basis"] == "ae_usd"
+    assert cell["cost_totals"] == {
+        "ae_usd": {"spend_all_usd": 10, "right_n": 1, "missing_cost_n": 0, "usd_per_success_all": 10},
+        "cost_usd": {"spend_all_usd": 100, "right_n": 1, "missing_cost_n": 0, "usd_per_success_all": 100}}
+
+
+def test_old_ledger_missing_cost_is_unknown_not_free(p):
+    # Write an old-format run without any cost keys; add() normally supplies ae_usd.
+    ledger.append_event(p, {"run_id": "old", "to": "codex", "model": "gpt-6-luna", "mode": "write",
+        "brief": "Implement a parser", "kind": "ok", "verdict": {"ok": True}})
+    cell = ability.refresh(p)["cells"][0]
+    assert cell["right_n"] == 1 and cell["missing_cost_n"] == 1
+    assert cell["spend_all_usd"] is None and cell["usd_per_success_all"] is None
+    assert cell["spend_all_cost_basis"] is None and cell["cost_totals"] == {}
+    add(p, "known", verdict={"ok": False}, kind="check_failed", ae_usd=9)
+    cell = ability.refresh(p)["cells"][0]
+    assert cell["spend_all_usd"] == 9 and cell["usd_per_success_all"] == 9
+    assert cell["right_n"] == 1 and cell["missing_cost_n"] == 1
+    assert cell["median_usd_per_success"] is None
+
+
+@pytest.mark.parametrize("stop", [
+    {"kind": "max_usd"}, {"kind": "timeout"}, {"kind": "quota"},
+    {"kind": "over_budget"}, {"kind": "user_stopped"},
+    {"status": "partial"}, {"state": "running"},
+])
+def test_all_spend_includes_stopped_costs_without_changing_ability_evidence(p, stop):
+    add(p, "stopped", ae_usd=9, cost_usd=90, verdict={"ok": False}, effort="high", ts=900, **stop)
+    # Stops alone still provide no ability evidence, but their costs must survive in the cache.
+    assert ability.refresh(p)["cells"] == []
+    add(p, "right", ae_usd=1, cost_usd=10, verdict={"ok": True})
+    cell = ability.refresh(p)["cells"][0]
+    assert (cell["n"], cell["right_n"], cell["failed"], cell["success_rate"]) == (1, 1, 0, 1)
+    assert cell["ok_self_checked"] == 0 and cell["unverified"] == 0
+    assert cell["efforts"] == {"low": 1} and cell["updated"] == 100
+    assert cell["median_usd_per_success"] == 1 and cell["median_wall_s"] == 10
+    assert cell["spend_all_usd"] == 10 and cell["usd_per_success_all"] == 10
+    assert cell["missing_cost_n"] == 0
+    assert cell["cost_totals"]["cost_usd"]["spend_all_usd"] == 100
+    assert ability.refresh(p) == ability.refresh(p, rebuild=True)
+
+
+def test_all_spend_keeps_bases_separate_and_counts_unjudged_costs():
+    base = {"vendor": "codex", "model": "m", "task": "test"}
+    cell = ability.aggregate([
+        {**base, "verdict": "ok", "ae_usd": 0, "cost_usd": 2},
+        {**base, "verdict": "failed", "cost_usd": 9},
+        {**base, "verdict": "unverified", "counted": False, "ae_usd": 3}])[0]
+    assert cell["spend_all_usd"] == 3 and cell["usd_per_success_all"] == 3
+    assert cell["right_n"] == 1 and cell["missing_cost_n"] == 1
+    assert cell["cost_totals"]["cost_usd"] == {
+        "spend_all_usd": 11, "right_n": 1, "missing_cost_n": 1, "usd_per_success_all": 11}
+    failed = ability.aggregate([{**base, "verdict": "failed", "cost_usd": 0}])[0]
+    assert failed["spend_all_usd"] == 0 and failed["missing_cost_n"] == 0
+    assert failed["right_n"] == 0 and failed["usd_per_success_all"] is None
+
+
+def test_additive_cost_fields_backfill_existing_cache_without_rereading_runs(p):
+    add(p, "right", verdict={"ok": True}, ae_usd=1)
+    state = ability.refresh(p)
+    for field in ("spend_all_usd", "right_n", "missing_cost_n", "usd_per_success_all",
+                  "spend_all_cost_basis", "cost_totals"):
+        state["cells"][0].pop(field)
+    (p.state / "ability.json").write_text(json.dumps(state), encoding="utf-8")
+    with mock.patch.object(ability, "_observation", wraps=ability._observation) as read:
+        cell = ability.refresh(p)["cells"][0]
+        assert read.call_count == 0
+    assert cell["usd_per_success_all"] == 1 and cell["median_usd_per_success"] == 1
+    assert ability.refresh(p) == ability.refresh(p, rebuild=True)
+
+
+def test_legacy_fingerprint_with_null_stopped_sample_migrates_recorded_cost(p):
+    add(p, "right", verdict={"ok": True}, ae_usd=1)
+    legacy = ability.refresh(p)
+    add(p, "stopped", kind="max_usd", ok=False, verdict={"ok": False}, ae_usd=9)
+    legacy["entries"]["stopped"] = {"stamp": "", "sample": None}
+    cfg = load_config(p)
+    for rid, row in ledger.runs_by_id(ledger.rows(p)).items():
+        # Exact pre-upgrade fingerprint: no all_run_costs marker, verify event or metadata files.
+        legacy["entries"][rid]["stamp"] = hashlib.sha256(json.dumps(
+            [row, None, cfg.get("providers"), sorted(ability.NOT_WRONG), None, None],
+            sort_keys=True).encode("utf-8")).hexdigest()
+    before = dict(legacy["cells"][0])
+    assert before["spend_all_usd"] == 1 and legacy["entries"]["stopped"]["sample"] is None
+    (p.state / "ability.json").write_text(json.dumps(legacy), encoding="utf-8")
+
+    migrated = ability.refresh(p)
+    cell = migrated["cells"][0]
+    assert migrated["entries"]["stopped"]["stamp"] != legacy["entries"]["stopped"]["stamp"]
+    assert migrated["entries"]["stopped"]["sample"]["ae_usd"] == 9
+    assert cell["spend_all_usd"] == 10 and cell["usd_per_success_all"] == 10
+    assert (cell["n"], cell["right_n"], cell["failed"], cell["success_rate"]) == (1, 1, 0, 1)
+    assert cell["median_usd_per_success"] == 1
+    for field in ("n", "ok", "failed", "success_rate", "median_usd_per_success", "cost_medians",
+                  "median_wall_s", "wall_n", "ok_self_checked", "unverified", "efforts", "updated"):
+        assert cell[field] == before[field]
+
+
+def test_cost_fields_and_explanation_through_command_outside_repository(tmp_path, p):
+    add(p, "right", verdict={"ok": True}, ae_usd=1)
+    output = process(tmp_path, "ability", "show", "--vendor", "codex", "--task", "code").stdout
+    assert "usd_per_success_all" in output and "最终模型承担整条链的成本，不等于模型固有能力" in output
+    doc = json.loads(process(tmp_path, "ability", "show", "--vendor", "codex", "--task", "code", "--json").stdout)
+    assert doc["rows"][0]["usd_per_success_all"] == 1
+    empty = ability.table(p, candidates=[{"vendor": "claude", "model": "unmeasured"}], task="code")["rows"][0]
+    assert empty["right_n"] == 0 and empty["missing_cost_n"] == 0
+    assert empty["spend_all_usd"] is None and empty["usd_per_success_all"] is None
 
 
 def test_overrides_win_without_changing_evidence_and_preserve_comments(p):

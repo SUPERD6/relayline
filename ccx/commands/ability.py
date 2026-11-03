@@ -44,6 +44,9 @@ def cmd_ability(a) -> int:
         for s in unassigned:
             _published(s)
     print("Advisory only: published workflows stay separate; routing does not use this table.")
+    print("Costs: median_usd_per_success covers successes only; usd_per_success_all = known spend_all_usd / right_n "
+          "(missing_cost_n counts unknown costs; bases stay separate in cost_totals); the final model bears the "
+          "whole chain's cost, not intrinsic model ability / 最终模型承担整条链的成本，不等于模型固有能力。")
     return 0
 
 

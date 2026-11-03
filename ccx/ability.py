@@ -91,12 +91,24 @@ def _key(row: dict) -> tuple[str, str, str]:
 
 
 def aggregate(samples: list[dict]) -> list[dict]:
-    """One observation per finished run, attributed to its final model; medians never mix cost bases."""
+    """One observation per run; the final model bears the entire chain's recorded cost.
+
+    This is workflow evidence, not intrinsic model ability. median_usd_per_success uses only
+    judged successes; cost_totals separates all observations' known spend by cost basis.
+    spend_all_usd / right_n includes failures, unjudged runs and recorded costs of stopped,
+    partial or running work in the same cell, preferring ae_usd, then
+    cost_usd, then usd without mixing bases; missing_cost_n counts absent costs in that basis.
+    No known costs means unknown spend, not zero; no right runs means an unknown ratio.
+    Cost-only observations never create ability cells or alter their existing evidence fields.
+    """
     groups = defaultdict(list)
     for row in samples:
         groups[_key(row)].append(row)
     out = []
-    for (vendor, model, task), rs in sorted(groups.items()):
+    for (vendor, model, task), cost_rows in sorted(groups.items()):
+        rs = [r for r in cost_rows if not r.get("cost_only")]
+        if not rs:
+            continue
         judged = [r for r in rs if r.get("counted", True)]
         good = [r for r in judged if r["verdict"] == "ok"]
         costs = {}
@@ -105,6 +117,17 @@ def aggregate(samples: list[dict]) -> list[dict]:
             if vals:
                 costs[basis] = {"median": median(vals), "n": len(vals)}
         basis = next(iter(costs), None)
+        totals = {}
+        for cost_basis in ("ae_usd", "cost_usd", "usd"):
+            vals = [v for r in cost_rows if (v := _number(r.get(cost_basis))) is not None]
+            if vals:
+                spend = sum(vals)
+                totals[cost_basis] = {"spend_all_usd": spend, "right_n": len(good),
+                    "missing_cost_n": len(cost_rows) - len(vals),
+                    "usd_per_success_all": spend / len(good) if good else None}
+        spend_basis = next(iter(totals), None)
+        total = totals.get(spend_basis, {"spend_all_usd": None, "right_n": len(good),
+            "missing_cost_n": len(cost_rows), "usd_per_success_all": None})
         walls = [v for r in judged if (v := _number(r.get("wall_s"))) is not None]
         counts = Counter(r["verdict"] for r in rs)
         out.append({"vendor": vendor, "model": model, "task": task, "n": len(judged), "ok": len(good),
@@ -113,6 +136,7 @@ def aggregate(samples: list[dict]) -> list[dict]:
                     "success_rate": len(good) / len(judged) if judged else None,
                     "median_usd_per_success": costs[basis]["median"] if basis else None,
                     "cost_basis": basis, "cost_medians": costs,
+                    **total, "spend_all_cost_basis": spend_basis, "cost_totals": totals,
                     "median_wall_s": median(walls) if walls else None, "wall_n": len(walls),
                     "efforts": dict(sorted(Counter(r.get("effort") or "unknown" for r in rs).items())),
                     "updated": max((v for r in rs if (v := _number(r.get("updated"))) is not None), default=None),
@@ -150,8 +174,7 @@ def _observation(p: Paths, row: dict, event: dict, cfg: dict) -> dict | None:
     rec = _json(d / "run.json", {}) if d else {}
     data = {**row, **rec}
     status = (data.get("result") or {}).get("status") or data.get("status")
-    if data.get("kind") in NOT_WRONG or status == "partial" or data.get("state") == "running":
-        return None
+    cost_only = data.get("kind") in NOT_WRONG or status == "partial" or data.get("state") == "running"
     attempts = data.get("attempts")
     last = attempts[-1] if isinstance(attempts, list) and attempts else {}
     rungs = row.get("rungs") or []
@@ -191,6 +214,8 @@ def _observation(p: Paths, row: dict, event: dict, cfg: dict) -> dict | None:
               "wall_s": _number(row.get("seconds", data.get("seconds", data.get("wall"))))}
     for basis in ("ae_usd", "cost_usd", "usd"):
         result[basis] = _number(row.get(basis, data.get(basis)))
+    if cost_only:
+        result["cost_only"] = True
     return result
 
 
@@ -259,12 +284,14 @@ def refresh(p: Paths, *, rebuild: bool = False, persist: bool = True) -> dict:
                 if not row.get("soft") or not prev or prev.get("soft"):
                     events[row["run_id"]] = row
         cfg = load_config(p)
-        entries, dirty = {}, set()
+        # Existing observations need no reread when only these additive summaries are absent.
+        entries, dirty = {}, {_key(c) for c in old.get("cells", []) if "spend_all_usd" not in c}
         for rid, row in runs.items():
             d = _run_dir(p, rid)
             before = previous.get(rid, {})
             try:
-                stamp = hashlib.sha256(json.dumps([row, events.get(rid), cfg.get("providers"), sorted(NOT_WRONG),
+                # Invalidate observations cached before stopped-run costs were retained.
+                stamp = hashlib.sha256(json.dumps(["all_run_costs", row, events.get(rid), cfg.get("providers"), sorted(NOT_WRONG),
                     _stat(d / "run.json") if d else None, _stat(d / "brief.md") if d else None],
                     sort_keys=True).encode("utf-8")).hexdigest()
                 sample = (_observation(p, row, events.get(rid, {}), cfg)
@@ -398,6 +425,8 @@ def table(p: Paths, *, vendor: str | None = None, task: str | None = None,
         cell = cells.get(key, {"vendor": v, "model": m, "task": t, "n": 0, "ok": 0,
             "ok_self_checked": 0, "unverified": 0, "failed": 0, "success_rate": None,
             "median_usd_per_success": None, "cost_basis": None, "cost_medians": {}, "median_wall_s": None,
+            "spend_all_usd": None, "right_n": 0, "missing_cost_n": 0, "usd_per_success_all": None,
+            "spend_all_cost_basis": None, "cost_totals": {},
             "wall_n": 0, "efforts": {}, "updated": None, "insufficient_data": True})
         cell["preference"] = manual.get(key)
         cell["preference_source"] = "user" if key in manual else None

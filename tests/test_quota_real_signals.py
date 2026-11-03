@@ -30,6 +30,40 @@ class TestRealQuotaSignals(Env):
         self.env["CCX_LEAD_VIEW"] = "line"
         self.p = Paths(self.hub)
 
+    def test_normal_zero_exit_controls_parse_ok_in_both_console_encodings(self):
+        # Pair both direct refusal replays with the same fake/argv/input, changing only its status.
+        for encoding in ("utf-8", "cp1252"):
+            with self.subTest(encoding=encoding):
+                r = subprocess.run([sys.executable, str(FAKES / "fake_claude.py"), "-p", "--output-format",
+                                    "stream-json", "--verbose"], cwd=self.work,
+                                   env={**self.env, "FAKE_STATUS_CLAUDE": "done", "PYTHONIOENCODING": encoding},
+                                   input=b"Reply OK.", capture_output=True)
+                self.assertEqual(r.returncode, 0, r.stderr)
+                stdout, stderr = r.stdout.decode("utf-8"), r.stderr.decode("utf-8")
+                self.assertEqual(quota.stop_evidence("claude", stdout, stderr, None), {"by": "unknown"})
+                parsed = parse_claude(stdout, stderr, r.returncode, None)
+                self.assertTrue(parsed.ok)
+                self.assertEqual(parsed.kind, "ok")
+                self.assertIsNone(parsed.retry_after)
+        self.assertEqual([c["agent"] for c in self.calls()], ["claude", "claude"])
+
+    def test_normal_run_control_succeeds_without_fallback(self):
+        # Env.ccx invokes the same entry point outside the repository, with the same fake CLIs.
+        r = self.ccx("run", "--from", "user", "--to", "claude", "--tier", "T2", "--review", "off", "x",
+                     env={"FAKE_STATUS_CLAUDE": "done"})
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        out = json.loads(r.stdout)
+        rec = json.loads((self.p.runs / out["run_id"] / "run.json").read_text(encoding="utf-8"))
+        self.assertTrue(out["ok"])
+        self.assertTrue(rec["ok"])
+        self.assertEqual([a["agent"] for a in rec["attempts"]], ["claude"])
+        self.assertEqual(rec["attempts"][0]["kind"], "ok")
+        self.assertNotIn("quota_stop", rec["attempts"][0])
+        self.assertNotIn("quota_fallback", rec)
+        self.assertNotIn("quota_fallback", out)
+        calls = [c["agent"] for c in self.calls() if "-p" in c["argv"] or c["argv"][:1] == ["exec"]]
+        self.assertEqual(calls, ["claude"])
+
     def test_real_refusal_replays_verbatim_and_classifies_even_with_zero_exit(self):
         lines = fixture_lines("claude_rate_limit_20261031.jsonl")
         r = subprocess.run([sys.executable, str(FAKES / "fake_claude.py"), "-p", "--output-format",
