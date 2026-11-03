@@ -351,6 +351,9 @@ def doctor(p: Paths, codex_lead: bool = False, verbose: bool = False) -> bool:
             add(f"{agent} login", "Unknown", "ccx can't check this tool's login; its first run will tell")
             continue
         rc, out = _run([*bin_argv(agent), *ad.login_argv])
+        if rc == -1:
+            add(f"{agent} login", "Unknown", out[:90])
+            continue                           # a timeout/launch error is not a negative login result
         try:                                   # claude auth status prints JSON
             import json as _j
             js = _j.loads(out)

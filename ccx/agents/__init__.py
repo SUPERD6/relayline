@@ -83,8 +83,8 @@ def readiness(p, cfg: dict, names=None) -> dict[str, dict]:
     """Installed + local login evidence. Only doctor results use quota.auto_refresh_min caching.
 
     Credential paths are stat'ed on every file-based check, never read. No CLI or network calls.
-    A fresh doctor result also covers OS keychains;
-    an explicit negative result takes precedence until it expires. Presence is evidence, not token validity.
+    A fresh doctor result also covers OS keychains. A newer login file invalidates that result.
+    Missing files mean Unknown: a keychain or environment login may exist. Presence is not token validity.
     """
     from ..config import provider_of
     from ..runners import find_bin
@@ -105,22 +105,35 @@ def readiness(p, cfg: dict, names=None) -> dict[str, dict]:
             fresh = 0 <= now - float(cached.get("ts", 0)) < interval
         except (TypeError, ValueError):
             fresh = False
+        login_mtime = None
+        for filename in files.get(cli, ()):
+            file = home / filename
+            try:
+                if file.is_file():
+                    stamp = file.stat().st_mtime
+                    login_mtime = stamp if login_mtime is None else max(login_mtime, stamp)
+            except OSError:
+                pass
+        if fresh and login_mtime is not None and login_mtime > float(cached["ts"]):
+            fresh = False
         if pv:
             keys = [str(v)[1:] for v in (pv.get("env") or {}).values() if str(v).startswith("$")]
-            logged = bool(keys) and all(bool(os.environ.get(k)) for k in keys)
+            logged = True if all(bool(os.environ.get(k)) for k in keys) else None
             source = "provider environment"
         elif cli == "dsh":
             # The adapter uses DEEPSEEK_API_KEY; it has no known login-status command or auth file.
-            logged, source = bool(os.environ.get("DEEPSEEK_API_KEY")), "provider environment"
+            logged, source = True if os.environ.get("DEEPSEEK_API_KEY") else None, "provider environment"
         elif fresh and cached.get("home") == key and cached.get("source") == "doctor":
             logged, source = cached.get("logged_in") is True, "doctor"
         else:
-            logged = home is not None and any((home / f).is_file() for f in files.get(cli, ()))
+            logged = True if login_mtime is not None else None
             source = "file existence"
         row = {"ts": cached["ts"] if source == "doctor" else now,
-               "home": key, "binary": str(found), "installed": bool(found), "logged_in": bool(logged),
+               "home": key, "binary": str(found), "installed": bool(found), "logged_in": logged,
+               "login_state": "unknown" if logged is None else "logged_in" if logged else "not_logged_in",
                "ready": bool(found and logged), "source": source}
         row["why"] = (f"{agent}: not installed" if not found else
+                      f"{agent}: no login file found; keychain or env login possible" if logged is None else
                       f"{agent}: installed, {'logged in' if logged else 'not logged in'}")
         data[agent] = out[agent] = row
     _save_readiness(p, data)
@@ -148,5 +161,5 @@ def others(agent: str, cfg: dict | None = None, *, need: str = "can_work", only_
         from ..config import paths
         p = paths()
         states = readiness(p, cfg, [a.name for a in out])
-        out.sort(key=lambda a: not states[a.name]["ready"])
+        out.sort(key=lambda a: not states[a.name]["installed"] or states[a.name]["logged_in"] is False)
     return [a.name for a in out]

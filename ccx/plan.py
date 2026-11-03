@@ -37,16 +37,21 @@ def quota_candidates(p: Paths, cfg: dict, agents: list[str], given: dict | None 
     from .agents import readiness, require_ready
     agents = list(dict.fromkeys(agents))
     states = readiness(p, cfg, agents) if require_ready(cfg) else {}
-    ready_agents = [ag for ag in agents if states.get(ag, {}).get("ready")]
-    unready = {ag: state["why"] for ag, state in states.items() if not state["ready"]}
-    why = "; ".join(unready.values())
+    ready_agents = [ag for ag in agents if states.get(ag, {}).get("installed") and
+                    states[ag]["logged_in"] is not False]
+    unready = {ag: state["why"] for ag, state in states.items()
+               if not state["installed"] or state["logged_in"] is False}
+    unknown = {ag: state["why"] for ag, state in states.items()
+               if state["installed"] and state["logged_in"] is None}
+    why = "; ".join([*unready.values(), *unknown.values()])
     if states and not ready_agents:
         why += "; all candidates lack readiness evidence; retaining the existing fallback order"
         why += "; " + "; ".join(f"no login evidence for {ag}, trying anyway" for ag in agents)
-    readiness_info = {"readiness": states, "unready": unready, "all_unready": bool(states) and not ready_agents,
+    readiness_info = {"readiness": states, "unready": unready, "unknown": unknown,
+                      "all_unready": bool(states) and not ready_agents,
                       "why": why} if states else {}
-    # Keep every candidate: readiness selects the preferred group for the cost pick, not a login veto.
-    # If all lack evidence (e.g. keychain logins), keep the original order and try anyway.
+    # Ready and Unknown share the original priority: missing files may mean a keychain/env login.
+    # Only explicit negative signals are demoted; keep the existing fallback if every signal is negative.
     eligible_agents = ready_agents or agents
     agents = eligible_agents + [ag for ag in agents if ag not in eligible_agents]
     opts = cfg.get("quota") or {}
@@ -348,11 +353,11 @@ def resolve_role(spec: dict, caller: str, p: Paths, cfg: dict, resolve=None) -> 
         quota.maybe_refresh(p, cfg, [build_agent, *candidates], spec.get("quota"))
         ranked = quota_candidates(p, cfg, candidates, spec.get("quota"))
         ready_why = ranked.get("why", "")
-        from .agents import ready, require_ready
+        from .agents import require_ready
         if (require_ready(cfg) and ranked["eligible"] and
-                not any(ranked.get("readiness", {}).get(ag, {}).get("ready") for ag in ranked["eligible"]) and
-                ready(build_agent, cfg, p=p)):
-            # Prefer a known login for review; all-unknown discovery keeps the existing fallback order.
+                all(ranked.get("readiness", {}).get(ag, {}).get("logged_in") is False
+                    for ag in ranked["eligible"])):
+            # Only an explicit negative login result vetoes a review vendor; Unknown still crosses vendors.
             reviewers = ranked["eligible"]
             ranked["eligible"] = []
             ready_why = "; ".join([*(ranked.get("unready") or {}).values(), *(
@@ -366,6 +371,12 @@ def resolve_role(spec: dict, caller: str, p: Paths, cfg: dict, resolve=None) -> 
             selected["to"], different = build_agent, build_model
             fallback = "other: no eligible other vendor; same vendor, different model"
     fixed = spec.get("model") or (role["model"] if role["model"] != "auto" else None)
+    model_fallback = None
+    if fallback and fixed:
+        from .commands.common import _agent_of_model
+        if _agent_of_model(fixed) not in (None, selected["to"]):
+            model_fallback, fixed = fixed, None
+            selected["model"] = None
     # An explicit --to chooses another vendor; do not pass it the role's model for the old vendor.
     if "--to" in explicit and spec.get("to") not in ("auto", role["agent"]) and not spec.get("model"):
         fixed = None
@@ -403,6 +414,14 @@ def resolve_role(spec: dict, caller: str, p: Paths, cfg: dict, resolve=None) -> 
             raise ValueError("role other: no different model configured for the only available vendor")
     if not model or not effort:
         raise ValueError(f"role {name}: no model/effort configured for {agent}")
+    if model_fallback:
+        default_tier = next((t for t in (tier, "T1", "T2", "T3", "T4")
+                             if cfg["tiers"].get(t, {}).get(agent, {}).get("model") == model), tier)
+        note = f"review model {model_fallback} → {agent}:{model} (tiers.{default_tier} default for fallback vendor)"
+        if isinstance(route.get("why"), dict):
+            route["why"]["model_fallback"] = note
+        else:
+            route["why"] = "; ".join(filter(None, (route.get("why"), note)))
     rung = f"{agent}:{model}:{effort}"
     changed = route.get("rung") != rung
     if changed:

@@ -1130,7 +1130,7 @@ def _route(a) -> dict:
     t = cfg["tiers"][r.tier]
     candidates = [ag for ag in AGENTS if t.get(ag)] if a.to == "auto" else [a.to]
     given = parse_quota(a.quota)
-    quota.maybe_refresh(p, cfg, candidates, given)
+    quota.maybe_refresh(p, cfg, ["claude", "codex"] if a.to == "auto" else [a.to], given)
     out = r.as_dict() | {"label": tier_words(p, t, r.tier, "label"), "when": tier_words(p, t, r.tier, "when"),
                          "note": "keyword heuristic; give the rubric flags for a calibrated pick",
                          "mode": apply_mode({"brief": " ".join(a.text or []), "mode": getattr(a, "mode", None)})}
@@ -1142,7 +1142,7 @@ def _route(a) -> dict:
         out["advice"] = ranked["message"]
     elif ranked["tight"] and ranked["eligible"]:
         out["recommended_agent"] = ranked["eligible"][0]
-    for ag in ranked["candidates"]:
+    for ag in dict.fromkeys([*ranked["candidates"], *(ag for ag in AGENTS if t.get(ag))]):
         if t.get(ag):
             out[ag] = t[ag]
     if routing_mode(cfg) == "off":

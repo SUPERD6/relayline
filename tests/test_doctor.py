@@ -1,5 +1,6 @@
 """Readiness reuses local signals and cached doctor results without reading credentials."""
 import json
+import os
 import time
 from pathlib import Path
 from unittest import mock
@@ -9,7 +10,7 @@ import pytest
 from ccx.agents import cache_login, others, readiness
 from ccx.config import Paths, load_config
 from ccx.workspace import canonical
-from test_ccx import Env
+from test_ccx import Env, FAKES
 
 
 @pytest.mark.parametrize("agent,filename", [("codex", "auth.json"), ("claude", ".credentials.json"),
@@ -77,11 +78,18 @@ def test_other_orders_ready_before_official_support_order(tmp_path, monkeypatch)
     from ccx.config import claude_home
     monkeypatch.setattr("ccx.runners.find_bin", lambda name: "fake")
     (claude_home() / ".credentials.json").touch()
-    assert others("dsh", {})[:2] == ["claude", "codex"]
+    cache_login(Paths(Path(os.environ["CCX_HUB"])), "codex", False)
+    assert others("dsh", {}) == ["claude", "gemini", "codex"]
     assert others("dsh", {"routing": {"require_ready": False}})[:2] == ["codex", "claude"]
 
 
 class TestDoctorLoginCache(Env):
+    def setUp(self):
+        super().setUp()
+        for agent in ("codex", "claude", "gemini", "dsh"):
+            key = f"CCX_{agent.upper()}_BIN"
+            self.env[key] = os.environ[key] = str(FAKES / f"fake_{agent}.py")
+
     def test_doctor_caches_status_without_output_or_credentials(self):
         result = self.ccx("doctor", env={"FAKE_CLAUDE_AUTH": '{"loggedIn":false}',
                                         "FAKE_CODEX_LOGIN": "Logged in using ChatGPT"})
@@ -91,3 +99,43 @@ class TestDoctorLoginCache(Env):
         self.assertTrue(states["codex"]["ready"])
         self.assertEqual(states["codex"]["source"], "doctor")
         self.assertNotIn("ChatGPT", (Paths(self.hub).state / "agent-readiness.json").read_text(encoding="utf-8"))
+
+    def test_doctor_timeout_is_unknown_and_not_cached_as_negative(self):
+        from ccx import doctor
+        p = Paths(self.hub)
+        with mock.patch.object(doctor, "_run", return_value=(-1, "auth status timed out")):
+            doctor.doctor(p)
+        states = readiness(p, load_config(p), ["claude", "codex"])
+        for state in states.values():
+            self.assertIsNone(state["logged_in"])
+            self.assertEqual(state["login_state"], "unknown")
+            self.assertNotEqual(state["source"], "doctor")
+
+
+def test_new_login_file_invalidates_negative_doctor_cache(tmp_path, monkeypatch):
+    from ccx.config import codex_home
+    monkeypatch.setattr("ccx.runners.find_bin", lambda name: "fake")
+    p = Paths(tmp_path / "hub")
+    cache_login(p, "codex", False)
+    before = readiness(p, {}, ["codex"])["codex"]
+    assert before["logged_in"] is False
+    auth = codex_home() / "auth.json"
+    auth.touch()
+    stamp = before["ts"] + 1
+    os.utime(auth, (stamp, stamp))
+    after = readiness(p, {}, ["codex"])["codex"]
+    assert after["ready"] and after["logged_in"]
+    assert after["source"] == "file existence"
+
+
+def test_missing_claude_file_is_unknown_and_not_demoted(tmp_path, monkeypatch):
+    from ccx.config import codex_home
+    from ccx.plan import quota_candidates
+    monkeypatch.setattr("ccx.runners.find_bin", lambda name: "fake")
+    (codex_home() / "auth.json").touch()
+    ranked = quota_candidates(Paths(tmp_path / "hub"), {}, ["claude", "codex"])
+    assert ranked["candidates"] == ["claude", "codex"]
+    assert ranked["eligible"] == ["claude", "codex"]
+    assert ranked["readiness"]["claude"]["logged_in"] is None
+    assert "not logged in" not in ranked["why"]
+    assert "no login file found; keychain or env login possible" in ranked["why"]

@@ -361,7 +361,7 @@ def _probe_agent(p, agent: str) -> dict:
     import subprocess
     import tempfile
     from . import learn
-    from .runners import bin_argv
+    from .runners import bin_argv, group_flags, kill_tree
     from .agents.claude import parse_claude
     from .agents.codex import parse_codex
     from .config import load_config
@@ -389,8 +389,17 @@ def _probe_agent(p, agent: str) -> dict:
                      "-c", "features.plugins=false", "-c", "features.apps=false", "-"]
         env = subscription_env(os.environ)
         with tempfile.TemporaryDirectory(prefix="ccx-quota-") as tmp:
-            r = subprocess.run(argv, input="Reply OK. Do not use tools.", cwd=tmp, env=env,
-                               capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=timeout)
+            proc = subprocess.Popen(argv, cwd=tmp, env=env, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                                    stderr=subprocess.PIPE, text=True, encoding="utf-8", errors="replace",
+                                    **group_flags())
+            try:
+                stdout, stderr = proc.communicate("Reply OK. Do not use tools.", timeout=timeout)
+            except BaseException:
+                if not kill_tree(proc.pid):
+                    proc.kill()
+                proc.communicate(timeout=2)
+                raise
+            r = subprocess.CompletedProcess(argv, proc.returncode, stdout, stderr)
         events = []
         for line in r.stdout.splitlines():
             try:
@@ -463,11 +472,6 @@ def maybe_refresh(p, cfg: dict, agents: list[str] | None = None, given: dict | N
         return {}
     pr, state, due = pressure(p), _refresh_state(p), []
     candidates = list(dict.fromkeys(agents if agents is not None else ("claude", "codex")))
-    from .agents import readiness, require_ready
-    if require_ready(cfg):
-        states = readiness(p, cfg, candidates)
-        ready_agents = [ag for ag in candidates if states[ag]["ready"]]
-        candidates = ready_agents or candidates
     for ag in candidates:
         if ag not in ("claude", "codex") or ag in (given or {}) or not find_bin(ag):
             continue

@@ -291,7 +291,8 @@ def resolve(spec: dict, caller: str, p, cfg: dict) -> tuple[dict | None, dict]:
     keyword heuristic (fallback when no rubric is given)."""
     to = spec.get("to") or "auto"
     from ..plan import auto_quota_agents, quota_candidates
-    _maybe_probe_claude(p, cfg, ["claude", "codex"] if to == "auto" else [to], spec.get("quota") or {})
+    refresh_agents = [spec["provider"]] if spec.get("provider") else ["claude", "codex"] if to == "auto" else [to]
+    _maybe_probe_claude(p, cfg, refresh_agents, spec.get("quota") or {})
     # the model pick: --tradeoff, else defaults.tradeoff, as before. A tier the person picked in their settings
     # (`ccx config set policy.picked <tier>`) is the whole-workflow tier when the lead names none (who does it, the
     # size band), but it does not change the models: the delegated part picks them like save (DECISIONS, tiers)

@@ -431,16 +431,18 @@ choice; the original dollar fields and API-mode advice are retained.
 Fixed tiers are the fallback. With rubric flags, task-routing picks by success probability and cost per success,
 and calibrates itself from real outcomes.
 
-`[routing] require_ready = true` (default) puts installed CLIs with local login evidence first, before the
-existing quota/cost ordering; `false` restores the earlier readiness ordering. Rubric picks, keyword-only runs
+`[routing] require_ready = true` (default) demotes explicitly logged-out or missing CLIs before the existing
+quota/cost ordering; `false` disables readiness ordering. Rubric picks, keyword-only runs
 and role `other` use this preference. Explicit `--to X` stays on X and refreshes only X.
-`quota_routing.why` names missing evidence, e.g. `codex: installed, not logged in`. If every candidate lacks
-evidence, it retains the existing fallback order and says `no login evidence for X, trying anyway`.
-For ordinary routing, missing evidence demotes a fallback rather than removing it: file checks may miss a real keychain login.
-An unready candidate can also take over when the ready candidates have exhausted their quota.
-For role `other`, if the builder has login evidence and every eligible review vendor lacks it, use the existing
+`quota_routing.why` names explicit negative evidence, e.g. `codex: installed, not logged in`. With no login
+file and no fresh doctor result, `logged_in: null` / `login_state: "unknown"` means Unknown, not logged out:
+`no login file found; keychain or env login possible`. Unknown keeps its original priority, including role `other`.
+Ordinary routing retains its existing last-resort fallback when every login result is negative, saying
+`no login evidence for X, trying anyway`; quota pressure still applies.
+For role `other`, if every eligible review vendor has an explicit negative doctor result, use the existing
 same-vendor, different-model fallback. Its `why` says `reviewer vendor claude: no login evidence → same-vendor other model`
-(with the corresponding vendor). If no vendor has login evidence, keep the existing discovery/fallback order.
+(with the corresponding vendor). A role's model from the old vendor (e.g. `other:haiku:auto` falling back to Codex)
+is replaced by a model from the fallback vendor's tier table, with the actual model and tier explained in `why`.
 Explicit CLI/model choices remain explicit.
 Readiness checks only file existence: `CODEX_HOME/auth.json`, `CLAUDE_CONFIG_DIR/.credentials.json`,
 and `~/.gemini/oauth_creds.json` (experimental adapter). DSH checks whether `DEEPSEEK_API_KEY` is set,
@@ -448,7 +450,8 @@ as its adapter has no known login-status command or credential-file signal.
 Fresh boolean login results from `ccx doctor` also count, including OS keychain logins; credential contents are
 never read and routing sends no login request. Snapshots live in `<hub>/ccx/agent-readiness.json`;
 only doctor's results are reused for `quota.auto_refresh_min` (no reuse when 0/false), tied to the canonical
-tool home. File-existence checks run on every call, so a new login file is recognized immediately. File presence does
+tool home. File-existence checks run on every call; a file modified after the doctor result invalidates even a
+negative cache immediately. Doctor timeouts/launch errors are Unknown and never cached as logged out. File presence does
 not prove that a token remains valid. Configured providers retain their environment-key and budget gates.
 
 | Tier | Work | Codex | Claude Code | Gemini CLI (experimental) |
@@ -551,12 +554,15 @@ routing = "on"        # "off" disables the new quota ordering
 ```
 
 These keys also support `ccx config set/get`, for example `ccx config set quota.routing off`.
-Named-target runs and routes refresh only that candidate; role `other` considers the builder and its
-other-vendor candidates. Automatic refresh skips candidates lacking login evidence when a ready candidate exists.
-Keyword-only routes pass the candidates configured for their tier (or just the explicit `--to` target).
+Without `--to`, runs and routes consider both Claude and Codex for refresh, in that order, even if the chosen
+model/tier uses only one vendor. Explicit `--to X` or a role constrained to X refreshes only X; role `other`
+considers the builder and its other-vendor candidates. Login ordering does not narrow the refresh scope.
 `other` is a role assignment, not a `--to` value. Before a probe, stderr says
 `refreshing codex quota…` (or the corresponding CLI); failure prints a warning and keeps the old reading.
-Each probe uses `quota.probe_timeout` (default 15 seconds); the default 60-minute retry cooldown remains.
+Each probe uses `quota.probe_timeout` (default 15 seconds) and kills its process tree on timeout, including
+Windows npm/cmd shim descendants; the default 60-minute retry cooldown remains, so a second automatic command
+does not probe either vendor again during that interval. A named keyword route keeps its original per-vendor
+output fields while narrowing probes.
 `ccx route` and `ccx run` refresh a subscription automatically only when it has an existing reading and its
 latest reading is older than `auto_refresh_min`. A subscription with no readings is never probed automatically;
 use `ccx quota --refresh` to initialize it. Per-agent `freshness` is the latest reading's age; each window

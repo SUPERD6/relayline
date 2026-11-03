@@ -4,6 +4,7 @@ import os
 import subprocess
 import sys
 import time
+import unittest
 from datetime import datetime, timezone
 from unittest import mock
 
@@ -456,6 +457,8 @@ class TestQuotaRouting(Env):
             self.assertEqual(quota.at_start(self.p)["pace"]["codex"]["primary"]["used"], 0.4)
 
     def test_ready_route_demotes_missing_login_before_cost_pick(self):
+        from ccx.agents import cache_login
+        cache_login(self.p, "codex", False)
         (self.home_claude / ".credentials.json").touch()
         out = self.j("route", "--b", "4")
         ranked = out["quota_routing"]
@@ -474,6 +477,9 @@ class TestQuotaRouting(Env):
         self.assertNotIn("readiness", out["quota_routing"])
 
     def test_all_unready_reports_missing_evidence_and_keeps_fallback(self):
+        from ccx.agents import cache_login
+        cache_login(self.p, "codex", False)
+        cache_login(self.p, "claude", False)
         out = self.j("route", "--b", "4")
         ranked = out["quota_routing"]
         self.assertTrue(ranked["all_unready"])
@@ -492,12 +498,14 @@ class TestQuotaRouting(Env):
         self.j("run", "--from", "user", "--to", "codex", "--tier", "T1", "--review", "off", "x", env=env)
         self.assertEqual([c["agent"] for c in self.model_calls()], ["codex", "codex"])
 
-    def test_auto_refresh_skips_unready_candidate_when_another_is_ready(self):
+    def test_auto_refresh_keeps_both_candidates_despite_negative_login_signal(self):
+        from ccx.agents import cache_login
+        cache_login(self.p, "codex", False)
         (self.home_claude / ".credentials.json").touch()
         self.claude(0.2, age=70)
         self.codex(0.2, age=70)
         self.j("route", "--b", "4", env={"CCX_NO_QUOTA_PROBE": "0"})
-        self.assertEqual([c["agent"] for c in self.model_calls()], ["claude"])
+        self.assertEqual([c["agent"] for c in self.model_calls()], ["claude", "codex"])
 
     def test_probe_timeout_is_configurable_and_only_warns(self):
         self.config('[quota]\nprobe_timeout = 0.2\n')
@@ -540,15 +548,17 @@ class TestQuotaRouting(Env):
                 self.assertEqual([c["agent"] for c in self.model_calls()], expected)
                 self.assertEqual(out["quota_routing"]["candidates"], [agent])
 
-    def test_keyword_route_refreshes_only_configured_tier_candidates(self):
+    def test_auto_keyword_route_refreshes_both_subscriptions_with_one_tier_vendor(self):
         self.config('[tiers.T2]\nclaude = false\n')
         self.claude(0.2, age=70)
         self.codex(0.2, age=70)
         out = self.j("route", "implement parser", env={"CCX_NO_QUOTA_PROBE": "0"})
-        self.assertEqual([c["agent"] for c in self.model_calls()], ["codex"])
+        self.assertEqual([c["agent"] for c in self.model_calls()], ["claude", "codex"])
         self.assertEqual(out["quota_routing"]["candidates"], ["codex"])
 
     def test_keyword_run_uses_ready_candidate(self):
+        from ccx.agents import cache_login
+        cache_login(self.p, "codex", False)
         (self.home_claude / ".credentials.json").touch()
         out = self.j("run", "--from", "user", "--review", "off", "--no-escalate", "--no-fallback",
                      "implement parser")
@@ -607,7 +617,7 @@ class TestQuotaRouting(Env):
                      "--review", "off", "implement parser", env={"FAKE_STATUS_CLAUDE": "quota"})
         record = self.record(out)
         self.assertEqual([a["agent"] for a in record["attempts"]], ["claude", "codex"])
-        self.assertIn("no login evidence for codex, trying anyway", record["route"]["fallback"]["why"])
+        self.assertIn("keychain or env login possible", record["route"]["fallback"]["why"])
 
     def test_no_login_evidence_preserves_all_unready_fallback_order(self):
         from ccx.delegate import Request
@@ -616,9 +626,11 @@ class TestQuotaRouting(Env):
         cfg = load_config(self.p)
         result = _fallback_plan(req, self.p, cfg, {"agent": "claude", "tier": "T2"})
         self.assertEqual(result["agent"], "codex")
-        self.assertIn("no login evidence for codex, trying anyway", result["why"])
+        self.assertIn("keychain or env login possible", result["why"])
 
     def test_ready_quota_tight_keeps_unready_healthy_fallback(self):
+        from ccx.agents import cache_login
+        cache_login(self.p, "codex", False)
         (self.home_claude / ".credentials.json").touch()
         self.claude(0.95)
         self.codex(0.2)
@@ -627,3 +639,64 @@ class TestQuotaRouting(Env):
         self.assertEqual(out["quota_routing"]["eligible"], ["codex"])
         self.assertTrue(out["rung"].startswith("codex:"), out)
         self.assertIn("no login evidence for codex, trying anyway", out["quota_routing"]["why"])
+
+    def test_auto_named_model_refreshes_both_subscriptions_once(self):
+        self.claude(0.2, age=70)
+        self.codex(0.2, age=70)
+        out = self.j("run", "--from", "user", "--model", "gpt-6-luna", "--effort", "low", "--review", "off",
+                     "--no-escalate", "--no-fallback", "implement parser", env={"CCX_NO_QUOTA_PROBE": "0"})
+        self.assertEqual(out["agent"], "codex")
+        self.assertEqual([c["agent"] for c in self.model_calls()], ["claude", "codex", "codex"])
+
+    def test_auto_keyword_run_refreshes_both_subscriptions_with_one_tier_vendor(self):
+        self.config('[tiers.T2]\nclaude = false\n')
+        self.claude(0.2, age=70)
+        self.codex(0.2, age=70)
+        self.j("run", "--from", "user", "--review", "off", "--no-escalate", "--no-fallback",
+               "implement parser", env={"CCX_NO_QUOTA_PROBE": "0"})
+        self.assertEqual([c["agent"] for c in self.model_calls()], ["claude", "codex", "codex"])
+
+    def test_fixed_role_refreshes_only_assigned_vendor(self):
+        self.claude(0.2, age=70)
+        self.codex(0.2, age=70)
+        self.j("roles", "set", "build", "codex:gpt-6.1-sol:auto")
+        self.j("route", "--role", "build", "--b", "4", env={"CCX_NO_QUOTA_PROBE": "0"})
+        self.assertEqual([c["agent"] for c in self.model_calls()], ["codex"])
+
+    def test_named_keyword_route_preserves_other_vendor_fields(self):
+        self.claude(0.2, age=70)
+        self.codex(0.2, age=70)
+        out = self.j("route", "--to", "codex", "implement parser", env={"CCX_NO_QUOTA_PROBE": "0"})
+        self.assertIn("codex", out)
+        self.assertIn("claude", out)
+        self.assertEqual(out["quota_routing"]["candidates"], ["codex"])
+        self.assertEqual([c["agent"] for c in self.model_calls()], ["codex"])
+
+    @unittest.skipUnless(os.name == "nt", "Windows cmd shim process tree")
+    def test_probe_timeout_kills_cmd_shim_descendants(self):
+        from ccx.runners import pid_alive, kill_tree
+        pid_file = self.work / "probe-child.pid"
+        child = self.work / "probe-child.py"
+        parent = self.work / "probe-parent.py"
+        shim = self.work / "probe.cmd"
+        child.write_text("import os, time\nfrom pathlib import Path\n"
+                         f"Path({str(pid_file)!r}).write_text(str(os.getpid()), encoding='utf-8')\n"
+                         "time.sleep(20)\n", encoding="utf-8")
+        parent.write_text("import subprocess, sys, time\n"
+                          f"subprocess.Popen([sys.executable, {str(child)!r}])\ntime.sleep(20)\n", encoding="utf-8")
+        shim.write_text(f'@echo off\n"{sys.executable}" "{parent}" %*\n', encoding="utf-8")
+        self.config('[quota]\nprobe_timeout = 1.5\n')
+        start = time.monotonic()
+        result = self.ccx("quota", "--probe", env={"CCX_CLAUDE_BIN": str(shim)})
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertLess(time.monotonic() - start, 8)
+        self.assertTrue(pid_file.is_file(), result.stderr)
+        pid = int(pid_file.read_text(encoding="utf-8"))
+        try:
+            deadline = time.monotonic() + 2
+            while pid_alive(pid) and time.monotonic() < deadline:
+                time.sleep(0.02)
+            self.assertFalse(pid_alive(pid), f"quota child {pid} survived timeout: {result.stderr}")
+        finally:
+            if pid_alive(pid):
+                kill_tree(pid)
