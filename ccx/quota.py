@@ -361,9 +361,16 @@ def _probe_agent(p, agent: str) -> dict:
     import subprocess
     import tempfile
     from . import learn
-    from .runners import bin_argv
+    from .runners import bin_argv, group_flags, kill_tree
     from .agents.claude import parse_claude
     from .agents.codex import parse_codex
+    from .config import load_config
+    try:
+        timeout = float((load_config(p).get("quota") or {}).get("probe_timeout", 15))
+    except (TypeError, ValueError):
+        timeout = 15
+    if not 0 < timeout < float("inf"):
+        timeout = 15
 
     row = {"ts": time.time(), "agent": agent, "source": "probe", "readings": 0,
            "cost_usd": None, "ae_usd": None, "target_usd": 0.005}
@@ -382,8 +389,17 @@ def _probe_agent(p, agent: str) -> dict:
                      "-c", "features.plugins=false", "-c", "features.apps=false", "-"]
         env = subscription_env(os.environ)
         with tempfile.TemporaryDirectory(prefix="ccx-quota-") as tmp:
-            r = subprocess.run(argv, input="Reply OK. Do not use tools.", cwd=tmp, env=env,
-                               capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=30)
+            proc = subprocess.Popen(argv, cwd=tmp, env=env, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                                    stderr=subprocess.PIPE, text=True, encoding="utf-8", errors="replace",
+                                    **group_flags())
+            try:
+                stdout, stderr = proc.communicate("Reply OK. Do not use tools.", timeout=timeout)
+            except BaseException:
+                if not kill_tree(proc.pid):
+                    proc.kill()
+                proc.communicate(timeout=2)
+                raise
+            r = subprocess.CompletedProcess(argv, proc.returncode, stdout, stderr)
         events = []
         for line in r.stdout.splitlines():
             try:
@@ -427,8 +443,14 @@ def refresh(p, agents: list[str] | None = None, *, max_age_min: float | None = N
         windows = pace(rs)
         current = bool(windows) and all(w.get("used") is not None and w["freshness"] <= max_age_min
                                         for w in windows.values())
+        if not current:
+            import sys
+            print(f"refreshing {agent} quota…", file=sys.stderr, flush=True)
         row = ({"ts": time.time(), "agent": agent, "source": "session_files", "readings": len(rs),
                 "cost_usd": 0.0, "ae_usd": 0.0} if current else _probe_agent(p, agent))
+        if row.get("error"):
+            import sys
+            print(f"ccx: warning: {agent} quota refresh failed: {row['error']}", file=sys.stderr, flush=True)
         state[agent] = row
         out[agent] = row
         p.state.mkdir(parents=True, exist_ok=True)
@@ -449,7 +471,8 @@ def maybe_refresh(p, cfg: dict, agents: list[str] | None = None, given: dict | N
     if not minutes or float(minutes) <= 0 or os.environ.get("CCX_NO_QUOTA_PROBE") == "1":
         return {}
     pr, state, due = pressure(p), _refresh_state(p), []
-    for ag in agents if agents is not None else ("claude", "codex"):
+    candidates = list(dict.fromkeys(agents if agents is not None else ("claude", "codex")))
+    for ag in candidates:
         if ag not in ("claude", "codex") or ag in (given or {}) or not find_bin(ag):
             continue
         if ag == "claude" and not (cfg.get("quota") or {}).get("probe_claude", True):

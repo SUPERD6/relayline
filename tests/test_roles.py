@@ -134,6 +134,71 @@ class TestRoleCommands(Env):
         assert r.returncode == 0, r.stdout + r.stderr
         return json.loads(r.stdout)
 
+    def test_empty_roles_print_copyable_examples_only_on_stderr(self):
+        for args in (("roles",), ("roles", "show")):
+            result = self.ccx(*args)
+            assert result.returncode == 0, result.stdout + result.stderr
+            assert json.loads(result.stdout)["roles"] == []
+            assert "ccx roles set build codex:gpt-6.1-sol:auto" in result.stderr
+            assert "ccx roles set review other:auto" in result.stderr
+            assert 'ccx run --role build "一句话"' in result.stderr
+            assert "--project" in result.stderr
+        self.json("roles", "set", "build", "codex:gpt-6.1-sol:auto")
+        result = self.ccx("roles")
+        assert result.returncode == 0 and len(json.loads(result.stdout)["roles"]) == 1
+        assert "ccx roles set" not in result.stderr
+
+    def test_other_uses_ready_build_vendor_instead_of_unlogged_reviewer(self):
+        from ccx.agents import cache_login
+        cache_login(Paths(self.hub), "claude", False)
+        (self.home_codex / "auth.json").touch()
+        self.json("roles", "set", "build", "codex:gpt-6.1-sol:auto")
+        self.json("roles", "set", "review", "other:auto")
+        result = self.json("route", "--role", "review", "--b", "4")
+        assert result["rung"].startswith("codex:")
+        assert "same vendor, different model" in result["role_fallback"]
+        assert "claude: installed, not logged in" in result["why"]["readiness"]
+
+    def test_other_without_login_evidence_uses_same_vendor_other_model(self):
+        from ccx.agents import cache_login
+        cache_login(Paths(self.hub), "claude", False)
+        (self.home_codex / "auth.json").touch()
+        self.json("roles", "set", "build", "codex:gpt-6.1-sol:auto")
+        self.json("roles", "set", "review", "other:auto")
+        for args in (("--b", "4"), ("implement parser",)):
+            with self.subTest(args=args):
+                result = self.json("route", "--role", "review", *args)
+                assert result["rung"].startswith("codex:")
+                assert not result["rung"].startswith("codex:gpt-6.1-sol:")
+                assert "same vendor, different model" in result["role_fallback"]
+                assert "reviewer vendor claude: no login evidence → same-vendor other model" in str(result["why"])
+                assert "trying anyway" not in str(result["why"])
+
+    def test_other_unknown_claude_keeps_cross_vendor_review(self):
+        (self.home_codex / "auth.json").touch()
+        self.json("roles", "set", "build", "codex:gpt-6.1-sol:auto")
+        self.json("roles", "set", "review", "other:auto")
+        result = self.json("route", "--role", "review", "--b", "4")
+        assert result["rung"].startswith("claude:")
+        assert "role_fallback" not in result
+        assert "keychain or env login possible" in str(result["why"])
+        assert "not logged in" not in str(result["why"])
+
+    def test_other_foreign_fixed_model_uses_fallback_vendor_tier_default(self):
+        from ccx.agents import cache_login
+        cache_login(Paths(self.hub), "claude", False)
+        (self.home_codex / "auth.json").touch()
+        self.json("roles", "set", "build", "codex:gpt-6-astra:auto")
+        self.json("roles", "set", "review", "other:haiku:auto")
+        out = self.json("run", "--from", "user", "--role", "review", "--tier", "T2", "--review", "off",
+                        "--no-escalate", "--no-fallback", "implement parser")
+        record = json.loads((Paths(self.hub).runs / out["run_id"] / "run.json").read_text(encoding="utf-8"))
+        expected = load_config(Paths(self.hub))["tiers"]["T2"]["codex"]["model"]
+        assert record["attempts"][0]["model"] == expected
+        assert record["route"]["rung"].startswith(f"codex:{expected}:")
+        assert "tiers.T2 default for fallback vendor" in str(record["route"]["why"])
+        assert "haiku" not in self.calls()[-1]["argv"]
+
     def test_roles_set_show_unset_and_arbitrary_names(self):
         self.json('roles', 'set', 'build', 'codex:gpt-6.1-sol:auto')
         self.json('roles', 'set', 'fix', 'claude:opus:high')

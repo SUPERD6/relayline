@@ -624,7 +624,7 @@ def run(req: Request, p: Paths) -> dict:
     pv_env = _provider_envs(cfg, plan)       # missing key for the first rung -> clear error before anything runs
     plan = _within_budget(p, cfg, plan)
     from . import quota
-    quota.maybe_refresh(p, cfg)
+    quota.maybe_refresh(p, cfg, [req.to], (req.route or {}).get("quota"))
     if req.route and req.route.get("role_effort_auto"):
         from .roles import effort_receipt
         req.route["role_effort_reason"] = effort_receipt(req.route)

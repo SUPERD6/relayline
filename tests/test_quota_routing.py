@@ -4,6 +4,7 @@ import os
 import subprocess
 import sys
 import time
+import unittest
 from datetime import datetime, timezone
 from unittest import mock
 
@@ -454,3 +455,317 @@ class TestQuotaRouting(Env):
             self.assertEqual(quota.at_start(self.p)["pace"]["codex"]["primary"]["used"], 0.16)
         with quota.reading_scope():
             self.assertEqual(quota.at_start(self.p)["pace"]["codex"]["primary"]["used"], 0.4)
+
+    def test_ready_route_demotes_missing_login_before_cost_pick(self):
+        from ccx.agents import cache_login
+        cache_login(self.p, "codex", False)
+        (self.home_claude / ".credentials.json").touch()
+        out = self.j("route", "--b", "4")
+        ranked = out["quota_routing"]
+        self.assertEqual(ranked["candidates"], ["claude", "codex"])
+        self.assertEqual(ranked["eligible"], ["claude"])
+        self.assertIn("codex: installed, not logged in", ranked["why"])
+        self.assertEqual(ranked["readiness"]["codex"]["state"], "not_logged_in")
+        self.assertEqual(ranked["readiness"]["claude"]["state"], "ready")
+        self.assertTrue(out["rung"].startswith("claude:"), out)
+        self.assertEqual(self.calls(), [])
+
+    def test_require_ready_false_keeps_original_candidates(self):
+        self.config('[routing]\nrequire_ready = false\n')
+        (self.home_claude / ".credentials.json").touch()
+        out = self.j("route", "--b", "4")
+        self.assertEqual(out["quota_routing"]["candidates"], ["codex", "claude"])
+        self.assertEqual(out["quota_routing"]["eligible"], ["codex", "claude"])
+        self.assertNotIn("readiness", out["quota_routing"])
+
+    def test_all_unready_reports_missing_evidence_and_keeps_fallback(self):
+        from ccx.agents import cache_login
+        cache_login(self.p, "codex", False)
+        cache_login(self.p, "claude", False)
+        out = self.j("route", "--b", "4")
+        ranked = out["quota_routing"]
+        self.assertTrue(ranked["all_unready"])
+        self.assertIn("all candidates lack readiness evidence", ranked["why"])
+        self.assertEqual(ranked["eligible"], ["codex", "claude"])
+
+    def test_named_route_and_run_refresh_only_the_named_candidate(self):
+        self.claude(0.2, age=70)
+        self.codex(0.2, age=70)
+        env = {"CCX_NO_QUOTA_PROBE": "0"}
+        routed = self.ccx("route", "--to", "codex", "--b", "4", env=env)
+        self.assertEqual(routed.returncode, 0, routed.stdout + routed.stderr)
+        self.assertIn("refreshing codex quota", routed.stderr)
+        self.assertIn("warning: codex quota refresh failed", routed.stderr)
+        self.assertNotIn("refreshing claude quota", routed.stderr)
+        self.j("run", "--from", "user", "--to", "codex", "--tier", "T1", "--review", "off", "x", env=env)
+        self.assertEqual([c["agent"] for c in self.model_calls()], ["codex", "codex"])
+
+    def test_auto_refresh_keeps_both_candidates_despite_negative_login_signal(self):
+        from ccx.agents import cache_login
+        cache_login(self.p, "codex", False)
+        (self.home_claude / ".credentials.json").touch()
+        self.claude(0.2, age=70)
+        self.codex(0.2, age=70)
+        self.j("route", "--b", "4", env={"CCX_NO_QUOTA_PROBE": "0"})
+        self.assertEqual([c["agent"] for c in self.model_calls()], ["claude", "codex"])
+
+    def test_probe_timeout_is_configurable_and_only_warns(self):
+        self.config('[quota]\nprobe_timeout = 0.2\n')
+        start = time.monotonic()
+        result = self.ccx("quota", "--probe", env={"FAKE_STATUS_CLAUDE": "hang", "FAKE_HANG_S": "10"})
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertLess(time.monotonic() - start, 5)
+        self.assertIn("warning: claude quota refresh failed: TimeoutExpired", result.stderr)
+        state = json.loads((self.p.state / "quota-refresh.json").read_text(encoding="utf-8"))
+        self.assertIn("TimeoutExpired", state["claude"]["error"])
+
+    def test_readiness_and_timeout_settings_round_trip(self):
+        for key, raw, expected in (("routing.require_ready", "false", False),
+                                   ("quota.probe_timeout", "7.5", 7.5)):
+            self.assertEqual(self.j("config", "set", key, raw), {key: expected})
+            self.assertEqual(self.j("config", "get", key), {key: expected})
+        for raw in ("0", "-1", "nan", "inf"):
+            self.assertNotEqual(self.ccx("config", "set", "quota.probe_timeout", raw).returncode, 0)
+
+    def test_other_role_refreshes_build_and_other_candidate_once(self):
+        (self.home_claude / ".credentials.json").touch()
+        (self.home_codex / "auth.json").touch()
+        self.claude(0.2, age=70)
+        self.codex(0.2, age=70)
+        self.j("roles", "set", "build", "codex:gpt-6.1-sol:auto")
+        self.j("roles", "set", "review", "other:auto")
+        out = self.j("route", "--role", "review", "--b", "4", env={"CCX_NO_QUOTA_PROBE": "0"})
+        self.assertTrue(out["rung"].startswith("claude:"), out)
+        self.assertCountEqual([c["agent"] for c in self.model_calls()], ["claude", "codex"])
+
+    def test_keyword_route_refreshes_only_named_candidate(self):
+        self.claude(0.2, age=70)
+        self.codex(0.2, age=70)
+        expected = []
+        for agent in ("codex", "claude", "gemini"):
+            with self.subTest(agent=agent):
+                out = self.j("route", "--to", agent, "implement parser", env={"CCX_NO_QUOTA_PROBE": "0"})
+                if agent != "gemini":
+                    expected.append(agent)
+                self.assertEqual([c["agent"] for c in self.model_calls()], expected)
+                self.assertEqual(out["quota_routing"]["candidates"], [agent])
+
+    def test_auto_keyword_route_refreshes_both_subscriptions_with_one_tier_vendor(self):
+        self.config('[tiers.T2]\nclaude = false\n')
+        self.claude(0.2, age=70)
+        self.codex(0.2, age=70)
+        out = self.j("route", "implement parser", env={"CCX_NO_QUOTA_PROBE": "0"})
+        self.assertEqual([c["agent"] for c in self.model_calls()], ["claude", "codex"])
+        self.assertEqual(out["quota_routing"]["candidates"], ["codex"])
+
+    def test_keyword_run_uses_ready_candidate(self):
+        from ccx.agents import cache_login
+        cache_login(self.p, "codex", False)
+        (self.home_claude / ".credentials.json").touch()
+        out = self.j("run", "--from", "user", "--review", "off", "--no-escalate", "--no-fallback",
+                     "implement parser")
+        self.assertEqual(out["agent"], "claude")
+        route = self.record(out)["route"]
+        self.assertEqual(route["quota_routing"]["candidates"], ["claude", "codex"])
+        self.assertIn("codex: installed, not logged in", route["why"]["readiness"])
+        self.assertEqual([c["agent"] for c in self.model_calls()], ["claude"])
+
+    def test_keyword_run_require_ready_false_keeps_original_target(self):
+        self.config('[routing]\nrequire_ready = false\n')
+        (self.home_claude / ".credentials.json").touch()
+        out = self.j("run", "--from", "user", "--review", "off", "--no-escalate", "--no-fallback",
+                     "implement parser")
+        self.assertEqual(out["agent"], "codex")
+
+    def test_named_run_alone_refreshes_only_its_candidate(self):
+        self.claude(0.2, age=70)
+        self.codex(0.2, age=70)
+        expected = []
+        for agent in ("codex", "claude"):
+            with self.subTest(agent=agent):
+                out = self.j("run", "--from", "user", "--to", agent, "--tier", "T1", "--review", "off",
+                             "--no-escalate", "--no-fallback", "implement parser", env={"CCX_NO_QUOTA_PROBE": "0"})
+                self.assertEqual(out["agent"], agent)
+                expected.extend([agent, agent])  # one quota probe, one task invocation
+                self.assertEqual([c["agent"] for c in self.model_calls()], expected)
+
+    def test_file_login_is_seen_immediately_within_refresh_interval(self):
+        from ccx.agents import readiness
+        cfg = load_config(self.p)
+        for agent, auth in (("codex", self.home_codex / "auth.json"),
+                            ("claude", self.home_claude / ".credentials.json")):
+            with self.subTest(agent=agent):
+                self.assertFalse(readiness(self.p, cfg, [agent])[agent]["ready"])
+                auth.touch()
+                self.assertTrue(readiness(self.p, cfg, [agent])[agent]["ready"])
+                auth.unlink()
+                self.assertFalse(readiness(self.p, cfg, [agent])[agent]["ready"])
+        self.assertEqual(self.calls(), [])
+
+    def test_only_doctor_result_is_cached_for_refresh_interval(self):
+        from ccx.agents import cache_login, readiness
+        cfg = load_config(self.p)
+        cache_login(self.p, "codex", True)
+        row = readiness(self.p, cfg, ["codex"])["codex"]
+        self.assertTrue(row["ready"])
+        self.assertEqual(row["source"], "doctor")
+        with mock.patch("ccx.agents.time.time", return_value=time.time() + 3601):
+            self.assertFalse(readiness(self.p, cfg, ["codex"])["codex"]["ready"])
+        self.assertEqual(self.calls(), [])
+
+    def test_no_login_evidence_does_not_drop_quota_fallback(self):
+        (self.home_claude / ".credentials.json").touch()
+        out = self.j("run", "--from", "user", "--to", "claude", "--tier", "T2", "--no-escalate",
+                     "--review", "off", "implement parser", env={"FAKE_STATUS_CLAUDE": "quota"})
+        record = self.record(out)
+        self.assertEqual([a["agent"] for a in record["attempts"]], ["claude", "codex"])
+        self.assertIn("keychain or env login possible", record["route"]["fallback"]["why"])
+
+    def test_no_login_evidence_preserves_all_unready_fallback_order(self):
+        from ccx.delegate import Request
+        from ccx.plan import _fallback_plan
+        req = Request(to="claude", brief="implement parser", route={})
+        cfg = load_config(self.p)
+        result = _fallback_plan(req, self.p, cfg, {"agent": "claude", "tier": "T2"})
+        self.assertEqual(result["agent"], "codex")
+        self.assertIn("keychain or env login possible", result["why"])
+
+    def test_ready_quota_tight_keeps_unready_healthy_fallback(self):
+        from ccx.agents import cache_login
+        cache_login(self.p, "codex", False)
+        (self.home_claude / ".credentials.json").touch()
+        self.claude(0.95)
+        self.codex(0.2)
+        out = self.j("route", "--b", "4")
+        self.assertFalse(out["quota_routing"]["all_tight"])
+        self.assertEqual(out["quota_routing"]["eligible"], ["codex"])
+        self.assertTrue(out["rung"].startswith("codex:"), out)
+        self.assertIn("no login evidence for codex, trying anyway", out["quota_routing"]["why"])
+
+    def test_auto_named_model_refreshes_both_subscriptions_once(self):
+        self.claude(0.2, age=70)
+        self.codex(0.2, age=70)
+        out = self.j("run", "--from", "user", "--model", "gpt-6-luna", "--effort", "low", "--review", "off",
+                     "--no-escalate", "--no-fallback", "implement parser", env={"CCX_NO_QUOTA_PROBE": "0"})
+        self.assertEqual(out["agent"], "codex")
+        self.assertEqual([c["agent"] for c in self.model_calls()], ["claude", "codex", "codex"])
+
+    def test_auto_keyword_run_refreshes_both_subscriptions_with_one_tier_vendor(self):
+        self.config('[tiers.T2]\nclaude = false\n')
+        self.claude(0.2, age=70)
+        self.codex(0.2, age=70)
+        self.j("run", "--from", "user", "--review", "off", "--no-escalate", "--no-fallback",
+               "implement parser", env={"CCX_NO_QUOTA_PROBE": "0"})
+        self.assertEqual([c["agent"] for c in self.model_calls()], ["claude", "codex", "codex"])
+
+    def test_fixed_role_refreshes_only_assigned_vendor(self):
+        self.claude(0.2, age=70)
+        self.codex(0.2, age=70)
+        self.j("roles", "set", "build", "codex:gpt-6.1-sol:auto")
+        self.j("route", "--role", "build", "--b", "4", env={"CCX_NO_QUOTA_PROBE": "0"})
+        self.assertEqual([c["agent"] for c in self.model_calls()], ["codex"])
+
+    def test_named_keyword_route_preserves_other_vendor_fields(self):
+        self.claude(0.2, age=70)
+        self.codex(0.2, age=70)
+        out = self.j("route", "--to", "codex", "implement parser", env={"CCX_NO_QUOTA_PROBE": "0"})
+        self.assertIn("codex", out)
+        self.assertIn("claude", out)
+        self.assertEqual(out["quota_routing"]["candidates"], ["codex"])
+        self.assertEqual([c["agent"] for c in self.model_calls()], ["codex"])
+
+    def test_route_readiness_is_stable_when_internal_cache_timestamp_changes(self):
+        from ccx.cli import parse
+        from ccx.commands.delegation import _route
+        for found in (None, str(FAKES / "fake_codex.py")):
+            with self.subTest(installed=bool(found)), mock.patch("ccx.runners.find_bin", return_value=found):
+                args = parse(["route", "--b", "4", "--to", "codex", "Fix a parser"])
+                with mock.patch("ccx.agents.time.time", return_value=self.now):
+                    before = _route(args)
+                first_cache = json.loads((self.p.state / "agent-readiness.json").read_text(encoding="utf-8"))
+                with mock.patch("ccx.agents.time.time", return_value=self.now + 5):
+                    after = _route(args)
+                second_cache = json.loads((self.p.state / "agent-readiness.json").read_text(encoding="utf-8"))
+                self.assertNotEqual(first_cache["codex"]["ts"], second_cache["codex"]["ts"])
+                self.assertEqual(before, after)
+                row = after["quota_routing"]["readiness"]["codex"]
+                self.assertEqual(set(row), {"state", "why"})
+                self.assertEqual(row["state"], "unknown")
+                self.assertIn("keychain or env login possible" if found else "not installed", row["why"])
+
+    def test_route_command_output_is_identical_on_repeated_calls(self):
+        for args in (("route", "--b", "4", "--to", "codex", "Fix a parser"),
+                     ("route", "implement a parser")):
+            with self.subTest(args=args):
+                self.assertEqual(self.j(*args), self.j(*args))
+
+    def test_route_outputs_stable_readiness_and_keeps_live_quota_projection(self):
+        from test_ccx import ROOT
+        self.claude(0.10, age=7 * 60, window="seven_day")
+        self.claude(0.50, window="seven_day")
+        self.codex()
+        wrapper = self.work / "route-at-time.py"
+        wrapper.write_text(
+            "import runpy, sys\nfrom unittest import mock\n"
+            "now, entry = float(sys.argv.pop(1)), sys.argv.pop(1)\n"
+            "sys.argv[0] = entry\n"
+            "with mock.patch('time.time', return_value=now):\n"
+            "    runpy.run_path(entry, run_name='__main__')\n", encoding="utf-8")
+        for args in (("route", "--b", "4"), ("route", "implement parser"),
+                     ("route", "--b", "4", "--lead", "claude:sonnet:high", "--lead-ctx", "0")):
+            with self.subTest(args=args):
+                results = []
+                for now in (self.now, self.now + 20 * 60):
+                    result = subprocess.run([sys.executable, str(wrapper), str(now), str(ROOT / "ccx.py"), *args],
+                                            cwd=self.work, env=self.env, capture_output=True, text=True,
+                                            encoding="utf-8")
+                    self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+                    results.append(json.loads(result.stdout))
+                self.assertGreater(results[0]["quota_routing"]["tight"]["claude"]["projected_at_reset"], 1)
+                before, after = (result["quota_routing"] for result in results)
+                self.assertEqual(before["readiness"], after["readiness"])
+                for row in after["readiness"].values():
+                    self.assertEqual(set(row), {"state", "why"})
+                # The projection already exists on main; preserve its real-time calculation.
+                self.assertLess(after["tight"]["claude"]["projected_at_reset"],
+                                before["tight"]["claude"]["projected_at_reset"])
+                self.assertNotIn("freshness", before)
+                self.assertNotIn("freshness", after)
+
+    def test_explicit_tier_role_keeps_why_mapping_for_effort_receipt(self):
+        self.j("roles", "set", "build", "codex:gpt-6.1-sol:auto")
+        out = self.j("run", "--from", "user", "--role", "build", "--tier", "T2", "--mode", "read",
+                     "--review", "off", "--no-escalate", "--no-fallback", "Read parser")
+        route = self.record(out)["route"]
+        self.assertIsInstance(route["why"], dict)
+        self.assertIn("readiness", route["why"])
+        self.assertIn("effort=auto", route["role_effort_reason"])
+
+    @unittest.skipUnless(os.name == "nt", "Windows cmd shim process tree")
+    def test_probe_timeout_kills_cmd_shim_descendants(self):
+        from ccx.runners import pid_alive, kill_tree
+        pid_file = self.work / "probe-child.pid"
+        child = self.work / "probe-child.py"
+        parent = self.work / "probe-parent.py"
+        shim = self.work / "probe.cmd"
+        child.write_text("import os, time\nfrom pathlib import Path\n"
+                         f"Path({str(pid_file)!r}).write_text(str(os.getpid()), encoding='utf-8')\n"
+                         "time.sleep(20)\n", encoding="utf-8")
+        parent.write_text("import subprocess, sys, time\n"
+                          f"subprocess.Popen([sys.executable, {str(child)!r}])\ntime.sleep(20)\n", encoding="utf-8")
+        shim.write_text(f'@echo off\n"{sys.executable}" "{parent}" %*\n', encoding="utf-8")
+        self.config('[quota]\nprobe_timeout = 1.5\n')
+        start = time.monotonic()
+        result = self.ccx("quota", "--probe", env={"CCX_CLAUDE_BIN": str(shim)})
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertLess(time.monotonic() - start, 8)
+        self.assertTrue(pid_file.is_file(), result.stderr)
+        pid = int(pid_file.read_text(encoding="utf-8"))
+        try:
+            deadline = time.monotonic() + 2
+            while pid_alive(pid) and time.monotonic() < deadline:
+                time.sleep(0.02)
+            self.assertFalse(pid_alive(pid), f"quota child {pid} survived timeout: {result.stderr}")
+        finally:
+            if pid_alive(pid):
+                kill_tree(pid)

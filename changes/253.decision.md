@@ -1,0 +1,1 @@
+| 2026-11-03 | Prefer installed, logged-in CLIs by default | 默认优先已安装且有登录证据的 CLI | Avoid a doomed first attempt; retain opt-out and all-unknown fallback / 避免未登录白跑，保留关闭与全无证据回退 | `routing.require_ready`, `ccx/agents/__init__.py`, `ccx/plan.py` |
