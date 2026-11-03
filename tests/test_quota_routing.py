@@ -465,6 +465,8 @@ class TestQuotaRouting(Env):
         self.assertEqual(ranked["candidates"], ["claude", "codex"])
         self.assertEqual(ranked["eligible"], ["claude"])
         self.assertIn("codex: installed, not logged in", ranked["why"])
+        self.assertEqual(ranked["readiness"]["codex"]["state"], "not_logged_in")
+        self.assertEqual(ranked["readiness"]["claude"]["state"], "ready")
         self.assertTrue(out["rung"].startswith("claude:"), out)
         self.assertEqual(self.calls(), [])
 
@@ -671,6 +673,73 @@ class TestQuotaRouting(Env):
         self.assertIn("claude", out)
         self.assertEqual(out["quota_routing"]["candidates"], ["codex"])
         self.assertEqual([c["agent"] for c in self.model_calls()], ["codex"])
+
+    def test_route_readiness_is_stable_when_internal_cache_timestamp_changes(self):
+        from ccx.cli import parse
+        from ccx.commands.delegation import _route
+        for found in (None, str(FAKES / "fake_codex.py")):
+            with self.subTest(installed=bool(found)), mock.patch("ccx.runners.find_bin", return_value=found):
+                args = parse(["route", "--b", "4", "--to", "codex", "Fix a parser"])
+                with mock.patch("ccx.agents.time.time", return_value=self.now):
+                    before = _route(args)
+                first_cache = json.loads((self.p.state / "agent-readiness.json").read_text(encoding="utf-8"))
+                with mock.patch("ccx.agents.time.time", return_value=self.now + 5):
+                    after = _route(args)
+                second_cache = json.loads((self.p.state / "agent-readiness.json").read_text(encoding="utf-8"))
+                self.assertNotEqual(first_cache["codex"]["ts"], second_cache["codex"]["ts"])
+                self.assertEqual(before, after)
+                row = after["quota_routing"]["readiness"]["codex"]
+                self.assertEqual(set(row), {"state", "why"})
+                self.assertEqual(row["state"], "unknown")
+                self.assertIn("keychain or env login possible" if found else "not installed", row["why"])
+
+    def test_route_command_output_is_identical_on_repeated_calls(self):
+        for args in (("route", "--b", "4", "--to", "codex", "Fix a parser"),
+                     ("route", "implement a parser")):
+            with self.subTest(args=args):
+                self.assertEqual(self.j(*args), self.j(*args))
+
+    def test_route_outputs_stable_readiness_and_keeps_live_quota_projection(self):
+        from test_ccx import ROOT
+        self.claude(0.10, age=7 * 60, window="seven_day")
+        self.claude(0.50, window="seven_day")
+        self.codex()
+        wrapper = self.work / "route-at-time.py"
+        wrapper.write_text(
+            "import runpy, sys\nfrom unittest import mock\n"
+            "now, entry = float(sys.argv.pop(1)), sys.argv.pop(1)\n"
+            "sys.argv[0] = entry\n"
+            "with mock.patch('time.time', return_value=now):\n"
+            "    runpy.run_path(entry, run_name='__main__')\n", encoding="utf-8")
+        for args in (("route", "--b", "4"), ("route", "implement parser"),
+                     ("route", "--b", "4", "--lead", "claude:sonnet:high", "--lead-ctx", "0")):
+            with self.subTest(args=args):
+                results = []
+                for now in (self.now, self.now + 20 * 60):
+                    result = subprocess.run([sys.executable, str(wrapper), str(now), str(ROOT / "ccx.py"), *args],
+                                            cwd=self.work, env=self.env, capture_output=True, text=True,
+                                            encoding="utf-8")
+                    self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+                    results.append(json.loads(result.stdout))
+                self.assertGreater(results[0]["quota_routing"]["tight"]["claude"]["projected_at_reset"], 1)
+                before, after = (result["quota_routing"] for result in results)
+                self.assertEqual(before["readiness"], after["readiness"])
+                for row in after["readiness"].values():
+                    self.assertEqual(set(row), {"state", "why"})
+                # The projection already exists on main; preserve its real-time calculation.
+                self.assertLess(after["tight"]["claude"]["projected_at_reset"],
+                                before["tight"]["claude"]["projected_at_reset"])
+                self.assertNotIn("freshness", before)
+                self.assertNotIn("freshness", after)
+
+    def test_explicit_tier_role_keeps_why_mapping_for_effort_receipt(self):
+        self.j("roles", "set", "build", "codex:gpt-6.1-sol:auto")
+        out = self.j("run", "--from", "user", "--role", "build", "--tier", "T2", "--mode", "read",
+                     "--review", "off", "--no-escalate", "--no-fallback", "Read parser")
+        route = self.record(out)["route"]
+        self.assertIsInstance(route["why"], dict)
+        self.assertIn("readiness", route["why"])
+        self.assertIn("effort=auto", route["role_effort_reason"])
 
     @unittest.skipUnless(os.name == "nt", "Windows cmd shim process tree")
     def test_probe_timeout_kills_cmd_shim_descendants(self):

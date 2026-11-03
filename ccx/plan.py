@@ -47,7 +47,11 @@ def quota_candidates(p: Paths, cfg: dict, agents: list[str], given: dict | None 
     if states and not ready_agents:
         why += "; all candidates lack readiness evidence; retaining the existing fallback order"
         why += "; " + "; ".join(f"no login evidence for {ag}, trying anyway" for ag in agents)
-    readiness_info = {"readiness": states, "unready": unready, "unknown": unknown,
+    # Only stable three-state evidence is public; cache timestamps, paths and sources stay internal.
+    public_states = {ag: {"state": "ready" if state["ready"] else
+                         "not_logged_in" if state["logged_in"] is False else "unknown", "why": state["why"]}
+                     for ag, state in states.items()}
+    readiness_info = {"readiness": public_states, "unready": unready, "unknown": unknown,
                       "all_unready": bool(states) and not ready_agents,
                       "why": why} if states else {}
     # Ready and Unknown share the original priority: missing files may mean a keychain/env login.
@@ -79,7 +83,7 @@ def quota_candidates(p: Paths, cfg: dict, agents: list[str], given: dict | None 
                 f"no login evidence for {ag}, trying anyway" for ag in available if ag in unready)
     out = {"candidates": sorted(agents, key=lambda ag: (bool(ready_agents) and ag not in ready_agents, ag in tight)),
            "eligible": available, "tight": tight, "all_tight": bool(eligible_agents) and not available,
-           "freshness": pr["freshness"], **readiness_info}
+           **readiness_info}
     if tight:
         why = "; ".join(f"{ag} quota {w['used']:.0%}, projected {w['projected_at_reset']:.0%}"
                         for ag, w in tight.items())
@@ -355,7 +359,7 @@ def resolve_role(spec: dict, caller: str, p: Paths, cfg: dict, resolve=None) -> 
         ready_why = ranked.get("why", "")
         from .agents import require_ready
         if (require_ready(cfg) and ranked["eligible"] and
-                all(ranked.get("readiness", {}).get(ag, {}).get("logged_in") is False
+                all(ranked.get("readiness", {}).get(ag, {}).get("state") == "not_logged_in"
                     for ag in ranked["eligible"])):
             # Only an explicit negative login result vetoes a review vendor; Unknown still crosses vendors.
             reviewers = ranked["eligible"]
@@ -396,7 +400,7 @@ def resolve_role(spec: dict, caller: str, p: Paths, cfg: dict, resolve=None) -> 
         if isinstance(route.get("why"), dict):
             route["why"]["readiness"] = ready_why
         else:
-            route["why"] = "; ".join(filter(None, (route.get("why"), ready_why)))
+            route["why"] = {"readiness": "; ".join(filter(None, (route.get("why"), ready_why)))}
     route["explicit_flags"] = sorted(explicit)
     if (route.get("quota_routing") or {}).get("all_tight") and not spec.get("force"):
         return None, route
@@ -421,7 +425,7 @@ def resolve_role(spec: dict, caller: str, p: Paths, cfg: dict, resolve=None) -> 
         if isinstance(route.get("why"), dict):
             route["why"]["model_fallback"] = note
         else:
-            route["why"] = "; ".join(filter(None, (route.get("why"), note)))
+            route["why"] = {"model_fallback": "; ".join(filter(None, (route.get("why"), note)))}
     rung = f"{agent}:{model}:{effort}"
     changed = route.get("rung") != rung
     if changed:

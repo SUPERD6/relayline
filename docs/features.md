@@ -452,7 +452,7 @@ and calibrates itself from real outcomes.
 quota/cost ordering; `false` disables readiness ordering. Rubric picks, keyword-only runs
 and role `other` use this preference. Explicit `--to X` stays on X and refreshes only X.
 `quota_routing.why` names explicit negative evidence, e.g. `codex: installed, not logged in`. With no login
-file and no fresh doctor result, `logged_in: null` / `login_state: "unknown"` means Unknown, not logged out:
+file and no fresh doctor result, readiness `state: "unknown"` means Unknown, not logged out:
 `no login file found; keychain or env login possible`. Unknown keeps its original priority, including role `other`.
 Ordinary routing retains its existing last-resort fallback when every login result is negative, saying
 `no login evidence for X, trying anyway`; quota pressure still applies.
@@ -461,6 +461,9 @@ same-vendor, different-model fallback. Its `why` says `reviewer vendor claude: n
 (with the corresponding vendor). A role's model from the old vendor (e.g. `other:haiku:auto` falling back to Codex)
 is replaced by a model from the fallback vendor's tier table, with the actual model and tier explained in `why`.
 Explicit CLI/model choices remain explicit.
+Route's added readiness rows expose only `state` (`ready`, `unknown`, `not_logged_in`) and `why`, without
+cache timestamps, file paths or probe metadata. Existing quota fields and decisions retain main's live
+projections and expiry checks; unchanged evidence does not imply identical quota values at different times.
 Readiness checks only file existence: `CODEX_HOME/auth.json`, `CLAUDE_CONFIG_DIR/.credentials.json`,
 and `~/.gemini/oauth_creds.json` (experimental adapter). DSH checks whether `DEEPSEEK_API_KEY` is set,
 as its adapter has no known login-status command or credential-file signal.

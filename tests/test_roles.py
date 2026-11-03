@@ -157,7 +157,7 @@ class TestRoleCommands(Env):
         result = self.json("route", "--role", "review", "--b", "4")
         assert result["rung"].startswith("codex:")
         assert "same vendor, different model" in result["role_fallback"]
-        assert "claude: installed, not logged in" in result["why"]
+        assert "claude: installed, not logged in" in result["why"]["readiness"]
 
     def test_other_without_login_evidence_uses_same_vendor_other_model(self):
         from ccx.agents import cache_login

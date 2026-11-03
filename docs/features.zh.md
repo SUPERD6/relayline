@@ -278,10 +278,12 @@ API 等价美元。原有美元字段和 API 模式建议文案保留。
 `[routing] require_ready = true` 默认把明确未登录或未安装的 CLI 降序，再沿用原配额与成本排序；
 设为 `false` 不做就绪排序。带难度参数的路由、关键词 `run` 和角色 `other` 使用此优先级。
 显式 `--to X` 保持指定目标，并只刷新 X。`quota_routing.why` 写明缺失证据，例如
-`codex: installed, not logged in`。没有登录文件且没有有效 doctor 结果时，`logged_in: null`、
-`login_state: "unknown"` 表示 Unknown，why 写 `no login file found; keychain or env login possible`。
+`codex: installed, not logged in`。没有登录文件且没有有效 doctor 结果时，就绪信息的 `state: "unknown"`
+表示 Unknown，why 写 `no login file found; keychain or env login possible`。
 Unknown 不降序，角色 `other` 仍照常跨厂家审查。一般路由中，所有登录结果均为否定时仍保留原回退顺序，
 说明 `no login evidence for X, trying anyway`；配额规则仍适用。显式 CLI/模型选择仍保留。
+路由新增的就绪信息只输出 `state`（`ready`、`unknown`、`not_logged_in`）和 `why`，不输出缓存时间戳、
+文件路径或探针元数据。已有配额字段和决策保持 main 的实时投影与过期判断；读数未变不代表不同时刻的配额数值相同。
 角色 `other` 中，可用审查厂商均被 doctor 明确判为未登录时，使用已有的同厂家不同模型回退，
 `why` 写明 `reviewer vendor claude: no login evidence → same-vendor other model`（替换为实际厂商）。
 如果回退换了厂家，原角色中属于另一厂家的模型（如 `other:haiku:auto` 回退到 Codex）改用回退厂家的

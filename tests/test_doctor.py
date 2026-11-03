@@ -136,6 +136,6 @@ def test_missing_claude_file_is_unknown_and_not_demoted(tmp_path, monkeypatch):
     ranked = quota_candidates(Paths(tmp_path / "hub"), {}, ["claude", "codex"])
     assert ranked["candidates"] == ["claude", "codex"]
     assert ranked["eligible"] == ["claude", "codex"]
-    assert ranked["readiness"]["claude"]["logged_in"] is None
+    assert ranked["readiness"]["claude"]["state"] == "unknown"
     assert "not logged in" not in ranked["why"]
     assert "no login file found; keychain or env login possible" in ranked["why"]

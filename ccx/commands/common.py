@@ -418,7 +418,7 @@ def resolve(spec: dict, caller: str, p, cfg: dict) -> tuple[dict | None, dict]:
         if isinstance(route.get("why"), dict):
             route["why"]["readiness"] = ranked["why"]
         else:
-            route["why"] = ranked["why"]
+            route["why"] = {"readiness": ranked["why"]}
     if ranked.get("message"):
         route["quota_note"] = ranked["message"]
     if to == "auto" and ranked["all_tight"] and not spec.get("force"):
