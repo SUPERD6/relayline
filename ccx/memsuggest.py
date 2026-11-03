@@ -4,6 +4,7 @@ nothing is written to shared memory until the person says yes (`ccx mem accept`)
 source, so the note can be checked later (E7)."""
 from __future__ import annotations
 
+import difflib
 import json
 import re
 import time
@@ -83,7 +84,12 @@ def _near_key(t: str) -> str:
     t = re.sub(r"先默认关|默认先关|默认关闭", "默认关", t)
     t = re.sub(r"要靠|要先|才能定的|照旧|交给", "", t)
     t = re.sub(r"(?<=默认关)[由用]|(?<=实验)来", "", t)
-    return t.replace("开不开", "开关")
+    t = t.replace("开不开", "开关")
+    # In "决定开不开", the switch is the subject rather than a final action.
+    # Put that subject first before comparing character order.
+    if t.endswith("开关") and "默认关" in t:
+        t = "开关" + t[:-2]
+    return t
 
 
 def _same(a: str, b: str) -> bool:
@@ -105,9 +111,11 @@ def _same(a: str, b: str) -> bool:
     if (ca ^ cb) - set("的了都也要先再由用来这就还仍旧"):
         return False
     aa, bb = {a[i:i + 2] for i in range(len(a) - 1)}, {b[i:i + 2] for i in range(len(b) - 1)}
-    # 0.65 merges the measured/default-off paraphrases after the aliases above,
-    # while retaining nearby rules with different actions in the regression set.
-    return bool(aa and bb) and len(aa & bb) / len(aa | bb) >= 0.65
+    # Bigrams alone lose order: "先测试再打包" and "先打包再测试" overlap.
+    # The 0.9 sequence threshold keeps those rules distinct while retaining the
+    # default-off paraphrases after the subject/wording normalization above.
+    return (bool(aa and bb) and len(aa & bb) / len(aa | bb) >= 0.65
+            and difflib.SequenceMatcher(None, a, b, autojunk=False).ratio() >= 0.9)
 
 
 def _balanced(s: str) -> bool:
@@ -133,9 +141,23 @@ def _sentences(text: str) -> list[str]:
     # sentences lose the wrapper which identifies their non-human source.
     text = _user_text(text) or ""
     lines = [s for s in text.splitlines() if not (s.lstrip().startswith("|") or s.count("|") > 1
-             or _list_fragment(s.replace("**", "").strip()) or not _balanced(s))]
-    parts = re.split(r"(?<=[.!?;])\s+|(?<=[。！？；])\s*|\n+", "\n".join(lines))  # "a.txt" is not a sentence end
-    out = [s.strip(" -*•\t") for s in parts]
+             or _list_fragment(s.replace("**", "").strip()))]
+    parts = re.split(r"((?<=[.!?;])\s+|(?<=[。！？；])\s*|\n+)", "\n".join(lines))  # keep separators for rejoining
+    out = []
+    i = 0
+    while i < len(parts):
+        s = parts[i].strip(" -*•\t")
+        end = i
+        # A newline (or punctuation inside parentheses) need not end the note.
+        # If it never closes, discard only this fragment, not the later notes.
+        while not _balanced(s) and end + 2 < len(parts):
+            s += parts[end + 1] + parts[end + 2].strip(" -*•\t")
+            end += 2
+        if _balanced(s):
+            out.append(s)
+            i = end + 2
+        else:
+            i += 2
     # a note is one short statement: not a question, not a lead-in to a list, not a whole paragraph
     return [s for s in out if 8 <= len(s) <= 160 and _balanced(s)
             and not _list_fragment(s) and not s.endswith((":", "：", "?", "？"))]

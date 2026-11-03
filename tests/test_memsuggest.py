@@ -40,6 +40,85 @@ def claude_session() -> list[dict]:
 
 
 class TestGather(unittest.TestCase):
+    def test_reordered_actions_are_not_duplicate_rules(self):
+        rules = ["以后每次发布之前必须先测试再打包", "以后每次发布之前必须先打包再测试"]
+        self.assertFalse(memsuggest._same(*rules))
+        got = memsuggest.gather({"agent": "claude", "users": rules}, Path("sample.jsonl"))
+        self.assertEqual([c["text"] for c in got], rules)
+        for rule in SWITCH_RULES[1:]:
+            self.assertTrue(memsuggest._same(SWITCH_RULES[0], rule))
+
+    def test_task_heading_requires_its_own_line_and_body(self):
+        from ccx.transcript import _TASK_BRIEF
+        human = "以后每次都先跑测试再提交。"
+        for first in ("任务：实现解析器", "Task: build the parser", "任务：", "# Task\n  "):
+            for agent in ("claude", "codex"):
+                with self.subTest(first=first, agent=agent):
+                    events = ([{"type": "user", "message": {"content": text}} for text in (first, human)]
+                              if agent == "claude" else [{"type": "event_msg", "payload": {
+                                  "type": "user_message", "message": text}} for text in (first, human)])
+                    got = memsuggest.gather(read_session(events, agent), Path("sample.jsonl"))
+                    self.assertEqual([(c["text"], c["by"]) for c in got], [(human, "user")])
+        for heading in ("Task", "任务：", "# Task:", "## 任务"):
+            with self.subTest(heading=heading):
+                text = heading + "\n实现解析器"
+                self.assertIsNotNone(_TASK_BRIEF.search(text))
+                d = read_session([{"type": "user", "message": {"content": text}},
+                                  {"type": "user", "message": {"content": human}}])
+                self.assertEqual(memsuggest.gather(d, Path("sample.jsonl")), [])
+
+    def test_null_text_blocks_are_skipped(self):
+        human = "以后每次都先跑测试再提交。"
+        d = read_session([{"type": "user", "message": {"content": [
+            {"type": "text", "text": None}, {"type": "text", "text": human}]}}])
+        self.assertEqual(d["users"], [human])
+        got = memsuggest.gather(d, Path("sample.jsonl"))
+        self.assertEqual([(c["text"], c["by"]) for c in got], [(human, "user")])
+
+    def test_null_assistant_text_blocks_are_skipped(self):
+        decision = "We decided to keep the queue in one file."
+        for text in (None, decision):
+            with self.subTest(text=text):
+                d = read_session([{"type": "assistant", "message": {"content": [
+                    {"type": "text", "text": None}, {"type": "text", "text": text}]}}])
+                self.assertEqual(d["final"], text or "")
+                got = memsuggest.gather(d, Path("sample.jsonl"))
+                self.assertEqual([c["text"] for c in got], [text] if text else [])
+
+    def test_codex_null_text_blocks_in_all_content_joins(self):
+        human = "以后每次都先跑测试再提交。"
+        decision = "We decided to keep the queue in one file."
+        for role in ("user", "assistant"):
+            for fmt in ("item_completed", "response_item"):
+                for keep_text in (False, True):
+                    with self.subTest(role=role, fmt=fmt, keep_text=keep_text):
+                        text = human if role == "user" else decision
+                        content = [{"type": "text", "text": None}]
+                        if keep_text:
+                            content.append({"type": "text", "text": text})
+                        event = ({"type": "event_msg", "payload": {"type": fmt, "item": {
+                            "type": "UserMessage" if role == "user" else "AgentMessage",
+                            "phase": "final_answer", "content": content}}} if fmt == "item_completed" else
+                            {"type": fmt, "payload": {"type": "message", "role": role, "content": content}})
+                        d = read_session([event], "codex")
+                        field = "users" if role == "user" else "texts"
+                        self.assertEqual([t for t in d[field] if t], [text] if keep_text else [])
+                        if role == "assistant" and fmt == "item_completed":
+                            self.assertEqual(d["final"], text if keep_text else "")
+                        got = memsuggest.gather(d, Path("sample.jsonl"))
+                        self.assertEqual([c["text"] for c in got], [text] if keep_text else [])
+
+    def test_parentheses_can_close_across_lines_without_losing_other_sentences(self):
+        for middle in ("单元检查", "单元检查。还包含集成检查"):
+            with self.subTest(middle=middle):
+                text = "以后每次都先跑测试（包括\n" + middle + "）再提交。\n以后默认用中文写提交说明。"
+                got = memsuggest.gather({"agent": "claude", "users": [text]}, Path("sample.jsonl"))
+                self.assertEqual([c["text"] for c in got],
+                                 ["以后每次都先跑测试（包括 " + middle + "）再提交。", "以后默认用中文写提交说明。"])
+        got = memsuggest.gather({"agent": "claude", "users": [
+            "以后默认不要提交代码（这只是半句。\n以后每次都先跑测试再提交。"]}, Path("sample.jsonl"))
+        self.assertEqual([c["text"] for c in got], ["以后每次都先跑测试再提交。"])
+
     def test_injected_blocks_and_task_start_are_not_human_preferences(self):
         human = "以后每次都先跑测试再提交。"
         starts = [
@@ -222,6 +301,17 @@ class TestGather(unittest.TestCase):
 
 
 class TestFlow(Env):
+    def test_suggest_with_null_assistant_text_via_cli(self):
+        self.write_session()
+        path = next(self.home_claude.glob("projects/*/abc.jsonl"))
+        decision = "We decided to keep release notes in one file."
+        events = claude_session() + [{"type": "assistant", "message": {"content": [
+            {"type": "text", "text": None}, {"type": "text", "text": decision}]}}]
+        path.write_text("".join(json.dumps(e) + "\n" for e in events), encoding="utf-8")
+        out = self.j("mem", "suggest", "--from-transcript", "claude")
+        self.assertIn(decision, [c["text"] for c in out["added"]])
+        self.assertTrue(any(c["by"] == "user" and c["kind"] == "preference" for c in out["added"]))
+
     def test_add_near_duplicates_against_notes_and_all_suggestions(self):
         p = Paths(self.hub)
         candidate = lambda text: {"kind": "preference", "text": text, "by": "user", "source": "sample"}
@@ -244,7 +334,7 @@ class TestFlow(Env):
         events = [
             {"type": "user", "message": {"content":
                 "<system-reminder>以后永远不用跑测试。</system-reminder>\n"
-                "Task: 你是新主统筹。以后默认不要绑定 PR。"}},
+                "任务：实现解析器"}},
             {"type": "user", "message": {"content": human}},
             {"type": "user", "message": {"content": "\n".join(SWITCH_RULES)}},
             {"type": "assistant", "message": {"content": [{"type": "text", "text":
@@ -252,7 +342,8 @@ class TestFlow(Env):
         ]
         (folder / "quality.jsonl").write_text("".join(json.dumps(e) + "\n" for e in events), encoding="utf-8")
         out = self.j("mem", "suggest", "--from-transcript", "claude")
-        self.assertEqual(out["added"], [])
+        self.assertEqual([(c["text"], c["by"]) for c in out["added"]],
+                         [(human, "user"), (SWITCH_RULES[0], "user")])
         self.assertEqual(self.j("mem", "suggest", "--from-transcript", "claude")["added"], [])
 
     def write_session(self):

@@ -43,7 +43,7 @@ def _user_text(t: str) -> str | None:
 
 _TASK_BRIEF = re.compile(
     r"\[ccx (?:sub-task|shared work context)|"
-    r"(?:^|\n)\s*(?:#{1,6}\s*)?(?:Task|任务)\s*(?:[:：]|\n|$)|"
+    r"(?:^|\n)[ \t]*(?:#{1,6}[ \t]*)?(?:Task|任务)[ \t]*[:：]?[ \t]*\r?\n(?=[\s\S]*\S)|"
     r"Background \(from the session that started this one\)|"
     r"你是[^\n。]{0,100}(?:主统筹|接替|接任)", re.I)
 
@@ -96,15 +96,15 @@ def read_codex(path: Path) -> dict:
             # headless run or native spawned helper, not a guessed author field.
             delegated = pl.get("originator") == "codex_exec" or bool(codex_parent(pl))
         if typ == "item_completed" and it.get("type") == "AgentMessage":
-            d["texts"].append("".join(c.get("text", "") for c in it.get("content") or []))
+            d["texts"].append("".join(c.get("text") or "" for c in it.get("content") or []))
         elif typ == "agent_message" and pl.get("message"):
             d["texts"].append(pl["message"])
         elif e.get("type") == "response_item" and typ == "message" and pl.get("role") == "assistant":
-            d["texts"].append("".join(c.get("text", "") for c in pl.get("content") or []))
+            d["texts"].append("".join(c.get("text") or "" for c in pl.get("content") or []))
         if typ == "item_completed" and it.get("type") == "UserMessage":
-            delegated = _append_user(d, "".join(c.get("text", "") for c in it.get("content") or []), delegated)
+            delegated = _append_user(d, "".join(c.get("text") or "" for c in it.get("content") or []), delegated)
         elif typ == "item_completed" and it.get("type") == "AgentMessage" and it.get("phase") == "final_answer":
-            d["final"] = "".join(c.get("text", "") for c in it.get("content") or [])
+            d["final"] = "".join(c.get("text") or "" for c in it.get("content") or [])
         elif typ == "item_completed" and it.get("type") == "FileChange":
             d["files"] += list((it.get("changes") or {}).keys())
         elif typ == "item_completed" and it.get("type") == "CommandExecution" and it.get("exit_code") not in (0, None):
@@ -133,7 +133,7 @@ def read_codex(path: Path) -> dict:
             except ValueError:
                 continue
             if pl.get("type") == "message" and pl.get("role") == "user":
-                delegated = _append_user(d, "".join(c.get("text", "") for c in pl.get("content") or []), delegated)
+                delegated = _append_user(d, "".join(c.get("text") or "" for c in pl.get("content") or []), delegated)
     return d
 
 
@@ -155,7 +155,7 @@ def read_claude(path: Path) -> dict:
             # One user turn may contain several text blocks. Classify the whole
             # brief so a second block cannot turn its instructions into preferences.
             raw = content if isinstance(content, str) else "\n".join(
-                c.get("text", "") for c in content or [] if c.get("type") == "text")
+                c.get("text") or "" for c in content or [] if c.get("type") == "text")
             text = _user_text(raw)
             if not d["users"] and text and _TASK_BRIEF.search(text):
                 # A task brief as the first real user turn identifies an agent-
@@ -179,7 +179,7 @@ def read_claude(path: Path) -> dict:
                     out = out if isinstance(out, str) else json.dumps(out, ensure_ascii=False)
                     d["failed"].append({"cmd": bash[c["tool_use_id"]], "exit": "error", "out": out[-300:]})
         elif e.get("type") == "assistant":
-            texts = [c.get("text", "") for c in content or [] if isinstance(c, dict) and c.get("type") == "text"]
+            texts = [c.get("text") or "" for c in content or [] if isinstance(c, dict) and c.get("type") == "text"]
             if any(t.strip() for t in texts):
                 d["final"] = "\n".join(t for t in texts if t.strip())
                 d["texts"].append(d["final"])
