@@ -139,6 +139,38 @@ provides the same data for UI work; this change adds no page or frontend control
 
 ## See it live: `ccx ui`
 
+The home page's **Today** line keeps the weekly totals and adds recorded delegation spend in API-equivalent
+dollars (plus quota units in `[billing] mode = "subscription"`), each vendor's quota use, and the count from
+`ui.waiting()` (cached in the page's Reader until the ledger or recent run files change). Links open today's
+token view with **all projects** selected, quota details and the waiting-work overview. Totals cover all
+projects by the run's local start date, including its review; they exclude lead conversations, tests and
+evaluations and do not split a run across midnight.
+
+Run lists and details show a `max_usd` budget stop and the review that did not run, `review.error`, and quota
+substitutions from the recorded `quota_fallback` or quota attempt. The requested agent comes from the first
+attempt and the actual agent from the final `to`, including saved old records. `substituted_for` by itself does
+not establish a quota cause, even across vendors: without explicit cause or quota evidence its reason remains
+`unknown`. Original status filters remain available alongside budget/review display filters.
+The page reads quota from `/api/data`; the read-only, authenticated `GET /api/quota` exposes the same cached
+readings without blocking for the first scan: use, reset, `read_at`, `freshness` (minutes), `stale`,
+`auto_refresh_min`, `unknown`, `loading`, `read_error`, `reader`, `refresh_command`, and the last probe's
+`error` / `probe_at`. Readings older than
+`[quota] auto_refresh_min` are grey and marked stale (60 minutes when automatic refresh is disabled). Missing
+or reset readings stay **Unknown**: Claude suggests `ccx quota --probe`, Codex `ccx quota --refresh`. Other
+vendors show **no quota reader** with no command. Every vendor remains visible during the first scan with
+**reading…**, or with a short error if the scan fails; these states do not suggest a probe. Opening the page
+never probes. Today's quota windows use the panel's localized names and quota units
+show at most two decimal places.
+
+Role buttons send a structured JSON `task`, `role`, and optional `mode`; multiline text reaches one argv
+argument verbatim, without shell parsing. Editing the generated role wrapper or changing projects keeps this
+structured path; replacing it with a different command such as `ccx say` returns to command preview.
+The preview labels **Read only (read)** or **Write (write)** and lets
+you switch. A configured role mode wins; otherwise `modes.py` infers edit requests, with the matched words shown
+as the basis and ambiguous tasks defaulting to read in the UI. Switching mode requires a fresh preview and
+nonce. The existing I1 allowlist, same-origin checks, length limit and one-time confirmation still apply;
+the confirmed argv is the argv executed. CLI mode inference and existing command input are unchanged.
+
 **The home page is one project on one map** (P2-10): in the middle the agents and what went between them (who sent
 work to whom, the board threads, `ccx discuss` talks; a thread stopped by the machine-message cap or a message that
 asks you is a to-do); on the left the shared memory, linked to the runs whose brief carried a note (read from the
