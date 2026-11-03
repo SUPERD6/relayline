@@ -56,6 +56,8 @@ def line(res: dict) -> dict:
     for k in ("diffstat", "worktree", "continued_from", "chain", "escalated", "quota_fallback"):
         if res.get(k):
             out[k] = res[k]
+    if "base_behind" in res:
+        out["base_behind"] = res["base_behind"]
     out["check"] = res["check"]       # as it was (cmd, passed, exit, covers): leads, scripts and the receipt read it
     if res.get("review"):
         out["review"] = {k: res["review"][k] for k in ("verdict", "by") if res["review"].get(k)}
@@ -66,6 +68,11 @@ def line(res: dict) -> dict:
 
 def render(res: dict, cfg: dict) -> tuple[dict, bool]:
     """(what to print, whether it is the one line)."""
+    if res.get("base_behind", 0) > 0:
+        note = f"base: {res['base_behind']} behind upstream"
+        recap = res.get("recap", "")
+        if not recap.endswith(note):
+            res = {**res, "recap": (recap + "; " if recap else "") + note}
     if mode(cfg) == "line" and clean(res):
         return line(res), True
     return res, False
