@@ -36,7 +36,8 @@ the installed `ccx` (`tests/smoke_installed.py`).
   user's hub. `tests/test_repo_hygiene.py` checks every tracked file (text, and the strings inside images) on every
   push; look at screenshots yourself too, since a path drawn in the pixels is not caught.
 - **Two languages for docs**: `x.md` (English) and `x.zh.md` (Chinese), linking to each other. Record real decisions
-  in `docs/DECISIONS.md`.
+  in `changes/<PR>.decision.md`; they are folded into `docs/DECISIONS.md` when releasing (see
+  [changes/README.md](changes/README.md)). Direct edits to `docs/DECISIONS.md` are still allowed, but parallel PRs can conflict.
 - **One change note per PR**: add `changes/<PR number>.md` with the lines for the CHANGELOG instead of editing
   `CHANGELOG.md` (see [changes/README.md](changes/README.md)); they are folded in when releasing, so parallel PRs
   don't conflict. `docs/STATUS.md` is kept by the maintainers.

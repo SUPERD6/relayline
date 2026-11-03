@@ -2,6 +2,8 @@
 
 Newest first. Each entry: date · decision · why · where it is implemented. / 最新的在上面。每条：日期 · 决定 · 原因 · 落在哪里。
 
+New rows come from `changes/<PR>.decision.md`, folded in by `scripts/collect_changes.py` when releasing. / 新行写在 `changes/<PR>.decision.md`，发版时由 `scripts/collect_changes.py` 折入。
+
 | Date | Decision (EN) | 决定（中文） | Why / 原因 | Where / 位置 |
 |---|---|---|---|---|
 | 2026-11-01 | Opt-in role assignments constrain routing before advisory ability suggestions; shipped roles stay empty. Explicit flags override role defaults; quota and execution gates still apply. | 可选角色表优先于能力表建议，默认角色表为空；显式旗标优先，额度和执行门禁照常。 | Roles record the person's decision, ability cells are evidence/advice; empty defaults preserve existing behaviour / 角色是用户拍板，能力格是证据与建议；默认空表保留既有行为 | `ccx/roles.py`, `ccx/plan.py`, `ccx roles`, `run/route --role`, `/api/roles` |
