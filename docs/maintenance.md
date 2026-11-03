@@ -159,3 +159,19 @@ Until then, treat a round started next to other sessions as supplementary, as th
      `ccx -h`.
    - pypi.org the same way with a pypi.org token and `--repository pypi` (or Trusted Publishing from GitHub Actions,
      which needs no stored token; that is a repository setting, the maintainer's call).
+
+## 6. Post-release candidates (release-plan §13 / §14)
+
+These are candidates, not a release date or authorization to run paid evaluations. The maintainer's local
+`release-plan` §13 / §14 puts daily use first; its §11 batches and §9 / §10 supply the estimates below.
+Dollar amounts are planning estimates, not measured spend or subscription charges. Register each new plan under
+`docs/research/` before running it; an absent decision rule is a prerequisite, not permission to improvise one.
+
+| Candidate | Prerequisites | Estimated cost | Where the decision rule lives |
+|---|---|---|---|
+| P0-10 external-repository benchmark | Pin the candidate; select new external issues and hidden repository tests; register the arms and use a quiet, separate clone | about $15 for one round | Local release-plan §9 / §11 defines scope; a dedicated public plan with a decision rule is still needed |
+| P0-7 five large-task groups | Register tasks, independent pieces, hidden tests and merged-tree checks; freeze the five arms before running | about $12 in §11 (the earlier §7 / §10 estimates were $8–10 plus $4) | Local release-plan §7 / §10: correctness, wall time, spend, conflicts, rework and lead turns; a dedicated rule for the final five arms is still needed |
+| P0-13 discuss A/B | Register design tasks, with/without-discussion arms and independent judging; approve the paid run separately | about $2 | Local release-plan §9 states the question; a dedicated plan and correctness rule are still needed |
+| P0-14 tier matrix | Pin save / balanced / fast settings; register the hold-out and large-task sets, arms and checks | about $10 | Local release-plan §10 / §11 names correctness, cost per success and wall time; register the matrix rule before running |
+| B3 switch measurements | Freeze functionality and daily snapshots; check applied switches and clean paired rows, on a quiet machine | about $7.2 in §11 for the pending fewer-runs batch | [B3 registered plan](research/2026-10-30-b3-lean-switches-plan.md), including “Fewer runs”; retain Unknown / Fail in the [existing report](research/2026-10-31-b3-lean-switches.md) |
+| P0-17 real quota-limit recovery | Wait for a natural limit; have another logged-in eligible vendor; capture the stop, reset, retry and receipt | $0 allocated in §13; actual retry/probe usage is unknown | Local release-plan §13 / §14 requires live recovery evidence; register the trial checklist first; fake-only checks and the probe cost target are not live validation |
