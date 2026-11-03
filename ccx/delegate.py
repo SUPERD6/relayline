@@ -660,6 +660,12 @@ def run(req: Request, p: Paths) -> dict:
         **({"base_note": stale_base} if stale_base else {}),
         **base_info,
     }
+    if req.review_round and prev:
+        first = (prev.get("attempts") or [{}])[0]
+        record["requested_agent"] = prev.get("requested_agent") or first.get("agent") or requested["agent"]
+        record["requested_model"] = prev.get("requested_model") or first.get("model") or requested["model"]
+        if prev.get("quota_fallback"):
+            record["quota_fallback"] = dict(prev["quota_fallback"])
     _write_record(run_dir, record)          # visible to `ccx show` at once (background runs, crashes)
     board_run({**record, "label": req.label or req.brief}, "started")      # as the UI shows it: what was asked
     if req.mode == "write":
@@ -1542,13 +1548,17 @@ def compact(record: dict) -> dict:
                        "run; check the work yourself, or go on with "
                        f"`ccx resume {record['run_id']} \"...\" --max-usd <USD for the follow-up>`"
                        + (f"; {out['hint']}" if out.get("hint") else ""))
+    from .leadview import receipt_status
+    status = receipt_status(out)
+    if status != out["status"]:
+        out["reported_status"], out["status"] = out["status"], status
     return out
 
 
 def recap(record: dict, res: dict) -> str:
     """One line for the end of `ccx run`'s output (its last key), so a lead that pipes it through `tail` still has
     the run_id: status, check, review, API-equivalent cost and what to run next."""
-    from .leadview import receipt_notes, receipt_status
+    from .leadview import receipt_notes, receipt_outcome, receipt_status
     c = res.get("check")
     check = "none" if not c else (NO_CHANGES_NOTE.replace(" ", "-") if c.get("status") == NO_CHANGES_NOTE else
                                   "passed" if c.get("passed") else
@@ -1560,11 +1570,10 @@ def recap(record: dict, res: dict) -> str:
     cc = record.get("cost_chain") or {}
     if cc.get("ae_usd") is not None:              # after a fix round: what the whole chain cost
         usd = cc["ae_usd"]
-    ok = res.get("ok", record.get("ok"))
     lead = f" needs_lead={res['needs_lead'].split(':')[0]}" if res.get("needs_lead") else ""
     notes = receipt_notes(res)
-    outcome = "ok?" if notes and record.get("kind") != SELF_CHECKED else f"ok={str(bool(ok)).lower()}"
-    return (f"ccx run {record['run_id']}: status={receipt_status(res)} {outcome} "
+    receipt = {"ok": record.get("ok"), "kind": record.get("kind"), **res}
+    return (f"ccx run {record['run_id']}: status={receipt_status(receipt)} {receipt_outcome(receipt)} "
             f"check={check} review={review}{lead} cost=~${usd:.4f}"
             + (f" ({len(cc['runs'])} runs + {cc.get('reviews', 0)} reviews)" if cc.get("ae_usd") is not None else "")
             + ("; " + "; ".join(notes) if notes else "")
@@ -1596,16 +1605,28 @@ def _next(record: dict) -> str:
 def human_summary(record: dict, res: dict) -> list[str]:
     """Three plain lines after `ccx run`'s JSON when its stdout is a terminal (a person reading, not a lead or a
     script): what came of it, what it cost, what to run next."""
-    rid, status = record["run_id"], res.get("status")
+    from .coverage import reviewed_ok
+    from .leadview import receipt_notes, receipt_outcome, receipt_status
+    rid, status = record["run_id"], receipt_status(res)
+    notes, outcome = receipt_notes(res), receipt_outcome(res)
     said = " ".join(str(res.get("summary") or "").split())
     said = said if len(said) <= 160 else said[:157] + "..."
-    head = "done" if res.get("ok") else f"not done (status {status}" + (f", {res['kind']}" if res.get("kind") else "") + ")"
+    if not res.get("ok"):
+        head = f"not done (status {status}" + (f", {res['kind']}" if res.get("kind") else "") + ")"
+    elif status in ("stopped", "partial"):
+        head = f"{status} ({outcome})"
+    else:
+        head = "done"
     if res.get("ok") and res.get("kind") == SELF_CHECKED:
-        head = "done, but its check is not independent: every test it ran was written or changed by the sub-agent"
+        head = ("done, but" if status == "done" else head + ";") + (
+            " its check is not independent: every test it ran was written or changed by the sub-agent")
+    if notes:
+        head += "; " + "; ".join(notes)
     cost = f"Cost: ~${_usd(record, res):.4f} on {res.get('agent')} {res.get('model')}"
     if res.get("escalated"):
         cost += f" (escalated {res['escalated']})"
-    if res.get("ok"):
+    if (res.get("ok") and status == "done" and outcome == "ok=true"
+            and (res.get("kind") != SELF_CHECKED or reviewed_ok(record))):
         nxt = f"look at the result, then record your verdict: ccx verify {rid} --ok 1   (wrong: --ok 0)"
     elif res.get("hint"):
         nxt = res["hint"]

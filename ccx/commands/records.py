@@ -251,6 +251,7 @@ def cmd_show(a) -> int:
         # the fix round has ended; its parent adds review_of, first_review and cost_chain a moment later (the gap
         # RunWaiter's tag_due waits out)
         res.update(ok=False, fix_round="finishing", next=f"ccx show {run_id} --wait")
+    res["recap"] = recap(rec, res)                # pending fix-round flags must agree with the printed recap
     _out(res)
     return 0
 

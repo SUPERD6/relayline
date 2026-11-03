@@ -34,7 +34,9 @@ def mode(cfg: dict) -> str:
 def clean(res: dict) -> bool:
     """A result that asks nothing of the lead: done, ok, its check passed on this run's own work, review passed or
     none ran."""
-    if not res.get("ok") or res.get("status") != "done" or res.get("max_usd") or any(res.get(k) for k in ATTENTION):
+    complete = res.get("status") == "done" or (res.get("status") == "partial"
+               and res.get("reported_status") == "done" and quota_reassigned(res))
+    if not res.get("ok") or not complete or res.get("max_usd") or any(res.get(k) for k in ATTENTION):
         return False
     c = res.get("check") or {}
     if c.get("passed") is not True or c.get("weak") or c.get("status") or c.get("note") \
@@ -44,14 +46,24 @@ def clean(res: dict) -> bool:
     if rv and (rv.get("verdict") != "pass" or rv.get("error") or rv.get("downgraded") or rv.get("notes")
                or rv.get("edited_tests")):
         return False                  # a pass with [should] / [note] items: the lead reads them
-    return True                       # route (and its "learns" tip about routing, not this result) stays out
+    return True                       # ordinary route details stay out; role auto evidence is retained
+
+
+def quota_reassigned(res: dict) -> bool:
+    fallback = res.get("quota_fallback") or {}
+    return bool(fallback.get("from") and fallback.get("to") == res.get("agent"))
+
+
+def review_not_run(res: dict) -> bool:
+    review = res.get("review") or {}
+    return bool(review.get("error") or review.get("verdict") == "not-run")
 
 
 def receipt_notes(res: dict) -> list[str]:
     """Facts that must survive a compact receipt; no claim that an unstarted fallback ran."""
     notes = []
     fallback = res.get("quota_fallback") or {}
-    if fallback.get("from") and fallback.get("to") == res.get("agent"):
+    if quota_reassigned(res):
         notes.append(f"reassigned {fallback['from']}→{fallback['to']} (quota)")
     elif res.get("substituted_for"):
         before = res["substituted_for"]
@@ -66,28 +78,39 @@ def receipt_notes(res: dict) -> list[str]:
         if step != "review" and stopped == "review not run":
             stopped += f"; {step} not run"
         notes.append(f"stopped: budget ${cap['cap']:g} reached, {stopped}")
-    if review.get("error") and not (cap and cap.get("stopped_before") == "review"):
-        why = " ".join(str(review["error"]).split())
+    if review_not_run(res) and not (cap and cap.get("stopped_before") == "review"):
+        why = " ".join(str(review.get("error") or review.get("reason") or "all reviewers failed").split())
         why = why if len(why) <= 80 else why[:77] + "..."
         notes.append(f"review not run ({why})")
     return notes
 
 
 def receipt_status(res: dict) -> str | None:
+    if not res.get("ok") or res.get("status") != "done":
+        return res.get("status")
     if res.get("max_usd"):
         return "stopped"
-    if res.get("status") == "done" and receipt_notes(res) and res.get("kind") != "ok_self_checked":
+    if (quota_reassigned(res) or review_not_run(res)) and res.get("kind") != "ok_self_checked":
         return "partial"
     return res.get("status")
+
+
+def receipt_outcome(res: dict) -> str:
+    if not res.get("ok"):
+        return "ok=false"
+    if res.get("kind") != "ok_self_checked" and (
+            res.get("max_usd") or quota_reassigned(res) or review_not_run(res)):
+        return "ok?"
+    return "ok=true"
 
 
 def line(res: dict) -> dict:
     said = " ".join(str(res.get("summary") or "").split())
     if len(said) > SUMMARY_CHARS:
         said = said[: SUMMARY_CHARS - 3] + "..."
-    out = {"run_id": res["run_id"], "agent": res.get("agent"), "model": res.get("model"), "ok": True,
+    out = {"run_id": res["run_id"], "agent": res.get("agent"), "model": res.get("model"), "ok": bool(res.get("ok")),
            "status": receipt_status(res), "summary": said, "files_changed": res.get("files_changed", [])}
-    for k in ("effort", "requested_agent", "requested_model", "substituted_for", "diffstat", "worktree",
+    for k in ("effort", "requested_agent", "requested_model", "substituted_for", "reported_status", "diffstat", "worktree",
               "continued_from", "chain", "escalated", "quota_fallback", "role", "role_receipt"):
         if res.get(k):
             out[k] = res[k]

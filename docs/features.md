@@ -303,6 +303,15 @@ In Claude Code you say: "make `loader.py` accept a custom delimiter and add test
    of plain ok while preserving the existing `ok_self_checked` wording and command exit codes.
    Role receipts, `route` and compact `ccx show` retain `effort=auto → xhigh: <basis>`, including the difficulty
    score and triggered rubric items or keyword reasons.
+   Failure keeps its original status and `ok=false` even when a notice is present; only successful work reported
+   as done becomes `stopped` for a budget stop, or `partial ok?` for quota reassignment or an unavailable review
+   (including `verdict=not-run` without an error field).
+   Same-vendor model substitution adds a `(model)` note without changing success status; terminal summaries use
+   the same notices/status as the recap and direct uncertain results to inspection rather than a positive verdict.
+   Review fix rounds inherit the initial `requested_*` and quota reassignment, recovered attempts update the
+   top-level executor, and compact receipts retain the worker's original status as `reported_status` when their
+   displayed status changes; `ok` and exit codes retain their execution meaning, and a budget-stopped
+   `ok_self_checked` still says its check is not independent.
 5. **Recover from problems.**
    - Codex reports `blocked`: ccx continues **in the same Codex session** one rung up (high), with no re-briefing.
    - Codex says done but ccx's own `--check` fails: it climbs a rung too (in the same session when the agent stays

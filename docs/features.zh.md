@@ -189,6 +189,11 @@ I1 的白名单、同源检查、限长和一次性确认仍然有效，确认�
    预算停止写 `stopped: budget $X reached, review not run`（审查已跑则写修复轮未跑），审查错误写
    `review not run (<原因>)`，这些摘要使用 `stopped` / `partial` 和 `ok?`，保留原有 `ok_self_checked` 措辞及命令退出码。
    角色收据、`route` 和 `ccx show` 紧凑输出保留 `effort=auto → xhigh: <依据>`，列出难度分数与触发的 rubric 项或关键词依据。
+   已失败的运行即使带提示也保留原状态和 `ok=false`；只有本来成功报 done 的运行才因预算变为 `stopped`，
+   或因配额改派、审查不可用变为 `partial ok?`（也包括没有 error 字段的 `verdict=not-run`）。
+   同厂家换模型只加 `(model)` 提示，不改变成功状态；终端摘要与 recap 使用相同提示和状态，未确认的结果先引导查看，不建议直接记正 verdict。
+   审查修复轮继承最初的 `requested_*` 和配额改派信息，中断恢复同步顶层执行者，紧凑收据改变显示状态时用
+   `reported_status` 保留子智能体原状态；`ok` 和退出码仍表示执行结果，预算停下的 `ok_self_checked` 仍说明检查未经独立验证。
 5. 如果 Codex 回报 `blocked`，ccx 会在**同一个 Codex 会话**里升一档（high）继续，不用重新喂背景。Codex 说做完了、但 ccx 自己重跑的 `--check` 没过，也会升一档（同一家时在同一会话里）；`ccx config set defaults.focused_retry true` 之后，这一次会拿到失败的命令和输出的最后约 2000 字，只修失败处（默认关，等实测确认再开）。如果 Codex 额度用完，自动换 Claude 做（实验性：只有替身测试，还没遇到过真实的额度用完）；超时或崩溃，`ccx resume <run_id>` 接着做（有检查点的长任务用 `ccx task resume`），沿用原来的标签、验收命令和 review 设置（`ccx resume` 可以用 `--check` / `--review` 改；`ccx task resume` 总是沿用）。想让它停：`ccx stop <run_id>` 结束子智能体和它开的所有进程，之后 `ccx resume` 能接上。
 6. 每次运行都写进账本，结果自动记回 task-routing / task-split，下次选得更准。`ccx report` 生成看板网页：谁花了多少 token、什么类型的 token、额度用了多少，给出花费；`ccx trial` 实测之前不显示省了多少。
 
