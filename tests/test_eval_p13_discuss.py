@@ -5,6 +5,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+
 ROOT = Path(__file__).resolve().parents[1]
 EVAL = ROOT / "scripts/eval"
 sys.path.insert(0, str(EVAL))
@@ -132,3 +134,112 @@ def test_preflight_and_wait_quiet_gates(monkeypatch, tmp_path):
     monkeypatch.setattr(P.r5, "wait_quiet", lambda n: False)
     assert P.execute(a, [], tmp_path / "work", tmp_path / "out") == 3
     assert len(calls) == 1  # wait-quiet never becomes permission to run while busy
+
+
+def fake_failure_run(tmp_path, extra=None, discussion_timeout=False):
+    """Separate-process entry with fake providers; only machine checks and the requested failure are stubbed."""
+    fakes = ROOT / "tests/fakes"
+    env = {"CCX_CODEX_BIN": str(fakes / "fake_codex.py"),
+           "CCX_CLAUDE_BIN": str(fakes / "fake_p13_lead.py"), "CCX_NO_LOCATE": "1",
+           "CCX_NO_AUTO_ARCHIVE": "1", "CCX_DSH_DESKTOP": "closed", "DEEPSEEK_API_KEY": "fake-key",
+           "FAKE_LOG": str(tmp_path / "calls.jsonl"), **(extra or {})}
+    driver = tmp_path / "driver.py"
+    driver.write_text(
+        "import os, runpy, sys\n"
+        f"sys.path.insert(0, {str(EVAL)!r})\nimport p13_discuss as P\n"
+        f"fake_env = {env!r}\nos.environ.update(fake_env)\n"
+        "prepare = P.PF.prepare\n"
+        "P.PF.prepare = lambda u: {**prepare(u), **fake_env}\n"
+        "P.PF.snapshot = lambda: []\nP.PF.between_units = lambda *a, **kw: []\n"
+        "P.PF.run_checks = lambda o: dict(ok=False, problems=['fake preflight'], result='forced',\n"
+        "  force_unclean=True, commit='fake', dirty=True, tasks_sha256='fake', cli={}, codex={}, jobs=1)\n"
+        "real_run = P.PF.run\n"
+        "def run(argv, **kw):\n"
+        f"    if {discussion_timeout!r} and argv[2:3] == ['discuss']:\n"
+        "        return '', 'simulated discussion timeout before ledger flush', -9, []\n"
+        "    return real_run(argv, **kw)\n"
+        "P.PF.run = run\n"
+        f"runpy.run_path({str(EVAL / 'p13_discuss.py')!r}, run_name='__main__')\n",
+        encoding="utf-8", newline="")
+    res = tmp_path / "results.jsonl"
+    # Four scheduled units make early stopping visible (the second pair must never start on unknown spend).
+    result = invoke([driver, "run", "--execute", "--tasks", "mem-report,quota-stop-log", "--tag", "fake-failure",
+                     "--force-unclean", "--codex-home", tmp_path / "codex-home", "--out", res,
+                     "--workdir", tmp_path / "work"], tmp_path)
+    return result, P.read_jsonl(res)
+
+
+@pytest.mark.parametrize("kind", ["timeout", "quota", "env"])
+def test_worker_infrastructure_is_unknown_not_wrong(tmp_path, kind):
+    result, data = fake_failure_run(tmp_path, {"FAKE_P13_WORKER_KIND": kind})
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert len(data) == 4
+    for row in data:
+        assert row["ok"] is None and row["outcome"] == "Unknown"
+        assert row["worker_results"][0]["kind"] == kind
+        assert row["protocol_ok"] is False and "pytest" not in row
+        assert row["usd"] is not None  # infrastructure failure with known spend remains distinct
+    summary = P.summarize(data, True)
+    assert summary["verdict"] == "Unknown" and summary["unknown"] == 4
+    for arm in P.ARMS:
+        assert summary["arms"][arm]["unknown"] == 2
+        assert summary["arms"][arm]["right"] == "0/0"
+
+
+def test_ok_self_checked_worker_participates_in_hidden_scoring(tmp_path):
+    result, data = fake_failure_run(tmp_path, {"FAKE_P13_WORKER_KIND": "ok_self_checked"})
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert len(data) == 4
+    for row in data:
+        worker = row["worker_results"][0]
+        assert worker["status"] == "done" and worker["kind"] == "ok_self_checked"
+        assert row["protocol_ok"] is True and not row.get("error")
+        assert "pytest" in row and row["ok"] is False  # fake worker did not fix the task
+        assert row["outcome"] == "Wrong"
+    summary = P.summarize(data, True)
+    assert summary["unknown"] == 0
+    for arm in P.ARMS:
+        assert summary["arms"][arm]["right"] == "0/2"
+        assert summary["arms"][arm]["unknown"] == 0
+
+
+def test_empty_worker_ledger_stops_before_another_paid_unit(tmp_path):
+    result, data = fake_failure_run(tmp_path, {"FAKE_P13_EMPTY_LEDGER": "1"})
+    assert result.returncode == 4, result.stdout + result.stderr
+    assert len(data) == 1
+    assert data[0]["ccx_usd"] is None and data[0]["usd"] is None
+    assert data[0]["ok"] is None and data[0]["outcome"] == "Unknown"
+    assert "unknown spend: stopping" in result.stdout
+    assert (tmp_path / "p13-run.log").read_text(encoding="utf-8").endswith("exit=4\n")
+
+
+def test_discussion_timeout_without_ledger_stops_and_counts_unknown(tmp_path):
+    result, data = fake_failure_run(tmp_path, discussion_timeout=True)
+    assert result.returncode == 4, result.stdout + result.stderr
+    assert len(data) == 2  # ordinary wrong baseline, then Unknown discussion; second pair never starts
+    assert data[0]["ok"] is False and data[0]["outcome"] == "Wrong"
+    talk = data[1]
+    assert talk["arm"] == "discuss" and talk["ok"] is None
+    assert talk["discuss_usd"] is None and talk["ccx_usd"] is None and talk["usd"] is None
+    summary = P.summarize(data, True)
+    assert summary["arms"]["nodiscuss"]["right"] == "0/1"
+    assert summary["arms"]["discuss"]["unknown"] == 1 and summary["unknown"] == 1
+
+
+def test_dispatch_count_uses_records_when_bash_prefix_exceeds_400_chars(tmp_path):
+    result, data = fake_failure_run(tmp_path, {"FAKE_P13_BASH_PREFIX": "echo " + "x" * 500 + "; "})
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert len(data) == 4
+    for row in data:
+        assert "ccx.py" not in row["bash"][0]  # stored Bash text was truncated before the dispatch
+        assert row["ccx_runs"] == row["worker_runs"] == 1
+        assert row["protocol_ok"] is True and not row.get("error")
+
+
+def test_started_worker_missing_from_nonempty_ledger_is_unknown_cost(tmp_path):
+    hub = tmp_path / "hub"
+    P.append_jsonl(hub / "ccx/ledger.jsonl", {
+        "run_id": "talk", "label": "discuss:example:proposer", "ae_usd": 0.1})
+    stats = P.hub_stats(hub, discussion_started=True, worker_started=True)
+    assert stats["discuss_usd"] == 0.1
+    assert stats["worker_usd"] is None and stats["ccx_usd"] is None

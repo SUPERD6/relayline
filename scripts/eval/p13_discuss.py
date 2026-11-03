@@ -9,7 +9,6 @@ import argparse
 import contextlib
 import json
 import math
-import re
 import shlex
 import shutil
 import sys
@@ -104,24 +103,30 @@ def lead_prompt(run: list[str]) -> str:
             f"Command: {shlex.join(run)}\nP13_RUN_ARGV={json.dumps(run)}\n")
 
 
-def hub_stats(hub: Path) -> dict:
+def hub_stats(hub: Path, *, discussion_started: bool = False, worker_started: bool = False) -> dict:
     rows = [r for r in ledger.rows(Paths(hub)) if not r.get("type")]
     talks = [r for r in rows if str(r.get("label", "")).startswith("discuss:")]
     work = [r for r in rows if str(r.get("label", "")).startswith("eval-p13:")]
-    def cost(rs):
+    def cost(rs, required=True):
+        if not rs:
+            return None if required else 0.0
         return round(sum(r["ae_usd"] for r in rs), 6) if all(
-            isinstance(r.get("ae_usd"), (int, float)) for r in rs) else None
-    return {"ccx_usd": cost(rows), "discuss_usd": cost(talks), "worker_usd": cost(work),
+            isinstance(r.get("ae_usd"), (int, float)) and math.isfinite(r["ae_usd"]) for r in rs) else None
+    talk_usd, worker_usd = cost(talks, discussion_started), cost(work, worker_started)
+    total = cost(rows) if talk_usd is not None and worker_usd is not None else None
+    return {"ccx_usd": total, "discuss_usd": talk_usd, "worker_usd": worker_usd,
             "ccx_run_ids": [r["run_id"] for r in rows], "worker_runs": len({r["run_id"] for r in work}),
+            "worker_results": [{k: r.get(k) for k in ("run_id", "status", "kind", "ok")} for r in work],
             "discussion_runs": len({r["run_id"] for r in talks})}
 
 
 def run_unit(u: dict, a, work: Path, rep: dict) -> dict:
     iso = unit_of(u, a, work)
     task = tasks_r5.by_id(u["task"])
-    row = {**u, "ok": False, "lead_model": LEAD[0], "lead_effort": LEAD[1], "lead_usd": 0.0,
+    row = {**u, "ok": None, "outcome": "Unknown", "lead_model": LEAD[0], "lead_effort": LEAD[1], "lead_usd": 0.0,
            "lead_tokens": 0, "discuss_wall_s": 0.0, "protocol_ok": False}
     before, job, env, stream = PF.snapshot(), PF.Job(), None, ""
+    discussion_started, worker_started, accounting_unknown = False, False, False
     start = time.monotonic()
     try:
         PF.rmtree(iso.hub)
@@ -144,7 +149,9 @@ def run_unit(u: dict, a, work: Path, rep: dict) -> dict:
                 encoding="utf-8")
             t0 = time.monotonic()
             print(shlex.join(discuss), flush=True)
+            discussion_started = True
             out, err, rc, _ = PF.run(discuss, cwd=iso.repo, env=env, timeout=a.timeout, job=job)
+            accounting_unknown = rc == -9  # the killed turn may have spent without reaching the ledger
             row["discuss_wall_s"] = round(time.monotonic() - t0, 3)
             (work / f"{u['task']}-{u['arm']}.discuss.json").write_text(out, encoding="utf-8")
             d = json.loads(out)
@@ -160,27 +167,35 @@ def run_unit(u: dict, a, work: Path, rep: dict) -> dict:
         (iso.repo / "p13-brief.txt").write_text(brief, encoding="utf-8")
         row["lead_usd"], row["lead_tokens"] = None, None
         print("lead dispatch: " + shlex.join(run), flush=True)
+        worker_started = True
         out, err, rc, _ = PF.run(lead_argv(iso, a.lead_budget), input=lead_prompt(run), cwd=iso.repo,
                                  env=env, timeout=a.timeout, job=job)
         stream = out
         (work / f"{u['task']}-{u['arm']}.stream.jsonl").write_text(out, encoding="utf-8")
         fin = r3.last_result(out)
         row.update(r3.lead_metrics(out), rc=rc, lead_usd=fin.get("total_cost_usd"))
-        # r3's older counter accepts a double quote only; Bash uses single quotes for paths with spaces.
-        row["ccx_runs"] = sum(len(re.findall(r"ccx\.py['\"]?\s+run\b", b)) for b in row["bash"])
         if not fin.get("usage"):
             row["lead_tokens"] = None
         if rc or fin.get("is_error") or not fin:
             raise RuntimeError(f"lead failed: rc={rc} {err[-200:]}")
-        st = hub_stats(iso.hub)
+        st = hub_stats(iso.hub, discussion_started=discussion_started, worker_started=worker_started)
+        # Count actual dispatch records, independent of command quoting, length or truncated Bash telemetry.
+        row["ccx_runs"] = st["worker_runs"]
         if st["worker_runs"] != 1 or row["ccx_runs"] != 1 or row["lead_edits"] or row["ccx_resumes"]:
             raise RuntimeError("lead must dispatch exactly one ccx run without edits or retries")
+        worker = st["worker_results"][0]
+        if worker["status"] != "done" or worker["kind"] not in (None, "ok", "no_changes", "check_failed", "ok_self_checked"):
+            raise RuntimeError(f"worker did not complete: status={worker['status']} kind={worker['kind']}")
         row["protocol_ok"] = True
         row.update(r5.score(iso.repo, task, work, job))
+        row["outcome"] = "Right" if row["ok"] else "Wrong"
     except Exception as exc:  # keep failures and spend, never silently rerun a failed unit
+        row["ok"], row["outcome"] = None, "Unknown"
         row["error"] = f"{type(exc).__name__}: {exc}"[:500]
     finally:
-        row.update(hub_stats(iso.hub))
+        row.update(hub_stats(iso.hub, discussion_started=discussion_started, worker_started=worker_started))
+        if accounting_unknown:
+            row["ccx_usd"], row["discuss_usd"] = None, None
         row["usd"] = (round(row["lead_usd"] + row["ccx_usd"], 6)
                       if row["lead_usd"] is not None and row["ccx_usd"] is not None else None)
         row["wall_s"] = round(time.monotonic() - start, 3)
@@ -337,19 +352,23 @@ def execute(a, units: list[dict], work: Path, res: Path) -> int:
 
 
 def summarize(rows: list[dict], include_unclean: bool = False) -> dict:
+    def unknown(r):
+        return r.get("ok") is None or r.get("outcome") == "Unknown" or bool(r.get("error")) or r.get("protocol_ok") is not True
     eligible = [r for r in rows if r.get("env_clean") is True and r.get("protocol_ok") is True
-                and not r.get("error")]
+                and not unknown(r)]
     table = rows if include_unclean else eligible
     arms = {}
     for arm in ARMS:
         rs = [r for r in table if r.get("arm") == arm]
-        ok = sum(r.get("ok") is True for r in rs)
+        known = [r for r in rs if not unknown(r)]
+        ok = sum(r.get("ok") is True for r in known)
         def total(k):
             return round(sum(r[k] for r in rs), 6) if rs and all(
                 isinstance(r.get(k), (int, float)) and math.isfinite(r[k]) for r in rs) else None
         usd = total("usd")
-        arms[arm] = {"ok": ok, "n": len(rs), "right": f"{ok}/{len(rs)}", "usd": usd,
-                     "cps": round(usd / ok, 6) if ok and usd is not None else None,
+        arms[arm] = {"ok": ok, "n": len(known), "right": f"{ok}/{len(known)}", "usd": usd,
+                     "unknown": sum(unknown(r) for r in rows if r.get("arm") == arm),
+                     "cps": round(usd / ok, 6) if ok and usd is not None and len(known) == len(rs) else None,
                      **{k: total(k) for k in ("wall_s", "lead_tokens", "lead_usd", "discuss_usd", "discuss_wall_s")}}
     # A conclusion needs exactly one complete clean six-pair run, all costs known.
     tags = {r.get("tag") for r in rows}
@@ -363,6 +382,7 @@ def summarize(rows: list[dict], include_unclean: bool = False) -> dict:
     ratio = talk["cps"] / base["cps"] if talk["cps"] is not None and base["cps"] else None
     verdict = ("Useful" if delta >= 2 and ratio <= 1.5 else "Negative") if valid and ratio is not None else "Unknown"
     return {"arms": arms, "verdict": verdict, "success_delta": delta, "cps_ratio": ratio,
+            "unknown": sum(unknown(r) for r in rows),
             "clean_complete_six_pairs": valid, "excluded_rows": len(rows) - len(eligible),
             "counted": "all rows (descriptive only)" if include_unclean else "clean protocol-valid rows",
             "selection": SELECTION, "estimated_usd": estimate(schedule(list(SELECTION), "p13")),
@@ -379,10 +399,10 @@ def cmd_summary(a) -> int:
         rows = [r for r in rows if r.get("tag") == a.tag]
     result = summarize(rows, a.include_unclean)
     print(json.dumps(result, ensure_ascii=False, indent=2))
-    print("arm          right    USD       USD/success wall_s    lead_tokens discuss_USD")
+    print("arm          right    USD       USD/success wall_s    lead_tokens discuss_USD Unknown")
     for arm, r in result["arms"].items():
         print(f"{arm:12} {r['right']:8} {str(r['usd']):9} {str(r['cps']):11} {str(r['wall_s']):9} "
-              f"{str(r['lead_tokens']):11} {r['discuss_usd']}")
+              f"{str(r['lead_tokens']):11} {r['discuss_usd']} {r['unknown']}")
     return 0
 
 
