@@ -1,11 +1,13 @@
 {
   "zh": {
+    "q_reading": "读取中…", "q_read_error": "读取失败：{e}",
     "runs_budget_stop": "预算耗尽（{u}），审查未跑", "runs_review_error": "审查未跑：{e}", "runs_substitution": "改派 {from}→{to}（配额）",
     "runs_substitution_other": "改派 {from}→{to}",
     "runs_budget_step": "预算耗尽（{u}），{step}未跑", "runs_next_attempt": "下一次尝试", "runs_fix_round": "修复轮",
-    "q_unknown": "Unknown — 运行一次 ccx quota --probe", "q_age": "读数：{n} 分钟前", "q_age_unknown": "读数时间：Unknown",
+    "q_unknown": "Unknown — {cmd}", "q_unknown_label": "Unknown", "q_no_reader": "no quota reader", "q_age": "读数：{n} 分钟前", "q_age_1": "读数：{n} 分钟前", "q_age_unknown": "读数时间：Unknown",
     "q_stale": "过期", "q_probe_error": "探针失败：{e}", "q_reset_unknown": "重置时间：Unknown",
     "today_title": "今天", "today_spend": "{u} API 等价 · {n} 次派活", "today_units": "{n} 配额单位", "today_waiting": "{n} 条等我判定",
+    "today_spend_1": "{u} API 等价 · {n} 次派活", "today_units_1": "{n} 配额单位", "today_waiting_1": "{n} 条等我判定",
     "today_basis": "所有项目的派活记录，按本机日期和运行开始时间计入；不含主导对话、评测和测试。",
     "chat_mode": "运行模式（切换后重新预览）", "chat_mode_read": "只读（read）", "chat_mode_write": "写入（write）",
     "chat_mode_role": "依据：角色配置。", "chat_mode_inferred": "依据：modes.py 从任务中的 {evidence} 推断。",
@@ -305,12 +307,14 @@
     "tok_col_rewritten": "重写"
   },
   "en": {
+    "q_reading": "reading…", "q_read_error": "Reading failed: {e}",
     "runs_budget_stop": "Budget exhausted ({u}); review did not run", "runs_review_error": "Review did not run: {e}", "runs_substitution": "Substituted {from}→{to} (quota)",
     "runs_substitution_other": "Substituted {from}→{to}",
     "runs_budget_step": "Budget exhausted ({u}); {step} did not run", "runs_next_attempt": "next attempt", "runs_fix_round": "fix round",
-    "q_unknown": "Unknown — run ccx quota --probe once", "q_age": "Reading: {n} minutes ago", "q_age_unknown": "Reading time: Unknown",
+    "q_unknown": "Unknown — {cmd}", "q_unknown_label": "Unknown", "q_no_reader": "no quota reader", "q_age": "Reading: {n} minutes ago", "q_age_1": "Reading: {n} minute ago", "q_age_unknown": "Reading time: Unknown",
     "q_stale": "Stale", "q_probe_error": "Probe failed: {e}", "q_reset_unknown": "Reset time: Unknown",
     "today_title": "Today", "today_spend": "{u} API-equivalent · {n} delegations", "today_units": "{n} quota units", "today_waiting": "{n} waiting for my verdict",
+    "today_spend_1": "{u} API-equivalent · {n} delegation", "today_units_1": "{n} quota unit", "today_waiting_1": "{n} waiting for my verdict",
     "today_basis": "Delegation records across all projects, by local date and run start time; excludes lead conversations, evaluations and tests.",
     "chat_mode": "Run mode (changing it previews again)", "chat_mode_read": "Read only (read)", "chat_mode_write": "Write (write)",
     "chat_mode_role": "Basis: role configuration.", "chat_mode_inferred": "Basis: modes.py inferred this from {evidence} in the task.",

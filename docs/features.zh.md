@@ -123,19 +123,28 @@ builtin 的模型身份留空。这些数字测的是工作流（ccx2 含主导�
 ## 实时看：`ccx ui`
 
 首页的**今天**一行保留本周汇总，增加派活记录的 API 等价费用（`[billing] mode = "subscription"` 时同时
-显示配额单位）、各家配额用量和 `ui.waiting()` 返回的待判定条数。链接分别打开今天的 token 页、配额详情和
+显示配额单位）、各家配额用量和 `ui.waiting()` 返回的待判定条数（复用页面 Reader，只在账本或近期运行文件
+变化时重算）。链接分别打开选中**全部项目**的今天 token 页、配额详情和
 待处理总览。费用按所有项目中运行开始时的本机日期计入，包含该运行的审查；不含主导对话、评测和测试，
 也不把一次跨午夜的运行拆到两天。
 
-运行列表和详情显示 `max_usd` 预算停下及未跑的审查、`review.error` 原因和因配额改派的来源与去向，兼容旧
-记录的 `substituted_for`。同一智能体内因模型不可用而替换档位时不标“配额”，优先采用记录中明确给出的原因。
-只读且需要认证的 `GET /api/quota` 与 `/api/data` 使用同一批读数，包含用量、重置
-时间、`read_at`、`freshness`（分钟）、`stale`、`auto_refresh_min`、`unknown`，以及最近探针的 `error` /
+运行列表和详情显示 `max_usd` 预算停下及未跑的审查、`review.error` 原因，并从 `quota_fallback` 或 quota
+尝试显示配额改派；原请求智能体取首个 attempt，实际智能体取最终 `to`，兼容已落盘的旧记录。
+`substituted_for` 本身不证明配额原因，跨厂家也一样：没有显式原因或配额证据时保留 `unknown`。
+原有状态筛选与预算、审查显示状态筛选均保留。
+页面从 `/api/data` 获取配额；只读且需要认证的 `GET /api/quota` 返回同一批缓存读数，首次扫描不阻塞请求。
+字段包含用量、重置时间、`read_at`、`freshness`（分钟）、`stale`、`auto_refresh_min`、`unknown`、`loading`、
+`read_error`、`reader`、
+`refresh_command`，以及最近探针的 `error` /
 `probe_at`。超过 `[quota] auto_refresh_min` 的读数标灰并写“过期”（关闭自动刷新时用 60 分钟作为显示标准）。
-没有读数或读数已经跨过重置时间时保留 **Unknown**，提示运行 `ccx quota --probe`；打开页面不会调用探针。
+没有读数或读数已跨过重置时间时保留 **Unknown**：Claude 提示 `ccx quota --probe`，Codex 提示
+`ccx quota --refresh`；其他厂家显示 **no quota reader**，不给命令提示。首次扫描期间每家都保留占位行并显示
+“读取中…”，扫描失败时显示错误短语；这两种状态不提示探针。打开页面不会调用探针。“今天”的窗口名与
+配额面板使用同一本地化文案，配额单位最多显示两位小数。
 
 角色按钮用结构化 JSON 的 `task`、`role` 和可选的 `mode` 传递请求，多行任务原样进入一个 argv 参数，不经
-shell 拆分。预览明确标出**只读（read）**或**写入（write）**并允许切换。角色配了 mode 时优先用配置；否则
+shell 拆分。编辑生成的角色包装草稿或切换项目后仍走结构化路径；改成 `ccx say` 等其他命令时恢复命令预览。
+预览明确标出**只读（read）**或**写入（write）**并允许切换。角色配了 mode 时优先用配置；否则
 复用 `modes.py` 推断写入请求，显示命中的操作词，意图不明时界面默认只读。切换后重新生成预览和 nonce。
 I1 的白名单、同源检查、限长和一次性确认仍然有效，确认的 argv 就是执行的 argv；CLI 模式推断和原有命令
 输入接口不变。

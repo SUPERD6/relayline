@@ -117,6 +117,7 @@ class Reader:
         self._run_rows: dict[Path, tuple] = {}      # list rows: unchanged records/briefs are not re-read
         self._briefs: dict[Path, tuple] = {}        # the sidebar/overview shares the five-second refresh
         self._line_generation = 0
+        self._waiting = None
 
     def json_file(self, f: Path):
         try:
@@ -974,10 +975,18 @@ def _codex_rates(rd: Reader, days: float = 8) -> list[dict]:
 def quota_view(rd: Reader, wait: bool = True) -> list[dict]:
     """Pace of every quota window from the readings already on disk. wait=False (the server): the first read of
     a week of Codex logs takes seconds, so it runs in the background and the page shows quota a moment later."""
+    names = tuple(dict.fromkeys((*agents.NAMES, *_ui_providers(rd))))
+
+    def placeholders(error=None):
+        return [{"agent": agent, "window": None, "used": None, "projected": None, "resets_at": None,
+                 "read_at": None, "loading": error is None,
+                 "read_error": _clip(f"{type(error).__name__}: {error}", 240) if error is not None else None}
+                for agent in names]
+
     def make():
         from . import quota
         out = []
-        for agent in dict.fromkeys((*agents.NAMES, *_ui_providers(rd))):
+        for agent in names:
             readings = (_codex_rates(rd) if agent == "codex" else
                         quota.claude_readings(rd.p) if agent == "claude" else [])
             for win, w in (quota.pace(readings) if readings else {}).items():
@@ -992,11 +1001,12 @@ def quota_view(rd: Reader, wait: bool = True) -> list[dict]:
         return out
 
     # Reading errors and freshness change independently of the cached session-file scan. Never probe here.
-    empty = [{"agent": agent, "window": None, "used": None, "projected": None, "resets_at": None,
-              "read_at": None} for agent in dict.fromkeys((*agents.NAMES, *_ui_providers(rd)))]
-    rows = _later(rd, "quota", QUOTA_EVERY_S, make, wait, empty)
+    rows = _later(rd, "quota", QUOTA_EVERY_S, make, wait, placeholders(), placeholders)
     probes = rd.json_file(rd.p.state / "quota-refresh.json") or {}
-    threshold = float((rd.cfg().get("quota") or {}).get("auto_refresh_min", 60) or 60)
+    try:
+        threshold = float((rd.cfg().get("quota") or {}).get("auto_refresh_min", 60) or 60)
+    except (TypeError, ValueError):
+        threshold = 60
     threshold = threshold if threshold > 0 else 60
     now, out = time.time(), []
     for row in rows:
@@ -1007,21 +1017,24 @@ def quota_view(rd: Reader, wait: bool = True) -> list[dict]:
         row.update(freshness=round(age, 1) if age is not None else None,
                    reading_age_min=round(age) if age is not None else None,
                    stale=age is not None and age > threshold, auto_refresh_min=threshold,
-                   unknown=row.get("used") is None,
+                   loading=bool(row.get("loading")), read_error=row.get("read_error"),
+                   unknown=row.get("used") is None and not row.get("loading") and not row.get("read_error"),
                    error=(_clip(probe.get("error"), 240) or None) if isinstance(probe, dict) else None,
                    probe_at=probe.get("ts") if isinstance(probe, dict) else None)
+        row["reader"] = row["agent"] in ("claude", "codex")
+        row["refresh_command"] = {"claude": "ccx quota --probe", "codex": "ccx quota --refresh"}.get(row["agent"])
         out.append(row)
     return out
 
 
-def _later(rd: Reader, key: str, seconds: float, make, wait: bool, empty):
+def _later(rd: Reader, key: str, seconds: float, make, wait: bool, empty, on_error=None):
     """rd.every(key, seconds, make), except that with wait=False a slow first read runs in the background and the
-    page gets `empty` (then the last value) until it is done. A failure gives `empty`: the page shows the rest."""
+    page gets `empty` (then the last value) until it is done. A failure gives on_error(error), or `empty`."""
     def safe():
         try:
             return make()
-        except Exception:  # noqa: BLE001 — odd files never break the page
-            return empty
+        except Exception as error:  # noqa: BLE001 — odd files never break the page
+            return on_error(error) if on_error else empty
     hit = rd._timed.get(key)
     if wait or (hit and time.time() - hit[0] < seconds):
         return rd.every(key, seconds, safe)
@@ -1732,7 +1745,7 @@ def today_view(rd: Reader, records, cfg: dict, scratch: list, now: float) -> dic
     return {"date": time.strftime("%Y-%m-%d", day), "since": start, "until": now,
             "usd": round(sum(_usd(r) for r in runs), 4),
             "quota_units": round(sum(_quota_units(r, cfg) for r in runs), 6), "runs": len(runs),
-            "waiting": waiting(rd.p), "scope": "delegated_runs", "basis": "run_start_local_date"}
+            "waiting": waiting(rd.p, rd=rd), "scope": "delegated_runs", "basis": "run_start_local_date"}
 
 
 def running_now(projects: list[dict]) -> list[dict]:
@@ -1841,27 +1854,38 @@ def _visible_brief(d: Path) -> str:
 def _run_notices(rec: dict) -> dict:
     """Display facts from both old substitution records and newer explicit receipt fields."""
     attempts = rec.get("attempts") or []
-    actual = rec.get("actual_agent") or (attempts[-1].get("agent") if attempts else None) or rec.get("to")
+    first = attempts[0] if attempts else {}
+    fallback = rec.get("quota_fallback") or {}
+    actual = rec.get("to") or rec.get("actual_agent") or (attempts[-1].get("agent") if attempts else None)
+    requested = first.get("agent") or rec.get("requested_agent") or fallback.get("from") or actual
     moves = []
     for entry in [rec, *attempts]:
         old = entry.get("substituted_for")
         new = entry.get("rung") or entry.get("actual_agent") or entry.get("agent") or actual
         if old and new and old != new:
-            # Both model-unavailable paths replace a rung on the same agent. Legacy cross-agent
-            # substitution receipts describe quota fallback; substituted_for alone is not a quota reason.
-            reason = entry.get("substitution_reason") or entry.get("dispatch_reason")
-            if not reason:
-                reason = "quota" if str(old).split(":")[0] != str(new).split(":")[0] else "unknown"
+            # Both model-unavailable paths write substituted_for; it does not establish a quota cause.
+            reason = entry.get("substitution_reason") or entry.get("dispatch_reason") or "unknown"
             move = {"from": old, "to": new, "reason": reason}
             if move not in moves:
                 moves.append(move)
-    requested = rec.get("requested_agent") or (str(moves[0]["from"]).split(":")[0] if moves else rec.get("to"))
     reason = rec.get("substitution_reason") or rec.get("dispatch_reason")
-    if not moves and requested and actual and requested != actual and (reason == "quota" or any(
-            a.get("kind") == "quota" for a in attempts)):
-        moves.append({"from": requested, "to": actual, "reason": "quota"})
+    source, target = fallback.get("from") or requested, fallback.get("to") or actual
+    if source and target and source != target:
+        reason = "quota" if fallback or any(a.get("kind") == "quota" for a in attempts) else reason or "unknown"
+        for move in moves:
+            if str(move["from"]).split(":")[0] == source and str(move["to"]).split(":")[0] == target:
+                if move["reason"] == "unknown":
+                    move["reason"] = reason
+                break
+        else:
+            moves.append({"from": source, "to": target, "reason": reason})
     return {"max_usd": rec.get("max_usd"), "review_error": (rec.get("review") or {}).get("error"),
             "requested_agent": requested, "actual_agent": actual, "substitutions": moves}
+
+
+def _record_status(rec: dict) -> str:
+    return "running" if rec.get("state") == "running" else rec.get("kind") or ("ok" if rec.get("ok") else (
+        (rec.get("result") or {}).get("status") or rec.get("state") or "unknown"))
 
 
 def _run_row(rd: Reader, rec: dict) -> dict:
@@ -1873,20 +1897,20 @@ def _run_row(rd: Reader, rec: dict) -> dict:
     running = rec.get("state") == "running"
     if running and ts:
         seconds = max(seconds, time.time() - ts)
-    status = "running" if running else rec.get("kind") or ("ok" if rec.get("ok") else (
-        (rec.get("result") or {}).get("status") or rec.get("state") or "unknown"))
+    status = _record_status(rec)
     notices = _run_notices(rec)
+    display_status = status
     if not running:
         if notices["max_usd"]:
-            status = "max_usd"
+            display_status = "max_usd"
         elif notices["review_error"]:
-            status = "review_error"
+            display_status = "review_error"
     d = rd.p.runs / rec["run_id"]
     task = _visible_brief(d)
     return {"run_id": rec["run_id"], "ts": ts, "project": _pid(root) if root else None,
             "project_name": root.name if root else "", "from": rec.get("caller"), "to": rec.get("to"),
             "rung": last.get("rung") or rec.get("first_rung"), "task": _short(task or rec.get("label") or ""),
-            "status": status, "running": running, "usd": _usd(rec), "seconds": seconds,
+            "status": display_status, "display_status": display_status, "running": running, "usd": _usd(rec), "seconds": seconds,
             "summary": _short((rec.get("result") or {}).get("summary") or rec.get("error") or ""),
             "kind": rec.get("kind"), "href": f"/runs/{rec['run_id']}", **notices}
 
@@ -1920,8 +1944,12 @@ def runs_view(rd: Reader, project: str = "", status: str = "", date: str = "", u
             continue
         projects[row["project"]] = row["project_name"]
         day = time.strftime("%Y-%m-%d", time.localtime(row["ts"])) if row["ts"] else ""
-        if project and project != row["project"] or status and status != row["status"]:
+        if project and project != row["project"]:
             continue
+        if status and status not in (row["status"], row["display_status"]):
+            rec = rd.json_file(f)
+            if not isinstance(rec, dict) or status != _record_status(rec):
+                continue
         if date and day < date or until and day > until:
             continue
         rows.append(row)
@@ -2828,7 +2856,7 @@ class UI:
                         return self._send(200, json.dumps(data, ensure_ascii=False, default=list).encode("utf-8"))
                     if path == "/api/quota":
                         with ui.lock:
-                            out = {"quota": quota_view(ui.reader)}
+                            out = {"quota": quota_view(ui.reader, wait=False)}
                         return self._send(200, json.dumps(out, ensure_ascii=False).encode("utf-8"))
                     if path == "/api/runs" or path.startswith("/api/runs/"):
                         q = {k: v[0] for k, v in parse_qs(urlsplit(self.path).query).items() if v}
@@ -3373,20 +3401,32 @@ def export(p: Paths, out: Path, project: Path | None = None, days: float = 7) ->
     return out
 
 
-def waiting(p: Paths, days: float = 7) -> int:
+def waiting(p: Paths, days: float = 7, rd: Reader | None = None) -> int:
     """How many recent runs wait for the person (for the session-start line), evaluation runs left out. Run records
     only: cheap."""
     now = time.time()
-    rd = Reader(p)
+    rd = rd or Reader(p)
+    files, stamps = [], []
+    for f in p.runs.glob("*/run.json"):
+        try:
+            st = f.stat()
+        except OSError:
+            continue
+        if st.st_mtime >= now - days * 86400:
+            files.append(f)
+            stamps.append((str(f), st.st_mtime_ns, st.st_size, st.st_ino, st.st_ctime_ns))
+    try:
+        st = p.ledger.stat()
+        book = (st.st_mtime_ns, st.st_size, st.st_ino, st.st_ctime_ns)
+    except OSError:
+        book = None
+    key = (days, book, tuple(sorted(stamps)))
+    if rd._waiting and rd._waiting[0] == key:
+        return rd._waiting[1]
     verdicts = rd.lines(p.ledger, _verdict_rows, {}) if p.ledger.exists() else {}
     scratch = scratch_roots(p)
     n = 0
-    for f in (p.runs.glob("*/run.json") if p.runs.exists() else []):
-        try:
-            if f.stat().st_mtime < now - days * 86400:
-                continue
-        except OSError:
-            continue
+    for f in files:
         rec = rd.json_file(f)
         if not isinstance(rec, dict) or rec.get("ephemeral") or str(rec.get("label") or "").startswith(INTERNAL):
             continue
@@ -3396,6 +3436,7 @@ def waiting(p: Paths, days: float = 7) -> int:
             continue
         if _act(rec, verdicts.get(rec["run_id"]), now, None):
             n += 1
+    rd._waiting = (key, n)
     return n
 
 

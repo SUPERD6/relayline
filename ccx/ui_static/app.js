@@ -117,19 +117,32 @@
   function href(parts, s) { return "#/" + parts.map(encodeURIComponent).join("/") + (s ? "?sel=" + encodeURIComponent(s) : ""); }
 
   /* ---------- side bar ---------- */
+  function quotaWindow(w) {
+    return w.minutes === 300 || w.window === "five_hour" ? t("w_5h") : w.minutes === 10080 || w.window === "seven_day" ? t("w_7d") : w.minutes ? t("w_min", {n: Math.round(w.minutes / 60)}) : esc(w.window || "");
+  }
+  function quotaMissing(w) {
+    const cmd = w.refresh_command || ({claude: "ccx quota --probe", codex: "ccx quota --refresh"})[w.agent];
+    return w.reader === false || !cmd ? t("q_no_reader") : t("q_unknown", {cmd});
+  }
+  function quotaValue(w) {
+    if (w.loading) return t("q_reading");
+    if (w.read_error) return t("q_read_error", {e: w.read_error});
+    return w.used == null ? t(w.reader === false ? "q_no_reader" : "q_unknown_label") : Math.round(w.used * 100) + "%";
+  }
   function quotaHTML() {
     const q = (D && D.quota) || [];
     if (!q.length) return `<div class="qnote">${t("q_none")}</div>`;
     return q.map(w => {
+      if (w.loading || w.read_error) return `<div class="quota-window"><div class="qrow"><span>${esc(agentName(w.agent))}</span><span>${quotaValue(w)}</span></div></div>`;
       const used = w.used == null ? null : Math.round(w.used * 100), pj = w.projected == null ? null : Math.round(w.projected * 100);
-      const win = w.minutes === 300 || w.window === "five_hour" ? t("w_5h") : w.minutes === 10080 || w.window === "seven_day" ? t("w_7d") : w.minutes ? t("w_min", {n: Math.round(w.minutes / 60)}) : esc(w.window || "");
+      const win = quotaWindow(w);
       let note = "";
-      if (used == null) note = t("q_unknown") + (w.window ? " · " + t("q_reset") : "");
+      if (used == null) note = quotaMissing(w) + (w.window ? " · " + t("q_reset") : "");
       else if (w.note) note = t("q_early");
       else note = `<span class="${pj > 100 ? "fail" : ""}">${t("q_proj", {p: pj})}</span>`;
       const reset = w.resets_at ? t("q_resets", {at: clock(w.resets_at)}) : t("q_reset_unknown");
       const age = w.freshness == null ? t("q_age_unknown") : t("q_age", {n: Math.floor(w.freshness)});
-      return `<div class="quota-window${w.stale ? " quota-stale" : ""}"><div class="qrow"><span>${esc(agentName(w.agent))}${win ? " · " + win : ""}</span><span>${used == null ? "Unknown" : used + "%"}</span></div>
+      return `<div class="quota-window${w.stale ? " quota-stale" : ""}"><div class="qrow"><span>${esc(agentName(w.agent))}${win ? " · " + win : ""}</span><span>${used == null ? t(w.reader === false ? "q_no_reader" : "q_unknown_label") : used + "%"}</span></div>
         <div class="qbar"><i style="width:${Math.min(100, used || 0)}%"></i>${pj != null && !w.note ? `<span class="pj" style="left:calc(${Math.min(100, pj)}% - 2px)"></span>` : ""}</div>
         <div class="qnote">${note} · ${reset}<br>${age}${w.stale ? " · " + t("q_stale") : ""}${w.error ? `<br><span class="fail">${t("q_probe_error", {e: w.error})}</span>` : ""}</div></div>`;
     }).join("");
@@ -325,9 +338,9 @@
     const d = D && D.today;
     if (!d) return "";
     const amount = t("today_spend", {u: usd(d.usd || 0), n: d.runs || 0});
-    const units = D.billing && D.billing.mode === "subscription" ? " · " + t("today_units", {n: tok(d.quota_units)}) : "";
-    const quotas = ((D && D.quota) || []).map(w => `${esc(agentName(w.agent))}${w.window ? " " + esc(w.window) : ""}: ${w.used == null ? "Unknown" : Math.round(w.used * 100) + "%"}${w.stale ? " (" + t("q_stale") + ")" : ""}`).join(" · ");
-    return `<section class="today" aria-label="${t("today_title")}"><b>${t("today_title")}</b> <a href="#/tokens?period=today">${amount}${units}</a> · <a href="#/all">${t("today_waiting", {n: d.waiting})}</a><br><a href="#/quota">${quotas || t("q_none")}</a><small>${t("today_basis")}</small></section>`;
+    const units = D.billing && D.billing.mode === "subscription" ? " · " + t("today_units", {n: Number((d.quota_units || 0).toFixed(2))}) : "";
+    const quotas = ((D && D.quota) || []).map(w => `${esc(agentName(w.agent))}${w.window ? " " + quotaWindow(w) : ""}: ${quotaValue(w)}${w.stale ? " (" + t("q_stale") + ")" : ""}`).join(" · ");
+    return `<section class="today" aria-label="${t("today_title")}"><b>${t("today_title")}</b> <a href="#/tokens?period=today&project=all">${amount}${units}</a> · <a href="#/all">${t("today_waiting", {n: d.waiting})}</a><br><a href="#/quota">${quotas || t("q_none")}</a><small>${t("today_basis")}</small></section>`;
   }
   /* H9: who is right the first time, per kind of work (judged pieces only) */
   function trackHTML() {
@@ -1318,19 +1331,21 @@
     if (CHATGEN !== generation || CHATRESULT !== old) return false;
     CHATRESULT = Object.assign({}, old, result); return true;
   }
-  function roleTask() {
-    const wrapped = /^ccx run --role [A-Za-z][A-Za-z0-9_-]* -- ([\s\S]*)$/.exec(CHATDRAFT);
+  function roleDraft(text) {
+    const wrapped = /^ccx run --role ([A-Za-z][A-Za-z0-9_-]*) -- ([\s\S]*)$/.exec(text);
     if (wrapped) {
-      const task = JSON.parse(wrapped[1]);
-      if (typeof task !== "string") throw new Error(t("chat_task_string"));
-      return task;
+      try {
+        const task = JSON.parse(wrapped[2]);
+        if (typeof task === "string") return {role: wrapped[1], task};
+      } catch (_) { /* a manual role command remains command text */ }
     }
-    return CHATDRAFT;
+    return null;
   }
   async function previewChat() {
     CHATRESULT = null;
     const project = CHATPROJECT, text = CHATDRAFT, generation = CHATGEN;
-    const body = CHATROLE ? {project, role: CHATROLE, task: roleTask(), ...(CHATMODE ? {mode: CHATMODE} : {})} : {project, text};
+    const wrapped = roleDraft(text);
+    const body = wrapped ? {project, ...wrapped, ...(CHATMODE ? {mode: CHATMODE} : {})} : {project, text};
     const prep = await post("/api/chat/prepare", body);
     CHATPREP = generation === CHATGEN && project === CHATPROJECT && text === CHATDRAFT ? prep : null;
   }
@@ -1367,8 +1382,7 @@
     const roleButton = e.target.closest("[data-chat-role]");
     if (roleButton) {
       let task = CHATDRAFT;
-      const previous = /^ccx run --role [A-Za-z][A-Za-z0-9_-]* -- ([\s\S]*)$/.exec(task);
-      if (previous) { try { task = JSON.parse(previous[1]); } catch (_) { task = previous[1]; } }
+      try { const previous = roleDraft(task); if (previous) task = previous.task; } catch (_) { /* keep invalid draft as text */ }
       CHATROLE = roleButton.dataset.chatRole; CHATMODE = "";
       CHATDRAFT = `ccx run --role ${roleButton.dataset.chatRole} -- ${JSON.stringify(task)}`;
       CHATGEN++; CHATPREP = null; CHATRESULT = null; repaintChat();
@@ -1414,8 +1428,9 @@
     if (r[0] === "discuss") { main.innerHTML = discHTML(r[1]); return; }
     if (r[0] === "conv") { drawConv(r[1], r[2]); return; }
     if (r[0] === "tokens") {
-      const period = new URLSearchParams(location.hash.split("?")[1] || "").get("period");
+      const params = new URLSearchParams(location.hash.split("?")[1] || ""), period = params.get("period");
       if (!sameRoute && ["today", "7d", "all"].includes(period)) TOKPERIOD = period;
+      if (!sameRoute && params.get("project") === "all") TOKPROJ = "all";
       drawTokens(); return;
     }
     if (r[0] === "quota") { main.innerHTML = banner() + `<h1>${t("quota")}</h1>` + quotaHTML(); return; }
