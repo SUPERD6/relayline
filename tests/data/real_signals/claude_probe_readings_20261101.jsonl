@@ -1,0 +1,10 @@
+# Source: local hub ccx/quota.jsonl:393-394,401-402,411-414; 2026-11-01 through 2026-11-03 UTC.
+# Eight unmodified window readings saved within 6 seconds of the four quota-refresh probes. No identifiers present.
+{"ts": 1793549359.783075, "agent": "claude", "window": "five_hour", "used": 0.04, "resets_at": 1793563800, "window_minutes": 300}
+{"ts": 1793549359.783075, "agent": "claude", "window": "seven_day", "used": 0.83, "resets_at": 1793689200, "window_minutes": 10080}
+{"ts": 1793555347.4141617, "agent": "claude", "window": "five_hour", "used": 0.17, "resets_at": 1793563800, "window_minutes": 300}
+{"ts": 1793555347.4141617, "agent": "claude", "window": "seven_day", "used": 0.85, "resets_at": 1793689200, "window_minutes": 10080}
+{"ts": 1793586103.4511564, "agent": "claude", "window": "five_hour", "used": 0.09, "resets_at": 1793599800, "window_minutes": 300}
+{"ts": 1793586103.4511564, "agent": "claude", "window": "seven_day", "used": 0.92, "resets_at": 1793689200, "window_minutes": 10080}
+{"ts": 1793690072.6293435, "agent": "claude", "window": "five_hour", "used": 0.34, "resets_at": 1793707200, "window_minutes": 300}
+{"ts": 1793690072.6293435, "agent": "claude", "window": "seven_day", "used": 0.05, "resets_at": 1794294000, "window_minutes": 10080}
