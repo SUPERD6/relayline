@@ -16,5 +16,5 @@
 
 ## Docs
 
-- [ ] `changes/<PR number>.md` added (not CHANGELOG.md or docs/STATUS.md; see changes/README.md)
+- [ ] `changes/<PR number>.md` added; decision rows, if any, in `changes/<PR>.decision.md` (not CHANGELOG.md or docs/STATUS.md; see changes/README.md)
 - [ ] English and Chinese docs both updated where they changed

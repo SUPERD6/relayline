@@ -125,8 +125,8 @@ python scripts/eval/r5.py summary --taskset holdout
 
 ## 5. 发版
 
-1. `python scripts/collect_changes.py` 预览由 `changes/*.md` 生成的 CHANGELOG 条目；加 `--version X.Y.Z --title "..." --apply`
-   写进去并删掉这些小文件。
+1. `python scripts/collect_changes.py` 预览由 `changes/<PR>.md` 生成的 CHANGELOG 条目，以及由 `changes/<PR>.decision.md`
+   折入 `docs/DECISIONS.md` 的决策行；加 `--version X.Y.Z --title "..." --apply` 写入两份文档并删掉已折入的小文件。
 2. 在 `ccx/__init__.py`、`pyproject.toml`、`.claude-plugin/plugin.json`、`.codex-plugin/plugin.json` 里改版本号；更新
    [STATUS](STATUS.zh.md)（一页，中英两份）。
 3. 打 `vX.Y.Z` 标签；标签会触发完整的 CI 矩阵。发不发布（GitHub Release、PyPI）由维护者决定。

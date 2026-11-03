@@ -138,8 +138,14 @@ def main(argv=None):
     with open(path, "w", encoding="utf-8", newline="") as fh:
         fh.write(new.replace("\n", eol))
     if new_decisions is not None:
-        with open(decision_path, "w", encoding="utf-8", newline="") as fh:
-            fh.write(new_decisions)
+        try:
+            with open(decision_path, "w", encoding="utf-8", newline="") as fh:
+                fh.write(new_decisions)
+        except OSError:
+            # Keep the notes retryable without duplicating the CHANGELOG entries.
+            with open(path, "w", encoding="utf-8", newline="") as fh:
+                fh.write(raw)
+            raise
     for f in files + decisions:
         f.unlink()
     print(f"folded {len(files)} note(s) into CHANGELOG.md" + (f" as {a.version}" if a.version else ""))

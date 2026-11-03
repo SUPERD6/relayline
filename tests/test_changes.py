@@ -6,6 +6,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
+import pytest
+
 ROOT = Path(__file__).resolve().parent.parent
 spec = importlib.util.spec_from_file_location("collect_changes", ROOT / "scripts" / "collect_changes.py")
 cc = importlib.util.module_from_spec(spec)
@@ -200,6 +202,39 @@ class TestCollectDecisions(unittest.TestCase):
             self.assertEqual(result.returncode, 1)
             self.assertIn("docs/DECISIONS.md has no five-column table separator", result.stderr)
             self.assertEqual(self.snapshot(root), before)
+
+
+def test_second_document_write_failure_rolls_back_changelog(tmp_path, monkeypatch):
+    fixture = TestCollectDecisions()
+    decision = row("2026-11-01", "Retry decision")
+    root = fixture.repo(tmp_path, {"21.md": "- retry change\n", "21.decision.md": decision})
+    changelog = root / "CHANGELOG.md"
+    changelog.write_bytes(LOG.replace("\n", "\r\n").encode("utf-8"))
+    before = fixture.snapshot(root)
+    real_open = open
+    writes = 0
+    failure = OSError("simulated second document write failure")
+
+    def fail_second_write(path, *args, **kwargs):
+        nonlocal writes
+        writes += 1
+        if writes == 2:
+            assert Path(path) == root / "docs" / "DECISIONS.md"
+            raise failure
+        return real_open(path, *args, **kwargs)
+
+    with monkeypatch.context() as patch:
+        patch.setattr(cc, "open", fail_second_write, raising=False)
+        with pytest.raises(OSError) as raised:
+            cc.main(["--root", str(root), "--apply"])
+        assert raised.value is failure
+    assert fixture.snapshot(root) == before
+
+    result = fixture.run_cli(root, "--apply")
+    assert result.returncode == 0, result.stderr
+    assert changelog.read_text(encoding="utf-8").count("- retry change\n") == 1
+    assert (root / "docs" / "DECISIONS.md").read_text(encoding="utf-8").count(decision) == 1
+    assert [p.name for p in (root / "changes").iterdir()] == ["README.md"]
 
 
 if __name__ == "__main__":

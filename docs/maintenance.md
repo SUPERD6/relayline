@@ -140,8 +140,9 @@ Until then, treat a round started next to other sessions as supplementary, as th
 
 ## 5. Releasing
 
-1. `python scripts/collect_changes.py` previews the CHANGELOG entry from `changes/*.md`; with `--version X.Y.Z
-   --title "..." --apply` it writes it and removes the notes.
+1. `python scripts/collect_changes.py` previews the CHANGELOG entry from `changes/<PR>.md` and decision rows from
+   `changes/<PR>.decision.md` for `docs/DECISIONS.md`; with `--version X.Y.Z --title "..." --apply` it writes both
+   documents and removes the folded notes.
 2. Bump the version in `ccx/__init__.py`, `pyproject.toml`, `.claude-plugin/plugin.json` and
    `.codex-plugin/plugin.json`; update [STATUS](STATUS.md) (one page, both languages).
 3. Tag `vX.Y.Z`; the full CI matrix runs on tags. Publishing (GitHub release, PyPI) is the maintainer's decision.
