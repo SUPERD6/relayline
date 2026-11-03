@@ -112,6 +112,51 @@ def _row(exp, task, rep, arm, **kw):
     return {**base, **kw}
 
 
+def test_summary_completion_and_failed_cost_cli(tmp_path):
+    import subprocess
+
+    data = [_row("m3", "right", 1, "all", status="done", rc=0, usd=1, env_clean=True, review_usd=0.4),
+            _row("m3", "wrong", 1, "all", status="done", rc=2, right=0, usd=2, env_clean=True),
+            _row("m3", "failed", 1, "all", rc=-9, error="timeout", right=None, usd=7, env_clean=True),
+            _row("m3", "missing", 1, "all", status="done", rc=0, right=0, usd=None, env_clean=True),
+            _row("m3", "legacy", 1, "all", right=0, usd=3, env_clean=True),
+            _row("m3", "unclean", 1, "all", status="done", rc=0, usd=20, env_clean=False),
+            _row("m3", "env-unknown", 1, "all", status="done", rc=0, usd=40),
+            _row("m5", "other-exp", 1, "keep", usd=100)]
+    path = tmp_path / "results.jsonl"
+    path.write_text("".join(json.dumps(r) + "\n" for r in data), encoding="utf-8", newline="")
+    result = subprocess.run([sys.executable, str(Path(B.__file__)), "summary", "--out", str(path), "--exp", "m3"],
+                            cwd=tmp_path, capture_output=True, text=True, encoding="utf-8")
+    assert result.returncode == 0, result.stdout + result.stderr
+    summary = json.loads(result.stdout)["m3"]
+    report = summary["completion_and_cost"]
+    clean = report["clean"]
+    assert (clean["started"], clean["valid_completion"], clean["right"], clean["unknown"]) == (5, 3, 1, 2)
+    assert clean["completion_unknown"] == clean["right_unknown"] == 1
+    assert clean["valid_over_started"] == 3 / 5 and clean["right_over_started"] == 1 / 5
+    assert clean["right_over_valid"] == 1 / 3
+    assert clean["spend_all_started"] == clean["cost_per_success_all"] == 13
+    assert clean["missing_cost_n"] == 1
+    assert report["unclean"]["started"] == report["env_unknown"]["started"] == 1
+    assert report["batch_cost"] == {"started": 7, "spend_all_started": 73, "missing_cost_n": 1}
+    assert report["by_arm"]["all"]["clean"] == clean
+    assert summary["pairs"] == 0 and summary["verdict"] == "Unknown"
+    assert summary["all"]["usd"] == 0  # legacy metrics still require a complete pair
+
+
+def test_summary_completion_m4_right_counts_whole_units_and_legacy_is_unknown():
+    rows = [_row("m4", "mp1", 1, "batch", right=5, n_pieces=5, usd=1),
+            _row("m4", "mp1", 1, "merge", right=4, n_pieces=5, usd=2),
+            _row("m4", "mp2", 1, "batch", right=5, usd=None)]
+    report = B.rule(rows, "m4")["completion_and_cost"]
+    unknown_env = report["env_unknown"]
+    assert report["clean"]["started"] == 0
+    assert unknown_env["started"] == unknown_env["completion_unknown"] == unknown_env["unknown"] == 3
+    assert unknown_env["right"] == unknown_env["right_unknown"] == 1
+    assert unknown_env["spend_all_started"] == unknown_env["cost_per_success_all"] == 3
+    assert unknown_env["missing_cost_n"] == 1 and unknown_env["right_over_valid"] is None
+
+
 def test_rule_pass_fail_and_unknown():
     rows = [_row("m4", "mp1", 1, "batch", right=5, right_trap=1, n_pieces=5),
             _row("m4", "mp1", 1, "merge", right=5, right_trap=1, n_pieces=5, runs=2, prompt_tokens=3000)]

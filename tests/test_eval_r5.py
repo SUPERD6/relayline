@@ -80,6 +80,61 @@ def _row(task, rd, arm, ok, usd, wall, **kw):
             "lead_only_usd": usd, "lead_tokens": 1, "lead_requests": 1, "env_clean": True, **kw}
 
 
+def test_summary_completion_and_failed_cost_cli(tmp_path):
+    import json
+    import subprocess
+
+    rows = [_row("right", 1, "self", True, 1, 10, rc=0, subtype="success", lead_usd=0.6, ccx_usd=0.4),
+            _row("wrong", 1, "self", False, 2, 10, rc=0, subtype="success"),
+            _row("failed", 1, "self", False, 7, 10, rc=-9, error="quota"),
+            _row("missing", 1, "self", False, None, 10, rc=0, subtype="success", lead_usd=0.5, ccx_usd=None),
+            _row("legacy", 1, "self", False, 3, 10),
+            _row("unclean", 1, "self", True, 20, 10, rc=0, subtype="success", env_clean=False),
+            _row("env-unknown", 1, "self", True, 40, 10, rc=0, subtype="success", env_clean=None)]
+    path = tmp_path / "results.jsonl"
+    path.write_text("".join(json.dumps(r) + "\n" for r in rows), encoding="utf-8", newline="")
+    result = subprocess.run([sys.executable, str(Path(r5.__file__)), "summary", "--results", str(path),
+                             "--results", str(path)], cwd=tmp_path, capture_output=True, text=True, encoding="utf-8")
+    assert result.returncode == 0, result.stdout + result.stderr
+    summary = json.loads(result.stdout)
+    report = summary["completion_and_cost"]
+    clean = report["clean"]
+    assert (clean["started"], clean["valid_completion"], clean["right"], clean["unknown"]) == (5, 3, 1, 2)
+    assert clean["completion_unknown"] == clean["right_unknown"] == 1
+    assert clean["valid_over_started"] == 3 / 5 and clean["right_over_started"] == 1 / 5
+    assert clean["right_over_valid"] == 1 / 3
+    assert clean["spend_all_started"] == clean["cost_per_success_all"] == 13.5
+    assert clean["missing_cost_n"] == 1
+    assert report["unclean"]["started"] == report["env_unknown"]["started"] == 1
+    assert report["batch_cost"] == {"started": 7, "spend_all_started": 73.5, "missing_cost_n": 1}
+    assert report["by_arm"]["self"]["clean"] == clean
+    assert r5.summarize(rows, True)["completion_and_cost"] == report
+    assert summary["arms"]["self"]["n"] == 4 and summary["arms"]["self"]["cps"] == 6
+
+
+def test_summary_completion_legacy_unknown_and_empty_cost():
+    rows = [_row("old", 1, "direct", True, None, 1),
+            _row("failed", 1, "direct", False, 0, 0, error="environment failed before billing")]
+    clean = r5.summarize(rows)["completion_and_cost"]["clean"]
+    assert clean["completion_unknown"] == 1 and clean["right_unknown"] == 1 and clean["unknown"] == 2
+    assert clean["right"] == 1 and clean["valid_completion"] == 0 and clean["right_over_valid"] is None
+    assert clean["spend_all_started"] is None and clean["cost_per_success_all"] is None
+    assert clean["missing_cost_n"] == 2
+    empty = r5.summarize([])["completion_and_cost"]["clean"]
+    assert empty["started"] == empty["missing_cost_n"] == 0 and empty["spend_all_started"] == 0
+    assert all(empty[k] is None for k in ("valid_over_started", "right_over_started", "right_over_valid"))
+
+
+@pytest.mark.parametrize("cost", [None, float("nan"), float("inf"), -1, True])
+def test_summary_completion_missing_cost_is_not_zero(cost):
+    rows = [_row("new", 1, "direct", True, cost, 1, status="done"),
+            _row("old", 1, "direct", True, 0, 1)]
+    clean = r5.summarize(rows)["completion_and_cost"]["clean"]
+    assert clean["missing_cost_n"] == 1 and clean["spend_all_started"] == 0
+    assert clean["completion_unknown"] == 1 and clean["right"] == 2
+    assert clean["right_over_valid"] is None  # an unobserved completion cannot enter this denominator
+
+
 def test_builtin2r_worker_carries_ccx_rules_word_for_word(monkeypatch):
     monkeypatch.setenv("CCX_CLAUDE_BIN", str(FAKES / "fake_claude.py"))       # CI has no claude
     from ccx import prompts

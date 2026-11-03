@@ -172,7 +172,7 @@ import r3  # noqa: E402
 import r4  # noqa: E402
 import preflight as PF  # noqa: E402
 import seven_ab as S  # noqa: E402
-from common import ROOT, append_jsonl, archive_hub, ccx_verify, git, read_jsonl  # noqa: E402
+from common import ROOT, append_jsonl, archive_hub, ccx_verify, completion_cost_summary, git, read_jsonl  # noqa: E402
 from ccx.prompts import KEEP_TESTS, WIRING  # noqa: E402
 import ext_repo  # noqa: E402
 import r5_timeline as TL  # noqa: E402
@@ -2893,6 +2893,9 @@ def phase_stats(rs: list[dict]) -> dict | None:
 def summarize(rows: list[dict], include_unclean: bool = False) -> dict:
     """Per arm, per tag, paired and tier summaries of env_clean rows (`excluded_rows` says how many others were left
     out; include_unclean counts them everywhere except the tier rule, which always takes clean rows only)."""
+    completion_and_cost = completion_cost_summary(
+        rows, right=lambda r: r.get("ok") if isinstance(r.get("ok"), bool) and not r.get("error") else None,
+        arm=arm_of)
     unclean = sum(r.get("env_clean") is False for r in rows if "error" not in r)
     unknown = sum("env_clean" not in r for r in rows if "error" not in r)    # rows from before the clean room
     tags = sorted({str(r.get("tag")) for r in rows})
@@ -2949,7 +2952,8 @@ def summarize(rows: list[dict], include_unclean: bool = False) -> dict:
             if not all(x is True for x in used):
                 out[arm]["skill_used_note"] = (f"{sum(x is not True for x in used)} of {len(rs)} units: the lead "
                                                "did not load agent-delegate (the arm's protocol not followed)")
-    res = {"arms": out, "by_tag": by_tag(rows), "unclean_rows": unclean, "env_unknown_rows": unknown, "tags": tags,
+    res = {"completion_and_cost": completion_and_cost,
+           "arms": out, "by_tag": by_tag(rows), "unclean_rows": unclean, "env_unknown_rows": unknown, "tags": tags,
            "counted": "all rows (--include-unclean)" if include_unclean else "env_clean rows only",
            "excluded_rows": excluded,
            "long_style": r4.summarize_long([{**r, "arm": arm_of(r)} for r in rows

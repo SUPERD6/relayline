@@ -63,7 +63,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import preflight as PF  # noqa: E402
 import r2  # noqa: E402
 import shared_context_ab as SC  # noqa: E402
-from common import HIDDEN, ROOT, append_jsonl, archive_hub, make_repo, read_jsonl, score  # noqa: E402
+from common import HIDDEN, ROOT, append_jsonl, archive_hub, completion_cost_summary, make_repo, read_jsonl, score  # noqa: E402
 from tasks_r2 import COMPOUND, PIECES, TRAPS2, piece_brief  # noqa: E402
 
 from ccx import ledger  # noqa: E402
@@ -575,6 +575,16 @@ def _sum(rs: list[dict], k: str) -> float:
     return round(sum(r.get(k) or 0 for r in rs), 4)
 
 
+def _unit_right(row: dict) -> bool | None:
+    value = row.get("right")
+    if row.get("exp") == "m4":
+        n = row.get("n_pieces")
+        return value == n if (type(value) is int and type(n) is int and n > 0 and 0 <= value <= n) else None
+    if not isinstance(value, (int, float)) or isinstance(value, bool):
+        return value if isinstance(value, bool) else None
+    return bool(value) if value in (0, 1) else None
+
+
 def rule(rows: list[dict], exp: str, planned: int | None = None) -> dict:
     base, arm = EXPS[exp]
     pairs, left_out, cells = _pairs(rows, exp)
@@ -628,7 +638,9 @@ def rule(rows: list[dict], exp: str, planned: int | None = None) -> dict:
         if pairs and idle * 2 > len(pairs):
             why.append(f"{idle} of {len(pairs)} pairs spawned no child in either arm")
     verdict = "Unknown" if why else ("Pass" if all(checks.values()) else "Fail")
-    out = {"exp": exp, "baseline": base, "arm": arm, "pairs": len(pairs), "planned_pairs": planned,
+    out = {"completion_and_cost": completion_cost_summary(
+               [r for r in rows if r.get("exp") == exp], right=_unit_right),
+           "exp": exp, "baseline": base, "arm": arm, "pairs": len(pairs), "planned_pairs": planned,
            "verdict": verdict, "checks": checks, base: a, arm: b, "left_out": left_out}
     if why:
         out["unknown_because"] = why

@@ -32,3 +32,43 @@ not proof; the exception is the hold-out run hc1 (2026-10-29), on tasks not used
 | 2026-10-31 | External benchmark pg1: on 30 polyglot Python exercises, does handing work to the cheapest tier pay? | Not through the lead: right 12/30 delegated (ccx2) vs 25/30 self (13:0 discordant, p = 2.4e-4, all 30), 3.1× cost per success (95 % CI 2.2–5.4), 82 % of it the lead's side; with no lead (direct) 0.57× self per success but right 9/30; 14 of 18 failures guessed the hidden tests' interface wrong; the sub-agent's own tests (the only check) passed in all 18; the tier never climbed | One round; Python only, all one-file exercises; public Exercism tests a model may have seen; one sub-agent tier, one lead model; failure coding by one person | [polyglot pg1](2026-10-31-polyglot-pg1.md) |
 | 2026-10-31 | How often does ccx's receipt say right when the hidden tests fail? | After #158, 8 of 209 receipts that said right were wrong (3.8 %, above the 2 % bar; before #158, 6.7 %); all 8 a check that passed without testing what the hidden test asked; 47 of 51 receipts that said wrong were right | Hidden tests are never seen by the check; one lead model; units not independent; before/after not controlled | [verdict audit](2026-10-31-verdict-audit.md) |
 | 2026-10-31 | What does the real hub's ledger show for one week of use? | 283 runs, $8.17, but only 5 (3–5 tasks) were real work outside ccx's own tests; the ledger has no lead tokens for delegated runs, so the saving is Unknown | Real use, not controlled; one person, the week ccx was built; groups told from labels | [dogfood](2026-10-31-dogfood.md) |
+
+## Completion, correctness and all-started cost / 完成、正确与全部启动成本
+
+The R5 and P13 summaries, and each experiment in the B3-arms summary, add `completion_and_cost` before the old
+eligibility/pair filters. Its `clean`, `unclean` and `env_unknown` strata use `env_clean is True`, `is False` and
+missing/null respectively; rates never mix these strata, even with `--include-unclean`. `by_arm` repeats the same
+breakdown (R5 keeps its existing model/isolation arm names). `batch_cost` alone totals started units and known
+spend across all environments; it has no pooled correctness rate. The input is the selected results/tag/experiment,
+not the planned schedule. One JSONL row is one started **evaluation unit attempt**, including a recorded setup
+failure; child runs, retries and reviews are already inside its cost rollup and are not added again.
+
+R5、P13 和 B3-arms 每个实验的汇总都新增 `completion_and_cost`，在旧筛选与配对之前读取结果行。
+`clean`、`unclean`、`env_unknown` 分别是环境干净、污染、缺失或 null，比例始终分开，
+`--include-unclean` 也不合并。`by_arm` 按 arm 重复分组；`batch_cost` 只跨环境列总启动数、已知支出和缺费数，
+不混算正确率。统计范围是已选文件、tag、实验的结果行，不含尚未启动的计划任务。每行是一次已启动的
+**评测单元尝试**，包括记录下来的准备失败；其费用已包含子运行、重试和复审，不重复相加。
+
+| New field / 新列 | Definition and source / 定义与来源 |
+|---|---|
+| `started` | Number of input rows in the stratum, before survivor/pair filtering. / 组内原始结果行数，包含失败和 Unknown。 |
+| `valid_completion` | Count of normal terminal receipts: R5 `subtype=success` (from the Claude result event) or `status=done` (direct ccx receipt); P13 all saved `worker_results` must terminate normally; B3 m3/m5 use the saved receipt `status`. Explicit errors, timeout/quota/env stops, nonterminal failure statuses, failure kinds, and rc outside 0/2 invalidate delivery. rc 2 can accompany a completed result whose check failed. Hidden `ok`, `protocol_ok`, a run id or rc alone proves no delivery. / 正常结果终态计数；错误、超时、额度或环境停止不算完成；判对与协议标志均不替代交付证据。 |
+| `right` | R5/P13: hidden-test `ok is True` (R5 error-path `ok=False` is not a test verdict). B3 m3/m5: `right=1`; m4: `right == n_pieces > 0`, one whole-unit success, retaining the old piece count separately. / 隐藏测试通过数；m4 所有小块通过才算一个单元成功，旧小块总分保留。 |
+| `unknown` | Rows with unknown completion **or** unknown hidden-test outcome, counted once. `completion_unknown` and `right_unknown` expose the two causes; counts can overlap `right`. / 完成或判对信息未知的行数，交集只计一次；两个细分计数说明原因，可能与已知判对数重叠。 |
+| `valid_over_started`, `right_over_started` | `valid_completion / started`, `right / started`; zero denominator is JSON null (Unknown). / 分母包含所有已启动行；零分母为 null。 |
+| `right_over_valid` | `right / valid_completion`, null if no valid completions or any recorded right lacks valid completion evidence. `right_valid_completion` reports the intersection so legacy unknown completions cannot silently enter this denominator. / 没有有效完成，或某次判对缺少有效完成证据时为 null；交集另列，避免错误配分母。 |
+| `spend_all_started` | Sum known `usd` once per row, including failures/Unknowns. If absent, recover disjoint `lead_usd + ccx_usd`; if ccx total is absent, P13 can use `lead_usd + discuss_usd + worker_usd`. Never add a total to its own components, `review_usd`, or child tokens/cost again. / 所有启动行的已知总支出；总额优先，缺失时仅恢复互不重叠的已知分项。 |
+| `cost_per_success_all` | `spend_all_started / right`; null with no recorded successes or no known spend. Missing spend remains missing: a partial known subtotal is not the complete bill. / 已知支出除以判对数；无成功或无已知费用为 null；存在缺费时不代表完整成本。 |
+| `missing_cost_n` | Unit attempts lacking a complete finite nonnegative cost; null/missing, nonfinite, negative and boolean values are unknown, genuine recorded zero is known. R5's error-path zero without billing components is an unproven default, hence unknown. All-unknown nonempty spend is null; empty spend is zero. / 完整费用缺失的单元尝试数；未知不补零；旧 R5 异常路径缺计费依据的默认零也记未知。 |
+
+Implementation/source map: [`common.py`](../../scripts/eval/common.py) (`valid_completion`, `_unit_spend`,
+`completion_cost_summary`); R5 `lead_unit`, `direct_unit`, `run_unit`, `summarize`; P13 `hub_stats`, `run_unit`,
+`summarize`; B3 `run_stats`, `m3_unit`, `m5_unit`, `_unit_right`, `rule`. Older m4 rows have piece scores/run ids
+but no piece terminal receipts, so completion is Unknown; no output is inferred from hidden-test success.
+Legacy unit rollups cannot reveal missing costs of individual internal model attempts. There is no new paid run,
+runtime behavior, or backfill. Old `ok/n/usd/cps`, P13 Right/Wrong/Unknown/protocol gates, B3 paired piece metrics
+and preregistered verdicts remain intact for historical comparability; these descriptive columns do not replace them.
+
+来源函数如上。旧 m4 行只留了小块评分和 run id，没有保存终态，完成状态保留 Unknown，不能从隐藏测试通过反推。
+旧单元总额也无法恢复每个内部模型 attempt 的缺费情况。本次不补跑、不改执行行为、不回填历史数据。
+旧 `ok/n/usd/cps`、P13 原判定、B3 配对与小块指标及预注册结论均保留，方便历史比较；新列仅补充描述。
