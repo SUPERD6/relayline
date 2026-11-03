@@ -29,7 +29,7 @@ from pathlib import Path
 
 from . import agents, context_share, learn, ledger, quota, recover, subagents
 from .config import DELEGATE_AGENTS, SUBAGENT_SWITCHES, Paths, load_config, provider_of, subagent_switches  # noqa: F401
-from .runners import BUILDERS, Outcome, execute, usage_dict
+from .runners import BUILDERS, Outcome, execute, usage_dict, without_launcher_vars
 # split out by job (J11); re-exported so `from ccx.delegate import ...` keeps working
 from .agents.codex import _add_children, _codex_growth, _codex_seen, _codex_total  # noqa: F401
 from .ledger import write_record as _write_record  # noqa: F401
@@ -422,6 +422,7 @@ def _child_env(to: str, run_id: str, extra: dict | None = None, provider: bool =
         for k in HOST_AUTH:
             env.pop(k, None)
     env.update(extra or {})
+    env = without_launcher_vars(env)
     for k in ("CCX_LEAD", "DSH_SESSION_ID"):    # who the lead is must not pass for the sub-agent's identity
         env.pop(k, None)
     # the lead's Claude Code inbox (ccx/wake.py): a sub-agent holding it could post into the lead's conversation
