@@ -13,6 +13,22 @@ from ccx.config import Paths  # noqa: E402
 from test_ccx import Env  # noqa: E402
 
 
+SWITCH_RULES = [
+    "要靠实测才能定的开关先默认关，交给确认实验来决定。",
+    "要先实测才能定的开关照旧默认关，由实验决定）。",
+    "默认先关，用实测数据决定开不开。",
+]
+
+
+def read_session(events, agent="claude"):
+    import tempfile
+    from ccx import transcript
+    with tempfile.TemporaryDirectory() as d:
+        path = Path(d) / "sample.jsonl"
+        path.write_text("".join(json.dumps(e) + "\n" for e in events), encoding="utf-8")
+        return getattr(transcript, "read_" + agent)(path)
+
+
 def claude_session() -> list[dict]:
     return [
         {"type": "user", "message": {"content": "From now on keep the PR text in Chinese. Is the CI green?"}},
@@ -24,6 +40,137 @@ def claude_session() -> list[dict]:
 
 
 class TestGather(unittest.TestCase):
+    def test_injected_blocks_and_task_start_are_not_human_preferences(self):
+        human = "以后每次都先跑测试再提交。"
+        starts = [
+            "<system-reminder>以后永远不用跑测试。</system-reminder>\n"
+            "Background (from the session that started this one): previous lead notes.\n"
+            "Task: 你是项目的新主统筹。以后默认不要绑定 PR。",
+            "[ccx sub-task] You are a sub-agent working for a lead agent.\n以后默认不要绑定 PR。",
+            "# Task\n以后默认不要绑定 PR。",
+        ]
+        for start in starts:
+            for blocks in (False, True):
+                with self.subTest(start=start, blocks=blocks):
+                    content = [{"type": "text", "text": line} for line in start.splitlines()] if blocks else start
+                    d = read_session([
+                        {"type": "user", "message": {"content": content}},
+                        {"type": "user", "message": {"content":
+                            "<task-notification>以后永远不用跑测试。</task-notification>\n" + human}},
+                    ])
+                    got = memsuggest.gather(d, Path("sample.jsonl"))
+                    self.assertEqual(got, [])  # all later turns may still be the lead's instructions
+
+    def test_system_blocks_are_removed_before_splitting(self):
+        human = "以后每次都先跑测试再提交。"
+        for agent in ("claude", "codex"):
+            text = ("<system-reminder>以后永远不用跑测试。</system-reminder>\n"
+                    "<task-notification>以后默认不要提交代码。</task-notification>\n" + human)
+            events = ([{"type": "user", "message": {"content": text}}] if agent == "claude" else
+                      [{"type": "event_msg", "payload": {"type": "user_message", "message": text}}])
+            got = memsuggest.gather(read_session(events, agent), Path("sample.jsonl"))
+            self.assertEqual([(c["text"], c["by"]) for c in got], [(human, "user")])
+            # gather also supports a caller supplying the parsed dictionary directly.
+            got = memsuggest.gather({"agent": agent, "users": [text]}, Path("sample.jsonl"))
+            self.assertEqual([c["text"] for c in got], [human])
+
+    def test_claude_metadata_is_not_human(self):
+        for flag in ("isMeta", "isSidechain", "isCompactSummary"):
+            d = read_session([{"type": "user", flag: True,
+                               "message": {"content": "以后每次都先跑测试再提交。"}}])
+            self.assertEqual(memsuggest.gather(d, Path("sample.jsonl")), [])
+
+    def test_plain_codex_user_preferences_in_all_formats(self):
+        human = "以后每次都先跑测试再提交。"
+        messages = [
+            {"type": "event_msg", "payload": {"type": "user_message", "message": human}},
+            {"type": "event_msg", "payload": {"type": "item_completed", "item": {
+                "type": "UserMessage", "content": [{"text": human}]}}},
+            {"type": "response_item", "payload": {"type": "message", "role": "user",
+                                                   "content": [{"text": human}]}},
+        ]
+        for message in messages:
+            got = memsuggest.gather(read_session([message], "codex"), Path("sample.jsonl"))
+            self.assertEqual([(c["text"], c["by"]) for c in got], [(human, "user")])
+
+    def test_codex_spawn_metadata_and_all_user_formats(self):
+        human = "以后每次都先跑测试再提交。"
+        for meta in ({"originator": "codex_exec"}, {"source": {"subagent": {
+                "thread_spawn": {"parent_thread_id": "parent"}}}}):
+            for fmt in ("user_message", "item_completed", "response_item"):
+                def user(text):
+                    if fmt == "user_message":
+                        return {"type": "event_msg", "payload": {"type": fmt, "message": text}}
+                    if fmt == "item_completed":
+                        return {"type": "event_msg", "payload": {"type": fmt, "item": {
+                            "type": "UserMessage", "content": [{"text": text}]}}}
+                    return {"type": fmt, "payload": {"type": "message", "role": "user",
+                                                       "content": [{"text": text}]}}
+                with self.subTest(meta=meta, fmt=fmt):
+                    d = read_session([{"type": "session_meta", "payload": {"id": "child", **meta}},
+                                      user("以后默认不要绑定 PR。"), user(human)], "codex")
+                    self.assertEqual(len(d["users"]), 2)  # existing transcript field stays intact
+                    got = memsuggest.gather(d, Path("sample.jsonl"))
+                    self.assertEqual(got, [])  # later child turns can also be written by its lead
+
+    def test_codex_task_brief_excludes_session_and_normal_session_keeps_preferences(self):
+        human = "以后每次都先跑测试再提交。"
+        task = "Task: 你是项目的新主统筹。以后默认不要绑定 PR。"
+        for fmt in ("user_message", "item_completed", "response_item"):
+            def user(text):
+                if fmt == "user_message":
+                    return {"type": "event_msg", "payload": {"type": fmt, "message": text}}
+                if fmt == "item_completed":
+                    return {"type": "event_msg", "payload": {"type": fmt, "item": {
+                        "type": "UserMessage", "content": [{"text": text}]}}}
+                return {"type": fmt, "payload": {"type": "message", "role": "user",
+                                                   "content": [{"text": text}]}}
+            for first in (task, "Build the parser."):
+                with self.subTest(fmt=fmt, first=first):
+                    d = read_session([
+                        {"type": "session_meta", "payload": {"id": "sample", "originator": "codex_desktop"}},
+                        user(first), user(human),
+                    ], "codex")
+                    self.assertEqual(d["users"], [first, human])
+                    got = memsuggest.gather(d, Path("sample.jsonl"))
+                    self.assertEqual([(c["text"], c["by"]) for c in got],
+                                     [] if first == task else [(human, "user")])
+
+    def test_real_fragments_and_current_status_are_not_notes(self):
+        samples = [
+            "| 6 | 修这次发现的几个小 bug | ❌ 一次性指令 |",
+            "② DECISIONS 行走 ...（修每合一个 PR 全冲突的坑）；",
+            "DECISIONS 行走 ...（check 和自带审查都过，$0.31）。",
+            "开发集上 ccx2 已 19–20/20、每次成功约 $0.12–0.13，但还没在干净环境 + 留出任务上确认。",
+            "唯一没做的是 60 秒视频本身（只有脚本），要你自己录或决定不要。",
+            "以后默认不要提交代码（这只是半句。",
+            "1. 以后每次都先跑测试再提交。",
+            "- [ ] 以后每次都先跑测试再提交。",
+            "* [ ] 以后每次都先跑测试再提交。",
+            "② 以后每次都先跑测试再提交。",
+            "说明 | 以后每次都先跑测试 | 再提交代码。",
+            "我们决定采用这个设置，开发集成绩是 19–20/20。",
+            "发现这次运行成功率达到了 95%。",
+            "The root cause was found and the fix cost $0.31.",
+        ]
+        for sample in samples:
+            for role in ("users", "texts"):
+                with self.subTest(sample=sample, role=role):
+                    self.assertEqual(memsuggest.gather({"agent": "claude", role: [sample]},
+                                                       Path("sample.jsonl")), [])
+
+    def test_near_duplicate_switch_rules_and_distinct_rules(self):
+        got = memsuggest.gather({"agent": "claude", "users": SWITCH_RULES}, Path("sample.jsonl"))
+        self.assertEqual([c["text"] for c in got], [SWITCH_RULES[0]])
+        distinct = ["以后每次提交前必须跑测试。", "以后每次提交前不要跑测试。",
+                    "以后测试超时默认采用 30 秒。", "以后测试超时默认采用 60 秒。",
+                    "以后所有的开关默认关，由实验决定。", "以后所有的开关默认开，由实验决定。",
+                    "以后每次都先跑测试再提交。", "以后每次都先跑检查再提交。",
+                    "以后所有网络开关都默认关，由实验结果决定是否开启。",
+                    "以后所有日志开关都默认关，由实验结果决定是否开启。"]
+        got = memsuggest.gather({"agent": "claude", "users": distinct}, Path("sample.jsonl"), limit=20)
+        self.assertEqual([c["text"] for c in got], distinct)
+
     def test_kinds_and_filters(self):
         from ccx.transcript import read_claude
         import tempfile
@@ -75,6 +222,39 @@ class TestGather(unittest.TestCase):
 
 
 class TestFlow(Env):
+    def test_add_near_duplicates_against_notes_and_all_suggestions(self):
+        p = Paths(self.hub)
+        candidate = lambda text: {"kind": "preference", "text": text, "by": "user", "source": "sample"}
+        added = memsuggest.add(p, [candidate(s) for s in SWITCH_RULES])
+        self.assertEqual([c["text"] for c in added], [SWITCH_RULES[0]])
+        self.assertEqual(memsuggest.add(p, [candidate(SWITCH_RULES[2])]), [])
+        memsuggest.decide(p, added[0]["id"], False)
+        self.assertEqual(memsuggest.add(p, [candidate(SWITCH_RULES[1])]), [])
+        memsuggest._save(p, [])
+        memory.add(p, SWITCH_RULES[0], "user")
+        self.assertEqual(memsuggest.add(p, [candidate(SWITCH_RULES[2])]), [])
+
+    def test_suggest_quality_via_cli_from_outside_repository(self):
+        from ccx.workspace import canonical
+        self.assertNotEqual(canonical(self.work), canonical(Path(__file__).parent.parent))
+        slug = re.sub(r"[^A-Za-z0-9]", "-", str(self.work.resolve()))
+        folder = self.home_claude / "projects" / slug
+        folder.mkdir(parents=True)
+        human = "以后每次都先跑测试再提交。"
+        events = [
+            {"type": "user", "message": {"content":
+                "<system-reminder>以后永远不用跑测试。</system-reminder>\n"
+                "Task: 你是新主统筹。以后默认不要绑定 PR。"}},
+            {"type": "user", "message": {"content": human}},
+            {"type": "user", "message": {"content": "\n".join(SWITCH_RULES)}},
+            {"type": "assistant", "message": {"content": [{"type": "text", "text":
+                "我们决定采用这个设置，开发集成绩是 19–20/20。"}]}},
+        ]
+        (folder / "quality.jsonl").write_text("".join(json.dumps(e) + "\n" for e in events), encoding="utf-8")
+        out = self.j("mem", "suggest", "--from-transcript", "claude")
+        self.assertEqual(out["added"], [])
+        self.assertEqual(self.j("mem", "suggest", "--from-transcript", "claude")["added"], [])
+
     def write_session(self):
         slug = re.sub(r"[^A-Za-z0-9]", "-", str(self.work.resolve()))
         d = self.home_claude / "projects" / slug
