@@ -21,7 +21,7 @@ import preflight as PF  # noqa: E402
 import r3  # noqa: E402
 import r5  # noqa: E402
 import tasks_r5  # noqa: E402
-from common import ROOT, append_jsonl, archive_hub, read_jsonl  # noqa: E402
+from common import ROOT, append_jsonl, archive_hub, completion_cost_summary, read_jsonl  # noqa: E402
 from ccx import ledger  # noqa: E402
 from ccx.config import Paths  # noqa: E402
 
@@ -381,7 +381,9 @@ def summarize(rows: list[dict], include_unclean: bool = False) -> dict:
     delta = talk["ok"] - base["ok"]
     ratio = talk["cps"] / base["cps"] if talk["cps"] is not None and base["cps"] else None
     verdict = ("Useful" if delta >= 2 and ratio <= 1.5 else "Negative") if valid and ratio is not None else "Unknown"
-    return {"arms": arms, "verdict": verdict, "success_delta": delta, "cps_ratio": ratio,
+    return {"completion_and_cost": completion_cost_summary(
+                rows, right=lambda r: r.get("ok") if isinstance(r.get("ok"), bool) else None),
+            "arms": arms, "verdict": verdict, "success_delta": delta, "cps_ratio": ratio,
             "unknown": sum(unknown(r) for r in rows),
             "clean_complete_six_pairs": valid, "excluded_rows": len(rows) - len(eligible),
             "counted": "all rows (descriptive only)" if include_unclean else "clean protocol-valid rows",

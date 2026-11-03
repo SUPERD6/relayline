@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import math
 import os
 import random
 import shutil
@@ -168,6 +169,102 @@ def read_jsonl(f: Path) -> list[dict]:
 
 def spent(rows: list[dict]) -> float:
     return sum((r.get("lead", {}).get("cost_usd") or 0) + (r.get("sub_ae_usd") or 0) for r in rows)
+
+
+def valid_completion(row: dict) -> bool | None:
+    """Delivery evidence, independent of hidden tests and experiment protocol compliance.
+
+    A terminal receipt with a normal kind or successful Claude result event is evidence; an ok/score,
+    run id, exit code or protocol flag alone is not. Missing legacy evidence stays Unknown.
+    """
+    # P13 records protocol violations as errors too, after the worker may have delivered.
+    # Only these known protocol errors defer to its saved receipts; infrastructure errors still stop delivery.
+    protocol_error = row.get("error") in (
+        "RuntimeError: lead must dispatch exactly one ccx run without edits or retries",
+        "RuntimeError: discussion protocol not met",
+    ) and bool(row.get("worker_results"))
+    if row.get("error") and not protocol_error:
+        return False
+    if row.get("is_error") or any(row.get(k) is True for k in ("timeout", "quota", "env_stop")):
+        return False
+    if row.get("rc") is not None and row["rc"] not in (0, 2):
+        return False
+    status, kind, subtype = row.get("status"), row.get("kind"), row.get("subtype")
+    if status in ("error", "failed", "timeout", "timed_out", "quota", "quota_exhausted", "env_error",
+                  "blocked", "partial", "cancelled", "stopped", "interrupted"):
+        return False
+    if kind not in (None, "ok", "no_changes", "check_failed", "ok_self_checked"):
+        return False
+    if subtype is not None and subtype != "success":
+        return False
+    if row.get("worker_results"):
+        states = [valid_completion(r) for r in row["worker_results"]]
+        return False if False in states else True if all(s is True for s in states) else None
+    if subtype == "success":
+        return True
+    if status == "done" and kind is not None:
+        return True
+    return None
+
+
+def _known_usd(value) -> bool:
+    return isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value) and value >= 0
+
+
+def _unit_spend(row: dict) -> tuple[float | None, bool]:
+    """Known subtotal and whether the unit's total cost is incomplete; never add overlapping rollups."""
+    total = row.get("usd")
+    # R5's exception path historically defaulted usd to zero even without billing evidence.
+    default_zero = total == 0 and row.get("error") and not any(
+        _known_usd(row.get(k)) for k in ("lead_usd", "ccx_usd"))
+    if _known_usd(total) and not default_zero:
+        return float(total), False
+    components = [row.get("lead_usd"), row.get("ccx_usd")]
+    if not _known_usd(components[1]) and any(k in row for k in ("discuss_usd", "worker_usd")):
+        components = [row.get(k) for k in ("lead_usd", "discuss_usd", "worker_usd")]
+    known = [float(v) for v in components if _known_usd(v)]
+    return (sum(known) if known else None), len(known) != len(components)
+
+
+def _started_cost(rows: list[dict]) -> dict:
+    costs = [_unit_spend(r) for r in rows]
+    known = [cost for cost, _missing in costs if cost is not None]
+    missing = sum(missing for _cost, missing in costs)
+    return {"started": len(rows), "spend_all_started": round(sum(known), 6) if known else (0.0 if not rows else None),
+            "missing_cost_n": missing, "spend_complete": missing == 0 and bool(known)}
+
+
+def completion_cost_summary(rows: list[dict], *, right, arm=lambda r: r.get("arm")) -> dict:
+    """Additive report on all recorded unit attempts, before any legacy eligibility/pair filter.
+
+    Environment strata never pool their rates. batch_cost includes every stratum for billing only.
+    Costs and scores are already unit rollups: do not add children, reviews or component totals twice.
+    """
+    def metrics(rs):
+        states = [(valid_completion(r), right(r)) for r in rs]
+        valid = sum(v is True for v, _s in states)
+        correct = sum(s is True for _v, s in states)
+        valid_right = sum(v is True and s is True for v, s in states)
+        costs = _started_cost(rs)
+        spend = costs["spend_all_started"]
+        return {**costs, "valid_completion": valid, "right": correct,
+                "unknown": sum(v is None or s is None for v, s in states),
+                "completion_unknown": sum(v is None for v, _s in states),
+                "right_unknown": sum(s is None for _v, s in states),
+                "valid_over_started": valid / len(rs) if rs else None,
+                "right_over_started": correct / len(rs) if rs else None,
+                "right_over_valid": correct / valid if valid and correct == valid_right else None,
+                "right_valid_completion": valid_right,
+                "cost_per_success_all": round(spend / correct, 6) if correct and spend is not None else None}
+
+    def strata(rs):
+        return {"clean": metrics([r for r in rs if r.get("env_clean") is True]),
+                "unclean": metrics([r for r in rs if r.get("env_clean") is False]),
+                "env_unknown": metrics([r for r in rs if r.get("env_clean") is not True and r.get("env_clean") is not False]),
+                "batch_cost": _started_cost(rs)}
+
+    arms = sorted({str(arm(r)) for r in rows})
+    return {**strata(rows), "by_arm": {a: strata([r for r in rows if str(arm(r)) == a]) for a in arms}}
 
 
 def sign_test(diffs: list[float]) -> float | None:

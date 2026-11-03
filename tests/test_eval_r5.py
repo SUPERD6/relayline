@@ -80,6 +80,126 @@ def _row(task, rd, arm, ok, usd, wall, **kw):
             "lead_only_usd": usd, "lead_tokens": 1, "lead_requests": 1, "env_clean": True, **kw}
 
 
+def test_summary_completion_and_failed_cost_cli(tmp_path):
+    import json
+    import subprocess
+
+    rows = [_row("right", 1, "self", True, 1, 10, rc=0, subtype="success", lead_usd=0.6, ccx_usd=0.4),
+            _row("wrong", 1, "self", False, 2, 10, rc=0, subtype="success"),
+            _row("failed", 1, "self", False, 7, 10, rc=-9, error="quota"),
+            _row("missing", 1, "self", False, None, 10, rc=0, subtype="success", lead_usd=0.5, ccx_usd=None),
+            _row("legacy", 1, "self", False, 3, 10),
+            _row("unclean", 1, "self", True, 20, 10, rc=0, subtype="success", env_clean=False),
+            _row("env-unknown", 1, "self", True, 40, 10, rc=0, subtype="success", env_clean=None)]
+    path = tmp_path / "results.jsonl"
+    path.write_text("".join(json.dumps(r) + "\n" for r in rows), encoding="utf-8", newline="")
+    result = subprocess.run([sys.executable, str(Path(r5.__file__)), "summary", "--results", str(path),
+                             "--results", str(path)], cwd=tmp_path, capture_output=True, text=True, encoding="utf-8")
+    assert result.returncode == 0, result.stdout + result.stderr
+    summary = json.loads(result.stdout)
+    report = summary["completion_and_cost"]
+    clean = report["clean"]
+    assert (clean["started"], clean["valid_completion"], clean["right"], clean["unknown"]) == (5, 3, 1, 2)
+    assert clean["completion_unknown"] == clean["right_unknown"] == 1
+    assert clean["valid_over_started"] == 3 / 5 and clean["right_over_started"] == 1 / 5
+    assert clean["right_over_valid"] == 1 / 3
+    assert clean["spend_all_started"] == clean["cost_per_success_all"] == 13.5
+    assert clean["missing_cost_n"] == 1
+    assert report["unclean"]["started"] == report["env_unknown"]["started"] == 1
+    assert report["batch_cost"] == {"started": 7, "spend_all_started": 73.5, "missing_cost_n": 1,
+                                    "spend_complete": False}
+    assert report["by_arm"]["self"]["clean"] == clean
+    assert r5.summarize(rows, True)["completion_and_cost"] == report
+    assert summary["arms"]["self"]["n"] == 4 and summary["arms"]["self"]["cps"] == 6
+
+
+def test_summary_completion_legacy_unknown_and_empty_cost():
+    rows = [_row("old", 1, "direct", True, None, 1),
+            _row("failed", 1, "direct", False, 0, 0, error="environment failed before billing")]
+    clean = r5.summarize(rows)["completion_and_cost"]["clean"]
+    assert clean["completion_unknown"] == 1 and clean["right_unknown"] == 1 and clean["unknown"] == 2
+    assert clean["right"] == 1 and clean["valid_completion"] == 0 and clean["right_over_valid"] is None
+    assert clean["spend_all_started"] is None and clean["cost_per_success_all"] is None
+    assert clean["missing_cost_n"] == 2
+    empty = r5.summarize([])["completion_and_cost"]["clean"]
+    assert empty["started"] == empty["missing_cost_n"] == 0 and empty["spend_all_started"] == 0
+    assert all(empty[k] is None for k in ("valid_over_started", "right_over_started", "right_over_valid"))
+
+
+@pytest.mark.parametrize("cost", [None, float("nan"), float("inf"), -1, True])
+def test_summary_completion_missing_cost_is_not_zero(cost):
+    rows = [_row("new", 1, "direct", True, cost, 1, status="done", kind="ok"),
+            _row("old", 1, "direct", True, 0, 1)]
+    clean = r5.summarize(rows)["completion_and_cost"]["clean"]
+    assert clean["missing_cost_n"] == 1 and clean["spend_all_started"] == 0
+    assert clean["completion_unknown"] == 1 and clean["right"] == 2
+    assert clean["right_over_valid"] is None  # an unobserved completion cannot enter this denominator
+
+
+@pytest.mark.parametrize("fields,valid,unknown", [
+    ({"status": "done", "rc": 2, "kind": "check_failed"}, 1, 0),
+    ({"status": "done", "rc": 0, "kind": "ok"}, 1, 0),
+    ({"status": "done", "rc": 2, "kind": "quota"}, 0, 0),
+    ({"status": "done", "rc": 2, "kind": "env"}, 0, 0),
+    ({"status": "done", "rc": 2, "kind": "timeout"}, 0, 0),
+    ({"status": "done", "rc": 2}, 0, 1),
+    ({"status": "done", "rc": 0, "kind": None}, 0, 1),
+    ({"subtype": "success", "rc": 0}, 1, 0),
+    ({"status": "failed", "rc": 2}, 0, 0),
+])
+def test_review_receipt_kind_and_legacy_evidence(fields, valid, unknown):
+    report = r5.summarize([_row("receipt", 1, "direct", False, 1, 1, **fields)])["completion_and_cost"]
+    assert report["clean"]["valid_completion"] == valid
+    assert report["clean"]["completion_unknown"] == unknown
+
+
+@pytest.mark.parametrize("source", ["receipt", "record"])
+@pytest.mark.parametrize("kind", ["ok", "check_failed", "env", "quota", "timeout"])
+def test_review_direct_records_receipt_kind(tmp_path, monkeypatch, source, kind):
+    import json
+    from types import SimpleNamespace
+    from common import valid_completion
+
+    receipt = {"run_id": "r", "status": "done", "ok": False}
+    if source == "receipt":
+        receipt["kind"] = kind
+    monkeypatch.setattr(r5, "by_id", lambda tid: {"brief": "fixture"})
+    monkeypatch.setattr(r5, "ext_python", lambda a: None)
+    monkeypatch.setattr(r5, "task_env", lambda task, env, python: env)
+    monkeypatch.setattr(r5.PF, "run", lambda *a, **kw: (json.dumps(receipt), "", 2, []))
+    monkeypatch.setattr(r5.r2, "record", lambda *a: {"kind": kind if source == "record" else "ok"})
+    monkeypatch.setattr(r5.r2, "hub_cost", lambda hub: {"usd": 1, "review_usd": 0, "run_ids": []})
+    monkeypatch.setattr(r5.TL, "unit_timeline", lambda *a, **kw: {})
+    row = r5.direct_unit({"task": "fixture", "arm": "direct", "label": "fixture"}, SimpleNamespace(timeout=1),
+                         tmp_path / "repo", tmp_path / "hub", env={})
+    assert row["kind"] == kind
+    assert valid_completion(row) is (kind in ("ok", "check_failed"))
+
+
+@pytest.mark.parametrize("cost,complete", [(0, True), (2, True), (None, False)])
+def test_review_spend_complete_in_every_group(cost, complete):
+    rows = [_row(str(i), 1, "self", True, cost, 1, subtype="success", env_clean=clean)
+            for i, clean in enumerate((True, False, None))]
+    report = r5.summarize(rows)["completion_and_cost"]
+    for scope in (report, report["by_arm"]["self"]):
+        for name in ("clean", "unclean", "env_unknown", "batch_cost"):
+            assert scope[name]["spend_complete"] is complete
+            assert scope[name]["missing_cost_n"] == (0 if complete else (3 if name == "batch_cost" else 1))
+        assert scope["clean"]["cost_per_success_all"] == cost
+    empty = r5.summarize([])["completion_and_cost"]
+    assert all(empty[name]["spend_complete"] is False for name in ("clean", "unclean", "env_unknown", "batch_cost"))
+
+
+def test_review_partial_spend_flag_does_not_change_cost_per_success():
+    rows = [_row("success", 1, "self", True, 1, 1, subtype="success"),
+            _row("failed", 1, "self", False, None, 1, error="quota", lead_usd=0.5, ccx_usd=None)]
+    report = r5.summarize(rows)["completion_and_cost"]
+    for scope in (report, report["by_arm"]["self"]):
+        assert scope["clean"]["spend_all_started"] == scope["clean"]["cost_per_success_all"] == 1.5
+        assert scope["clean"]["missing_cost_n"] == 1
+        assert scope["clean"]["spend_complete"] is False and scope["batch_cost"]["spend_complete"] is False
+
+
 def test_builtin2r_worker_carries_ccx_rules_word_for_word(monkeypatch):
     monkeypatch.setenv("CCX_CLAUDE_BIN", str(FAKES / "fake_claude.py"))       # CI has no claude
     from ccx import prompts
