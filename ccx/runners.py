@@ -21,8 +21,9 @@ def without_launcher_vars(env: Mapping[str, str]) -> dict[str, str]:
     These identify the launcher process or select its log output. Inheriting them in checks or agent CLIs
     can bind nested runs to the wrong receipt or change their default output (notably CCX_LEAD_VIEW=full).
     Other settings, including the intentional CCX_DEPTH / CCX_ROLE / CCX_PARENT_RUN identity, stay intact.
+    Match case-insensitively on every platform because Windows treats environment names that way.
     """
-    return {key: value for key, value in env.items() if key not in LAUNCHER_VARS}
+    return {key: value for key, value in env.items() if key.upper() not in LAUNCHER_VARS}
 
 
 AUTH_HINTS = ("401", "unauthorized", "not logged in", "login", "authenticate", "api key")

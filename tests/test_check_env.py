@@ -10,10 +10,20 @@ from test_ccx import Env
 
 from ccx import review
 from ccx.delegate import _child_env
+from ccx.runners import without_launcher_vars
 from ccx.workspace import canonical, run_check
 
 
 LAUNCHER_ENV = {"CCX_RUN_ID": "launcher-run", "CCX_LEAD_VIEW": "full", "CCX_DISCUSS_ID": "launcher-discuss"}
+
+
+def test_without_launcher_vars_strips_lowercase_controls():
+    # A plain dict keeps the casing supplied by provider configuration, including on Windows.
+    env = {"ccx_run_id": "launcher-run", "ccx_lead_view": "full", "ccx_discuss_id": "launcher-discuss",
+           "CcX_LeAd_ViEw": "full", "Path": "keep", "CCX_PARENT_RUN": "parent"}
+    before = dict(env)
+    assert without_launcher_vars(env) == {"Path": "keep", "CCX_PARENT_RUN": "parent"}
+    assert env == before
 
 
 def test_run_check_does_not_inherit_launcher_controls(tmp_path, monkeypatch):
