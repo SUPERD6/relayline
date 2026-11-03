@@ -291,7 +291,8 @@ def resolve(spec: dict, caller: str, p, cfg: dict) -> tuple[dict | None, dict]:
     keyword heuristic (fallback when no rubric is given)."""
     to = spec.get("to") or "auto"
     from ..plan import auto_quota_agents, quota_candidates
-    _maybe_probe_claude(p, cfg, ["claude", "codex"] if to == "auto" else [to], spec.get("quota") or {})
+    refresh_agents = [spec["provider"]] if spec.get("provider") else ["claude", "codex"] if to == "auto" else [to]
+    _maybe_probe_claude(p, cfg, refresh_agents, spec.get("quota") or {})
     # the model pick: --tradeoff, else defaults.tradeoff, as before. A tier the person picked in their settings
     # (`ccx config set policy.picked <tier>`) is the whole-workflow tier when the lead names none (who does it, the
     # size band), but it does not change the models: the delegated part picks them like save (DECISIONS, tiers)
@@ -413,12 +414,18 @@ def resolve(spec: dict, caller: str, p, cfg: dict) -> tuple[dict | None, dict]:
     candidates = [ag for ag in AGENTS if cfg["tiers"].get(tier, {}).get(ag)]
     ranked = quota_candidates(p, cfg, candidates if to == "auto" else [target], spec.get("quota"))
     route["quota_routing"] = ranked
+    if ranked.get("why"):
+        if isinstance(route.get("why"), dict):
+            route["why"]["readiness"] = ranked["why"]
+        else:
+            route["why"] = {"readiness": ranked["why"]}
     if ranked.get("message"):
         route["quota_note"] = ranked["message"]
     if to == "auto" and ranked["all_tight"] and not spec.get("force"):
         route["advice"] = ranked["message"]
         return None, route
-    if to == "auto" and target in ranked["tight"] and ranked["eligible"]:
+    if to == "auto" and ranked["eligible"] and (target in ranked["tight"] or
+            (target in ranked.get("unready", {}) and target not in ranked["eligible"])):
         target = ranked["eligible"][0]
     return {"to": target, "tier": tier, "route": route}, route
 

@@ -175,6 +175,15 @@ CLIs work on your machine.** Run `ccx selftest` there; the acceptance list is in
 
 ## External facts checked (2026-10-22/24)
 
+- **Real quota samples (imported 2026-11-03):** scrubbed Claude Code 2.1.316 stream-json refusal from local hub
+  `ccx/runs/20261031-223738-d679/events.0.log:6-8` (2026-10-31 local / 2026-11-01 UTC), four probe costs from
+  `ccx/quota-refresh.jsonl:1-4` (2026-11-01–03 UTC; $0.0001826–$0.000185 each, below $0.005), and paired window
+  readings from `ccx/quota.jsonl:393-394,401-402,411-414` are preserved in `tests/data/real_signals/`.
+  Replay checks classification, one fallback, the reset receipt and historical CLI pace arithmetic; it does not
+  establish live automatic fallback. No real Codex limit error was found in 477 event logs (271 identified as
+  Codex); Codex 429 coverage remains **synthetic**. Session/event/message/request IDs were replaced; original
+  refusal text, field structure, timestamps and costs were kept. No paths, machine names or emails occur in the
+  selected rows.
 - **codex-cli 0.164.0** `exec --help`: `--json`, `-m`, `-c`, `--output-schema`, `-o`, `--ignore-user-config`, `--ephemeral`, `exec resume <id>`. A lean start (`--ignore-user-config`) must keep the user's `windows.sandbox`, or read-only rejects every command on Windows.
   `resume` takes no `-s`, so the sandbox is set with `-c sandbox_mode=…`.
 - **Claude Code 2.1.309** `--help`: `-p --output-format json|stream-json` (stream-json requires `--verbose`),

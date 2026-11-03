@@ -250,6 +250,29 @@ def brief(p: Paths, cwd: Path, name: str, task: str, cfg: dict | None = None, *,
             + (f"Acceptance check: {check}\n" if check else ""))
 
 
+def effort_receipt(route: dict) -> str | None:
+    """Explain the existing auto pick, without recalculating its score or changing routing."""
+    if not route.get("role_effort_auto") or not route.get("rung"):
+        return None
+    effort = route["rung"].rsplit(":", 1)[-1]
+    basis = []
+    if route.get("b") is not None:
+        basis.append(f"difficulty b={route['b']:g}")
+    why = route.get("why") or {}
+    if why.get("score") is not None:
+        basis.append(f"score={why['score']:g}")
+    rubric = route.get("rubric") or {}
+    if rubric:
+        basis.append("rubric " + ", ".join(f"{key}={value}" for key, value in rubric.items()))
+    if why.get("reasons"):
+        basis.append(", ".join(why["reasons"]))
+    if route.get("difficulty"):
+        basis.append("difficulty " + ", ".join(f"{key}={value}" for key, value in route["difficulty"].items()))
+    if not basis:
+        basis.append(f"{route.get('source') or 'configured'} {route.get('tier') or 'effort'}")
+    return f"effort=auto → {effort}: " + "; ".join(basis)
+
+
 def receipt(route: dict) -> str | None:
     if not route.get("role"):
         return None
@@ -258,6 +281,9 @@ def receipt(route: dict) -> str | None:
     note = f"；{route['role_fallback']}" if route.get("role_fallback") else ""
     if route.get("role_check_notice"):
         note += f"；{route['role_check_notice']}"
+    auto = effort_receipt(route)
+    if auto:
+        note += f"；{auto}"
     return f"角色 {route['role']} → {pick}{suffix}{note}"
 
 

@@ -12,10 +12,13 @@ reviewed again; still failing -> kind review_failed, for the lead to decide."""
 from __future__ import annotations
 
 import json
+import os
 import re
 import subprocess
 from pathlib import Path
 from typing import TYPE_CHECKING
+
+from .runners import without_launcher_vars
 
 if TYPE_CHECKING:
     from .config import Paths
@@ -105,7 +108,8 @@ _OUT_OF_SCOPE = re.compile(r"^\s*\[must\][\s:—–-]*[(\[]?\s*(out[- ]of[- ]sco
 def _git(cwd: Path, *args: str) -> str:
     try:
         r = subprocess.run(["git", *args], cwd=cwd, capture_output=True, text=True, timeout=30,
-                           stdin=subprocess.DEVNULL, encoding="utf-8", errors="replace")
+                           stdin=subprocess.DEVNULL, encoding="utf-8", errors="replace",
+                           env=without_launcher_vars(os.environ))
         return r.stdout if r.returncode == 0 else ""
     except (OSError, subprocess.TimeoutExpired):
         return ""
@@ -902,7 +906,8 @@ def review_run(req: Request, p: Paths, cfg: dict, record: dict, cwd: Path, run_d
         usd += sum(a.get("ae_usd") or 0 for a in rev.get("attempts", []))
         tried.append(f"{agent}:{model}:{effort}")
         v = rv.verdict(rev.get("result")) if rev.get("ok") else {"verdict": "not-run", "issues": [],
-                                                                 "summary": (rev.get("error") or "")[:300]}
+                                                                 "summary": (rev.get("error") or "")[:300],
+                                                                 "error": (rev.get("error") or "all reviewers failed")[:300]}
         if v["verdict"] != "not-run":
             break
     repro_note, adopted = None, None
@@ -925,7 +930,8 @@ def review_run(req: Request, p: Paths, cfg: dict, record: dict, cwd: Path, run_d
                                    allow_subagents=False, ephemeral=True, label=f"review:{record['run_id']}"), p)
                 usd += sum(a.get("ae_usd") or 0 for a in crev.get("attempts", []))
                 tried.append(f"{agent}:{model}:{effort}")
-                cv = rv.verdict(crev.get("result")) if crev.get("ok") else {"verdict": "not-run"}
+                cv = rv.verdict(crev.get("result")) if crev.get("ok") else {
+                    "verdict": "not-run", "error": (crev.get("error") or "all reviewers failed")[:300]}
                 repro_note.update(confirm_by=f"{agent}:{model}:{effort}", confirm_run=crev["run_id"],
                                   confirm_verdict=cv["verdict"])
                 if cv["verdict"] in ("issues", "pass"):

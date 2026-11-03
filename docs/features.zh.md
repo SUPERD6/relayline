@@ -122,6 +122,33 @@ builtin 的模型身份留空。这些数字测的是工作流（ccx2 含主导�
 
 ## 实时看：`ccx ui`
 
+首页的**今天**一行保留本周汇总，增加派活记录的 API 等价费用（`[billing] mode = "subscription"` 时同时
+显示配额单位）、各家配额用量和 `ui.waiting()` 返回的待判定条数（复用页面 Reader，只在账本或近期运行文件
+变化时重算）。链接分别打开选中**全部项目**的今天 token 页、配额详情和
+待处理总览。费用按所有项目中运行开始时的本机日期计入，包含该运行的审查；不含主导对话、评测和测试，
+也不把一次跨午夜的运行拆到两天。
+
+运行列表和详情显示 `max_usd` 预算停下及未跑的审查、`review.error` 原因，并从 `quota_fallback` 或 quota
+尝试显示配额改派；原请求智能体取首个 attempt，实际智能体取最终 `to`，兼容已落盘的旧记录。
+`substituted_for` 本身不证明配额原因，跨厂家也一样：没有显式原因或配额证据时保留 `unknown`。
+原有状态筛选与预算、审查显示状态筛选均保留。
+页面从 `/api/data` 获取配额；只读且需要认证的 `GET /api/quota` 返回同一批缓存读数，首次扫描不阻塞请求。
+字段包含用量、重置时间、`read_at`、`freshness`（分钟）、`stale`、`auto_refresh_min`、`unknown`、`loading`、
+`read_error`、`reader`、
+`refresh_command`，以及最近探针的 `error` /
+`probe_at`。超过 `[quota] auto_refresh_min` 的读数标灰并写“过期”（关闭自动刷新时用 60 分钟作为显示标准）。
+没有读数或读数已跨过重置时间时保留 **Unknown**：Claude 提示 `ccx quota --probe`，Codex 提示
+`ccx quota --refresh`；其他厂家显示 **no quota reader**，不给命令提示。首次扫描期间每家都保留占位行并显示
+“读取中…”，扫描失败时显示错误短语；这两种状态不提示探针。打开页面不会调用探针。“今天”的窗口名与
+配额面板使用同一本地化文案，配额单位最多显示两位小数。
+
+角色按钮用结构化 JSON 的 `task`、`role` 和可选的 `mode` 传递请求，多行任务原样进入一个 argv 参数，不经
+shell 拆分。编辑生成的角色包装草稿或切换项目后仍走结构化路径；改成 `ccx say` 等其他命令时恢复命令预览。
+预览明确标出**只读（read）**或**写入（write）**并允许切换。角色配了 mode 时优先用配置；否则
+复用 `modes.py` 推断写入请求，显示命中的操作词，意图不明时界面默认只读。切换后重新生成预览和 nonce。
+I1 的白名单、同源检查、限长和一次性确认仍然有效，确认的 argv 就是执行的 argv；CLI 模式推断和原有命令
+输入接口不变。
+
 **首页是一个项目一张图**（P2-10）：中间是这个项目里的智能体和它们之间的往来（谁给谁派活、对话板话题、`ccx discuss` 讨论；被机器连续条数上限停下的话题、在问你的消息列为待办）；左边是共享记忆，连到说明里带了便签的那几次派活（从派活说明本身读出，不靠猜），以及这些派活最后对没对（你的判断；运行本身失败算错，被你停下、超预算、环境问题不算）；右边每次派活一张收据（谁派给谁、档位和实际用的模型档、花费、check 覆盖了哪些测试、这次派活有没有改自己的测试、审查结论、你的判断）；顶上是本周的 API 等价花费（记录里的 token × 价格表，不是账单；测试和评测不算），按实际用到的档位分开，其他做法只列已发布的实测表，不估算；底下是能力表（谁擅长什么），记过对错的活不够时显示“数据不足”。下面这些页面都还在原处：带全部待办和按钮的总览在 `#/all`。
 
 <img alt="ccx ui 首页：一个项目一张图——顶上花费，共享记忆、智能体和对话、收据（演示数据）" src="assets/ui/map-zh.png" width="100%">
@@ -156,6 +183,17 @@ builtin 的模型身份留空。这些数字测的是工作流（ccx2 含主导�
 2. 执行 `ccx run --from claude --files 2 --coupling one --clarity goal "…"`。ccx 调用 task-routing 技能，算出每个“智能体:模型:强度”的成功率和每次成功的花费，挑出 `codex:gpt-6.1-sol:medium`。如果算下来自己做更划算、或者应该先拆开，就直接告诉主导，不派。
 3. ccx 在后台调用 `codex exec -m gpt-6.1-sol -c model_reasoning_effort="medium" …`。会话 ID 一出现就存盘。Codex 自己读文件、改代码、跑测试，这部分 token 花的是 Codex 账号的额度。
 4. Codex 必须按 JSON schema 回报：`status / summary / files_changed / verification / …`。check 通过、审查通过或没跑、没有要主导看的东西（没有 hint、open question、next_step、审查 note、L2 合并或项目答复、弱的或覆盖未知的 check 等）时，主导只拿到一行 JSON（summary、改动文件、diffstat、check、recap；`"view": "line"`），而不是之后每轮都要重读的完整结果；要看全部用 `ccx show <run_id>`，`ccx config set output.lead full` 恢复成每次给完整结果。Claude 只读这一小段，再自己看一眼 `git diff`，确认测试真的跑过，然后 `ccx verify <run_id> --ok 1`。check 通过时会写明它是在什么上通过的：`check passed (covers: tests/test_x.py)` 列出 pytest / unittest 命令点到的测试文件（目录会展开；别的命令写"not known"），用了过滤或节点 id 只跑其中一部分时加 `(only -k …)`；子智能体改过其中某个文件或它们上层的 `conftest.py` 时标 `basis changed`（检查依据被改动），只往里加了测试时写"tests added by the sub-agent in …"，新写的测试文件写"written by the sub-agent"或"only tests the sub-agent wrote"。结果、recap 那一行、`ccx show` 和账本里都有。check 跑到的测试文件全是子智能体这次新写或改过的，就不算普通 ok：kind 记 `ok_self_checked`（退出码仍是 0；`check.basis` 和 `needs_lead` 写"未经独立验证"，`ccx ui` 请人确认，不会被自动判对）。`[escalate] on_self_checked` 决定还做什么：`review`（默认）交给审查、对照任务原文核对，`rung` 先升一档重做，`off` 只打标记。只读运行如果什么都没答（summary 为空），不算 ok：kind 记 `no_answer`，并提示换更强的档位再问一次。
+   收据的 `agent` / `model` / `effort` 表示最终执行者（紧凑输出的 `model` 仍为 `model/effort`），原始选择另存
+   `requested_agent` / `requested_model`，配额改派后的一行结果及 recap 加上 `reassigned claude→codex (quota)`，
+   没有新字段的旧记录仍可读取。
+   预算停止写 `stopped: budget $X reached, review not run`（审查已跑则写修复轮未跑），审查错误写
+   `review not run (<原因>)`，这些摘要使用 `stopped` / `partial` 和 `ok?`，保留原有 `ok_self_checked` 措辞及命令退出码。
+   角色收据、`route` 和 `ccx show` 紧凑输出保留 `effort=auto → xhigh: <依据>`，列出难度分数与触发的 rubric 项或关键词依据。
+   已失败的运行即使带提示也保留原状态和 `ok=false`；只有本来成功报 done 的运行才因预算变为 `stopped`，
+   或因配额改派、审查不可用变为 `partial ok?`（也包括没有 error 字段的 `verdict=not-run`）。
+   同厂家换模型只加 `(model)` 提示，不改变成功状态；终端摘要与 recap 使用相同提示和状态，未确认的结果先引导查看，不建议直接记正 verdict。
+   审查修复轮继承最初的 `requested_*` 和配额改派信息，中断恢复同步顶层执行者，紧凑收据改变显示状态时用
+   `reported_status` 保留子智能体原状态；`ok` 和退出码仍表示执行结果，预算停下的 `ok_self_checked` 仍说明检查未经独立验证。
 5. 如果 Codex 回报 `blocked`，ccx 会在**同一个 Codex 会话**里升一档（high）继续，不用重新喂背景。Codex 说做完了、但 ccx 自己重跑的 `--check` 没过，也会升一档（同一家时在同一会话里）；`ccx config set defaults.focused_retry true` 之后，这一次会拿到失败的命令和输出的最后约 2000 字，只修失败处（默认关，等实测确认再开）。如果 Codex 额度用完，自动换 Claude 做（实验性：只有替身测试，还没遇到过真实的额度用完）；超时或崩溃，`ccx resume <run_id>` 接着做（有检查点的长任务用 `ccx task resume`），沿用原来的标签、验收命令和 review 设置（`ccx resume` 可以用 `--check` / `--review` 改；`ccx task resume` 总是沿用）。想让它停：`ccx stop <run_id>` 结束子智能体和它开的所有进程，之后 `ccx resume` 能接上。
 6. 每次运行都写进账本，结果自动记回 task-routing / task-split，下次选得更准。`ccx report` 生成看板网页：谁花了多少 token、什么类型的 token、额度用了多少，给出花费；`ccx trial` 实测之前不显示省了多少。
 
@@ -237,6 +275,28 @@ API 等价美元。原有美元字段和 API 模式建议文案保留。
 
 固定分级是后备方案；带打分参数时由 task-routing 按成功率和每次成功的花费来选，并且会根据实际结果自动校准。
 
+`[routing] require_ready = true` 默认把明确未登录或未安装的 CLI 降序，再沿用原配额与成本排序；
+设为 `false` 不做就绪排序。带难度参数的路由、关键词 `run` 和角色 `other` 使用此优先级。
+显式 `--to X` 保持指定目标，并只刷新 X。`quota_routing.why` 写明缺失证据，例如
+`codex: installed, not logged in`。没有登录文件且没有有效 doctor 结果时，就绪信息的 `state: "unknown"`
+表示 Unknown，why 写 `no login file found; keychain or env login possible`。
+Unknown 不降序，角色 `other` 仍照常跨厂家审查。一般路由中，所有登录结果均为否定时仍保留原回退顺序，
+说明 `no login evidence for X, trying anyway`；配额规则仍适用。显式 CLI/模型选择仍保留。
+路由新增的就绪信息只输出 `state`（`ready`、`unknown`、`not_logged_in`）和 `why`，不输出缓存时间戳、
+文件路径或探针元数据。已有配额字段和决策保持 main 的实时投影与过期判断；读数未变不代表不同时刻的配额数值相同。
+角色 `other` 中，可用审查厂商均被 doctor 明确判为未登录时，使用已有的同厂家不同模型回退，
+`why` 写明 `reviewer vendor claude: no login evidence → same-vendor other model`（替换为实际厂商）。
+如果回退换了厂家，原角色中属于另一厂家的模型（如 `other:haiku:auto` 回退到 Codex）改用回退厂家的
+tier 表模型，why 写明实际模型和对应 tier。
+就绪检查只看文件是否存在：`CODEX_HOME/auth.json`、`CLAUDE_CONFIG_DIR/.credentials.json`、
+`~/.gemini/oauth_creds.json`（实验性适配器）。DSH 只检查 `DEEPSEEK_API_KEY` 是否已设置，
+其适配器没有已知的登录状态命令或凭据文件信号。
+`ccx doctor` 已执行的登录检查也可提供带时间的布尔缓存，覆盖系统钥匙串登录；路由不读取凭据内容，
+不执行登录请求。快照写在 `<hub>/ccx/agent-readiness.json`；只有 doctor 结果与规范化的工具 home 关联、
+按 `quota.auto_refresh_min` 复用（0/false 时不复用）。文件存在性每次重新检查；文件 mtime 晚于 doctor
+结果时立即使缓存失效，包括否定缓存。doctor 超时或启动异常记 Unknown，不缓存成未登录。
+文件存在不保证令牌仍有效；provider 原密钥和预算门槛保留。
+
 | 级 | 任务 | Codex | Claude Code | Gemini CLI（实验性） |
 |---|---|---|---|---|
 | T0 | 两三步就做完 | 不派 | 不派 | 不派 |
@@ -312,11 +372,18 @@ Claude 报告的 `cost_usd`、token 用量及 API 等价估算 `ae_usd` 只写�
 ```toml
 [quota]
 auto_refresh_min = 60  # 0 或 false 关闭自动刷新；显式 --refresh 仍可用
+probe_timeout = 15    # 每家探针超时秒数
 avoid_above = 0.8
 routing = "on"        # "off" 关闭新增的配额排序
 ```
 
-这三个配置键也支持 `ccx config set/get`，例如 `ccx config set quota.routing off`。
+这些配置键也支持 `ccx config set/get`，例如 `ccx config set quota.routing off`。
+run 和 route 不带 `--to` 时，按 Claude、Codex 的顺序刷新两家，即使最终模型/tier 只用一家。
+显式 `--to X` 或角色限定为 X 时只刷新 X；角色 `other` 考虑 build 厂商和其他厂商候选。
+登录状态排序不缩减刷新范围。`other` 用于角色配置，不是 `--to` 的可选值。
+探针开始时 stderr 显示 `refreshing codex quota…`（或对应 CLI），失败只警告并保留旧读数。
+每家探针使用 `quota.probe_timeout`（默认 15 秒），超时清理整棵进程树，包括 Windows npm/cmd 包装器的
+子进程；默认 60 分钟重试冷却保留，冷却期内第二次自动命令不再探两家。关键词 route 指定一家后，仍保留原厂商字段。
 `ccx route` 和 `ccx run` 只在某家已有读数、且最新读数超过 `auto_refresh_min` 分钟时自动刷新。
 从未有读数的家不会自动探针，需要时手动运行 `ccx quota --refresh` 初始化。
 各家的 `freshness` 表示最新读数的年龄，各窗口另保留自己的读数年龄。原有 `probe_claude = false` 和
@@ -349,6 +416,13 @@ UI 数据原有 `quota` 数组补充 `freshness`、`projected_at_reset`，用量
   看不到里面的 worktree。智能体参数和权限不变（Codex 仍带 `--skip-git-repo-check`）；`ccx doctor` 显示当前选择。
   改设置不会移动已有运行；undo、stop、resume 和会话归档仍使用运行记录里的路径。确认改动可丢弃后，可用
   `git worktree remove <路径>` 清理已完成的 worktree。
+  创建前，ccx 只 fetch 当前分支的 upstream（默认 `[worktree] fetch = true`、`fetch_timeout = 15` 秒），
+  本地落后时提示，仍从本地 HEAD 创建；fetch 失败或超时只警告一行，不中断运行；超时会一起停止 Git 及其 helper 进程。
+  upstream 查询使用完整分支引用，避免同名 tag 干扰。
+  用 `ccx config set worktree.fetch false` 关闭网络请求（此时按本地缓存的 upstream 计数），
+  或用 `ccx config set worktree.fetch_timeout 30` 调整超时。
+  收据在可计算时记录 `base_behind`（包括零；无 upstream 或 fetch 失败时省略），运行结果及主导的一行输出都保留该字段。
+  落后时主导的 recap 追加 `base: N behind upstream`，`--bg --wait` 和 `ccx show <id> --wait` 也能看到。
   运行结果、队列跟踪与接收、lane 提交、自动合并、验收可信度分组和 UI 项目归类同时识别两种布局，改设置后也能识别已有运行。
   inside 仍为实验性：已用假智能体 CLI 和 Git 验证，尚未用真实智能体 CLI 或 Codex 项目信任继承验证。
 - 子智能体不能再派子智能体（`CCX_DEPTH`）。
@@ -406,6 +480,9 @@ ccx run --role build "实现解析器"
 
 `roles` / `roles show` 显示合并表及逐项来源。`set` / `unset` 默认改全局，`--project` 改项目；删除覆盖后显示
 下层配置，已有 defaults 保留供复用。关闭方法：删除两个层级中的角色赋值。
+
+合并后的角色表为空时，stdout 保持 JSON，stderr 另给三行可复制的 `roles set` / `run --role` 示例，
+并提示 `--project` 写入项目级配置。有角色时输出不变。
 
 可选模板 `.ccx/briefs/templates/build.md` 中写 `实现：{task}`，并填写明确的“只动”范围。只替换字面量
 `{task}`，JSON 和代码的其他花括号不受影响。展开后自动附项目 `AGENTS.md` 路径、范围提醒和实际 check。

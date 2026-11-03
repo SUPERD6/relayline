@@ -29,9 +29,10 @@ python -m pytest -q tests            # 每次提交前都必须全部通过
   - 不写死要和时间窗口比的日期，用被测代码用的同一个 now 算出来。有个测试写死了 2026-10-24 的时间戳，过了 7 天窗口就失败（#190）。
   - 并发代码：mock 掉慢的调用，在测试里固定事件的先后，像 `tests/test_worktree_race.py` 里的 `test_the_race_with_another_process_is_tried_again` 那样。sleep 只能放在 mock 里用来拉大竞态窗口；不靠睡眠或加长等待来等结果、掩盖竞态。
   - 断言发生了什么，不断言花了多久；测试不能假设机器上没有别的进程在跑，自己启动的后台进程在测试结束前收掉。
+- **路径比较统一经过 `workspace.canonical()`。** 本仓库的代码在比较、打印或将路径存入运行记录前先用它处理；测试期望值也用它构造，不用裸 `tmp_path`。macOS 的 `/var` 是指向 `/private/var` 的符号链接；Windows 有 8.3 短名和 `\\?\` 前缀。CI 在 Linux、Windows 和 macOS 三个平台都跑，不能只依赖本机的路径写法。
 - **核心功能不丢。** 不删命令或选项；改到某个命令的 PR 用一行写清保留了什么、怎么验证的。没真跑过的路径在说明处标“实验性”。
 - **仓库里不放个人内容**：不放名字、本机路径、邮箱、机器名或数据。个人的东西放在用户自己的 hub 里。每次 push 都会用 `tests/test_repo_hygiene.py` 检查所有跟踪的文件（文本，以及图片里的字符串）；截图还要自己看一眼，画在像素里的路径查不出来。
-- **文档两种语言**：`x.md`（英文）和 `x.zh.md`（中文），互相链接。真正的决定写进 `docs/DECISIONS.md`。
+- **文档两种语言**：`x.md`（英文）和 `x.zh.md`（中文），互相链接。真正的决定写进 `changes/<PR>.decision.md`，发版时折入 `docs/DECISIONS.md`（见 [changes/README.zh.md](changes/README.zh.md)）。仍可直接改 `docs/DECISIONS.md`，但并行 PR 会在这里冲突。
 - **每个 PR 一个变更说明**：加一个 `changes/<PR 编号>.md`，写要进 CHANGELOG 的内容，不直接改 `CHANGELOG.md`（见 [changes/README.zh.md](changes/README.zh.md)）；发版时统一合进去，并行的 PR 就不会冲突。`docs/STATUS.md` 由维护者更新。
 - **核对外部事实**：依赖的参数、事件字段或价格，都要用 `--help` 或官方文档确认，并写明核对的版本（`ccx/runners.py` 里的 `TESTED_VERSIONS`，[docs/measured.zh.md](docs/measured.zh.md) 的“已核对的外部事实”）。
 - **不碰账号凭据**，也不改工具配置里 ccx 标记块以外的地方。

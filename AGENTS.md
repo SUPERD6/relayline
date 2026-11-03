@@ -32,7 +32,8 @@ task: whatever you read is re-read on every later turn. Keep STATUS one page (EN
 - Keep the core: no command or option is removed; a PR that changes one says in a line what it kept and how that
   was checked. Paths not run for real are called experimental where they are described.
 - Docs are bilingual: `x.md` (English) + `x.zh.md` (Chinese), linking to each other. For real decisions, update
-  docs/DECISIONS.md.
+  `changes/<PR>.decision.md`; it is folded into `docs/DECISIONS.md` when releasing (see `changes/README.md`).
+  Direct edits to `docs/DECISIONS.md` are still allowed, but parallel PRs can conflict.
 - A PR adds one `changes/<PR>.md` with its CHANGELOG lines and does not edit CHANGELOG.md or docs/STATUS.md:
   the lead session updates STATUS and folds the notes in when releasing (`scripts/collect_changes.py`,
   see `changes/README.md`). This keeps parallel PRs from conflicting.

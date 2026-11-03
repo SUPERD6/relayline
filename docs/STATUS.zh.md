@@ -1,45 +1,75 @@
 # 进度
 
-[English](STATUS.md) · 中文 · 更新于 2026-10-29 · 版本 0.5.0 + Unreleased（#105–#177）· 1376 个测试通过（2 个跳过）
+[English](STATUS.md) · 中文 · 更新于 2026-11-03 · 版本 0.5.0 + Unreleased（#105–#253）· 收集到 2417 个测试；未重跑全量
 
-这一页故意只写一页：智能体开局读进来的东西，之后每一轮都要跟着重读。以前的页面、完整的把握程度表、验收检查和完成列表在 [STATUS-archive.zh.md](STATUS-archive.zh.md)；改了什么写在 [CHANGELOG.md](../CHANGELOG.md)。请保持简短：做完一项就在这里写一行，细节放进更新记录。这一页只由主会话改；各个 PR 改为加一个 `changes/<PR>.md`。
+供接手时读的一页。历史与旧把握程度表见[归档](STATUS-archive.zh.md)；改动见
+[CHANGELOG](../CHANGELOG.md) 和[各 PR 记录](../changes/README.zh.md)。本页由统筹维护。
 
 ## 现在
 
 **留出集运行 hc1（2026-10-29，预先登记）：** 在做 ccx 时没用过的 10 个任务上，ccx 未见正确率更差（29/30，自己做 29/30，
 自带子智能体默认用法 27/28），每次成功 $0.063，约低 30% / 39%；用时约为自己做的 3 倍。限制：精简做法 builtin2 不在这次运行里，
-本仓库任务可能泄漏答案（只看外部任务：15% / 42%），只有 10 个任务、一种主导模型。2026-10-26 的这一页已移到归档。
+本仓库任务可能泄漏答案（只看外部任务：15% / 42%），只有 10 个任务、一种主导模型。
 
-| 结论 | 数字 | 出处 |
+**10-30 → 11-01 八层收尾：** 细节见[变更记录](../changes/README.zh.md)。
+① 叫醒/一行结果/提示瘦身默认开（Codex 叫醒 hook 与瘦身实验性；#239 缓存前缀对齐未实测节省）；② 记忆去重、③ 无历史子会话/batch 合并实验性、默认关；④ `routing.mode=auto`，`small_self` 关，能力表只建议，配额感知开，角色自选/空表。
+⑤ 覆盖 rubric/审查默认开，自写测试非独立证据，保留 `ok_self_checked`，复现门禁实验性/关，预算 0/不限，计费 `api`；⑥ worktree 默认 `sibling`，`inside` 自选/实验性，金丝雀开，沙箱授权取消（`kind=env`）后需 `--env-fixed`；⑦ 精简开关关、保留负结果，#204 评测/开发共用一台机器一个账号；⑧ 可选 UI，含项目地图、运行视图与预览/确认。
+
+**11-03 合入了什么**（#243–#253 共 11 个 PR；#250 汇集五个审查修复轮）：
+
+- **⑤ 收据 #252：** agent/model/effort 记最终执行者；改派、预算停下、审查未跑进主导一行，auto-effort 依据可见。默认生效；退出码与 `ok_self_checked` 不变。
+- **④ 就绪 #253：** `routing.require_ready=true` 优先已安装且有登录证据的 CLI；明确未就绪只降序，缺文件的 Unknown 不降序。刷新探候选（显式或角色限定目标只探该家，否则 Claude/Codex），不只探最终选中者；角色空态给示例。角色仍自选/空表，保留原回退。
+- **⑧ 每日 UI #249：** 预算停审、配额新鲜度/Unknown、今天花费一行、角色按钮多行文本、UI 预览里的读写模式提示。UI 仍可选；打开页面不探针，保留预览/确认。
+- **⑥ 控制 #246/#244：** `[worktree] fetch=true` 默认提示 upstream 落后，不 pull、不移动本地基点；启动器变量默认与验收/执行者/审查子进程隔离，保留后台完整日志。
+- **⑦ 证据 #245/#248：** 真实 Claude 限额事件与探针成本样本已进 fake 回放（每条已记录探针 < $0.005），Codex 拒绝样本仍是合成的，不改路由默认。P0-13 discuss A/B 脚本与预登记就绪，未加 `--execute` 默认不付费执行；未跑。
+- **流程 #243/#251/#247：** 决策走 `changes/<PR>.decision.md`，relayline 路径用 `workspace.canonical()`；统一 changes 措辞、维护页列发布后候选。只改文档/流程，运行默认不变，不升版本、不发布。
+
+**安全：** #225 记录威胁模型、控制与剩余风险，不新增执行权限。
+
+| 测量 | 结果与限制 | 出处 |
 |---|---|---|
-| 留出集确认（hc1） | 自己做 29/30、$0.090、21 秒；自带默认用法 27/28、$0.103、123 秒；ccx 29/30、$0.063、61 秒；ccx 的两个配对花费差区间都不含 0（自带 − 自己做的区间含 0）；逐点规则，不是统计意义上的非劣检验 | [hc1](research/2026-10-29-hc1-holdout.zh.md) |
-| 共享工作上下文（`ccx run --context`） | 带上下文一次做对 36/36，不带 7/36（McNemar p ≈ 4e-9），返工 0 对 29，总花费少 63 %；按设计是最有利的情形 | [共享上下文 A/B](research/2026-10-25-shared-context-ab.zh.md) |
-| 项目记忆送到子智能体 | 有记忆隐藏测试 9/9，没有 0/9（Holm p = 0.016） | [七核心 A/B](research/2026-10-24-seven-cores-ab.zh.md) §2.5 |
-| 审查（第 2 轮） | 不审 33/36，审 36/36（p = 0.25），次次抓到真 bug，每件多 $0.004 | [第 2 轮](research/2026-10-25-seven-cores-r2.zh.md) 4-C |
-| 第 5 轮，开发集 | 修完后 ccx 18–20/20，每次成功 $0.116–0.135；builtin2（精简做法）17/20、$0.114；自己做 19/20、$0.211；ccx 用时是自己做的 2.5–2.8 倍 | [第 5 轮](research/2026-10-26-r5.zh.md) 第 7 节 |
-
-打 0.5.0 tag 之后（#105–#177，CHANGELOG 里都在 Unreleased 下）：总管自动档位、外部派活和看板（#109–#111），记忆 L1–L4、L6、L7
-（#112–#113），第 3–5 轮的修复，PM 评审后的如实叙述和流程用词（#176–#177）。在跑：H11 一周的 `ccx trial`（2026-11-01 结束）。
+| hc1 | 自己做 29/30、$0.090、21 秒；自带默认 27/28、$0.103、123 秒；ccx 29/30、$0.063、61 秒；ccx 的两个配对花费差区间不含 0（自带 − 自己做的含 0）；逐点规则，不是统计非劣检验 | [hc1](research/2026-10-29-hc1-holdout.zh.md) |
+| Polyglot pg1 | self 25/30，ccx2 12/30；小而接口严格的题留给主导；一种主导/子智能体配置，三行不干净 | [pg1](research/2026-10-31-polyglot-pg1.zh.md) |
+| B3 精简开关 | nomem Unknown；clean Fail；leantools 按规则 Fail / 事后解读未定；精简侧均关、实验性；未证明可靠节省 | [B3](research/2026-10-31-b3-lean-switches.zh.md) |
+| #158 后收据误报 | 报告口径 8/209 = 3.8%；排除主导续跑成功的 18 个：8/(209−18) = 8/191 = 4.2%，超过 2% 门槛；任务重复、一种主导配置；#223 已合入，**未重跑验证（not re-run）** | [审计](research/2026-10-31-verdict-audit.zh.md) |
 
 ## 接下来三件
 
-1. **发布 0.6.0、PyPI、推广**：等用户点头（改版本号、打 tag、发布）。
-2. **H11 试用 2026-11-01 结束**：看结果，决定 `memory.by_kind` / `memory.start_scene`。
-3. **收尾**：`ccx ui` 里的 token 用量视图；上下文效率的测量（子智能体每次启动约 9.3 万 token；把小块活合进一次运行）；
-   没验证过的路径标成实验性。
+不定发布日期：先做到每天真用（11-03 优先顺序）。
+
+1. **在本项目和另一个项目真用一周：** 角色表、配额感知、UI 每日看板、收据一行；统筹每天看 `ccx report`，只做小修。
+2. **都等用户批准：** P0-8 验证 + 收据误报复查（约 $1.4；[pg1](research/2026-10-31-polyglot-pg1.zh.md)，not re-run），以及 P0-13 discuss A/B（约 $2；[预登记](research/2026-11-03-p13-discuss-prereg.zh.md)，未跑）。脚本已就绪：`python scripts/eval/p13_discuss.py run --execute --tag p13-r1 --wait-quiet 30 --budget 2`。
+3. **其余测量按 release-plan §11 批次（约 $49，出自统筹本地计划，不在仓库）：** B3 开关、档位矩阵、大任务五组、外部基准及最终留出集回归；每批获批后再跑，最后问发版。这个计划总额含 P0-8，不重复相加。
 
 ## 把握有多大（简版）
 
-**real** = 在真实 Windows 机器上、用已登录的 CLI 跑过；**fake** = 只有用假 CLI 的测试。
+**real** = 真实 Windows 机器、已登录 CLI；**只有 fake** = 假 CLI 测试，不是真实试用。
 
-- **real**：双向派活、`--check`、审查（第 1–2 轮）、`ccx way`、`ccx stop` → `ccx resume` 以及被杀的运行也记账、跑完即归档、
-  DeepSeek 当主导、三家一起的 `ccx discuss`、对话板经 `ccx say --resume`、共享工作上下文 A/B、留出集运行 hc1（90 个单元、三组）、
-  项目目录扫描、插件市场安装（Claude Code，临时配置目录）、`ccx ui` 隐藏测试、3 个任务的 `ccx batch`（#100）、非 ASCII 路径、
-  不再弹控制台窗口、Codex hook 在 Windows 上（H7，#82 + #92）、队列中途杀掉再续跑、worktree 派活和 `ccx undo`、3 路并行 batch
-  （Codex + dsh）、`--fork`（fork 出的运行知道只有主导会话里才有的内容）、交互式 Codex CLI 里的 `ccx say --now` 和每轮 hook、dsh 桌面端开着时
-  排队、退出后写入归档。
-- **只有 fake**：额度回退、席位。
-- **未验证**：Gemini CLI 和真实的额度用尽（只有假 CLI 测试）；macOS 和 Linux 上的真机运行（只在 CI 里）；Codex 桌面版窗口里的
-  `ccx say --now`；`ccx doctor --codex-rule` 给出的 Codex 规则；归档排队写入后 dsh 桌面端自己的下一次写入；Codex 从 GitHub 地址
-  装插件；子智能体自己的子智能体上限真机（F11 没触发）；新 `--review auto` 的触发率；真实会话里的 hook 超时；`ccx intake` 对真
-  GitHub；L2 自动合并整条链；评测任务之外的路由表现。
+- **real：** 双向派活、`--check`、审查（第 1–2 轮）、`ccx way`、停止/续跑与被杀运行记账、
+  跑完即归档、DeepSeek 主导、三家 discuss、经 `say --resume` 的对话板、共享上下文 A/B、
+  hc1（90 个单元、三组）、目录扫描、Claude 插件市场安装（临时配置）、UI 隐藏测试、
+  3 任务 batch（#100）、非 ASCII 路径、隐藏控制台、Windows Codex hook（H7，#82/#92）、队列恢复、
+  worktree 派活/undo、Codex+dsh 并行 batch、`--fork`、交互式 Codex `say --now`/每轮 hook、
+  dsh 退出后写入排队归档；#227 在真实 Claude 桌面统筹收件箱里叫醒；
+  Codex 实现 + Codex 审查的四单 PR 流程。
+  Codex 实现、Codex + Claude 交叉审查的流程在 #243–#254 上跑过，但有例外：
+  #248 缺 Claude 审查（限额）；#250 是统筹 cherry-pick；#244/#246 的修复轮由统筹在沙箱外验收。
+- **只有 fake：** 席位；#240 配额排序/自动改派；#241 角色/`other`；#253 就绪判定/刷新范围；#252 一行结果各情况；#249 看板。这些是工程检查，不是真实流程证据。
+- **有真实样本，回放：** #245 Claude 限额事件与四条探针成本/窗口读数，每条探针 < $0.005；Codex 拒绝样本仍是合成的；不证明真实自动改派（[样本](../tests/data/real_signals/)）。
+- **未验证：** 真实限额时改派、macOS 钥匙串登录就绪判定（无凭据文件记 Unknown）、worktree fetch 在真实离线/慢网络下超时、已安装 `gpt-6.1-terra` 计价；
+  macOS/Linux 真机（只有 CI）；Gemini CLI；Codex 桌面 `say --now`、doctor Codex 规则、Codex 叫醒 hook；
+  dsh 自己后续写归档、从 GitHub 装 Codex 插件、真实子智能体上限（F11 未触发）、
+  `--review auto` 触发率、真实 hook 超时、intake 对 GitHub、L2 自动合并整条链、评测外路由。
+  本 worktree 缺少本地 plan-review；`/private/var`、8.3 短名、`\\?\` 前缀的 CI 修复未复核。
+
+### 待本人验证（2026-11-03）
+
+已经超过三条，请先集中清理，再依赖其结果继续。
+
+- #205：分支保护必需检查切到 `ci-ok` + `personal-data`。
+- 配置 test.pypi token。
+- 决定全局 `worktree.location` 用 `inside` 还是 `sibling`（无项目级设置）。
+- 确认 GitHub 描述/topics 文字。
+- Claude 桌面 app 的 Pinned Git Origins 重新固定。
+- 决定是否删本地旧分支 `control/preflight-e2e`、`debug/b4-queue-flake`、`private-history`（以及 #205 合入后的 `claude/silly-fermi` 等）；本次未删。
+- P0-8 + P0-13 两项小测量约 $3.4，现在批准跑吗？本次均未跑。

@@ -256,6 +256,22 @@ def worktree_location(cfg: dict) -> str:
     return location
 
 
+def worktree_fetch(cfg: dict) -> bool:
+    """Refresh the current upstream before a new worktree, unless explicitly disabled."""
+    fetch = (cfg.get("worktree") or {}).get("fetch", True)
+    if not isinstance(fetch, bool):
+        raise ValueError("worktree.fetch must be true or false")
+    return fetch
+
+
+def worktree_fetch_timeout(cfg: dict) -> int:
+    """Bound the optional network request without changing the local worktree base."""
+    timeout = (cfg.get("worktree") or {}).get("fetch_timeout", 15)
+    if type(timeout) is not int or timeout <= 0:
+        raise ValueError("worktree.fetch_timeout must be a positive integer (seconds)")
+    return timeout
+
+
 # [subagent] (config/tiers.toml): experimental switches for what a sub-agent loads, each at today's behaviour until a
 # before / after measurement passes (scripts/eval/r5.py, arms ccx2daily*). Not [subagents]: that one caps the
 # sub-agent's own sub-agents.
@@ -302,6 +318,7 @@ SETTINGS = {   # key -> (type, help). Only these can be set with `ccx config set
     "quota.auto_refresh_min": (_quota_minutes, "refresh existing readings older than N minutes (default 60); "
                                               "0/false disables"),
     "quota.avoid_above": (float, "used share above which quota routing prefers another subscription (default 0.8)"),
+    "quota.probe_timeout": (float, "quota probe timeout in seconds (default 15; must be positive)"),
     "quota.routing": (str, "on | off: prefer subscriptions with available quota (default on)"),
     "billing.mode": (str, "api | subscription: API-equivalent USD first (default), or quota units first"),
     "defaults.tradeoff": (str, "tier: save | balanced | fast | cheapest, or a knob 0..1 (0 = cheapest, 1 = fastest)"),
@@ -312,6 +329,7 @@ SETTINGS = {   # key -> (type, help). Only these can be set with `ccx config set
                           "delegates no new work (route and propose say do it yourself; run, batch, q run / resume "
                           "and way refuse without --force); cross-vendor review and talk work as before: ccx ask, "
                           "ccx discuss, ccx run --mode read, mem, board"),
+    "routing.require_ready": (_bool, "true | false: prefer installed CLIs with local login evidence (default true)"),
     "routing.small_self": (_bool, "true | false: `ccx route` / `ccx propose` advise doing a small task yourself "
                                   "instead of delegating it, sized by routing.small_self_by; `ccx run` still "
                                   "delegates (default false until a measured round backs it)"),
@@ -337,6 +355,9 @@ SETTINGS = {   # key -> (type, help). Only these can be set with `ccx config set
     "defaults.max_parallel": (int, "parallel sub-agents in ccx batch"),
     "worktree.location": (str, "sibling | inside: new git worktrees beside the repository (default) or in "
                                "<repo>/.ccx/worktrees/<run_id> (ignore .ccx/ in .gitignore)"),
+    "worktree.fetch": (_bool, "true | false: fetch the current upstream before a new worktree (default true; "
+                              "warn only, never pull or change the local base)"),
+    "worktree.fetch_timeout": (int, "positive seconds to wait for the upstream fetch (default 15)"),
     "defaults.timeout_sec": (int, "per-attempt timeout"),
     "lanes.default": (int, "warm lanes for ccx batch / q run: small pieces for the same project and agent share at "
                            "most N sub-sessions, one after another (0 = off: every piece its own session)"),
@@ -437,6 +458,10 @@ def set_setting(p: Paths, key: str, raw: str) -> dict:
         val = typ(raw)
     except ValueError as e:
         raise ValueError(f"{key} needs a {typ.__name__}: {e}") from e
+    if key == "quota.probe_timeout" and not 0 < val < float("inf"):
+        raise ValueError("quota.probe_timeout must be a finite positive number")
+    if key == "worktree.fetch_timeout":
+        worktree_fetch_timeout({"worktree": {"fetch_timeout": val}})
     cur = {}
     if p.settings.exists():
         cur = tomllib.loads(p.settings.read_text(encoding="utf-8"))

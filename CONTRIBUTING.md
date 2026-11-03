@@ -42,13 +42,18 @@ A branch without a pull request runs nothing; start the full matrix by hand with
     inside a mock to widen a race window. Never sleep or raise a timeout to wait for a result or hide a race.
   - Assert on what happened, not on how long it took. A test may not assume nothing else runs on the machine,
     and it stops any background process it started before it ends.
+- **Compare paths through `workspace.canonical()`.** In this repo, canonicalize paths before comparing, printing
+  or saving them in run records; construct test expectations with it too, not raw `tmp_path` values. macOS has
+  `/var` symlinks to `/private/var`; Windows has 8.3 short names and `\\?\` prefixes. CI runs on Linux, Windows
+  and macOS, so local spelling alone is not portable.
 - **Keep the core.** Commands and options are not removed; a PR that changes one says in a line what it kept and how
   that was checked. Paths not run for real are called experimental where they are described.
 - **Nothing personal in the repo**: no names, local paths, e-mail addresses, machine names or data. Personal things live in the
   user's hub. `tests/test_repo_hygiene.py` checks every tracked file (text, and the strings inside images) on every
   push; look at screenshots yourself too, since a path drawn in the pixels is not caught.
 - **Two languages for docs**: `x.md` (English) and `x.zh.md` (Chinese), linking to each other. Record real decisions
-  in `docs/DECISIONS.md`.
+  in `changes/<PR>.decision.md`; they are folded into `docs/DECISIONS.md` when releasing (see
+  [changes/README.md](changes/README.md)). Direct edits to `docs/DECISIONS.md` are still allowed, but parallel PRs can conflict.
 - **One change note per PR**: add `changes/<PR number>.md` with the lines for the CHANGELOG instead of editing
   `CHANGELOG.md` (see [changes/README.md](changes/README.md)); they are folded in when releasing, so parallel PRs
   don't conflict. `docs/STATUS.md` is kept by the maintainers.

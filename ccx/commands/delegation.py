@@ -33,7 +33,13 @@ def cmd_roles(a) -> int:
     elif a.ability:
         _out(roles.ability_table(p))
     else:
-        _out(roles.table(p, cwd))
+        table = roles.table(p, cwd)
+        _out(table)
+        if not table["roles"]:
+            print('ccx roles set build codex:gpt-6.1-sol:auto\n'
+                  'ccx roles set review other:auto\n'
+                  'ccx run --role build "一句话"\n'
+                  'Add --project to ccx roles set to save roles for this project.', file=sys.stderr)
     return 0
 
 
@@ -485,7 +491,8 @@ def _cmd_run(a) -> int:
         res["continued_from"] = prev          # same sub-session: it remembers the earlier task(s)
     res["route"] = {k: v for k, v in route.items() if k in ("source", "b", "rung", "p", "chain_p", "tier",
                                                               "stale", "mode", "trial", "cheaper_self", "role",
-                                                              "role_effort_auto", "role_fallback")}
+                                                              "role_effort_auto", "role_fallback", "why", "rubric",
+                                                              "difficulty", "role_effort_reason")}
     if proj:
         res["project"] = {k: proj[k] for k in ("name", "path", "approval_rules") if proj.get(k)}
     if auto:
@@ -1121,13 +1128,14 @@ def _route(a) -> dict:
     r = router.classify(" ".join(a.text), a.files)
     from .. import quota
     from ..plan import quota_candidates
-    quota.maybe_refresh(p, cfg)
     t = cfg["tiers"][r.tier]
+    candidates = [ag for ag in AGENTS if t.get(ag)] if a.to == "auto" else [a.to]
+    given = parse_quota(a.quota)
+    quota.maybe_refresh(p, cfg, ["claude", "codex"] if a.to == "auto" else [a.to], given)
     out = r.as_dict() | {"label": tier_words(p, t, r.tier, "label"), "when": tier_words(p, t, r.tier, "when"),
                          "note": "keyword heuristic; give the rubric flags for a calibrated pick",
                          "mode": apply_mode({"brief": " ".join(a.text or []), "mode": getattr(a, "mode", None)})}
-    ranked = quota_candidates(p, cfg, [ag for ag in AGENTS if t.get(ag)],
-                              parse_quota(a.quota))
+    ranked = quota_candidates(p, cfg, candidates, given)
     out["quota_routing"] = ranked
     if ranked.get("message"):
         out["quota_note"] = ranked["message"]
@@ -1135,7 +1143,7 @@ def _route(a) -> dict:
         out["advice"] = ranked["message"]
     elif ranked["tight"] and ranked["eligible"]:
         out["recommended_agent"] = ranked["eligible"][0]
-    for ag in ranked["candidates"]:
+    for ag in dict.fromkeys([*ranked["candidates"], *(ag for ag in AGENTS if t.get(ag))]):
         if t.get(ag):
             out[ag] = t[ag]
     if routing_mode(cfg) == "off":

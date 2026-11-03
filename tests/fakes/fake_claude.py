@@ -1,13 +1,15 @@
 """Stand-in for `claude -p` used by tests (Claude Code 2.1.309 shapes).
 
 --output-format stream-json (+ --verbose): system/init event first, then a final type=result event.
-FAKE_STATUS: done | blocked | blocked_then_done | quota | hang | gone (a resume finds no conversation)
+FAKE_STATUS: done | blocked | blocked_then_done | quota | real_quota | hang | gone (a resume finds no conversation)
+real_quota replays the scrubbed Claude Code 2.1.316 refusal, then exits normally (code 0).
 """
 import json
 import os
 import sys
 import time
 import uuid
+from pathlib import Path
 from fake_log import locked_append  # noqa: E402  (several fakes may append at once)
 
 argv = sys.argv[1:]
@@ -46,6 +48,13 @@ if stream:
     if os.environ.get("FAKE_QUOTA_CLAUDE"):
         print(json.dumps({"type": "rate_limit_event", "rate_limit_info": {
             "unifiedWindows": json.loads(os.environ["FAKE_QUOTA_CLAUDE"])}}))
+if mode == "real_quota":
+    sys.stdout.reconfigure(encoding="utf-8")
+    fixture = Path(__file__).resolve().parents[1] / "data/real_signals/claude_rate_limit_20261031.jsonl"
+    for line in fixture.read_text(encoding="utf-8").splitlines():
+        if line and not line.startswith("#"):
+            print(line, flush=True)
+    sys.exit(0)
 if mode == "hang":
     if stream:   # one request already answered (as stream-json prints it, twice for one message) before it hangs
         msg = {"type": "assistant", "session_id": sid, "message": {"id": "msg_1", "model": "claude-sonnet", "usage": {

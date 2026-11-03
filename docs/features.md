@@ -139,6 +139,38 @@ provides the same data for UI work; this change adds no page or frontend control
 
 ## See it live: `ccx ui`
 
+The home page's **Today** line keeps the weekly totals and adds recorded delegation spend in API-equivalent
+dollars (plus quota units in `[billing] mode = "subscription"`), each vendor's quota use, and the count from
+`ui.waiting()` (cached in the page's Reader until the ledger or recent run files change). Links open today's
+token view with **all projects** selected, quota details and the waiting-work overview. Totals cover all
+projects by the run's local start date, including its review; they exclude lead conversations, tests and
+evaluations and do not split a run across midnight.
+
+Run lists and details show a `max_usd` budget stop and the review that did not run, `review.error`, and quota
+substitutions from the recorded `quota_fallback` or quota attempt. The requested agent comes from the first
+attempt and the actual agent from the final `to`, including saved old records. `substituted_for` by itself does
+not establish a quota cause, even across vendors: without explicit cause or quota evidence its reason remains
+`unknown`. Original status filters remain available alongside budget/review display filters.
+The page reads quota from `/api/data`; the read-only, authenticated `GET /api/quota` exposes the same cached
+readings without blocking for the first scan: use, reset, `read_at`, `freshness` (minutes), `stale`,
+`auto_refresh_min`, `unknown`, `loading`, `read_error`, `reader`, `refresh_command`, and the last probe's
+`error` / `probe_at`. Readings older than
+`[quota] auto_refresh_min` are grey and marked stale (60 minutes when automatic refresh is disabled). Missing
+or reset readings stay **Unknown**: Claude suggests `ccx quota --probe`, Codex `ccx quota --refresh`. Other
+vendors show **no quota reader** with no command. Every vendor remains visible during the first scan with
+**reading…**, or with a short error if the scan fails; these states do not suggest a probe. Opening the page
+never probes. Today's quota windows use the panel's localized names and quota units
+show at most two decimal places.
+
+Role buttons send a structured JSON `task`, `role`, and optional `mode`; multiline text reaches one argv
+argument verbatim, without shell parsing. Editing the generated role wrapper or changing projects keeps this
+structured path; replacing it with a different command such as `ccx say` returns to command preview.
+The preview labels **Read only (read)** or **Write (write)** and lets
+you switch. A configured role mode wins; otherwise `modes.py` infers edit requests, with the matched words shown
+as the basis and ambiguous tasks defaulting to read in the UI. Switching mode requires a fresh preview and
+nonce. The existing I1 allowlist, same-origin checks, length limit and one-time confirmation still apply;
+the confirmed argv is the argv executed. CLI mode inference and existing command input are unchanged.
+
 **The home page is one project on one map** (P2-10): in the middle the agents and what went between them (who sent
 work to whom, the board threads, `ccx discuss` talks; a thread stopped by the machine-message cap or a message that
 asks you is a to-do); on the left the shared memory, linked to the runs whose brief carried a note (read from the
@@ -263,6 +295,23 @@ In Claude Code you say: "make `loader.py` accept a custom delimiter and add test
    decides what else happens: `review` (default) has it reviewed against the task text, `rung` has one stronger
    rung redo it first, `off` only labels it. A read run that answers nothing (an empty summary) is
    not ok: kind `no_answer`, with a hint to ask again on a stronger tier.
+   Receipts use `agent` / `model` / `effort` for the final executor (`model` remains `model/effort` in compact output),
+   retain the initial pick as `requested_agent` / `requested_model`, and add `reassigned claude→codex (quota)` to the
+   one-line result and recap after a quota reassignment; old records without the new fields remain readable.
+   Budget stops say `stopped: budget $X reached, review not run` (or name the fix round when review already ran),
+   review errors say `review not run (<reason>)`, and these summaries use `stopped` / `partial` and `ok?` instead
+   of plain ok while preserving the existing `ok_self_checked` wording and command exit codes.
+   Role receipts, `route` and compact `ccx show` retain `effort=auto → xhigh: <basis>`, including the difficulty
+   score and triggered rubric items or keyword reasons.
+   Failure keeps its original status and `ok=false` even when a notice is present; only successful work reported
+   as done becomes `stopped` for a budget stop, or `partial ok?` for quota reassignment or an unavailable review
+   (including `verdict=not-run` without an error field).
+   Same-vendor model substitution adds a `(model)` note without changing success status; terminal summaries use
+   the same notices/status as the recap and direct uncertain results to inspection rather than a positive verdict.
+   Review fix rounds inherit the initial `requested_*` and quota reassignment, recovered attempts update the
+   top-level executor, and compact receipts retain the worker's original status as `reported_status` when their
+   displayed status changes; `ok` and exit codes retain their execution meaning, and a budget-stopped
+   `ok_self_checked` still says its check is not independent.
 5. **Recover from problems.**
    - Codex reports `blocked`: ccx continues **in the same Codex session** one rung up (high), with no re-briefing.
    - Codex says done but ccx's own `--check` fails: it climbs a rung too (in the same session when the agent stays
@@ -399,6 +448,32 @@ choice; the original dollar fields and API-mode advice are retained.
 Fixed tiers are the fallback. With rubric flags, task-routing picks by success probability and cost per success,
 and calibrates itself from real outcomes.
 
+`[routing] require_ready = true` (default) demotes explicitly logged-out or missing CLIs before the existing
+quota/cost ordering; `false` disables readiness ordering. Rubric picks, keyword-only runs
+and role `other` use this preference. Explicit `--to X` stays on X and refreshes only X.
+`quota_routing.why` names explicit negative evidence, e.g. `codex: installed, not logged in`. With no login
+file and no fresh doctor result, readiness `state: "unknown"` means Unknown, not logged out:
+`no login file found; keychain or env login possible`. Unknown keeps its original priority, including role `other`.
+Ordinary routing retains its existing last-resort fallback when every login result is negative, saying
+`no login evidence for X, trying anyway`; quota pressure still applies.
+For role `other`, if every eligible review vendor has an explicit negative doctor result, use the existing
+same-vendor, different-model fallback. Its `why` says `reviewer vendor claude: no login evidence → same-vendor other model`
+(with the corresponding vendor). A role's model from the old vendor (e.g. `other:haiku:auto` falling back to Codex)
+is replaced by a model from the fallback vendor's tier table, with the actual model and tier explained in `why`.
+Explicit CLI/model choices remain explicit.
+Route's added readiness rows expose only `state` (`ready`, `unknown`, `not_logged_in`) and `why`, without
+cache timestamps, file paths or probe metadata. Existing quota fields and decisions retain main's live
+projections and expiry checks; unchanged evidence does not imply identical quota values at different times.
+Readiness checks only file existence: `CODEX_HOME/auth.json`, `CLAUDE_CONFIG_DIR/.credentials.json`,
+and `~/.gemini/oauth_creds.json` (experimental adapter). DSH checks whether `DEEPSEEK_API_KEY` is set,
+as its adapter has no known login-status command or credential-file signal.
+Fresh boolean login results from `ccx doctor` also count, including OS keychain logins; credential contents are
+never read and routing sends no login request. Snapshots live in `<hub>/ccx/agent-readiness.json`;
+only doctor's results are reused for `quota.auto_refresh_min` (no reuse when 0/false), tied to the canonical
+tool home. File-existence checks run on every call; a file modified after the doctor result invalidates even a
+negative cache immediately. Doctor timeouts/launch errors are Unknown and never cached as logged out. File presence does
+not prove that a token remains valid. Configured providers retain their environment-key and budget gates.
+
 | Tier | Work | Codex | Claude Code | Gemini CLI (experimental) |
 |---|---|---|---|---|
 | T0 | two or three steps | don't delegate | don't delegate | don't delegate |
@@ -493,11 +568,21 @@ Defaults in `<hub>/ccx/tiers.toml` (or the user config):
 ```toml
 [quota]
 auto_refresh_min = 60  # 0 or false disables automatic refresh; --refresh still works
+probe_timeout = 15    # seconds per probe
 avoid_above = 0.8
 routing = "on"        # "off" disables the new quota ordering
 ```
 
 These keys also support `ccx config set/get`, for example `ccx config set quota.routing off`.
+Without `--to`, runs and routes consider both Claude and Codex for refresh, in that order, even if the chosen
+model/tier uses only one vendor. Explicit `--to X` or a role constrained to X refreshes only X; role `other`
+considers the builder and its other-vendor candidates. Login ordering does not narrow the refresh scope.
+`other` is a role assignment, not a `--to` value. Before a probe, stderr says
+`refreshing codex quota…` (or the corresponding CLI); failure prints a warning and keeps the old reading.
+Each probe uses `quota.probe_timeout` (default 15 seconds) and kills its process tree on timeout, including
+Windows npm/cmd shim descendants; the default 60-minute retry cooldown remains, so a second automatic command
+does not probe either vendor again during that interval. A named keyword route keeps its original per-vendor
+output fields while narrowing probes.
 `ccx route` and `ccx run` refresh a subscription automatically only when it has an existing reading and its
 latest reading is older than `auto_refresh_min`. A subscription with no readings is never probed automatically;
 use `ccx quota --refresh` to initialize it. Per-agent `freshness` is the latest reading's age; each window
@@ -543,6 +628,15 @@ check; no improvement in task success or savings has been measured here.
   `--skip-git-repo-check`). `ccx doctor` shows the selected placement. Existing runs keep their recorded paths, so
   changing the setting does not move them or change where undo, stop, resume or session archiving act; remove a
   finished worktree with `git worktree remove <path>` when its changes are safe to discard.
+  Before creating a worktree, ccx fetches only the current branch's upstream (default `[worktree] fetch = true`,
+  `fetch_timeout = 15` seconds), warns if the local branch is behind, and still starts from the local HEAD;
+  a failed or timed-out fetch prints one warning and does not stop the run; timeouts stop Git and its helper
+  processes together. Upstream lookup uses the full branch reference even when a tag has the same name.
+  Set `ccx config set worktree.fetch false` to skip the network request (distance then uses the cached upstream),
+  or `ccx config set worktree.fetch_timeout 30` to change the timeout.
+  The run receipt records `base_behind` when the distance is known (including zero; omitted without an upstream
+  or after a failed fetch), and results retain this field, including the lead's one-line output.
+  When behind, the lead's recap adds `base: N behind upstream`, including `--bg --wait` and `ccx show <id> --wait`.
   Both layouts are recognized in run results, queues and acceptance, lane commits, automatic merging, check-trust
   grouping and UI project grouping, even after the setting changes. Inside placement is experimental: checked
   with fake agent CLIs and Git, not yet with real agent CLIs or Codex project trust inheritance.
@@ -610,6 +704,9 @@ ccx run --role build "Implement the parser"
 `roles` / `roles show` list the merged values and each source file. `set` / `unset` target the global file unless
 `--project` is supplied; unsetting an override reveals the lower-priority assignment. Defaults remain available
 for later reuse. Remove assignments at both scopes to turn roles off.
+
+When the merged role table is empty, JSON stays on stdout; stderr adds three copyable `roles set` / `run --role`
+examples and a reminder that `--project` saves project-level assignments. Nonempty tables keep their output.
 
 An optional `.ccx/briefs/templates/build.md` can contain `Implement: {task}` and an explicit “Only change” scope.
 Only literal `{task}` is substituted, so JSON/code braces survive. The expanded brief includes the project's

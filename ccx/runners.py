@@ -6,9 +6,24 @@ import json
 import os
 import shutil
 import subprocess
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from functools import lru_cache
 from pathlib import Path
+
+
+LAUNCHER_VARS = ("CCX_RUN_ID", "CCX_LEAD_VIEW", "CCX_DISCUSS_ID")
+
+
+def without_launcher_vars(env: Mapping[str, str]) -> dict[str, str]:
+    """Copy an environment without ccx's detached-launch controls.
+
+    These identify the launcher process or select its log output. Inheriting them in checks or agent CLIs
+    can bind nested runs to the wrong receipt or change their default output (notably CCX_LEAD_VIEW=full).
+    Other settings, including the intentional CCX_DEPTH / CCX_ROLE / CCX_PARENT_RUN identity, stay intact.
+    Match case-insensitively on every platform because Windows treats environment names that way.
+    """
+    return {key: value for key, value in env.items() if key.upper() not in LAUNCHER_VARS}
 
 
 AUTH_HINTS = ("401", "unauthorized", "not logged in", "login", "authenticate", "api key")
