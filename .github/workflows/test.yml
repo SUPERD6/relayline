@@ -1,40 +1,52 @@
 name: tests
-# A push to a branch runs a small set (Linux 3.11 + 3.13, Windows 3.11, one package check): on a private repo every
-# minute is billed, macOS at 10x and Windows at 2x; the full matrix on every push most likely used up the free
-# minutes in October 2026 (jobs stopped starting: "spending limit"). The full matrix (3 OS x 3.11-3.13, package on 3 OS) runs on version tags, pull requests and by hand.
-# Pushes that only touch docs don't run.
+# A pull request runs a small set: Windows 3.11 and Ubuntu 3.13 (the oldest Python on the OS every real run used, the
+# newest on Linux), plus the package check on Ubuntu. A push to main, a version tag and a run by hand run the full
+# matrix (3 OS x 3.11-3.13, package on 3 OS), so whatever a pull request did not cover is checked once it lands
+# (CONTRIBUTING says who looks at main's run and what happens when it is red).
+# Why: results come back in minutes and a PR, pushed several times, no longer queues for the few macOS runners a free
+# account gets at once. While the repository was private every minute was billed (macOS 10x, Windows 2x) and the full
+# matrix on every push used up the free minutes in October 2026; if it goes private again, this also keeps the bill
+# small.
+# Pushes to other branches don't run (their pull request does; a branch without one: gh workflow run tests --ref <it>).
+# Pushes to main that only touch docs don't run either. Pull requests have no path filter: the required check must
+# always report.
+# Branch protection needs only `ci-ok`, which passes when every job above it passed, whatever the matrix was, so
+# changing the matrix never means renaming required checks.
 on:
   push:
-    branches: ["**"]
+    branches: [main]
     tags: ["v*"]
-    paths-ignore: ["**.md", "docs/**", "site/**", "LICENSE"]
+    paths-ignore: ["*.md", "docs/**", "site/**", "changes/**", "LICENSE"]   # root *.md only: skills/**/SKILL.md runs
   pull_request:
   workflow_dispatch:
 concurrency:
-  group: tests-${{ github.ref }}
-  cancel-in-progress: true
+  # one group per main commit, so a merge never cancels or replaces the previous commit's full run
+  group: tests-${{ github.ref == 'refs/heads/main' && github.sha || github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 jobs:
   plan:
     runs-on: ubuntu-latest
     outputs:
-      full: ${{ steps.p.outputs.full }}
+      test: ${{ steps.p.outputs.test }}
+      package: ${{ steps.p.outputs.package }}
     steps:
       - id: p
-        run: echo "full=${{ github.event_name != 'push' || startsWith(github.ref, 'refs/tags/') }}" >> "$GITHUB_OUTPUT"
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" = pull_request ]; then
+            echo 'test={"include":[{"os":"windows-latest","python":"3.11"},{"os":"ubuntu-latest","python":"3.13"}]}' >> "$GITHUB_OUTPUT"
+            echo 'package={"os":["ubuntu-latest"]}' >> "$GITHUB_OUTPUT"
+          else
+            echo 'test={"os":["ubuntu-latest","windows-latest","macos-latest"],"python":["3.11","3.12","3.13"]}' >> "$GITHUB_OUTPUT"
+            echo 'package={"os":["ubuntu-latest","windows-latest","macos-latest"]}' >> "$GITHUB_OUTPUT"
+          fi
 
   test:
     needs: plan
+    name: test (${{ matrix.os }}, ${{ matrix.python }})
     strategy:
       fail-fast: false
-      matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
-        python: ["3.11", "3.12", "3.13"]
-        full: ["${{ needs.plan.outputs.full }}"]
-        exclude:
-          - {full: "false", os: macos-latest}
-          - {full: "false", os: windows-latest, python: "3.12"}
-          - {full: "false", os: windows-latest, python: "3.13"}
-          - {full: "false", os: ubuntu-latest, python: "3.12"}
+      matrix: ${{ fromJSON(needs.plan.outputs.test) }}
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -53,14 +65,10 @@ jobs:
   package:
     # build the wheel, install it into a clean venv outside the source tree, run the installed ccx
     needs: plan
+    name: package (${{ matrix.os }})
     strategy:
       fail-fast: false
-      matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
-        full: ["${{ needs.plan.outputs.full }}"]
-        exclude:
-          - {full: "false", os: macos-latest}
-          - {full: "false", os: windows-latest}
+      matrix: ${{ fromJSON(needs.plan.outputs.package) }}
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -77,3 +85,15 @@ jobs:
           if [ -x "$RUNNER_TEMP/venv/Scripts/python.exe" ]; then B="$RUNNER_TEMP/venv/Scripts"; else B="$RUNNER_TEMP/venv/bin"; fi
           "$B/python" -m pip install dist/*.whl
           cd "$RUNNER_TEMP" && "$B/python" "$GITHUB_WORKSPACE/tests/smoke_installed.py" "$B/ccx"
+
+  ci-ok:
+    # the one check branch protection needs. `always()` so it reports (and fails) when a job above failed or was
+    # cancelled; a skipped required check would count as passed.
+    if: always()
+    needs: [plan, test, package]
+    runs-on: ubuntu-latest
+    steps:
+      - shell: bash
+        run: |
+          echo "plan=${{ needs.plan.result }} test=${{ needs.test.result }} package=${{ needs.package.result }}"
+          [ "${{ needs.plan.result }}" = success ] && [ "${{ needs.test.result }}" = success ] && [ "${{ needs.package.result }}" = success ]
