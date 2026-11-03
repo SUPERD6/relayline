@@ -93,7 +93,8 @@ def test_summary_completion_and_failed_cost_cli(tmp_path):
     assert clean["spend_all_started"] == clean["cost_per_success_all"] == 13.5
     assert clean["missing_cost_n"] == 1
     assert report["unclean"]["started"] == report["env_unknown"]["started"] == 1
-    assert report["batch_cost"] == {"started": 7, "spend_all_started": 73.5, "missing_cost_n": 1}
+    assert report["batch_cost"] == {"started": 7, "spend_all_started": 73.5, "missing_cost_n": 1,
+                                    "spend_complete": False}
     assert report["by_arm"]["discuss"]["clean"] == clean
     assert P.summarize(data, True)["completion_and_cost"] == report
     assert summary["verdict"] == "Unknown" and summary["arms"]["discuss"]["n"] == 3
@@ -108,6 +109,43 @@ def test_summary_completion_infrastructure_receipt_is_not_valid(kind):
     assert clean["started"] == 1 and clean["valid_completion"] == clean["completion_unknown"] == 0
     assert clean["unknown"] == clean["missing_cost_n"] == 1
     assert clean["spend_all_started"] is None and clean["cost_per_success_all"] is None
+
+
+@pytest.mark.parametrize("error", [
+    "RuntimeError: lead must dispatch exactly one ccx run without edits or retries",
+    "RuntimeError: discussion protocol not met",
+])
+def test_review_protocol_error_preserves_worker_completion_cli(tmp_path, error):
+    row = {"arm": "discuss", "env_clean": True, "protocol_ok": False, "ok": None, "outcome": "Unknown",
+           "rc": 0, "error": error, "usd": 0.7, "worker_results": [{"status": "done", "kind": "ok"}]}
+    path = tmp_path / "protocol.jsonl"
+    path.write_text(json.dumps(row) + "\n", encoding="utf-8", newline="")
+    result = invoke([EVAL / "p13_discuss.py", "summary", "--out", path], tmp_path)
+    assert result.returncode == 0, result.stdout + result.stderr
+    summary, _end = json.JSONDecoder().raw_decode(result.stdout)
+    report = summary["completion_and_cost"]
+    clean = report["clean"]
+    assert clean["started"] == clean["valid_completion"] == 1 and clean["completion_unknown"] == 0
+    assert clean["right"] == 0 and clean["unknown"] == 1
+    assert clean["spend_complete"] is True and report["batch_cost"]["spend_complete"] is True
+    assert summary["arms"]["discuss"]["n"] == 0 and summary["arms"]["discuss"]["unknown"] == 1
+    assert summary["verdict"] == "Unknown"
+
+
+@pytest.mark.parametrize("error,worker,rc,want_unknown", [
+    ("RuntimeError: lead failed: rc=-9 timeout", {"status": "done", "kind": "ok"}, -9, 0),
+    ("OSError: environment could not start", {"status": "done", "kind": "ok"}, 0, 0),
+    ("RuntimeError: lead must dispatch exactly one ccx run without edits or retries",
+     {"status": "done", "kind": "quota"}, 0, 0),
+    ("RuntimeError: lead must dispatch exactly one ccx run without edits or retries", {"status": "done"}, 0, 1),
+    ("RuntimeError: lead must dispatch exactly one ccx run without edits or retries", None, 0, 0),
+])
+def test_review_protocol_exception_does_not_hide_infrastructure(error, worker, rc, want_unknown):
+    row = {"arm": "discuss", "env_clean": True, "protocol_ok": False, "ok": None,
+           "rc": rc, "error": error, "worker_results": [worker] if worker else []}
+    clean = P.summarize([row])["completion_and_cost"]["clean"]
+    assert clean["valid_completion"] == 0 and clean["completion_unknown"] == want_unknown
+    assert clean["spend_complete"] is False
 
 
 def test_preregistered_thresholds_and_unknowns():

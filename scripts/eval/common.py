@@ -174,10 +174,18 @@ def spent(rows: list[dict]) -> float:
 def valid_completion(row: dict) -> bool | None:
     """Delivery evidence, independent of hidden tests and experiment protocol compliance.
 
-    A recorded terminal receipt or successful Claude result event is evidence; an ok/score,
+    A terminal receipt with a normal kind or successful Claude result event is evidence; an ok/score,
     run id, exit code or protocol flag alone is not. Missing legacy evidence stays Unknown.
     """
-    if row.get("error") or row.get("is_error") or any(row.get(k) is True for k in ("timeout", "quota", "env_stop")):
+    # P13 records protocol violations as errors too, after the worker may have delivered.
+    # Only these known protocol errors defer to its saved receipts; infrastructure errors still stop delivery.
+    protocol_error = row.get("error") in (
+        "RuntimeError: lead must dispatch exactly one ccx run without edits or retries",
+        "RuntimeError: discussion protocol not met",
+    ) and bool(row.get("worker_results"))
+    if row.get("error") and not protocol_error:
+        return False
+    if row.get("is_error") or any(row.get(k) is True for k in ("timeout", "quota", "env_stop")):
         return False
     if row.get("rc") is not None and row["rc"] not in (0, 2):
         return False
@@ -192,7 +200,9 @@ def valid_completion(row: dict) -> bool | None:
     if row.get("worker_results"):
         states = [valid_completion(r) for r in row["worker_results"]]
         return False if False in states else True if all(s is True for s in states) else None
-    if status == "done" or subtype == "success":
+    if subtype == "success":
+        return True
+    if status == "done" and kind is not None:
         return True
     return None
 
@@ -219,8 +229,9 @@ def _unit_spend(row: dict) -> tuple[float | None, bool]:
 def _started_cost(rows: list[dict]) -> dict:
     costs = [_unit_spend(r) for r in rows]
     known = [cost for cost, _missing in costs if cost is not None]
+    missing = sum(missing for _cost, missing in costs)
     return {"started": len(rows), "spend_all_started": round(sum(known), 6) if known else (0.0 if not rows else None),
-            "missing_cost_n": sum(missing for _cost, missing in costs)}
+            "missing_cost_n": missing, "spend_complete": missing == 0 and bool(known)}
 
 
 def completion_cost_summary(rows: list[dict], *, right, arm=lambda r: r.get("arm")) -> dict:

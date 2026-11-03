@@ -354,7 +354,8 @@ def m3_unit(u: dict, a, iso: PF.Unit, env: dict, job: PF.Job) -> dict:
     kids.update(spawn_calls(iso.codex_home, rec.get("session_id")))
     seen = rec.get("parallel_fork_turns")
     return {"rc": rc, "wall_s": wall, "stderr": err[-400:] if rc else "", "ok": ok, "pytest": tail,
-            "right": int(ok), "ccx_ok": res.get("ok"), "status": res.get("status"), "run_id": res.get("run_id"),
+            "right": int(ok), "ccx_ok": res.get("ok"), "status": res.get("status"),
+            "kind": res.get("kind", rec.get("kind")), "run_id": res.get("run_id"),
             "children": kids, "fork_none_in_prompt": told if sent.exists() else None,
             "switch_seen": seen, "moved": bool(rec.get("parallel_fork_turns_moved")),
             "switch_ok": seen == u["arm"] and not rec.get("parallel_fork_turns_moved")
@@ -388,7 +389,8 @@ def m5_unit(u: dict, a, iso: PF.Unit, env: dict, job: PF.Job) -> dict:
     if not res.get("run_id") or not attached:
         raise RuntimeError(f"no run or no shared context attached (rc {rc}, {ctx.get('why')}): {err[-200:]}")
     return {"rc": rc, "wall_s": wall, "stderr": err[-400:] if rc else "", "ok": sc["ok"], "pytest": sc["pytest"],
-            "right": int(sc["ok"]), "ccx_ok": res.get("ok"), "status": res.get("status"), "run_id": res.get("run_id"),
+            "right": int(sc["ok"]), "ccx_ok": res.get("ok"), "status": res.get("status"),
+            "kind": res.get("kind", rec.get("kind")), "run_id": res.get("run_id"),
             "shared_context": keep, "context_attached": attached, "switch_seen": "deduped" in ctx,
             "switch_ok": attached and ("deduped" in ctx) == (u["arm"] == "dedupe"), **run_stats(iso.hub)}
 

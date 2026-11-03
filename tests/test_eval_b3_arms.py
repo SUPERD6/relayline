@@ -115,13 +115,13 @@ def _row(exp, task, rep, arm, **kw):
 def test_summary_completion_and_failed_cost_cli(tmp_path):
     import subprocess
 
-    data = [_row("m3", "right", 1, "all", status="done", rc=0, usd=1, env_clean=True, review_usd=0.4),
-            _row("m3", "wrong", 1, "all", status="done", rc=2, right=0, usd=2, env_clean=True),
+    data = [_row("m3", "right", 1, "all", status="done", kind="ok", rc=0, usd=1, env_clean=True, review_usd=0.4),
+            _row("m3", "wrong", 1, "all", status="done", kind="check_failed", rc=2, right=0, usd=2, env_clean=True),
             _row("m3", "failed", 1, "all", rc=-9, error="timeout", right=None, usd=7, env_clean=True),
-            _row("m3", "missing", 1, "all", status="done", rc=0, right=0, usd=None, env_clean=True),
+            _row("m3", "missing", 1, "all", status="done", kind="ok", rc=0, right=0, usd=None, env_clean=True),
             _row("m3", "legacy", 1, "all", right=0, usd=3, env_clean=True),
-            _row("m3", "unclean", 1, "all", status="done", rc=0, usd=20, env_clean=False),
-            _row("m3", "env-unknown", 1, "all", status="done", rc=0, usd=40),
+            _row("m3", "unclean", 1, "all", status="done", kind="ok", rc=0, usd=20, env_clean=False),
+            _row("m3", "env-unknown", 1, "all", status="done", kind="ok", rc=0, usd=40),
             _row("m5", "other-exp", 1, "keep", usd=100)]
     path = tmp_path / "results.jsonl"
     path.write_text("".join(json.dumps(r) + "\n" for r in data), encoding="utf-8", newline="")
@@ -138,7 +138,8 @@ def test_summary_completion_and_failed_cost_cli(tmp_path):
     assert clean["spend_all_started"] == clean["cost_per_success_all"] == 13
     assert clean["missing_cost_n"] == 1
     assert report["unclean"]["started"] == report["env_unknown"]["started"] == 1
-    assert report["batch_cost"] == {"started": 7, "spend_all_started": 73, "missing_cost_n": 1}
+    assert report["batch_cost"] == {"started": 7, "spend_all_started": 73, "missing_cost_n": 1,
+                                    "spend_complete": False}
     assert report["by_arm"]["all"]["clean"] == clean
     assert summary["pairs"] == 0 and summary["verdict"] == "Unknown"
     assert summary["all"]["usd"] == 0  # legacy metrics still require a complete pair
@@ -155,6 +156,54 @@ def test_summary_completion_m4_right_counts_whole_units_and_legacy_is_unknown():
     assert unknown_env["right"] == unknown_env["right_unknown"] == 1
     assert unknown_env["spend_all_started"] == unknown_env["cost_per_success_all"] == 3
     assert unknown_env["missing_cost_n"] == 1 and unknown_env["right_over_valid"] is None
+
+
+@pytest.mark.parametrize("exp,task,arm", [("m3", "pg-a", "all"), ("m5", "t8-reopened", "keep")])
+@pytest.mark.parametrize("source", ["receipt", "record"])
+@pytest.mark.parametrize("kind", ["check_failed", "env", "quota", "timeout"])
+def test_review_b3_records_receipt_kind(tmp_path, monkeypatch, exp, task, arm, source, kind):
+    from types import SimpleNamespace
+    from common import valid_completion
+
+    iso = SimpleNamespace(repo=tmp_path / "repo", hub=tmp_path / "hub", codex_home=None,
+                          claude_dir=tmp_path / "claude", work=tmp_path, key="fixture")
+    sent = iso.hub / "ccx/runs/r/prompt.md"
+    sent.parent.mkdir(parents=True)
+    sent.write_text("fixture", encoding="utf-8", newline="")
+    receipt = {"run_id": "r", "status": "done", "ok": False}
+    if source == "receipt":
+        receipt["kind"] = kind
+    record = {"kind": kind if source == "record" else "ok", "parallel_fork_turns": "all",
+              "shared_context": {"source": "fixture", "chars": 1}}
+    monkeypatch.setattr(B, "make_repo", lambda *a: iso.repo)
+    monkeypatch.setattr(B.PF, "run", lambda *a, **kw: (json.dumps(receipt), "", 2, []))
+    monkeypatch.setattr(B.r2, "record", lambda *a: record)
+    monkeypatch.setattr(B, "hidden_ok", lambda *a: (False, "1 failed"))
+    monkeypatch.setattr(B, "score", lambda *a: {"ok": False, "pytest": "1 failed"})
+    monkeypatch.setattr(B, "run_stats", lambda *a: {"run_ids": [], "first_input": 0, "usd": 1})
+    monkeypatch.setattr(B, "children_stats", lambda *a: {"first_input": 0})
+    monkeypatch.setattr(B, "spawn_calls", lambda *a: {"spawn_calls": 0, "fork_none_calls": 0})
+    row = B.UNIT[exp](_unit(exp, task, arm), _A, iso, {}, B.PF.Job())
+    assert row["kind"] == kind
+    assert valid_completion(row) is (kind == "check_failed")
+
+
+def test_review_b3_kind_and_spend_flags_cli(tmp_path):
+    import subprocess
+
+    rows = [_row("m3", "ok", 1, "all", status="done", kind="ok", usd=1, env_clean=True),
+            _row("m3", "quota", 1, "all", status="done", rc=2, kind="quota", right=0, usd=2, env_clean=True),
+            _row("m3", "old", 1, "all", status="done", rc=2, right=0, usd=None, env_clean=True)]
+    path = tmp_path / "receipts.jsonl"
+    path.write_text("".join(json.dumps(r) + "\n" for r in rows), encoding="utf-8", newline="")
+    result = subprocess.run([sys.executable, str(Path(B.__file__)), "summary", "--out", str(path), "--exp", "m3"],
+                            cwd=tmp_path, capture_output=True, text=True, encoding="utf-8")
+    assert result.returncode == 0, result.stdout + result.stderr
+    report = json.loads(result.stdout)["m3"]["completion_and_cost"]
+    clean = report["clean"]
+    assert clean["valid_completion"] == clean["completion_unknown"] == 1
+    assert clean["spend_complete"] is False and report["batch_cost"]["spend_complete"] is False
+    assert clean["spend_all_started"] == clean["cost_per_success_all"] == 3
 
 
 def test_rule_pass_fail_and_unknown():

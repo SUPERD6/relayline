@@ -1104,7 +1104,7 @@ def direct_unit(u: dict, a, repo: Path, hub: Path, env: dict | None = None, job:
     rec = r2.record(hub, res.get("run_id"))
     row = {"rc": rc, "wall_s": round(time.time() - t0, 1), "usd": cost["usd"], "ccx_usd": cost["usd"],
            "ccx_review_usd": cost["review_usd"], "ccx_run_ids": cost["run_ids"], "model": res.get("model"),
-           "status": res.get("status"), "ccx_ok": res.get("ok"),
+           "status": res.get("status"), "kind": res.get("kind", rec.get("kind")), "ccx_ok": res.get("ok"),
            "verdicts": [v.get("verdict") for v in (rec.get("first_review"), rec.get("review")) if v],
            "stderr": err if rc else ""}
     if cost["run_ids"]:
@@ -3051,7 +3051,7 @@ def cmd_export(a) -> int:
     keep = ("tag", "taskset", "round", "task", "arm", "ok", "pytest", "rc", "wall_s", "usd", "lead_usd", "lead_only_usd",
             "sub_usd", "by_model_usd", "ccx_usd", "ccx_review_usd", "ccx_agents", "lead_requests", "lead_tokens",
             "lead_output_tokens", "lead_tools", "lead_edits", "agent_calls", "ccx_runs", "ccx_resumes", "rework",
-            "delegated", "context_attached", "files_changed", "diffstat", "model", "status", "verdicts", "error",
+            "delegated", "context_attached", "files_changed", "diffstat", "model", "status", "kind", "verdicts", "error",
             "env_clean", "fingerprint", "lead_model", "lead_effort", "lead_pick", "lead_b", "lead_band", "phases", "tier", "tier_plan", "ref_size",
             "actual_mode", "misband", "misband_overall", "followed_plan", "ccx_check_passed", "may_be_wrong",
             "ccx_routes", "bookkeeping_error", "lead_usage", "timeline", "skill_used", "skills_used",
