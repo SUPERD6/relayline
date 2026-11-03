@@ -88,8 +88,9 @@ sub-agent. The extra requests came from the habits below.
   re-worded as "earliest position" came back wrong). Don't read the code base, README, STATUS or docs to write
   it: the sub-agent reads them (and `.ccx/context.md`) on the cheaper model. Reuse an existing `.ccx/context.md`;
   update it only when keeping that context is part of what you were asked to do. Shape: `references/brief-template.md`.
-  For work in this repository, add `paths: compare and assert through workspace.canonical()` to the constraints;
-  use it for compared, printed and recorded paths and test expectations, not raw `tmp_path` values.
+  Only for work in the relayline (ccx) repository itself, add
+  `paths: compare and assert through workspace.canonical()` to the constraints; use it for compared, printed
+  and recorded paths and test expectations, not raw `tmp_path` values. Other projects use their own path conventions.
 - **Long or multi-file work: one call,** `ccx run ... --bg --wait 540` with your shell tool's timeout at 600000 ms
   (Claude Code's Bash limit is 10 minutes; a Codex or DeepSeek lead sets `--wait` about a minute under its own
   tool-call timeout). It prints the run_id at once (stderr) and the final result in the same call, like a plain
