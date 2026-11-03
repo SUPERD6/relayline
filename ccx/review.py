@@ -12,10 +12,13 @@ reviewed again; still failing -> kind review_failed, for the lead to decide."""
 from __future__ import annotations
 
 import json
+import os
 import re
 import subprocess
 from pathlib import Path
 from typing import TYPE_CHECKING
+
+from .runners import without_launcher_vars
 
 if TYPE_CHECKING:
     from .config import Paths
@@ -105,7 +108,8 @@ _OUT_OF_SCOPE = re.compile(r"^\s*\[must\][\s:—–-]*[(\[]?\s*(out[- ]of[- ]sco
 def _git(cwd: Path, *args: str) -> str:
     try:
         r = subprocess.run(["git", *args], cwd=cwd, capture_output=True, text=True, timeout=30,
-                           stdin=subprocess.DEVNULL, encoding="utf-8", errors="replace")
+                           stdin=subprocess.DEVNULL, encoding="utf-8", errors="replace",
+                           env=without_launcher_vars(os.environ))
         return r.stdout if r.returncode == 0 else ""
     except (OSError, subprocess.TimeoutExpired):
         return ""

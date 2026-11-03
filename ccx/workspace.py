@@ -292,12 +292,15 @@ def run_check(cmd: str, cwd: Path, timeout: int = 900, tail_chars: int = 800) ->
     """The lead's acceptance command, run by ccx after the sub-agent says it is done (not trusting its report).
     `broken` (status check_broken) = the command could not test anything, which is not a verdict on the work.
     `tail_chars`: how much of the end of its output is kept (a focused retry hands the sub-agent ~2000)."""
+    from .runners import without_launcher_vars
+
     t0 = time.time()
     ran = quote_k_expr(cmd)
     ran = _expand_globs(ran, cwd) if os.name == "nt" else ran
     try:
         r = subprocess.run(ran, shell=True, cwd=cwd, capture_output=True, text=True, timeout=timeout,
-                           stdin=subprocess.DEVNULL, encoding="utf-8", errors="replace")
+                           stdin=subprocess.DEVNULL, encoding="utf-8", errors="replace",
+                           env=without_launcher_vars(os.environ))
         code, tail = r.returncode, (r.stdout + r.stderr)[-tail_chars:]
     except subprocess.TimeoutExpired:
         code, tail = -1, f"timed out after {timeout}s"
