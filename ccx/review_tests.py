@@ -6,12 +6,14 @@ files and asks the reviewer to check scope and test correctness before blocking.
 from __future__ import annotations
 
 import json
+import math
 import os
 from pathlib import Path
 import shutil
 import subprocess
 import sys
 import tempfile
+import unicodedata
 
 
 def mode(rc: dict) -> str:
@@ -28,6 +30,16 @@ def unknown(cause: str, **extra) -> dict:
     return {"verdict": "unknown", "issues": [], "review_mode": "tests",
             "tests_written": 0, "tests_run": 0, "tests_failed": 0,
             "unknown_reasons": [cause], **extra}
+
+
+def normalized_quote(text: str) -> str:
+    """Ignore whitespace/typographic punctuation, never paraphrase task words."""
+    return " ".join("".join(c for c in text if not unicodedata.category(c).startswith("P")
+                            and c != "`").split())
+
+
+def task_quote(quote, task: str) -> bool:
+    return isinstance(quote, str) and bool(normalized_quote(quote)) and normalized_quote(quote) in normalized_quote(task)
 
 
 def task_text(p, req, record: dict) -> str:
@@ -76,8 +88,11 @@ WRITE = """[ccx test review] Independently test this implementation against the 
 This folder contains source only. Do not seek hidden tests or the implementer's tests.
 Do not change source. Write independent Python unittest tests in checks/test_*.py.
 Use only behaviours explicitly stated in the task. Do not invent robustness requirements.
-Write manifest.json as {{"cases": [{{"file": "test_name.py", "task_quote": "exact task words"}}]}}.
+Write ./manifest.json at the workspace root (outside checks/) as
+{{"cases": [{{"file": "test_name.py", "task_quote": "exact task words"}}]}}.
+List each test file once. Copy task words; only whitespace and punctuation differences are accepted.
 Each listed file must contain unittest.TestCase tests. ccx will really execute each file.
+Do not run tests yourself or ask for execution approval: ccx executes them after you finish.
 If tests cannot be written or dependencies are unavailable, leave cases empty and put
 the reason in summary. Do not claim pass. Do not put test source in your JSON answer,
 only filenames and a short summary. Do not run the implementation's tests.
@@ -97,6 +112,10 @@ open_questions as a JSON object encoded as a string:
 {{"file":"test_name.py","task_quote":"exact task words","test_correct":true}}.
 Omit tests that are wrong, out of scope, or uncertain. No test code in the answer.
 """
+
+FINISH = ("Read the requested source and checks with file tools. Do not run tests or builds, or ask for execution "
+          "approval: ccx owns test execution. Return filenames and a short summary; commands_run stays empty and "
+          "verification is 'not-run'.")
 
 # This controller is written AFTER the reviewer has finished. Test assertion
 # failures/runtime errors and loading/environment errors are separate machine counts.
@@ -132,29 +151,46 @@ def test_env() -> dict[str, str]:
 
 def execute(tree: Path, evidence: Path, task: str, timeout: float = 60) -> dict:
     out = unknown("no executable task-derived tests")
+    evidence.mkdir(parents=True, exist_ok=True)
+    # The original prompt left the manifest's directory ambiguous. Accept the
+    # checks-local spelling as well, but never replace a malformed root manifest.
+    manifest_path = tree / "manifest.json"
+    if not manifest_path.exists():
+        manifest_path = tree / "checks" / "manifest.json"
     try:
-        manifest = json.loads((tree / "manifest.json").read_text(encoding="utf-8"))
+        raw_manifest = manifest_path.read_text(encoding="utf-8")
+        (evidence / "manifest.json").write_text(raw_manifest, encoding="utf-8", newline="")
+        out["manifest_path"] = str(evidence / "manifest.json")
+        manifest = json.loads(raw_manifest)
         cases = manifest["cases"]
         if not isinstance(cases, list):
             raise ValueError("cases must be a list")
-    except (OSError, ValueError, KeyError, TypeError):
+    except (OSError, ValueError, KeyError, TypeError) as exc:
+        out["manifest_error"] = f"{manifest_path.relative_to(tree)}: {type(exc).__name__}"
         return out
-    evidence.mkdir(parents=True, exist_ok=True)
     controller = evidence / "runner.py"
     controller.write_text(RUNNER, encoding="utf-8", newline="")
-    out.update(unknown_reasons=[], evidence=[], tests_written=0)
-    seen = set()
+    out.update(unknown_reasons=[], evidence=[], tests_written=0, manifest_path=str(evidence / "manifest.json"),
+               manifest_rejections=[])
+    files = {}
     for case in cases:
         if not isinstance(case, dict):
             out["unknown_reasons"].append("invalid test manifest entry")
             continue
         name, quote = case.get("file"), case.get("task_quote")
-        if (not isinstance(name, str) or Path(name).name != name or not name.startswith("test_")
-                or not name.endswith(".py") or name in seen or not isinstance(quote, str)
-                or not quote.strip() or quote not in task):
+        valid_name = (isinstance(name, str) and Path(name).name == name and name.startswith("test_")
+                      and "\\" not in name and "/" not in name and name.endswith(".py"))
+        if not valid_name or not task_quote(quote, task):
             out["unknown_reasons"].append("test missing a valid filename or exact task quote")
+            out["manifest_rejections"].append({"file": name, "reason": "invalid filename" if not valid_name else "non-task quote"})
             continue
-        seen.add(name)
+        # Several task quotes may legitimately refer to one suite. Validate every
+        # quote, then execute the file once; duplicates are not missing evidence.
+        files.setdefault(name, [])
+        if quote not in files[name]:
+            files[name].append(quote)
+    for name, quotes in files.items():
+        quote = quotes[0]
         source = tree / "checks" / name
         if not source.is_file() or source.is_symlink():
             out["unknown_reasons"].append(f"{name}: test file missing")
@@ -176,7 +212,7 @@ def execute(tree: Path, evidence: Path, task: str, timeout: float = 60) -> dict:
             failed = n["failed"] + n["errors"]
             out["tests_failed"] += failed
             out["evidence"].append({"file": str(evidence / name), "output": str(output),
-                                    "task_quote": quote, "failed": failed, "exit": proc.returncode})
+                                    "task_quote": quote, "task_quotes": quotes, "failed": failed, "exit": proc.returncode})
             if proc.returncode or n["load_errors"] or n["skipped"] or not n["run"]:
                 out["unknown_reasons"].append(f"{name}: test error, skip, or no tests collected")
         except (OSError, ValueError, KeyError, subprocess.TimeoutExpired) as exc:
@@ -199,11 +235,15 @@ def run_review(req, p, cfg: dict, record: dict, cwd: Path, run_dir: Path,
     run_agent = run_agent or run
     record["review_test_mode"] = "tests"
     task = task_text(p, req, record)
-    out = unknown("no reviewer from another vendor installed", independent=False, usd=0.0, reason=why)
+    out = unknown("no reviewer from another vendor installed", independent=False, usd=0.0, native_usd=0.0,
+                  reviewer_calls=[], reason=why)
     record["review"] = out
     if not candidates:
         return
     agent, model, effort = candidates[0]
+    rc = cfg.get("review") or {}
+    model = rc.get("tests_model") or model
+    effort = rc.get("tests_effort") or effort
     out.update(by=f"{agent}:{model}:{effort}", independent=not same_vendor(agent, req.provider or req.to, cfg))
     if not out["independent"]:
         out["unknown_reasons"] = ["same vendor: review does not count as independent"]
@@ -224,8 +264,16 @@ def run_review(req, p, cfg: dict, record: dict, cwd: Path, run_dir: Path,
                 rev = run_agent(Request(to=agent, model=model, effort=effort, tier="auto", mode=permission,
                                         cwd=tree, brief=text, caller="ccx-test-review", escalate=False,
                                         fallback=False, review="off", allow_subagents=False, ephemeral=True,
-                                        share_context="off", label=f"review:{record['run_id']}"), p)
+                                        share_context="off", finish_note=FINISH, label=f"review:{record['run_id']}"), p)
                 out["usd"] = round(out["usd"] + sum(a.get("ae_usd") or 0 for a in rev.get("attempts", [])), 6)
+                costs = [a.get("cost_usd") for a in rev.get("attempts", [])]
+                native = sum(costs) if costs and all(type(c) in (int, float) and math.isfinite(c) and c >= 0
+                                                   for c in costs) else None
+                out["native_usd"] = (round(out["native_usd"] + native, 6)
+                                     if native is not None and out["native_usd"] is not None else None)
+                out["reviewer_calls"].append({"model": model, "effort": effort, "mode": permission,
+                                              "run_id": rev.get("run_id"), "ok": bool(rev.get("ok")),
+                                              "error": rev.get("error"), "native_usd": native})
                 out["run_id"] = rev.get("run_id")
                 return rev
 
@@ -247,11 +295,14 @@ def run_review(req, p, cfg: dict, record: dict, cwd: Path, run_dir: Path,
                         try:
                             item = json.loads(item)
                             quote = item.get("task_quote")
-                            if item.get("test_correct") is True and isinstance(quote, str) and quote.strip() and quote in task:
+                            if item.get("test_correct") is True and task_quote(quote, task):
                                 confirmed.extend(e for e in ev if Path(e["file"]).name == item.get("file")
-                                                 and e["task_quote"] == quote)
-                        except (ValueError, TypeError):
+                                                 and any(normalized_quote(q) == normalized_quote(quote)
+                                                         for q in e["task_quotes"]))
+                        except (ValueError, TypeError, AttributeError):
                             continue
+                else:
+                    out["confirmation_error"] = rev.get("error") or rev.get("kind") or "reviewer unavailable"
                 if confirmed:
                     out.update(verdict="issues", issues=[f"[must] {e['task_quote']} — {e['file']}; actual output: {e['output']}"
                                                          for e in confirmed])

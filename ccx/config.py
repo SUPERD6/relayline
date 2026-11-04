@@ -314,6 +314,8 @@ ROLE_DEFAULTS = {"mode": ("read", "write"), "review": ("auto", "on", "off"),
 
 SETTINGS = {   # key -> (type, help). Only these can be set with `ccx config set`.
     "review.mode": (str, "read (default) | tests (experimental task-derived tests); legacy auto/on/off remain valid"),
+    "review.tests_model": (str, "task-derived test reviewer model; empty keeps the selected cross-vendor candidate"),
+    "review.tests_effort": (str, "task-derived test reviewer effort; empty keeps the selected candidate's effort"),
     "delegate.user_words": (bool, "experimental: attach the Claude lead's latest real user message (default false)"),
     "delegate.user_words_max_chars": (int, "maximum retained original-wording characters (default 8000)"),
     # Arbitrary roles.<name> and roles.defaults.<name> mode/worktree/review/check use ccx.roles

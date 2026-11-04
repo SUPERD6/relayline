@@ -7,6 +7,8 @@
 没有删除命令或选项，没有改已有退出码。
 
 复用现有的跨厂商审查员选择。同厂商候选明确标 `independent=false` 和 Unknown，不运行。
+`review.tests_model`、`review.tests_effort` 仅覆盖测试审查候选的模型和 effort，默认均为空，
+沿用原候选。模型必须属于已选审查员厂商；不会开启测试模式，也不影响 read 审查。
 依据已记录的 `user_task`，没有才用原始 brief；修复轮也回到原任务。
 共享上下文和实现者自写测试的结果不作为任务标准。
 `ccx run --user-task-file original.txt` 可单独提供 UTF-8 原话，与实现者 brief 分开。
@@ -15,7 +17,10 @@
 程序调用传 `Request.user_task`；回放从收据经隔离任务文件传入该字段，不再只依赖实现者 brief。
 
 审查员拿到临时源码副本，其中没有 Git 历史、`.ccx`、项目指令或实现者测试。
-它在 `checks/` 写独立 Python unittest，在 `manifest.json` 写文件名和任务原文引句。
+它在 `checks/` 写独立 Python unittest，在工作目录根部的 `manifest.json` 写文件名和任务原文引句。
+兼容此前有歧义的 `checks/manifest.json`，但仅在根部 manifest 不存在时回退。
+引句必须在规范化空白和标点（含 Markdown 反引号）后仍为原文子串；不接受改写、修改词语或数字、
+纯标点引用。同一文件的每条引用都要校验，允许对应多个有效引句，文件只执行一次。
 ccx 在独立 Python 进程里实际执行。断言失败或测试方法内抛异常后，审查员先检查测试是否只测任务明确要求的行为、
 测试的预期和准备工作是否正确。只有确认的实现错误才进入原有修复和拦截流程。
 没写出测试、收集或导入错误、跳过、超时、审查员不可用、失败未确认均为 Unknown。
@@ -31,6 +36,10 @@ Unknown 是新的审查结果，收据有 `needs_lead` 提示，既不是 pass�
 生成的测试与原有验收命令一样，以当前用户的 Python 权限执行；源码副本是证据边界，不是操作系统沙箱。
 测试子进程仅继承运行环境白名单：PATH、Windows 系统和命令查找变量、临时目录、语言与时区变量，
 再加 `PYTHONDONTWRITEBYTECODE=1`；不继承父进程的 API key、token 或其他任意变量。
+审查员不再自行跑测试，由控制器负责执行。证据保留 manifest、拒绝诊断和确认请求错误。
+新增 `reviewer_calls` 记录每次请求的模型、effort、权限模式、run ID 和结果；
+`native_usd` 累加 CLI 报告的原生费用，任一次费用未知则为 null。
+既有 `usd` 仍是配置价格算出的 API 等价估算，CLI 实际换模型时可能与原生费用不同。
 
 ## pg3b 回放
 
@@ -58,13 +67,23 @@ worktree 中没有被忽略的结果文件时，自动读取主检出的对应�
 沙箱账户读取统筹账户拥有的克隆时，可能需要仅对该路径临时设置 Git `safe.directory`；不改全局配置。
 可传 `--exercise-source CLONE`，或与 r5 相同的 `--ext-cache DIR`（其下放 `polyglot`、`polyglot.git`，
 也接受 `polyglot-benchmark` 或 `polyglot-benchmark.git`）。
-缺材料时打印一条供统筹执行的 `git clone --bare` 命令，脚本不执行。尚未真跑这 29 道题。
+缺材料时打印一条供统筹执行的 `git clone --bare` 命令，脚本不执行。以上审计步骤没有调用模型；
+随后首轮真跑的结果见下文诊断。
 
 真跑必须显式加 `--run --pin-commit SHA --budget USD`；`--wait-quiet MINUTES` 复用 r5 空闲等待。
 每个单元开跑前保留 `--unit-cap`（默认 $0.10），丢失响应也不退还保留额。
 最多两次 Claude 请求，各自用原生 `--max-budget-usd` 限制在单元上限的一半；
 没有原生美元上限的 CLI 记 Unknown。脚本限制启动保留额并传递厂商原生上限，不能承诺比 CLI 自身
-更严格的计费上限。金额为 API 等价美元，不是订阅账单；真实 CLI 的预算和隔离行为尚未实测。
+更严格的计费上限。金额为 API 等价美元，不是订阅账单；修复后配置的真实预算和隔离行为尚未实测。
+
+可用 `--reviewer-model sonnet --reviewer-effort medium` 固定模型和 effort，默认均为空。
+保留数字写法 `--unit-cap 0.10`，也支持重复指定模型上限，如
+`--unit-cap 0.10 --unit-cap sonnet=0.40`。模型上限必须搭配 `--reviewer-model`，防止按错模型预留预算。
+包括未运行和 Unknown 单元在内，每行均记录请求覆盖值和实际单元上限；运行后 `by` 和
+`reviewer_calls` 记录选中的审查员。回放确认使用 `dontAsk` 加 Read/Grep/Glob，替代 `plan`：
+首轮 4 次 plan 确认的原生事件均显示实际用了 Sonnet，虽然请求的是 Haiku。
+新参数已由假 CLI 检查；真实模型是否仍会变化，需要另行授权回放验证。
+详见[第一轮诊断](research/2026-11-04-p2-r1-diagnostics.zh.md)。
 
 回放从原始 solution stub 加**仅 solution 文件的补丁**重建，不把实现者测试、隐藏测试或隐藏输出
 放进审查员的任务或目录。结果 JSONL 保留完整原始行，以及所有失败和 Unknown。
@@ -75,4 +94,5 @@ Unknown 单列，并打印“按最坏算”：错误中的 Unknown 全算没抓
 
 r5 增加可选 `--arms ccx2rt`：主导和提示与 `ccx2` 相同，单元 hub 写入并读回断言
 `review.mode="tests"` 后才启动。默认组不变。
-目前只有假 CLI 工程检查，pg3b 抓错效果仍是 Unknown。
+历史首轮为 4 Pass、25 Unknown、0 issues，见上文诊断。修复版目前只有假 CLI 工程检查，
+pg3b 抓错效果仍是 Unknown。

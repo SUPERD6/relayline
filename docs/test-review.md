@@ -9,6 +9,9 @@ still controls when review runs. No commands, options or existing exit codes are
 
 The reviewer is selected by the existing cross-vendor selection logic. A same-vendor
 candidate is explicitly marked `independent=false` and Unknown, without running it.
+`review.tests_model` and `review.tests_effort` optionally override the selected candidate
+for test review only; both default to empty (keep the existing candidate). Use a model
+supported by that candidate's vendor. These keys do not enable test review or change read review.
 The input is `user_task` if recorded, otherwise the original brief (including on a fix
 round). Shared context and the implementer's test results are not an oracle.
 `ccx run --user-task-file original.txt` supplies UTF-8 original wording separately from
@@ -20,7 +23,12 @@ through its clean-room job and Request instead of relying on the worker brief.
 
 The reviewer gets a temporary source copy without Git history, `.ccx`, instructions or
 the implementer's test files. It writes Python `unittest` files in `checks/` and a
-`manifest.json` containing filenames and exact task quotes. ccx executes these tests
+root-level `manifest.json` containing filenames and task quotes. The legacy ambiguous
+`checks/manifest.json` location is accepted only when the root manifest is absent.
+Quotes must be task substrings after collapsing whitespace and removing punctuation
+(including Markdown backticks); paraphrases, changed words/numbers and punctuation-only
+quotes are rejected. Every quote is validated, including repeated entries for a file;
+each file runs once and may carry several valid quotes. ccx executes these tests
 in a separate Python process. Assertion failures and exceptions raised inside test methods
 are checked by the reviewer against the task and for errors in the test itself. Only
 confirmed in-scope implementation failures produce issues and the existing fix/block path. Missing tests, collection/import
@@ -41,6 +49,12 @@ acceptance commands are; the source copy is an evidence boundary, not an OS sand
 Its subprocess receives only the runtime environment allowlist (PATH, Windows system
 and command lookup variables, temporary-directory and locale/timezone variables), plus
 `PYTHONDONTWRITEBYTECODE=1`; parent API keys, tokens and arbitrary variables are not inherited.
+The reviewer is told not to run tests itself: the controller owns execution. Evidence
+also retains the manifest, rejection diagnostics, and confirmation-call errors. Additive
+`reviewer_calls` records requested model/effort, permission mode, run ID and outcome;
+`native_usd` sums CLI-reported costs, or is null when any call's cost is unavailable.
+The existing `usd` field remains the configured API-equivalent estimate; it may differ
+from native cost when the CLI actually uses a different model.
 
 ## pg3b replay
 
@@ -76,7 +90,8 @@ without model calls. A sandbox account may need a temporary, path-specific Git
 Supply `--exercise-source CLONE` or r5-compatible `--ext-cache DIR` (with `polyglot`
 or `polyglot.git` beneath it; `polyglot-benchmark` and `polyglot-benchmark.git` are also accepted).
 Missing material prints one `git clone --bare` command
-for the lead to run; the script does not run it. The 29 cases have not been measured.
+for the lead to run; the script does not run it. These audit steps made no model calls;
+the subsequent first replay is diagnosed below.
 
 Paid execution requires `--run --pin-commit SHA --budget USD`; `--wait-quiet MINUTES`
 uses r5's quiet-machine wait. Each unit reserves `--unit-cap` (default $0.10), including
@@ -84,7 +99,19 @@ lost responses, before starting. Each of its at most two Claude calls receives h
 that amount through native `--max-budget-usd`; a CLI without native USD enforcement
 is Unknown. This bounds launch reservations and sets the provider's native limit;
 it cannot promise a stricter billing limit than the CLI itself enforces. Prices are API
-equivalent, not subscription bills. Real CLI budget/isolation behaviour is not measured.
+equivalent, not subscription bills. Runtime budget/isolation behaviour of the repaired
+configuration has not been measured.
+
+Pin test reviewers with `--reviewer-model sonnet --reviewer-effort medium`. Both default
+to empty. Keep numeric `--unit-cap 0.10`, or repeat model overrides, for example
+`--unit-cap 0.10 --unit-cap sonnet=0.40`. Model-specific caps require `--reviewer-model`
+so the reservation cannot silently use the wrong model's allowance. Each output row,
+including a skipped or Unknown unit, records the requested overrides and effective unit cap;
+`by` and `reviewer_calls` record the selected reviewer when it runs.
+Replay confirmation uses `dontAsk` with Read/Grep/Glob rather than `plan`: round-one
+native telemetry showed Sonnet execution despite a Haiku request in all four plan-mode
+confirmation calls. The new flags are fake-CLI checked; runtime model fidelity still
+requires a separately authorized round. See the [first-round diagnosis](research/2026-11-04-p2-r1-diagnostics.md).
 
 Each replay tree is built from original solution stubs and **only solution-file diff
 hunks**; neither builder tests nor hidden tests/output enter the reviewer job or tree.
@@ -97,4 +124,6 @@ and blocks every correct case). Zero denominators remain Unknown.
 
 r5 adds opt-in `--arms ccx2rt`: the same lead and prompt as `ccx2`, with the unit hub's
 `review.mode="tests"` written and read back before launch. It is not a default arm.
-Only fake-CLI engineering checks have been run; the pg3b efficacy gate remains Unknown.
+The historical first replay produced four pass and 25 Unknown outcomes, with no issues;
+see the diagnosis above. The repaired version has only fake-CLI engineering checks,
+and the pg3b efficacy gate remains Unknown.
