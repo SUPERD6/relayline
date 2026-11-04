@@ -1,0 +1,1653 @@
+{
+  "evidence": "engineering check",
+  "data": "historical development set (including reused holdout)",
+  "inputs": [
+    "hc2-results.jsonl",
+    "holdout-results.jsonl",
+    "p0self-results.jsonl",
+    "pg1-results.jsonl",
+    "pg3-results.jsonl",
+    "pg3b-results.jsonl"
+  ],
+  "cells": [
+    {
+      "run": "hc2-results",
+      "source": "holdout",
+      "feature": "all",
+      "band": "all",
+      "arm": "ccx2",
+      "subset": "all",
+      "n": 30,
+      "right": 28,
+      "usd": 2.411267,
+      "tasks": 10,
+      "pins": [
+        "b9d1d5431982"
+      ],
+      "tags": [
+        "hc2"
+      ],
+      "cost_per_success": 0.08611667857142857,
+      "clean_n": 27,
+      "lead_only_usd_median": 0.050744
+    },
+    {
+      "run": "hc2-results",
+      "source": "holdout",
+      "feature": "all",
+      "band": "all",
+      "arm": "ccx2",
+      "subset": "clean",
+      "n": 27,
+      "right": 25,
+      "usd": 2.1921389999999996,
+      "tasks": 10,
+      "pins": [
+        "b9d1d5431982"
+      ],
+      "tags": [
+        "hc2"
+      ],
+      "cost_per_success": 0.08768555999999998,
+      "clean_n": 27,
+      "lead_only_usd_median": 0.05485
+    },
+    {
+      "run": "hc2-results",
+      "source": "holdout",
+      "feature": "diff_lines",
+      "band": "<=50",
+      "arm": "ccx2",
+      "subset": "all",
+      "n": 17,
+      "right": 17,
+      "usd": 0.826905,
+      "tasks": 6,
+      "pins": [
+        "b9d1d5431982"
+      ],
+      "tags": [
+        "hc2"
+      ],
+      "cost_per_success": 0.04864147058823529,
+      "clean_n": 15,
+      "lead_only_usd_median": 0.037344
+    },
+    {
+      "run": "hc2-results",
+      "source": "holdout",
+      "feature": "diff_lines",
+      "band": "<=50",
+      "arm": "ccx2",
+      "subset": "clean",
+      "n": 15,
+      "right": 15,
+      "usd": 0.747368,
+      "tasks": 6,
+      "pins": [
+        "b9d1d5431982"
+      ],
+      "tags": [
+        "hc2"
+      ],
+      "cost_per_success": 0.04982453333333334,
+      "clean_n": 15,
+      "lead_only_usd_median": 0.037344
+    },
+    {
+      "run": "hc2-results",
+      "source": "holdout",
+      "feature": "diff_lines",
+      "band": ">50",
+      "arm": "ccx2",
+      "subset": "all",
+      "n": 13,
+      "right": 11,
+      "usd": 1.584362,
+      "tasks": 5,
+      "pins": [
+        "b9d1d5431982"
+      ],
+      "tags": [
+        "hc2"
+      ],
+      "cost_per_success": 0.1440329090909091,
+      "clean_n": 12,
+      "lead_only_usd_median": 0.069487
+    },
+    {
+      "run": "hc2-results",
+      "source": "holdout",
+      "feature": "diff_lines",
+      "band": ">50",
+      "arm": "ccx2",
+      "subset": "clean",
+      "n": 12,
+      "right": 10,
+      "usd": 1.444771,
+      "tasks": 5,
+      "pins": [
+        "b9d1d5431982"
+      ],
+      "tags": [
+        "hc2"
+      ],
+      "cost_per_success": 0.1444771,
+      "clean_n": 12,
+      "lead_only_usd_median": 0.06691649999999999
+    },
+    {
+      "run": "hc2-results",
+      "source": "holdout",
+      "feature": "files_changed",
+      "band": "2-3",
+      "arm": "ccx2",
+      "subset": "all",
+      "n": 13,
+      "right": 13,
+      "usd": 0.9122589999999999,
+      "tasks": 7,
+      "pins": [
+        "b9d1d5431982"
+      ],
+      "tags": [
+        "hc2"
+      ],
+      "cost_per_success": 0.07017376923076922,
+      "clean_n": 12,
+      "lead_only_usd_median": 0.038608
+    },
+    {
+      "run": "hc2-results",
+      "source": "holdout",
+      "feature": "files_changed",
+      "band": "2-3",
+      "arm": "ccx2",
+      "subset": "clean",
+      "n": 12,
+      "right": 12,
+      "usd": 0.860338,
+      "tasks": 7,
+      "pins": [
+        "b9d1d5431982"
+      ],
+      "tags": [
+        "hc2"
+      ],
+      "cost_per_success": 0.07169483333333333,
+      "clean_n": 12,
+      "lead_only_usd_median": 0.037976
+    },
+    {
+      "run": "hc2-results",
+      "source": "holdout",
+      "feature": "files_changed",
+      "band": "<=1",
+      "arm": "ccx2",
+      "subset": "all",
+      "n": 5,
+      "right": 5,
+      "usd": 0.19111,
+      "tasks": 3,
+      "pins": [
+        "b9d1d5431982"
+      ],
+      "tags": [
+        "hc2"
+      ],
+      "cost_per_success": 0.038222,
+      "clean_n": 4,
+      "lead_only_usd_median": 0.036986
+    },
+    {
+      "run": "hc2-results",
+      "source": "holdout",
+      "feature": "files_changed",
+      "band": "<=1",
+      "arm": "ccx2",
+      "subset": "clean",
+      "n": 4,
+      "right": 4,
+      "usd": 0.163494,
+      "tasks": 3,
+      "pins": [
+        "b9d1d5431982"
+      ],
+      "tags": [
+        "hc2"
+      ],
+      "cost_per_success": 0.0408735,
+      "clean_n": 4,
+      "lead_only_usd_median": 0.0380615
+    },
+    {
+      "run": "hc2-results",
+      "source": "holdout",
+      "feature": "files_changed",
+      "band": ">3",
+      "arm": "ccx2",
+      "subset": "all",
+      "n": 12,
+      "right": 10,
+      "usd": 1.3078980000000002,
+      "tasks": 5,
+      "pins": [
+        "b9d1d5431982"
+      ],
+      "tags": [
+        "hc2"
+      ],
+      "cost_per_success": 0.1307898,
+      "clean_n": 11,
+      "lead_only_usd_median": 0.06978599999999999
+    },
+    {
+      "run": "hc2-results",
+      "source": "holdout",
+      "feature": "files_changed",
+      "band": ">3",
+      "arm": "ccx2",
+      "subset": "clean",
+      "n": 11,
+      "right": 9,
+      "usd": 1.1683070000000002,
+      "tasks": 5,
+      "pins": [
+        "b9d1d5431982"
+      ],
+      "tags": [
+        "hc2"
+      ],
+      "cost_per_success": 0.12981188888888892,
+      "clean_n": 11,
+      "lead_only_usd_median": 0.069487
+    },
+    {
+      "run": "holdout-results",
+      "source": "holdout",
+      "feature": "all",
+      "band": "all",
+      "arm": "ccx2",
+      "subset": "all",
+      "n": 30,
+      "right": 29,
+      "usd": 1.826339,
+      "tasks": 10,
+      "pins": [
+        "b473976"
+      ],
+      "tags": [
+        "hc1"
+      ],
+      "cost_per_success": 0.06297720689655172,
+      "clean_n": 30,
+      "lead_only_usd_median": 0.0367465
+    },
+    {
+      "run": "holdout-results",
+      "source": "holdout",
+      "feature": "all",
+      "band": "all",
+      "arm": "ccx2",
+      "subset": "clean",
+      "n": 30,
+      "right": 29,
+      "usd": 1.826339,
+      "tasks": 10,
+      "pins": [
+        "b473976"
+      ],
+      "tags": [
+        "hc1"
+      ],
+      "cost_per_success": 0.06297720689655172,
+      "clean_n": 30,
+      "lead_only_usd_median": 0.0367465
+    },
+    {
+      "run": "holdout-results",
+      "source": "holdout",
+      "feature": "all",
+      "band": "all",
+      "arm": "self",
+      "subset": "all",
+      "n": 30,
+      "right": 29,
+      "usd": 2.621804,
+      "tasks": 10,
+      "pins": [
+        "b473976"
+      ],
+      "tags": [
+        "hc1"
+      ],
+      "cost_per_success": 0.09040703448275862,
+      "clean_n": 30,
+      "lead_only_usd_median": 0.0674115
+    },
+    {
+      "run": "holdout-results",
+      "source": "holdout",
+      "feature": "all",
+      "band": "all",
+      "arm": "self",
+      "subset": "clean",
+      "n": 30,
+      "right": 29,
+      "usd": 2.621804,
+      "tasks": 10,
+      "pins": [
+        "b473976"
+      ],
+      "tags": [
+        "hc1"
+      ],
+      "cost_per_success": 0.09040703448275862,
+      "clean_n": 30,
+      "lead_only_usd_median": 0.0674115
+    },
+    {
+      "run": "holdout-results",
+      "source": "holdout",
+      "feature": "diff_lines",
+      "band": "<=50",
+      "arm": "ccx2",
+      "subset": "all",
+      "n": 16,
+      "right": 16,
+      "usd": 0.65463,
+      "tasks": 7,
+      "pins": [
+        "b473976"
+      ],
+      "tags": [
+        "hc1"
+      ],
+      "cost_per_success": 0.040914375,
+      "clean_n": 16,
+      "lead_only_usd_median": 0.0236455
+    },
+    {
+      "run": "holdout-results",
+      "source": "holdout",
+      "feature": "diff_lines",
+      "band": "<=50",
+      "arm": "ccx2",
+      "subset": "clean",
+      "n": 16,
+      "right": 16,
+      "usd": 0.65463,
+      "tasks": 7,
+      "pins": [
+        "b473976"
+      ],
+      "tags": [
+        "hc1"
+      ],
+      "cost_per_success": 0.040914375,
+      "clean_n": 16,
+      "lead_only_usd_median": 0.0236455
+    },
+    {
+      "run": "holdout-results",
+      "source": "holdout",
+      "feature": "diff_lines",
+      "band": "<=50",
+      "arm": "self",
+      "subset": "all",
+      "n": 16,
+      "right": 15,
+      "usd": 0.6140429999999999,
+      "tasks": 6,
+      "pins": [
+        "b473976"
+      ],
+      "tags": [
+        "hc1"
+      ],
+      "cost_per_success": 0.04093619999999999,
+      "clean_n": 16,
+      "lead_only_usd_median": 0.034519499999999995
+    },
+    {
+      "run": "holdout-results",
+      "source": "holdout",
+      "feature": "diff_lines",
+      "band": "<=50",
+      "arm": "self",
+      "subset": "clean",
+      "n": 16,
+      "right": 15,
+      "usd": 0.6140429999999999,
+      "tasks": 6,
+      "pins": [
+        "b473976"
+      ],
+      "tags": [
+        "hc1"
+      ],
+      "cost_per_success": 0.04093619999999999,
+      "clean_n": 16,
+      "lead_only_usd_median": 0.034519499999999995
+    },
+    {
+      "run": "holdout-results",
+      "source": "holdout",
+      "feature": "diff_lines",
+      "band": ">50",
+      "arm": "ccx2",
+      "subset": "all",
+      "n": 14,
+      "right": 13,
+      "usd": 1.171709,
+      "tasks": 6,
+      "pins": [
+        "b473976"
+      ],
+      "tags": [
+        "hc1"
+      ],
+      "cost_per_success": 0.09013146153846154,
+      "clean_n": 14,
+      "lead_only_usd_median": 0.055044499999999996
+    },
+    {
+      "run": "holdout-results",
+      "source": "holdout",
+      "feature": "diff_lines",
+      "band": ">50",
+      "arm": "ccx2",
+      "subset": "clean",
+      "n": 14,
+      "right": 13,
+      "usd": 1.171709,
+      "tasks": 6,
+      "pins": [
+        "b473976"
+      ],
+      "tags": [
+        "hc1"
+      ],
+      "cost_per_success": 0.09013146153846154,
+      "clean_n": 14,
+      "lead_only_usd_median": 0.055044499999999996
+    },
+    {
+      "run": "holdout-results",
+      "source": "holdout",
+      "feature": "diff_lines",
+      "band": ">50",
+      "arm": "self",
+      "subset": "all",
+      "n": 14,
+      "right": 14,
+      "usd": 2.0077610000000004,
+      "tasks": 5,
+      "pins": [
+        "b473976"
+      ],
+      "tags": [
+        "hc1"
+      ],
+      "cost_per_success": 0.14341150000000003,
+      "clean_n": 14,
+      "lead_only_usd_median": 0.1343405
+    },
+    {
+      "run": "holdout-results",
+      "source": "holdout",
+      "feature": "diff_lines",
+      "band": ">50",
+      "arm": "self",
+      "subset": "clean",
+      "n": 14,
+      "right": 14,
+      "usd": 2.0077610000000004,
+      "tasks": 5,
+      "pins": [
+        "b473976"
+      ],
+      "tags": [
+        "hc1"
+      ],
+      "cost_per_success": 0.14341150000000003,
+      "clean_n": 14,
+      "lead_only_usd_median": 0.1343405
+    },
+    {
+      "run": "holdout-results",
+      "source": "holdout",
+      "feature": "files_changed",
+      "band": "2-3",
+      "arm": "ccx2",
+      "subset": "all",
+      "n": 16,
+      "right": 15,
+      "usd": 0.707182,
+      "tasks": 8,
+      "pins": [
+        "b473976"
+      ],
+      "tags": [
+        "hc1"
+      ],
+      "cost_per_success": 0.04714546666666666,
+      "clean_n": 16,
+      "lead_only_usd_median": 0.0248125
+    },
+    {
+      "run": "holdout-results",
+      "source": "holdout",
+      "feature": "files_changed",
+      "band": "2-3",
+      "arm": "ccx2",
+      "subset": "clean",
+      "n": 16,
+      "right": 15,
+      "usd": 0.707182,
+      "tasks": 8,
+      "pins": [
+        "b473976"
+      ],
+      "tags": [
+        "hc1"
+      ],
+      "cost_per_success": 0.04714546666666666,
+      "clean_n": 16,
+      "lead_only_usd_median": 0.0248125
+    },
+    {
+      "run": "holdout-results",
+      "source": "holdout",
+      "feature": "files_changed",
+      "band": "2-3",
+      "arm": "self",
+      "subset": "all",
+      "n": 4,
+      "right": 3,
+      "usd": 0.456823,
+      "tasks": 2,
+      "pins": [
+        "b473976"
+      ],
+      "tags": [
+        "hc1"
+      ],
+      "cost_per_success": 0.15227433333333332,
+      "clean_n": 4,
+      "lead_only_usd_median": 0.12011050000000001
+    },
+    {
+      "run": "holdout-results",
+      "source": "holdout",
+      "feature": "files_changed",
+      "band": "2-3",
+      "arm": "self",
+      "subset": "clean",
+      "n": 4,
+      "right": 3,
+      "usd": 0.456823,
+      "tasks": 2,
+      "pins": [
+        "b473976"
+      ],
+      "tags": [
+        "hc1"
+      ],
+      "cost_per_success": 0.15227433333333332,
+      "clean_n": 4,
+      "lead_only_usd_median": 0.12011050000000001
+    },
+    {
+      "run": "holdout-results",
+      "source": "holdout",
+      "feature": "files_changed",
+      "band": "<=1",
+      "arm": "ccx2",
+      "subset": "all",
+      "n": 3,
+      "right": 3,
+      "usd": 0.081886,
+      "tasks": 2,
+      "pins": [
+        "b473976"
+      ],
+      "tags": [
+        "hc1"
+      ],
+      "cost_per_success": 0.027295333333333335,
+      "clean_n": 3,
+      "lead_only_usd_median": 0.022951
+    },
+    {
+      "run": "holdout-results",
+      "source": "holdout",
+      "feature": "files_changed",
+      "band": "<=1",
+      "arm": "ccx2",
+      "subset": "clean",
+      "n": 3,
+      "right": 3,
+      "usd": 0.081886,
+      "tasks": 2,
+      "pins": [
+        "b473976"
+      ],
+      "tags": [
+        "hc1"
+      ],
+      "cost_per_success": 0.027295333333333335,
+      "clean_n": 3,
+      "lead_only_usd_median": 0.022951
+    },
+    {
+      "run": "holdout-results",
+      "source": "holdout",
+      "feature": "files_changed",
+      "band": "<=1",
+      "arm": "self",
+      "subset": "all",
+      "n": 15,
+      "right": 15,
+      "usd": 0.5327289999999999,
+      "tasks": 5,
+      "pins": [
+        "b473976"
+      ],
+      "tags": [
+        "hc1"
+      ],
+      "cost_per_success": 0.03551526666666666,
+      "clean_n": 15,
+      "lead_only_usd_median": 0.034011
+    },
+    {
+      "run": "holdout-results",
+      "source": "holdout",
+      "feature": "files_changed",
+      "band": "<=1",
+      "arm": "self",
+      "subset": "clean",
+      "n": 15,
+      "right": 15,
+      "usd": 0.5327289999999999,
+      "tasks": 5,
+      "pins": [
+        "b473976"
+      ],
+      "tags": [
+        "hc1"
+      ],
+      "cost_per_success": 0.03551526666666666,
+      "clean_n": 15,
+      "lead_only_usd_median": 0.034011
+    },
+    {
+      "run": "holdout-results",
+      "source": "holdout",
+      "feature": "files_changed",
+      "band": ">3",
+      "arm": "ccx2",
+      "subset": "all",
+      "n": 11,
+      "right": 11,
+      "usd": 1.037271,
+      "tasks": 5,
+      "pins": [
+        "b473976"
+      ],
+      "tags": [
+        "hc1"
+      ],
+      "cost_per_success": 0.09429736363636364,
+      "clean_n": 11,
+      "lead_only_usd_median": 0.059907
+    },
+    {
+      "run": "holdout-results",
+      "source": "holdout",
+      "feature": "files_changed",
+      "band": ">3",
+      "arm": "ccx2",
+      "subset": "clean",
+      "n": 11,
+      "right": 11,
+      "usd": 1.037271,
+      "tasks": 5,
+      "pins": [
+        "b473976"
+      ],
+      "tags": [
+        "hc1"
+      ],
+      "cost_per_success": 0.09429736363636364,
+      "clean_n": 11,
+      "lead_only_usd_median": 0.059907
+    },
+    {
+      "run": "holdout-results",
+      "source": "holdout",
+      "feature": "files_changed",
+      "band": ">3",
+      "arm": "self",
+      "subset": "all",
+      "n": 11,
+      "right": 11,
+      "usd": 1.632252,
+      "tasks": 4,
+      "pins": [
+        "b473976"
+      ],
+      "tags": [
+        "hc1"
+      ],
+      "cost_per_success": 0.14838654545454547,
+      "clean_n": 11,
+      "lead_only_usd_median": 0.142244
+    },
+    {
+      "run": "holdout-results",
+      "source": "holdout",
+      "feature": "files_changed",
+      "band": ">3",
+      "arm": "self",
+      "subset": "clean",
+      "n": 11,
+      "right": 11,
+      "usd": 1.632252,
+      "tasks": 4,
+      "pins": [
+        "b473976"
+      ],
+      "tags": [
+        "hc1"
+      ],
+      "cost_per_success": 0.14838654545454547,
+      "clean_n": 11,
+      "lead_only_usd_median": 0.142244
+    },
+    {
+      "run": "p0self-results",
+      "source": "holdout",
+      "feature": "all",
+      "band": "all",
+      "arm": "self",
+      "subset": "all",
+      "n": 30,
+      "right": 30,
+      "usd": 2.966083,
+      "tasks": 10,
+      "pins": [
+        "b9d1d54"
+      ],
+      "tags": [
+        "p0self"
+      ],
+      "cost_per_success": 0.09886943333333333,
+      "clean_n": 30,
+      "lead_only_usd_median": 0.0683115
+    },
+    {
+      "run": "p0self-results",
+      "source": "holdout",
+      "feature": "all",
+      "band": "all",
+      "arm": "self",
+      "subset": "clean",
+      "n": 30,
+      "right": 30,
+      "usd": 2.966083,
+      "tasks": 10,
+      "pins": [
+        "b9d1d54"
+      ],
+      "tags": [
+        "p0self"
+      ],
+      "cost_per_success": 0.09886943333333333,
+      "clean_n": 30,
+      "lead_only_usd_median": 0.0683115
+    },
+    {
+      "run": "p0self-results",
+      "source": "holdout",
+      "feature": "diff_lines",
+      "band": "<=50",
+      "arm": "self",
+      "subset": "all",
+      "n": 15,
+      "right": 15,
+      "usd": 0.547236,
+      "tasks": 5,
+      "pins": [
+        "b9d1d54"
+      ],
+      "tags": [
+        "p0self"
+      ],
+      "cost_per_success": 0.0364824,
+      "clean_n": 15,
+      "lead_only_usd_median": 0.035781
+    },
+    {
+      "run": "p0self-results",
+      "source": "holdout",
+      "feature": "diff_lines",
+      "band": "<=50",
+      "arm": "self",
+      "subset": "clean",
+      "n": 15,
+      "right": 15,
+      "usd": 0.547236,
+      "tasks": 5,
+      "pins": [
+        "b9d1d54"
+      ],
+      "tags": [
+        "p0self"
+      ],
+      "cost_per_success": 0.0364824,
+      "clean_n": 15,
+      "lead_only_usd_median": 0.035781
+    },
+    {
+      "run": "p0self-results",
+      "source": "holdout",
+      "feature": "diff_lines",
+      "band": ">50",
+      "arm": "self",
+      "subset": "all",
+      "n": 15,
+      "right": 15,
+      "usd": 2.4188470000000004,
+      "tasks": 5,
+      "pins": [
+        "b9d1d54"
+      ],
+      "tags": [
+        "p0self"
+      ],
+      "cost_per_success": 0.16125646666666668,
+      "clean_n": 15,
+      "lead_only_usd_median": 0.136095
+    },
+    {
+      "run": "p0self-results",
+      "source": "holdout",
+      "feature": "diff_lines",
+      "band": ">50",
+      "arm": "self",
+      "subset": "clean",
+      "n": 15,
+      "right": 15,
+      "usd": 2.4188470000000004,
+      "tasks": 5,
+      "pins": [
+        "b9d1d54"
+      ],
+      "tags": [
+        "p0self"
+      ],
+      "cost_per_success": 0.16125646666666668,
+      "clean_n": 15,
+      "lead_only_usd_median": 0.136095
+    },
+    {
+      "run": "p0self-results",
+      "source": "holdout",
+      "feature": "files_changed",
+      "band": "2-3",
+      "arm": "self",
+      "subset": "all",
+      "n": 4,
+      "right": 4,
+      "usd": 0.360881,
+      "tasks": 3,
+      "pins": [
+        "b9d1d54"
+      ],
+      "tags": [
+        "p0self"
+      ],
+      "cost_per_success": 0.09022025,
+      "clean_n": 4,
+      "lead_only_usd_median": 0.09032000000000001
+    },
+    {
+      "run": "p0self-results",
+      "source": "holdout",
+      "feature": "files_changed",
+      "band": "2-3",
+      "arm": "self",
+      "subset": "clean",
+      "n": 4,
+      "right": 4,
+      "usd": 0.360881,
+      "tasks": 3,
+      "pins": [
+        "b9d1d54"
+      ],
+      "tags": [
+        "p0self"
+      ],
+      "cost_per_success": 0.09022025,
+      "clean_n": 4,
+      "lead_only_usd_median": 0.09032000000000001
+    },
+    {
+      "run": "p0self-results",
+      "source": "holdout",
+      "feature": "files_changed",
+      "band": "<=1",
+      "arm": "self",
+      "subset": "all",
+      "n": 15,
+      "right": 15,
+      "usd": 0.547236,
+      "tasks": 5,
+      "pins": [
+        "b9d1d54"
+      ],
+      "tags": [
+        "p0self"
+      ],
+      "cost_per_success": 0.0364824,
+      "clean_n": 15,
+      "lead_only_usd_median": 0.035781
+    },
+    {
+      "run": "p0self-results",
+      "source": "holdout",
+      "feature": "files_changed",
+      "band": "<=1",
+      "arm": "self",
+      "subset": "clean",
+      "n": 15,
+      "right": 15,
+      "usd": 0.547236,
+      "tasks": 5,
+      "pins": [
+        "b9d1d54"
+      ],
+      "tags": [
+        "p0self"
+      ],
+      "cost_per_success": 0.0364824,
+      "clean_n": 15,
+      "lead_only_usd_median": 0.035781
+    },
+    {
+      "run": "p0self-results",
+      "source": "holdout",
+      "feature": "files_changed",
+      "band": ">3",
+      "arm": "self",
+      "subset": "all",
+      "n": 11,
+      "right": 11,
+      "usd": 2.0579660000000004,
+      "tasks": 5,
+      "pins": [
+        "b9d1d54"
+      ],
+      "tags": [
+        "p0self"
+      ],
+      "cost_per_success": 0.18708781818181822,
+      "clean_n": 11,
+      "lead_only_usd_median": 0.196291
+    },
+    {
+      "run": "p0self-results",
+      "source": "holdout",
+      "feature": "files_changed",
+      "band": ">3",
+      "arm": "self",
+      "subset": "clean",
+      "n": 11,
+      "right": 11,
+      "usd": 2.0579660000000004,
+      "tasks": 5,
+      "pins": [
+        "b9d1d54"
+      ],
+      "tags": [
+        "p0self"
+      ],
+      "cost_per_success": 0.18708781818181822,
+      "clean_n": 11,
+      "lead_only_usd_median": 0.196291
+    },
+    {
+      "run": "pg1-results",
+      "source": "polyglot",
+      "feature": "all",
+      "band": "all",
+      "arm": "ccx2",
+      "subset": "all",
+      "n": 30,
+      "right": 12,
+      "usd": 1.3809779999999998,
+      "tasks": 30,
+      "pins": [
+        "5d4bd01"
+      ],
+      "tags": [
+        "pg1"
+      ],
+      "cost_per_success": 0.11508149999999999,
+      "clean_n": 29,
+      "lead_only_usd_median": 0.034553
+    },
+    {
+      "run": "pg1-results",
+      "source": "polyglot",
+      "feature": "all",
+      "band": "all",
+      "arm": "ccx2",
+      "subset": "clean",
+      "n": 29,
+      "right": 12,
+      "usd": 1.341124,
+      "tasks": 29,
+      "pins": [
+        "5d4bd01"
+      ],
+      "tags": [
+        "pg1"
+      ],
+      "cost_per_success": 0.11176033333333334,
+      "clean_n": 29,
+      "lead_only_usd_median": 0.034993
+    },
+    {
+      "run": "pg1-results",
+      "source": "polyglot",
+      "feature": "all",
+      "band": "all",
+      "arm": "self",
+      "subset": "all",
+      "n": 30,
+      "right": 25,
+      "usd": 0.914983,
+      "tasks": 30,
+      "pins": [
+        "5d4bd01"
+      ],
+      "tags": [
+        "pg1"
+      ],
+      "cost_per_success": 0.03659932,
+      "clean_n": 29,
+      "lead_only_usd_median": 0.027500999999999998
+    },
+    {
+      "run": "pg1-results",
+      "source": "polyglot",
+      "feature": "all",
+      "band": "all",
+      "arm": "self",
+      "subset": "clean",
+      "n": 29,
+      "right": 24,
+      "usd": 0.871402,
+      "tasks": 29,
+      "pins": [
+        "5d4bd01"
+      ],
+      "tags": [
+        "pg1"
+      ],
+      "cost_per_success": 0.03630841666666667,
+      "clean_n": 29,
+      "lead_only_usd_median": 0.027441
+    },
+    {
+      "run": "pg1-results",
+      "source": "polyglot",
+      "feature": "diff_lines",
+      "band": "<=50",
+      "arm": "self",
+      "subset": "all",
+      "n": 24,
+      "right": 20,
+      "usd": 0.6622929999999999,
+      "tasks": 24,
+      "pins": [
+        "5d4bd01"
+      ],
+      "tags": [
+        "pg1"
+      ],
+      "cost_per_success": 0.033114649999999995,
+      "clean_n": 23,
+      "lead_only_usd_median": 0.026628
+    },
+    {
+      "run": "pg1-results",
+      "source": "polyglot",
+      "feature": "diff_lines",
+      "band": "<=50",
+      "arm": "self",
+      "subset": "clean",
+      "n": 23,
+      "right": 19,
+      "usd": 0.6187119999999999,
+      "tasks": 23,
+      "pins": [
+        "5d4bd01"
+      ],
+      "tags": [
+        "pg1"
+      ],
+      "cost_per_success": 0.032563789473684206,
+      "clean_n": 23,
+      "lead_only_usd_median": 0.025883
+    },
+    {
+      "run": "pg1-results",
+      "source": "polyglot",
+      "feature": "diff_lines",
+      "band": ">50",
+      "arm": "ccx2",
+      "subset": "all",
+      "n": 30,
+      "right": 12,
+      "usd": 1.3809779999999998,
+      "tasks": 30,
+      "pins": [
+        "5d4bd01"
+      ],
+      "tags": [
+        "pg1"
+      ],
+      "cost_per_success": 0.11508149999999999,
+      "clean_n": 29,
+      "lead_only_usd_median": 0.034553
+    },
+    {
+      "run": "pg1-results",
+      "source": "polyglot",
+      "feature": "diff_lines",
+      "band": ">50",
+      "arm": "ccx2",
+      "subset": "clean",
+      "n": 29,
+      "right": 12,
+      "usd": 1.341124,
+      "tasks": 29,
+      "pins": [
+        "5d4bd01"
+      ],
+      "tags": [
+        "pg1"
+      ],
+      "cost_per_success": 0.11176033333333334,
+      "clean_n": 29,
+      "lead_only_usd_median": 0.034993
+    },
+    {
+      "run": "pg1-results",
+      "source": "polyglot",
+      "feature": "diff_lines",
+      "band": ">50",
+      "arm": "self",
+      "subset": "all",
+      "n": 6,
+      "right": 5,
+      "usd": 0.25268999999999997,
+      "tasks": 6,
+      "pins": [
+        "5d4bd01"
+      ],
+      "tags": [
+        "pg1"
+      ],
+      "cost_per_success": 0.05053799999999999,
+      "clean_n": 6,
+      "lead_only_usd_median": 0.03572549999999999
+    },
+    {
+      "run": "pg1-results",
+      "source": "polyglot",
+      "feature": "diff_lines",
+      "band": ">50",
+      "arm": "self",
+      "subset": "clean",
+      "n": 6,
+      "right": 5,
+      "usd": 0.25268999999999997,
+      "tasks": 6,
+      "pins": [
+        "5d4bd01"
+      ],
+      "tags": [
+        "pg1"
+      ],
+      "cost_per_success": 0.05053799999999999,
+      "clean_n": 6,
+      "lead_only_usd_median": 0.03572549999999999
+    },
+    {
+      "run": "pg1-results",
+      "source": "polyglot",
+      "feature": "files_changed",
+      "band": "2-3",
+      "arm": "self",
+      "subset": "all",
+      "n": 23,
+      "right": 20,
+      "usd": 0.723678,
+      "tasks": 23,
+      "pins": [
+        "5d4bd01"
+      ],
+      "tags": [
+        "pg1"
+      ],
+      "cost_per_success": 0.036183900000000005,
+      "clean_n": 23,
+      "lead_only_usd_median": 0.028613
+    },
+    {
+      "run": "pg1-results",
+      "source": "polyglot",
+      "feature": "files_changed",
+      "band": "2-3",
+      "arm": "self",
+      "subset": "clean",
+      "n": 23,
+      "right": 20,
+      "usd": 0.723678,
+      "tasks": 23,
+      "pins": [
+        "5d4bd01"
+      ],
+      "tags": [
+        "pg1"
+      ],
+      "cost_per_success": 0.036183900000000005,
+      "clean_n": 23,
+      "lead_only_usd_median": 0.028613
+    },
+    {
+      "run": "pg1-results",
+      "source": "polyglot",
+      "feature": "files_changed",
+      "band": "<=1",
+      "arm": "self",
+      "subset": "all",
+      "n": 7,
+      "right": 5,
+      "usd": 0.191305,
+      "tasks": 7,
+      "pins": [
+        "5d4bd01"
+      ],
+      "tags": [
+        "pg1"
+      ],
+      "cost_per_success": 0.038261,
+      "clean_n": 6,
+      "lead_only_usd_median": 0.025883
+    },
+    {
+      "run": "pg1-results",
+      "source": "polyglot",
+      "feature": "files_changed",
+      "band": "<=1",
+      "arm": "self",
+      "subset": "clean",
+      "n": 6,
+      "right": 4,
+      "usd": 0.147724,
+      "tasks": 6,
+      "pins": [
+        "5d4bd01"
+      ],
+      "tags": [
+        "pg1"
+      ],
+      "cost_per_success": 0.036931,
+      "clean_n": 6,
+      "lead_only_usd_median": 0.025669499999999998
+    },
+    {
+      "run": "pg1-results",
+      "source": "polyglot",
+      "feature": "files_changed",
+      "band": ">3",
+      "arm": "ccx2",
+      "subset": "all",
+      "n": 30,
+      "right": 12,
+      "usd": 1.3809779999999998,
+      "tasks": 30,
+      "pins": [
+        "5d4bd01"
+      ],
+      "tags": [
+        "pg1"
+      ],
+      "cost_per_success": 0.11508149999999999,
+      "clean_n": 29,
+      "lead_only_usd_median": 0.034553
+    },
+    {
+      "run": "pg1-results",
+      "source": "polyglot",
+      "feature": "files_changed",
+      "band": ">3",
+      "arm": "ccx2",
+      "subset": "clean",
+      "n": 29,
+      "right": 12,
+      "usd": 1.341124,
+      "tasks": 29,
+      "pins": [
+        "5d4bd01"
+      ],
+      "tags": [
+        "pg1"
+      ],
+      "cost_per_success": 0.11176033333333334,
+      "clean_n": 29,
+      "lead_only_usd_median": 0.034993
+    },
+    {
+      "run": "pg3-results",
+      "source": "polyglot",
+      "feature": "all",
+      "band": "all",
+      "arm": "ccx2",
+      "subset": "all",
+      "n": 2,
+      "right": 2,
+      "usd": 0.147941,
+      "tasks": 2,
+      "pins": [
+        "b9d1d5431982"
+      ],
+      "tags": [
+        "pg3"
+      ],
+      "cost_per_success": 0.0739705,
+      "clean_n": 0,
+      "lead_only_usd_median": 0.065066
+    },
+    {
+      "run": "pg3-results",
+      "source": "polyglot",
+      "feature": "all",
+      "band": "all",
+      "arm": "ccx2",
+      "subset": "clean",
+      "n": 0,
+      "right": 0,
+      "usd": 0,
+      "tasks": 0,
+      "pins": [],
+      "tags": [],
+      "cost_per_success": null,
+      "clean_n": 0,
+      "lead_only_usd_median": null
+    },
+    {
+      "run": "pg3-results",
+      "source": "polyglot",
+      "feature": "diff_lines",
+      "band": ">50",
+      "arm": "ccx2",
+      "subset": "all",
+      "n": 2,
+      "right": 2,
+      "usd": 0.147941,
+      "tasks": 2,
+      "pins": [
+        "b9d1d5431982"
+      ],
+      "tags": [
+        "pg3"
+      ],
+      "cost_per_success": 0.0739705,
+      "clean_n": 0,
+      "lead_only_usd_median": 0.065066
+    },
+    {
+      "run": "pg3-results",
+      "source": "polyglot",
+      "feature": "diff_lines",
+      "band": ">50",
+      "arm": "ccx2",
+      "subset": "clean",
+      "n": 0,
+      "right": 0,
+      "usd": 0,
+      "tasks": 0,
+      "pins": [],
+      "tags": [],
+      "cost_per_success": null,
+      "clean_n": 0,
+      "lead_only_usd_median": null
+    },
+    {
+      "run": "pg3-results",
+      "source": "polyglot",
+      "feature": "files_changed",
+      "band": ">3",
+      "arm": "ccx2",
+      "subset": "all",
+      "n": 2,
+      "right": 2,
+      "usd": 0.147941,
+      "tasks": 2,
+      "pins": [
+        "b9d1d5431982"
+      ],
+      "tags": [
+        "pg3"
+      ],
+      "cost_per_success": 0.0739705,
+      "clean_n": 0,
+      "lead_only_usd_median": 0.065066
+    },
+    {
+      "run": "pg3-results",
+      "source": "polyglot",
+      "feature": "files_changed",
+      "band": ">3",
+      "arm": "ccx2",
+      "subset": "clean",
+      "n": 0,
+      "right": 0,
+      "usd": 0,
+      "tasks": 0,
+      "pins": [],
+      "tags": [],
+      "cost_per_success": null,
+      "clean_n": 0,
+      "lead_only_usd_median": null
+    },
+    {
+      "run": "pg3b-results",
+      "source": "polyglot",
+      "feature": "all",
+      "band": "all",
+      "arm": "ccx2",
+      "subset": "all",
+      "n": 30,
+      "right": 15,
+      "usd": 1.462103,
+      "tasks": 30,
+      "pins": [
+        "b9d1d5431982"
+      ],
+      "tags": [
+        "pg3b"
+      ],
+      "cost_per_success": 0.09747353333333333,
+      "clean_n": 30,
+      "lead_only_usd_median": 0.039857000000000004
+    },
+    {
+      "run": "pg3b-results",
+      "source": "polyglot",
+      "feature": "all",
+      "band": "all",
+      "arm": "ccx2",
+      "subset": "clean",
+      "n": 30,
+      "right": 15,
+      "usd": 1.462103,
+      "tasks": 30,
+      "pins": [
+        "b9d1d5431982"
+      ],
+      "tags": [
+        "pg3b"
+      ],
+      "cost_per_success": 0.09747353333333333,
+      "clean_n": 30,
+      "lead_only_usd_median": 0.039857000000000004
+    },
+    {
+      "run": "pg3b-results",
+      "source": "polyglot",
+      "feature": "diff_lines",
+      "band": ">50",
+      "arm": "ccx2",
+      "subset": "all",
+      "n": 30,
+      "right": 15,
+      "usd": 1.462103,
+      "tasks": 30,
+      "pins": [
+        "b9d1d5431982"
+      ],
+      "tags": [
+        "pg3b"
+      ],
+      "cost_per_success": 0.09747353333333333,
+      "clean_n": 30,
+      "lead_only_usd_median": 0.039857000000000004
+    },
+    {
+      "run": "pg3b-results",
+      "source": "polyglot",
+      "feature": "diff_lines",
+      "band": ">50",
+      "arm": "ccx2",
+      "subset": "clean",
+      "n": 30,
+      "right": 15,
+      "usd": 1.462103,
+      "tasks": 30,
+      "pins": [
+        "b9d1d5431982"
+      ],
+      "tags": [
+        "pg3b"
+      ],
+      "cost_per_success": 0.09747353333333333,
+      "clean_n": 30,
+      "lead_only_usd_median": 0.039857000000000004
+    },
+    {
+      "run": "pg3b-results",
+      "source": "polyglot",
+      "feature": "files_changed",
+      "band": "2-3",
+      "arm": "ccx2",
+      "subset": "all",
+      "n": 1,
+      "right": 1,
+      "usd": 0.053837,
+      "tasks": 1,
+      "pins": [
+        "b9d1d5431982"
+      ],
+      "tags": [
+        "pg3b"
+      ],
+      "cost_per_success": 0.053837,
+      "clean_n": 1,
+      "lead_only_usd_median": 0.042874
+    },
+    {
+      "run": "pg3b-results",
+      "source": "polyglot",
+      "feature": "files_changed",
+      "band": "2-3",
+      "arm": "ccx2",
+      "subset": "clean",
+      "n": 1,
+      "right": 1,
+      "usd": 0.053837,
+      "tasks": 1,
+      "pins": [
+        "b9d1d5431982"
+      ],
+      "tags": [
+        "pg3b"
+      ],
+      "cost_per_success": 0.053837,
+      "clean_n": 1,
+      "lead_only_usd_median": 0.042874
+    },
+    {
+      "run": "pg3b-results",
+      "source": "polyglot",
+      "feature": "files_changed",
+      "band": ">3",
+      "arm": "ccx2",
+      "subset": "all",
+      "n": 29,
+      "right": 14,
+      "usd": 1.408266,
+      "tasks": 29,
+      "pins": [
+        "b9d1d5431982"
+      ],
+      "tags": [
+        "pg3b"
+      ],
+      "cost_per_success": 0.10059042857142857,
+      "clean_n": 29,
+      "lead_only_usd_median": 0.039758
+    },
+    {
+      "run": "pg3b-results",
+      "source": "polyglot",
+      "feature": "files_changed",
+      "band": ">3",
+      "arm": "ccx2",
+      "subset": "clean",
+      "n": 29,
+      "right": 14,
+      "usd": 1.408266,
+      "tasks": 29,
+      "pins": [
+        "b9d1d5431982"
+      ],
+      "tags": [
+        "pg3b"
+      ],
+      "cost_per_success": 0.10059042857142857,
+      "clean_n": 29,
+      "lead_only_usd_median": 0.039758
+    }
+  ],
+  "conclusion": "Unknown: no causal or same-version effect claim",
+  "recommendation": {
+    "small_self_files": 1,
+    "small_self_overhead_usd": 0.035,
+    "small_self_run": false,
+    "strict_escalate": false
+  },
+  "limitations": [
+    "Actual files/diffstat are post-outcome, not routing-time estimates",
+    "Source, model, version and conditions differ; do not pool runs",
+    "Failures and missing costs retained; zero successes has null cost per success",
+    "No paired threshold validation; conservative existing values retained"
+  ]
+}
