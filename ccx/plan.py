@@ -155,8 +155,8 @@ def _plan(req: Request, p: Paths, cfg: dict, max_esc: int) -> list[dict]:
             except Exception:  # noqa: BLE001 — routing skill missing: no escalation path
                 ladder = []
         nxt = learn.escalates_to(p, req.to)           # e.g. a DeepSeek ladder continues on Claude
-        return [_rung_spec(rung)] + [_rung_spec(r) for r in ladder[:max_esc]
-                                     if r.split(":", 1)[0] in (req.to, nxt)]
+        return _strict_start(req, p, cfg, [_rung_spec(rung)] + [_rung_spec(r) for r in ladder[:max_esc]
+                                     if r.split(":", 1)[0] in (req.to, nxt)])
     out, tier = [], req.tier
     while tier and len(out) <= max_esc:
         if not cfg["tiers"].get(tier, {}).get(req.to):
@@ -170,7 +170,46 @@ def _plan(req: Request, p: Paths, cfg: dict, max_esc: int) -> list[dict]:
         tier = next_tier(tier)
     if not out:
         raise ValueError(f"tier {req.tier} has no {req.to} model configured")
-    return out
+    return _strict_start(req, p, cfg, out)
+
+
+def _strict_start(req: Request, p: Paths, cfg: dict, out: list[dict]) -> list[dict]:
+    """Opt-in floor: skip the configured T1 rung (or Luna low), never lower a stronger start.
+
+    Interface rule is deliberately lexical, not a claim of semantic understanding.
+    """
+    import re
+    from .small_tasks import enabled
+    if not enabled(cfg, "strict_escalate"):
+        return out
+    strict = bool(re.search(r"strict[ -]+interface|exact[ -]+(?:signature|output|match)|"
+                            r"must\s+(?:return|raise|accept|match)|严格接口|精确匹配|必须返回", req.brief, re.I))
+    unchecked = req.mode == "write" and not req.check
+    if not (strict or unchecked):
+        return out
+    first = out[0]
+    cheap = (cfg.get("tiers", {}).get("T1", {}).get(first["agent"]) or {})
+    if not ((first["model"], first["effort"]) == (cheap.get("model"), cheap.get("effort"))
+            or (first["model"] == "gpt-6-luna" and first["effort"] == "low")):
+        return out
+    stronger = out[1:]
+    if not stronger:
+        try:
+            ladder = learn.ladder_after(p, first["rung"], 1)
+        except Exception:  # noqa: BLE001 — no routing skill: the configured T2 floor still applies
+            ladder = []
+        if ladder:
+            stronger = [_rung_spec(ladder[0])]
+        else:
+            spec = tier_spec(cfg, "T2", first["agent"])
+            stronger = [_rung_spec(f"{first['agent']}:{spec['model']}:{spec['effort']}")]
+    if stronger[0]["rung"] == first["rung"]:
+        raise ValueError("strict_escalate: no stronger starting rung is available")
+    if req.route is None:
+        req.route = {}
+    req.route["strict_escalate"] = {"from": first["rung"], "to": stronger[0]["rung"],
+                                    "unchecked_write": unchecked, "strict_interface": strict}
+    return stronger
 
 
 def _fallback_plan(req: Request, p: Paths, cfg: dict, failed: dict) -> dict | None:
