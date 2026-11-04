@@ -24,6 +24,7 @@ task: whatever you read is re-read on every later turn. Keep STATUS one page (EN
 - `docs/` — DESIGN, DECISIONS (bilingual table), STATUS (one page) + STATUS-archive, research.
 
 ## Rules
+- Before changing defaults, running evaluations, publishing numbers or cleaning files, read [docs/engineering-standards.md](docs/engineering-standards.md).
 - Run `python -m pytest -q tests` before every commit; all must pass (CI: a PR runs Windows 3.11 + Ubuntu 3.13, a push to
   main runs Linux/Windows/macOS × 3.11–3.13; check main's run after a merge, see CONTRIBUTING).
 - Generic only: no personal paths, names or data in the repo. Personal things live in the user's hub.

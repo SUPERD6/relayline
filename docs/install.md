@@ -12,10 +12,12 @@ English · [中文](install.zh.md) · back to the [README](../README.md)
 **Without a clone** (the skills and config ship inside the package):
 
 ```bash
-pipx install git+https://github.com/SUPERD6/relayline
+pipx install relayline
 ccx setup        # guided: hub, wiring, health check; asks before each change
 ccx run --to codex --mode read "Summarise README.md in three lines for a new user: what this project does, how to install it, and the first command to try"
 ```
+
+To use the latest code that has not been released yet: `pipx install git+https://github.com/SUPERD6/relayline`.
 
 The last line is your first delegation (the same one README and `ccx setup` suggest). Step by step instead of
 `ccx setup`: `ccx init --hub <your hub path>`, `ccx sync`, `ccx sync --apply`, `ccx doctor`. The hub is one folder
@@ -26,11 +28,11 @@ are). The same goes for a `--snapshot` / `--external-sync` that would replace a 
 No pipx? A virtual environment of its own does the same:
 
 ```bash
-python3 -m venv ~/.relayline && ~/.relayline/bin/python -m pip install git+https://github.com/SUPERD6/relayline
+python3 -m venv ~/.relayline && ~/.relayline/bin/python -m pip install relayline
 ```
 
 ```powershell
-python -m venv "$env:USERPROFILE\.relayline"; & "$env:USERPROFILE\.relayline\Scripts\python.exe" -m pip install git+https://github.com/SUPERD6/relayline
+python -m venv "$env:USERPROFILE\.relayline"; & "$env:USERPROFILE\.relayline\Scripts\python.exe" -m pip install relayline
 ```
 
 Then run `ccx` from that environment's `bin` (Windows: `Scripts`) folder, or link just `ccx` into a folder on your
@@ -58,7 +60,7 @@ itself has never run.
 - **DeepSeek Harness (`dsh`)** has no plugin marketplace or skill install yet (its README, read 2026-10-25); `ccx sync`
   writes its lead instructions as before when `dsh` is on PATH. A `dsh` found only inside the installed desktop
   app is not connected by default; sync mentions it once as optional (put it on PATH, then `ccx sync` again).
-- **Still install ccx itself** (`pipx install git+https://github.com/SUPERD6/relayline`, then `ccx init` or
+- **Still install ccx itself** (`pipx install relayline`, then `ccx init` or
   `ccx setup`) to delegate from a terminal or from Codex. `ccx doctor` says so when the plugin is enabled but ccx is
   not installed on its own.
 - **No double wiring:** where the plugin is enabled, `ccx sync` leaves the Claude hooks and the five skills to it and

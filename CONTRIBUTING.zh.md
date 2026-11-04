@@ -6,6 +6,7 @@
 
 ## 开始之前
 
+- 改默认值、跑评测、写对外数字或清理文件前，先读[工程标准](docs/engineering-standards.zh.md)。
 - 报 bug、提想法：开一个 issue（有模板）。安全问题请看 [SECURITY.zh.md](SECURITY.zh.md)，不要开公开 issue。
 - 改动比较大时，先开 issue 商量好怎么做，再动手写。
 - 现在做到哪了、下一步是什么：[docs/STATUS.zh.md](docs/STATUS.zh.md)。设计和理由：[docs/DESIGN.zh.md](docs/DESIGN.zh.md)、[docs/DECISIONS.md](docs/DECISIONS.md)。已知问题、默认关着的开关、怎么跑评测：[docs/maintenance.zh.md](docs/maintenance.zh.md)。

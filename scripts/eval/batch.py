@@ -710,7 +710,8 @@ def unit_of(u: dict, a, b: dict, work: Path) -> PF.Unit:
     guard = r5.ext_guard(batch_tasks(b)[0], a, work) if spec_of(b) else {}
     return PF.Unit(key=key, work=work, repo=work / key, hub=work / f"h-{key}", label=u["label"],
                    claude=a.claude_isolation, codex_home=Path(PF.codex_home_arg(a.codex_home)) if a.codex_home else None,
-                   dsh=a.dsh_home, agents=tuple(r3.WORKER), **guard)
+                   dsh=a.dsh_home, agents=tuple(r3.WORKER),
+                   codex_workspace_tmp=getattr(a, "codex_workspace_tmp", False), **guard)
 
 
 def run_unit(u: dict, a, mats: dict, work: Path) -> dict:
