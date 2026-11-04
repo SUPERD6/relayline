@@ -1,0 +1,712 @@
+{
+  "about": "Stage 3 fresh Python practice exercises; no model outcomes used for selection.",
+  "source": {
+    "repo": "https://github.com/exercism/python",
+    "commit": "6105f6d9d3ef66ce3d5c8f529d2882af3d76b706",
+    "license": "MIT"
+  },
+  "exclusion_source": {
+    "repo": "https://github.com/Aider-AI/polyglot-benchmark",
+    "commit": "7e0611e77b54e2dea774cdc0aa00cf9f7ed6144f",
+    "slugs": [
+      "affine-cipher",
+      "beer-song",
+      "book-store",
+      "bottle-song",
+      "bowling",
+      "connect",
+      "dominoes",
+      "dot-dsl",
+      "food-chain",
+      "forth",
+      "go-counting",
+      "grade-school",
+      "grep",
+      "hangman",
+      "list-ops",
+      "paasio",
+      "phone-number",
+      "pig-latin",
+      "poker",
+      "pov",
+      "proverb",
+      "react",
+      "rest-api",
+      "robot-name",
+      "scale-generator",
+      "sgf-parsing",
+      "simple-linked-list",
+      "transpose",
+      "tree-building",
+      "two-bucket",
+      "variable-length-quantity",
+      "wordy",
+      "zebra-puzzle",
+      "zipper"
+    ]
+  },
+  "rule": {
+    "practice_only": true,
+    "implementation_files": 1,
+    "third_party_dependencies": false,
+    "example_or_exemplar_required": true,
+    "difficulty_min": 2,
+    "difficulty_max": 9,
+    "difficulty_basis": "inclusive min/max of the 30 pg1 exercises; not a matched histogram",
+    "order": "ascending sha256(UTF-8(slug + salt)), slug tie-break",
+    "salt": "p3-2026-11-04",
+    "take": 30,
+    "grading_failure": "reject only if stub passes or example/exemplar fails; advance in this order, record reason"
+  },
+  "limitations": [
+    "Fresh means excluded from the 34 polyglot Python exercises, not unseen in model training.",
+    "Exercism ratings do not establish difficulty equivalence for current models."
+  ],
+  "eligible_count": 74,
+  "eligible_ranked": [
+    "pythagorean-triplet",
+    "circular-buffer",
+    "simple-cipher",
+    "prime-factors",
+    "rational-numbers",
+    "high-scores",
+    "meetup",
+    "queen-attack",
+    "matrix",
+    "trinary",
+    "allergies",
+    "say",
+    "kindergarten-garden",
+    "roman-numerals",
+    "custom-set",
+    "matching-brackets",
+    "rail-fence-cipher",
+    "sublist",
+    "state-of-tic-tac-toe",
+    "game-of-life",
+    "flower-field",
+    "nucleotide-count",
+    "luhn",
+    "ledger",
+    "markdown",
+    "pascals-triangle",
+    "saddle-points",
+    "linked-list",
+    "hexadecimal",
+    "nth-prime",
+    "yacht",
+    "minesweeper",
+    "octal",
+    "strain",
+    "binary",
+    "relative-distance",
+    "spiral-matrix",
+    "twelve-days",
+    "parallel-letter-frequency",
+    "dnd-character",
+    "sieve",
+    "square-root",
+    "diamond",
+    "swift-scheduling",
+    "crypto-square",
+    "knapsack",
+    "word-search",
+    "binary-search-tree",
+    "acronym",
+    "camicia",
+    "complex-numbers",
+    "point-mutations",
+    "run-length-encoding",
+    "eliuds-eggs",
+    "satellite",
+    "series",
+    "clock",
+    "diffie-hellman",
+    "killer-sudoku-helper",
+    "tournament",
+    "rectangles",
+    "protein-translation",
+    "scrabble-score",
+    "change",
+    "largest-series-product",
+    "all-your-base",
+    "bank-account",
+    "ocr-numbers",
+    "robot-simulator",
+    "alphametics",
+    "atbash-cipher",
+    "palindrome-products",
+    "word-count",
+    "accumulate"
+  ],
+  "eligibility_rejections": [
+    {
+      "slug": "hello-world",
+      "reason": "outside pg1 difficulty range"
+    },
+    {
+      "slug": "leap",
+      "reason": "outside pg1 difficulty range"
+    },
+    {
+      "slug": "triangle",
+      "reason": "outside pg1 difficulty range"
+    },
+    {
+      "slug": "grains",
+      "reason": "outside pg1 difficulty range"
+    },
+    {
+      "slug": "armstrong-numbers",
+      "reason": "outside pg1 difficulty range"
+    },
+    {
+      "slug": "collatz-conjecture",
+      "reason": "outside pg1 difficulty range"
+    },
+    {
+      "slug": "bob",
+      "reason": "outside pg1 difficulty range"
+    },
+    {
+      "slug": "raindrops",
+      "reason": "outside pg1 difficulty range"
+    },
+    {
+      "slug": "darts",
+      "reason": "outside pg1 difficulty range"
+    },
+    {
+      "slug": "perfect-numbers",
+      "reason": "outside pg1 difficulty range"
+    },
+    {
+      "slug": "reverse-string",
+      "reason": "outside pg1 difficulty range"
+    },
+    {
+      "slug": "pangram",
+      "reason": "outside pg1 difficulty range"
+    },
+    {
+      "slug": "isogram",
+      "reason": "outside pg1 difficulty range"
+    },
+    {
+      "slug": "isbn-verifier",
+      "reason": "outside pg1 difficulty range"
+    },
+    {
+      "slug": "rotational-cipher",
+      "reason": "outside pg1 difficulty range"
+    },
+    {
+      "slug": "rna-transcription",
+      "reason": "outside pg1 difficulty range"
+    },
+    {
+      "slug": "resistor-color",
+      "reason": "outside pg1 difficulty range"
+    },
+    {
+      "slug": "resistor-color-duo",
+      "reason": "outside pg1 difficulty range"
+    },
+    {
+      "slug": "resistor-color-trio",
+      "reason": "outside pg1 difficulty range"
+    },
+    {
+      "slug": "resistor-color-expert",
+      "reason": "outside pg1 difficulty range"
+    },
+    {
+      "slug": "secret-handshake",
+      "reason": "outside pg1 difficulty range"
+    },
+    {
+      "slug": "anagram",
+      "reason": "outside pg1 difficulty range"
+    },
+    {
+      "slug": "house",
+      "reason": "outside pg1 difficulty range"
+    },
+    {
+      "slug": "binary-search",
+      "reason": "outside pg1 difficulty range"
+    },
+    {
+      "slug": "hamming",
+      "reason": "outside pg1 difficulty range"
+    },
+    {
+      "slug": "flatten-array",
+      "reason": "outside pg1 difficulty range"
+    },
+    {
+      "slug": "line-up",
+      "reason": "outside pg1 difficulty range"
+    },
+    {
+      "slug": "difference-of-squares",
+      "reason": "outside pg1 difficulty range"
+    },
+    {
+      "slug": "etl",
+      "reason": "outside pg1 difficulty range"
+    },
+    {
+      "slug": "space-age",
+      "reason": "outside pg1 difficulty range"
+    },
+    {
+      "slug": "sum-of-multiples",
+      "reason": "outside pg1 difficulty range"
+    },
+    {
+      "slug": "gigasecond",
+      "reason": "outside pg1 difficulty range"
+    },
+    {
+      "slug": "two-fer",
+      "reason": "outside pg1 difficulty range"
+    },
+    {
+      "slug": "error-handling",
+      "reason": "non-stdlib imports: test_utils"
+    }
+  ],
+  "grading_rejections": [
+    {
+      "slug": "ledger",
+      "reason": "stub already passes all 11 hidden tests"
+    },
+    {
+      "slug": "markdown",
+      "reason": "stub already passes all 17 hidden tests"
+    }
+  ],
+  "tasks": [
+    {
+      "id": "fresh-pythagorean-triplet",
+      "slug": "pythagorean-triplet",
+      "language": "python",
+      "exercism_difficulty": 3,
+      "tests": 7,
+      "solution": [
+        "pythagorean_triplet.py"
+      ],
+      "test": [
+        "pythagorean_triplet_test.py"
+      ],
+      "sha256": "00e2a63def12e8e75e65863d7f51f387774d61222db0e207a3e715399f00f189"
+    },
+    {
+      "id": "fresh-circular-buffer",
+      "slug": "circular-buffer",
+      "language": "python",
+      "exercism_difficulty": 3,
+      "tests": 14,
+      "solution": [
+        "circular_buffer.py"
+      ],
+      "test": [
+        "circular_buffer_test.py"
+      ],
+      "sha256": "02b9b89686567a7c753b3ccff0bc5eb7497034fc36f7181da362589df4d481e7"
+    },
+    {
+      "id": "fresh-simple-cipher",
+      "slug": "simple-cipher",
+      "language": "python",
+      "exercism_difficulty": 3,
+      "tests": 12,
+      "solution": [
+        "simple_cipher.py"
+      ],
+      "test": [
+        "simple_cipher_test.py"
+      ],
+      "sha256": "04f35500f62bccc7e7bd01dedb0048d18b9701d3f25dc1dfeff1cc0319df6864"
+    },
+    {
+      "id": "fresh-prime-factors",
+      "slug": "prime-factors",
+      "language": "python",
+      "exercism_difficulty": 2,
+      "tests": 12,
+      "solution": [
+        "prime_factors.py"
+      ],
+      "test": [
+        "prime_factors_test.py"
+      ],
+      "sha256": "083b559c794bcec6e351bc0c26a0fc8614b60d02ceb05b90d728972aacc62364"
+    },
+    {
+      "id": "fresh-rational-numbers",
+      "slug": "rational-numbers",
+      "language": "python",
+      "exercism_difficulty": 5,
+      "tests": 43,
+      "solution": [
+        "rational_numbers.py"
+      ],
+      "test": [
+        "rational_numbers_test.py"
+      ],
+      "sha256": "0d5d3f53946036bfc025d24b204e8325bfb47c05d9d7b1002c4893302efa799a"
+    },
+    {
+      "id": "fresh-high-scores",
+      "slug": "high-scores",
+      "language": "python",
+      "exercism_difficulty": 3,
+      "tests": 12,
+      "solution": [
+        "high_scores.py"
+      ],
+      "test": [
+        "high_scores_test.py"
+      ],
+      "sha256": "110a8a8ef640f352db97a0dde3524c5e5df33148f5e848b70c838cceddd7bdbc"
+    },
+    {
+      "id": "fresh-meetup",
+      "slug": "meetup",
+      "language": "python",
+      "exercism_difficulty": 4,
+      "tests": 103,
+      "solution": [
+        "meetup.py"
+      ],
+      "test": [
+        "meetup_test.py"
+      ],
+      "sha256": "133e492e140ba957221d4b69249af47500313c027b338d2dc2670e00f5632ae9"
+    },
+    {
+      "id": "fresh-queen-attack",
+      "slug": "queen-attack",
+      "language": "python",
+      "exercism_difficulty": 2,
+      "tests": 14,
+      "solution": [
+        "queen_attack.py"
+      ],
+      "test": [
+        "queen_attack_test.py"
+      ],
+      "sha256": "168979b62ed14315ff58a0904c7d6a8ac8a1e676f46ee0124e5cab17981c27bf"
+    },
+    {
+      "id": "fresh-matrix",
+      "slug": "matrix",
+      "language": "python",
+      "exercism_difficulty": 3,
+      "tests": 8,
+      "solution": [
+        "matrix.py"
+      ],
+      "test": [
+        "matrix_test.py"
+      ],
+      "sha256": "1831648d3d448aa2b385750cb869e4ffb7b8f47aaa58f833105713c1bf867f3e"
+    },
+    {
+      "id": "fresh-trinary",
+      "slug": "trinary",
+      "language": "python",
+      "exercism_difficulty": 4,
+      "tests": 7,
+      "solution": [
+        "trinary.py"
+      ],
+      "test": [
+        "trinary_test.py"
+      ],
+      "sha256": "19541e4bb9056c945aa9971b4a0096acb1c18a41cbc2eb387b288b31ecc503ec"
+    },
+    {
+      "id": "fresh-allergies",
+      "slug": "allergies",
+      "language": "python",
+      "exercism_difficulty": 3,
+      "tests": 50,
+      "solution": [
+        "allergies.py"
+      ],
+      "test": [
+        "allergies_test.py"
+      ],
+      "sha256": "1cdb523e813358034274c92ea41e94c9324aa18beb68446a6d8436416c23c4aa"
+    },
+    {
+      "id": "fresh-say",
+      "slug": "say",
+      "language": "python",
+      "exercism_difficulty": 2,
+      "tests": 20,
+      "solution": [
+        "say.py"
+      ],
+      "test": [
+        "say_test.py"
+      ],
+      "sha256": "1f0cfef30a1fead9f6485a1c74f7ac71e79395fe8e8c41f15fe6a9839f18c416"
+    },
+    {
+      "id": "fresh-kindergarten-garden",
+      "slug": "kindergarten-garden",
+      "language": "python",
+      "exercism_difficulty": 3,
+      "tests": 19,
+      "solution": [
+        "kindergarten_garden.py"
+      ],
+      "test": [
+        "kindergarten_garden_test.py"
+      ],
+      "sha256": "2020b1ea15c6fbc4de117b2fe085cdc5d1c449d63d0d50d51a4c8969cceabfd2"
+    },
+    {
+      "id": "fresh-roman-numerals",
+      "slug": "roman-numerals",
+      "language": "python",
+      "exercism_difficulty": 2,
+      "tests": 27,
+      "solution": [
+        "roman_numerals.py"
+      ],
+      "test": [
+        "roman_numerals_test.py"
+      ],
+      "sha256": "213778fc21c4c974ac3fdab5c9a3efa2906d656e528426d500a9f34ebf34feba"
+    },
+    {
+      "id": "fresh-custom-set",
+      "slug": "custom-set",
+      "language": "python",
+      "exercism_difficulty": 5,
+      "tests": 40,
+      "solution": [
+        "custom_set.py"
+      ],
+      "test": [
+        "custom_set_test.py"
+      ],
+      "sha256": "2cbd6e0435fb10c4dd0c01c582a6dc17011d49a5c05ce47da487a61305b5ef7d"
+    },
+    {
+      "id": "fresh-matching-brackets",
+      "slug": "matching-brackets",
+      "language": "python",
+      "exercism_difficulty": 2,
+      "tests": 20,
+      "solution": [
+        "matching_brackets.py"
+      ],
+      "test": [
+        "matching_brackets_test.py"
+      ],
+      "sha256": "3a05206db03915e55fa80355b7a31abaea9847632d278a451bd7ac903be4814a"
+    },
+    {
+      "id": "fresh-rail-fence-cipher",
+      "slug": "rail-fence-cipher",
+      "language": "python",
+      "exercism_difficulty": 4,
+      "tests": 6,
+      "solution": [
+        "rail_fence_cipher.py"
+      ],
+      "test": [
+        "rail_fence_cipher_test.py"
+      ],
+      "sha256": "3f292fd1936afdabdda0dbdf2e8f2b910bf3acace7b8530f4f942ca9d5a9f8a3"
+    },
+    {
+      "id": "fresh-sublist",
+      "slug": "sublist",
+      "language": "python",
+      "exercism_difficulty": 2,
+      "tests": 22,
+      "solution": [
+        "sublist.py"
+      ],
+      "test": [
+        "sublist_test.py"
+      ],
+      "sha256": "45fec04859c76751b5ee3d7e45d0cc09352a6c14a388bcd0cb36bade94b0ef74"
+    },
+    {
+      "id": "fresh-state-of-tic-tac-toe",
+      "slug": "state-of-tic-tac-toe",
+      "language": "python",
+      "exercism_difficulty": 3,
+      "tests": 29,
+      "solution": [
+        "state_of_tic_tac_toe.py"
+      ],
+      "test": [
+        "state_of_tic_tac_toe_test.py"
+      ],
+      "sha256": "4738513a23517aab5153ecedffdfbf1a8ef5f7e7f2a123caa372d85fc64faf2b"
+    },
+    {
+      "id": "fresh-game-of-life",
+      "slug": "game-of-life",
+      "language": "python",
+      "exercism_difficulty": 3,
+      "tests": 8,
+      "solution": [
+        "game_of_life.py"
+      ],
+      "test": [
+        "game_of_life_test.py"
+      ],
+      "sha256": "552fb0975924a60f7d14b3ea226bd5e0c55450e03574020da2e7f1d33bbea306"
+    },
+    {
+      "id": "fresh-flower-field",
+      "slug": "flower-field",
+      "language": "python",
+      "exercism_difficulty": 4,
+      "tests": 16,
+      "solution": [
+        "flower_field.py"
+      ],
+      "test": [
+        "flower_field_test.py"
+      ],
+      "sha256": "5b7592df61c3e56699f415d8d6eef8f8251a21d2c015fad86a61a43ecdd3d7e5"
+    },
+    {
+      "id": "fresh-nucleotide-count",
+      "slug": "nucleotide-count",
+      "language": "python",
+      "exercism_difficulty": 2,
+      "tests": 7,
+      "solution": [
+        "nucleotide_count.py"
+      ],
+      "test": [
+        "nucleotide_count_test.py"
+      ],
+      "sha256": "662effc3fbd9533aac1221d4c852e3343228d2cf1813e36b5258e6c05a04aaf2"
+    },
+    {
+      "id": "fresh-luhn",
+      "slug": "luhn",
+      "language": "python",
+      "exercism_difficulty": 2,
+      "tests": 23,
+      "solution": [
+        "luhn.py"
+      ],
+      "test": [
+        "luhn_test.py"
+      ],
+      "sha256": "6ecdc73ab5feed58dc20dea8018736dcc4834595b640d7c0d8c815749676713f"
+    },
+    {
+      "id": "fresh-pascals-triangle",
+      "slug": "pascals-triangle",
+      "language": "python",
+      "exercism_difficulty": 4,
+      "tests": 10,
+      "solution": [
+        "pascals_triangle.py"
+      ],
+      "test": [
+        "pascals_triangle_test.py"
+      ],
+      "sha256": "77ca7d2014d683c397208f217afdb73a30c80056b101b75a5e77c5fa36d11656"
+    },
+    {
+      "id": "fresh-saddle-points",
+      "slug": "saddle-points",
+      "language": "python",
+      "exercism_difficulty": 3,
+      "tests": 10,
+      "solution": [
+        "saddle_points.py"
+      ],
+      "test": [
+        "saddle_points_test.py"
+      ],
+      "sha256": "784bd91dc5fee03ecb7374d9994262b67432268775a116104a46af5a4a0a9744"
+    },
+    {
+      "id": "fresh-linked-list",
+      "slug": "linked-list",
+      "language": "python",
+      "exercism_difficulty": 4,
+      "tests": 24,
+      "solution": [
+        "linked_list.py"
+      ],
+      "test": [
+        "linked_list_test.py"
+      ],
+      "sha256": "7aa6d0922c6449c55e7688029daf7aa7fd9bb3815998c560be2e620400219410"
+    },
+    {
+      "id": "fresh-hexadecimal",
+      "slug": "hexadecimal",
+      "language": "python",
+      "exercism_difficulty": 3,
+      "tests": 10,
+      "solution": [
+        "hexadecimal.py"
+      ],
+      "test": [
+        "hexadecimal_test.py"
+      ],
+      "sha256": "7b9744e0c4d3dc77e84c2022dbec7ec128483b2030775a9d5271b55bfeabb68f"
+    },
+    {
+      "id": "fresh-nth-prime",
+      "slug": "nth-prime",
+      "language": "python",
+      "exercism_difficulty": 2,
+      "tests": 6,
+      "solution": [
+        "nth_prime.py"
+      ],
+      "test": [
+        "nth_prime_test.py"
+      ],
+      "sha256": "7d967aa4fc239e0f2f96477f3dfeb9fc00c909c19bfa883eb7927ca66fa930e5"
+    },
+    {
+      "id": "fresh-yacht",
+      "slug": "yacht",
+      "language": "python",
+      "exercism_difficulty": 2,
+      "tests": 29,
+      "solution": [
+        "yacht.py"
+      ],
+      "test": [
+        "yacht_test.py"
+      ],
+      "sha256": "818de60033c74671b45f9f2db16a7e0865d483b1131c8081ed2e86dfd76a4d66"
+    },
+    {
+      "id": "fresh-minesweeper",
+      "slug": "minesweeper",
+      "language": "python",
+      "exercism_difficulty": 4,
+      "tests": 15,
+      "solution": [
+        "minesweeper.py"
+      ],
+      "test": [
+        "minesweeper_test.py"
+      ],
+      "sha256": "84eb5f9e782f59c47ce695938e84cd63bf735e22666b29702895adf9cd6a160e"
+    }
+  ]
+}

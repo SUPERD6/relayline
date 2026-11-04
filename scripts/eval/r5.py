@@ -183,13 +183,16 @@ import daily_home as DH  # noqa: E402
 import evidence_streams as ES  # noqa: E402
 import tasks_holdout  # noqa: E402
 import tasks_polyglot  # noqa: E402
+import tasks_fresh  # noqa: E402
+import candidate  # noqa: E402
+import fresh_summary  # noqa: E402
 import tasks_r5  # noqa: E402
 
 # r5: the 10 tasks the loop was tuned on; holdout (scripts/eval/tasks_holdout.py): 10 others never used for tuning,
 # for the final claims (backlog C1). r5 stays the default everywhere.
-TASKSETS = {"r5": tasks_r5, "holdout": tasks_holdout, "polyglot": tasks_polyglot}
+TASKSETS = {"r5": tasks_r5, "holdout": tasks_holdout, "polyglot": tasks_polyglot, "fresh": tasks_fresh}
 # a task set's default arms when --arms is not given (r5 and holdout: ARMS)
-DEFAULT_ARMS = {"polyglot": tasks_polyglot.ARMS}
+DEFAULT_ARMS = {"polyglot": tasks_polyglot.ARMS, "fresh": tasks_fresh.ARMS}
 IDS = tasks_r5.IDS
 
 OUT = ROOT / ".ccx" / "eval" / "r5"
@@ -359,7 +362,7 @@ SKILL_ARMS = PF.SKILL_ARMS                       # the lead loads the agent-dele
 # namecheck arms (opt-in): ccx2 in a unit hub whose tiers.toml sets [defaults] namecheck to this mode
 NAMECHECK_ARMS = {"ccx2nc": "fail"}
 TEST_REVIEW_ARMS = ("ccx2rt",)  # opt-in: same lead/prompt as ccx2, task-derived test review
-USER_WORDS_ARMS = ("ccx2uw",)  # opt-in: ccx2 wording/flags, only delegate.user_words differs
+USER_WORDS_ARMS = ("ccx2uw", "ccx2cand")  # opt-in unit overlays
 # daily-config arms (opt-in, B3 item 2; scripts/eval/daily_home.py): ccx2's lead and wording, but its sub-agents
 # start with the person's everyday setup (Codex memories, AGENTS.md and skills copied into a per-unit Codex home whose
 # login is the eval home's; Claude with the user settings layer and skills), and each variant turns one experimental
@@ -421,7 +424,8 @@ def ext_spec(task: dict) -> dict | None:
     this one."""
     if not task.get("repo"):
         return None
-    return tasks_holdout.REPOS.get(task["repo"]) or tasks_polyglot.REPOS[task["repo"]]
+    return (tasks_holdout.REPOS.get(task["repo"]) or tasks_fresh.REPOS.get(task["repo"])
+            or tasks_polyglot.REPOS[task["repo"]])
 
 
 def is_exercise(task: dict) -> bool:
@@ -785,8 +789,11 @@ def lead_how(arm: str, label: str, lead: tuple[str, str] = DEFAULT_LEAD) -> str:
     lead passes to ccx propose as --lead)."""
     if arm == "ccx":
         return HOW_CCX.format(ccx=r3.CCX_CMD, label=label)
-    if arm == "ccx2small":
-        return (HOW_CCX2.format(ccx=r3.CCX_CMD, label=label) +
+    if arm in ("ccx2small", "ccx2cand"):
+        how = HOW_CCX2.format(ccx=r3.CCX_CMD, label=label)
+        if arm == "ccx2cand":
+            how = how.replace("--mode write", "--files <estimated number of implementation files> --mode write", 1)
+        return (how +
                 " If ccx returns state=small_self, implement and check the task yourself, then commit it; "
                 "do not retry with --force.")
     if arm == "ccx2" or arm in TEST_REVIEW_ARMS or arm in NAMECHECK_ARMS or arm in USER_WORDS_ARMS or arm in DAILY_ARMS:
@@ -1601,9 +1608,12 @@ def bookkeeping(row: dict, arm: str, hub: Path, task: dict) -> None:
     error here is kept in the row (`bookkeeping_error`) and the unit is still scored: its lead and sub-agent are
     already paid for, so a failed read of metadata must not throw the hidden-test result away."""
     try:
-        if arm == "ccx2small":
+        if arm in ("ccx2small", "ccx2cand"):
             decisions = [r for r in hub_rows(hub) if r.get("type") == "small_self_run"]
             row["small_self_run"] = {"applied": bool(decisions), "decisions": decisions}
+        if arm == "ccx2cand":
+            row["candidate"] = {**(row.get("candidate") or {}),
+                                **candidate.collect(hub, hub_rows(hub), row.get("ccx_run_ids") or [], r2.record)}
         if arm in TIER_ARMS:
             row.update(tier_fields(arm, hub, task))
         if row.get("ccx_run_ids"):
@@ -1691,7 +1701,7 @@ def run_unit(u: dict, a, work: Path) -> dict:
         hinfo = r3.make_hub(hub)
         hinfo["memory_empty"] = PF.hub_memory_empty(hub)
         row["hub"] = hinfo
-        if u["arm"] == "ccx2small":
+        if u["arm"] in ("ccx2small", "ccx2cand"):
             hinfo["small_routing"] = set_small(hub)
         env = PF.prepare(iso)
         if u["arm"] in TIER_ARMS:                 # the person's choice the arm simulates, in the unit's own hub
@@ -1705,6 +1715,8 @@ def run_unit(u: dict, a, work: Path) -> dict:
             hinfo["review_mode"] = row["review_mode"] = set_test_review(hub)
         hinfo["user_words"] = hub_user_words(hub, u["arm"] in USER_WORDS_ARMS)
         row["user_words_mode"] = hinfo["user_words"]
+        if u["arm"] == "ccx2cand":
+            row["candidate"] = {"switches": candidate.assert_config(hub)}
         if u["arm"] in DAILY_ARMS:                # its own Codex home and HOME, and its [subagent] overlay
             row["daily"], env = set_daily(iso, hub, env, u["arm"], a)
         row.update(direct_unit(u, a, repo, hub, env, job) if not has_lead(u["arm"]) else
@@ -2982,6 +2994,7 @@ def summarize(rows: list[dict], include_unclean: bool = False) -> dict:
     completion_and_cost = completion_cost_summary(
         rows, right=lambda r: r.get("ok") if isinstance(r.get("ok"), bool) and not r.get("error") else None,
         arm=arm_of)
+    fresh = fresh_summary.summarize(rows, arm_of)
     unclean = sum(r.get("env_clean") is False for r in rows if "error" not in r)
     unknown = sum("env_clean" not in r for r in rows if "error" not in r)    # rows from before the clean room
     tags = sorted({str(r.get("tag")) for r in rows})
@@ -3013,6 +3026,7 @@ def summarize(rows: list[dict], include_unclean: bool = False) -> dict:
                     "sub_cps": round(sub / ok, 4) if ok else None,
                     "lead_only_usd_med": med("lead_only_usd"), "lead_tokens_med": med("lead_tokens"),
                     "lead_requests_med": med("lead_requests"), "wall_med": med("wall_s"),
+                    "wall_total": round(sum(r.get("wall_s") or 0 for r in rs), 4),
                     **{k: v for k, v in wall_stats(rs).items() if k in ("wall_mean", "wall_p75")},
                     "wilson": S.wilson(ok, len(rs)),
                     # Wilson takes every row as an independent trial; a task's rounds are not: this one resamples
@@ -3045,6 +3059,8 @@ def summarize(rows: list[dict], include_unclean: bool = False) -> dict:
            "long_style": r4.summarize_long([{**r, "arm": arm_of(r)} for r in rows
                                             if arm_of(r) in r4.LONG_ARMS])["paired"],
            "paired": paired_all(rows, None if include_unclean else every)}
+    if fresh is not None:
+        res["fresh"] = fresh
     if ex_arm:
         res["excluded_by_arm"] = ex_arm
         res["excluded_by_tag"] = ex_tag
@@ -3142,7 +3158,8 @@ def cmd_export(a) -> int:
             "actual_mode", "misband", "misband_overall", "followed_plan", "ccx_check_passed", "may_be_wrong",
             "ccx_routes", "bookkeeping_error", "lead_usage", "timeline", "skill_used", "skills_used",
             "namecheck_mode", "user_words_mode", "ccx_namecheck", "ccx_check_reason", "sub_usage", "switches_applied",
-            "hidden_failed", "artifacts", "streams", "streams_error", "arm_order", "arm_pos", "small_self_run")
+            "hidden_failed", "artifacts", "streams", "streams_error", "arm_order", "arm_pos", "small_self_run",
+            "candidate")
     rows = summary_rows(a)
     data = {"summary": summarize(rows, a.include_unclean),
             "rows": [r3.scrub({**{k: r[k] for k in keep if k in r},
@@ -3170,7 +3187,8 @@ def parser() -> argparse.ArgumentParser:
     r.add_argument("--rounds", type=int, default=2)
     r.add_argument("--taskset", choices=sorted(TASKSETS), default="r5",
                    help="r5 (default: the tasks the loop was tuned on), holdout (unseen, for final claims) or "
-                        "polyglot (30 Exercism exercises of aider's polyglot benchmark; default arms self,ccx2,direct)")
+                        "polyglot (30 aider exercises; arms self,ccx2,direct) or fresh "
+                        "(30 other pinned Exercism exercises; arms self,ccx2cand)")
     r.add_argument("--tasks", default="", help="comma-separated ids from the task set (default: all of it)")
     r.add_argument("--arms", default="")
     r.add_argument("--arm-order", choices=ARM_ORDERS, default="shuffle", help="shuffle (default, every earlier "
