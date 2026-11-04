@@ -1,8 +1,10 @@
 """[review] must_needs_repro (P1-10, default off): with ccx's check passed, a review [must] without a reproducible
 failure starts no fix round (downgrade), or is settled once by a stronger reviewer first (confirm)."""
 import json
+import os
 import subprocess
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -61,6 +63,30 @@ class TestRule(unittest.TestCase):
                                                                            "exit": 1}, repro=True))
 
 
+class TestFakeReviewers(unittest.TestCase):
+    def test_reviewers_skip_fake_writes_but_builders_still_write(self):
+        fakes = Path(__file__).resolve().parent / "fakes"
+        with tempfile.TemporaryDirectory() as tmp:
+            for name, argv in (("fake_claude.py", ["-p"]), ("fake_codex.py", ["exec", "--json"])):
+                with self.subTest(fake=name):
+                    target = Path(tmp) / name
+                    target.write_text("original", encoding="utf-8")
+                    env = os.environ.copy()
+                    env.pop("FAKE_LOG", None)
+                    env.pop("FAKE_REVIEW", None)
+                    env.pop("FAKE_REVIEW_MUST", None)
+                    env["FAKE_WRITE"] = f"{target}=new"
+                    fake = fakes / name
+                    review_run = subprocess.run([sys.executable, str(fake), *argv], input="[ccx review of run x]", cwd=tmp,
+                                                env=env, capture_output=True, text=True)
+                    self.assertEqual(review_run.returncode, 0, review_run.stderr)
+                    self.assertEqual(target.read_text(encoding="utf-8"), "original")
+                    builder_run = subprocess.run([sys.executable, str(fake), *argv], input="ordinary task", cwd=tmp,
+                                                 env=env, capture_output=True, text=True)
+                    self.assertEqual(builder_run.returncode, 0, builder_run.stderr)
+                    self.assertEqual(target.read_text(encoding="utf-8"), "new")
+
+
 class TestRun(Env):
     def setUp(self):
         super().setUp()
@@ -96,7 +122,7 @@ class TestRun(Env):
         self.assertEqual(out["review"]["verdict"], "pass", out)
         self.assertNotIn("kind", out)
         self.assertTrue(out["ok"])
-        self.assertEqual(len(self.reviews()), 1)                 # no fix round, no second review
+        self.assertEqual(len(self.reviews()), 1, out)             # no fix round, no second review
         self.assertIn("needs a `repro:` at its end", self.reviews()[0]["prompt"])
 
     def test_a_must_with_a_repro_still_starts_the_fix_round(self):

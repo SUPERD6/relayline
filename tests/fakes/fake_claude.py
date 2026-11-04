@@ -76,7 +76,8 @@ if mode == "quota":
                       "result": "Claude usage limit reached. Your limit will reset at 6pm.",
                       "usage": {"input_tokens": 5, "output_tokens": 0}, "total_cost_usd": 0.0}))
     sys.exit(1)
-for spec in filter(None, os.environ.get("FAKE_WRITE", "").split(";")):   # "path=content;path2=content"
+# ccx runs the review alongside the check, so a reviewer that rewrites the file breaks the check's import.
+for spec in filter(None, "" if "[ccx review" in prompt else os.environ.get("FAKE_WRITE", "").split(";")):   # "path=content;path2=content"
     path, _, content = spec.partition("=")
     with open(path, "w", encoding="utf-8") as fh:
         fh.write(content)
