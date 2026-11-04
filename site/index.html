@@ -48,23 +48,24 @@
   </div>
 
   <section id="numbers">
-    <h2>Measured on a hold-out set</h2>
-    <p class="note">10 tasks not used while building ccx (5 from this repository, 5 from two external ones) &times; 3 rounds, a Claude Code (Sonnet) lead, hidden tests, rules fixed before the run (hc1, 2026-10-29).</p>
+    <h2>Historical experiment and 0.6.0 candidate recheck</h2>
+    <p class="note">10 tasks not used while building ccx (5 from this repository, 5 from two external ones) &times; 3 rounds, a Claude Code (Sonnet) lead, hidden tests, rules fixed before the run (historical hc1, old code, 2026-10-29).</p>
     <div class="tablewrap"><table class="hc1">
       <thead><tr><td></td><th>Right</th><th>Cost per success</th><th>Wall time, median</th></tr></thead>
       <tbody>
-        <tr><th scope="row">Lead does it itself</th><td>29/30</td><td>$0.090</td><td>21 s</td></tr>
-        <tr><th scope="row">Claude Code built-in sub-agent (default usage)</th><td>27/28 <span class="mutedtext">(2 unclean rows dropped)</span></td><td>$0.103</td><td>123 s</td></tr>
-        <tr><th scope="row">ccx &rarr; Codex (gpt-6-luna low)</th><td>29/30</td><td><b>$0.063</b></td><td>61 s</td></tr>
+        <tr><th scope="row">Historical hc1: lead does it itself</th><td>29/30</td><td>$0.090</td><td>21 s</td></tr>
+        <tr><th scope="row">Historical hc1: Claude Code built-in sub-agent (default usage)</th><td>27/28 <span class="mutedtext">(2 unclean rows dropped)</span></td><td>$0.103</td><td>123 s</td></tr>
+        <tr><th scope="row">Historical hc1: ccx &rarr; Codex (gpt-6-luna low)</th><td>29/30</td><td><b>$0.063</b></td><td>61 s</td></tr>
+        <tr><th scope="row">hc2: 0.6.0 candidate ccx</th><td>28/30 (clean 25/27)</td><td>$0.088 (clean)</td><td>168 s</td></tr>
       </tbody>
     </table></div>
     <ul class="limits">
-      <li><b>Not seen to be less right</b> &mdash; by a pointwise rule, not a statistical non-inferiority test. We don't claim it is more accurate.</li>
+      <li><b>Historical hc1: not seen to be less right</b> &mdash; by a pointwise rule, not a statistical non-inferiority test. We don't claim it is more accurate.</li>
       <li><b>Small exercises go the other way:</b> on 30 polyglot exercises with no tests of their own (pg1, 2026-10-31), ccx was right 12/30 against 25/30 doing it yourself, at 3.1&times; the cost per success and about 5&times; the wall time; a different task set and ccx version from hc1, not paired. Small strict-interface tasks: do them yourself (<a href="https://github.com/SUPERD6/relayline/blob/main/docs/research/2026-10-31-polyglot-pg1.md">report</a>).</li>
-      <li><b>About 30&nbsp;% cheaper per success than doing it yourself</b> (95&nbsp;% CI of the difference &minus;$0.054 to &minus;$0.004); about 15&nbsp;% on the 5 external-repository tasks, the clean half (this repository's own tasks may have their answers in ccx's code).</li>
-      <li><b>About 3&times;&nbsp;slower</b> than doing it yourself. Not faster.</li>
+      <li><b>Historical hc1 only (old code, 2026-10-29): about 30&nbsp;% cheaper per success than doing it yourself</b> (95&nbsp;% CI of the difference &minus;$0.054 to &minus;$0.004); about 15&nbsp;% on the 5 external-repository tasks, the clean half (this repository's own tasks may have their answers in ccx's code).</li>
+      <li><b>hc2: self and built-in were not rerun.</b> Cost and wall time were higher than hc1; code and sandbox effects were not isolated. Neither product slowdown nor loss of savings is established (<a href="https://github.com/SUPERD6/relayline/blob/main/docs/research/2026-11-04-hc2-holdout.md">hc2 report</a>). Historical hc1 took about 3&times; self wall time.</li>
       <li>The built-in arm is its default usage; a leaner built-in recipe was cheaper than ccx on the dev set. 10 tasks, one lead model, API-equivalent prices; real runs on one Windows machine (macOS and Linux: CI only).</li>
-      <li><b>The receipt itself is not always right:</b> 8 of 209 said &ldquo;right&rdquo; while the hidden tests failed (3.8&nbsp;%, above our 2&nbsp;% bar; being fixed, <a href="https://github.com/SUPERD6/relayline/blob/main/docs/research/2026-10-31-verdict-audit.md">audit</a>). Real use outside our own tests: almost none so far. Work in progress: <a href="https://github.com/SUPERD6/relayline/blob/main/docs/STATUS.md">STATUS</a>.</li>
+      <li><b>Receipt limits:</b> hc2 had no false positives in these 19 ordinary ok receipts only (approximate 95% upper bound 15%, not below 2%); only 6 were done. Pre-#223 audit: 8/209 = 3.8%; no sufficient post-#223 done-receipt retest. <a href="https://github.com/SUPERD6/relayline/blob/main/docs/research/2026-11-03-pg3b-receipts.md">pg3b</a> had zero ordinary ok: insufficient evidence under preregistration, unable to measure 2%. Independent review passed all 29 self-checked receipts, including 15 hidden-test failures; pass does not mean right.</li>
     </ul>
     <p class="note">Every number and how it was measured: <a href="https://github.com/SUPERD6/relayline/blob/main/docs/measured.md">Measured</a>; all eight limits: <a href="https://github.com/SUPERD6/relayline/blob/main/docs/research/2026-10-29-hc1-holdout.md">hold-out report</a>.</p>
   </section>
@@ -84,8 +85,8 @@
     <div><h3>① Conversation</h3><p><code>ccx discuss</code> gets two or three vendors' views; the board (<code>ccx say</code>, <code>ccx reply</code>) lets open sessions write to each other. Not measured yet; a Claude Code lead sees a message only on its next turn.</p></div>
     <div><h3>② Shared memory</h3><p>Your hub and the project's <code>.ccx/</code>; the notes a task is about go into every brief; <code>ccx handoff</code> passes the baton. A project note was followed 9/9 vs 0/9; 3 tasks × 3.</p></div>
     <div><h3>③ Splitting and pipeline</h3><p><code>ccx q</code>: a durable queue, one worktree per piece, merged by dependency. Handing small tasks to Codex (A/B): one lead request fewer on every task, 21/21, but total spend about even and 3.3× the tokens.</p></div>
-    <div><h3>④ Delegation and choosing</h3><p><code>ccx route</code> picks who, which model and effort, or says doing it yourself is cheaper. Repository tasks: $0.063 vs $0.090 per success; small exercises: 3.1× the cost.</p></div>
-    <div><h3>⑤ Checks and receipts</h3><p>ccx re-runs your <code>--check</code>, another vendor reviews the diff, you give the verdict; the receipt says what the check covered. Right 29/30 on hidden tests; a check on the sub-agent's own tests passed all 18 of pg1's failures; such a pass is now marked self-checked and sent to review (not yet re-measured) .</p></div>
+    <div><h3>④ Delegation and choosing</h3><p><code>ccx route</code> picks who, model and effort. Historical hc1 (old code, 2026-10-29): $0.063 per success vs self $0.090; candidate hc2: $0.088. Self and built-in not rerun; code and sandbox effects not isolated.</p></div>
+    <div><h3>⑤ Checks and receipts</h3><p>ccx re-runs your <code>--check</code>, another vendor reviews the diff. hc2 hidden tests: 28/30 (clean 25/27); <a href="https://github.com/SUPERD6/relayline/blob/main/docs/research/2026-11-03-pg3b-receipts.md">pg3b</a>: 15 of 29 <code>ok_self_checked</code> receipts failed hidden tests; independent review passed all 29, so pass does not mean right.</p></div>
     <div><h3>⑥ Control and recovery</h3><p><code>ccx stop</code>, <code>ccx resume</code>, <code>ccx undo</code>, <code>--worktree</code>, autonomy L0&ndash;L2. From a handoff alone the next agent picked up 3/3 in controlled runs; one real long session failed at first.</p></div>
     <div><h3>⑦ Measurement and honesty</h3><p>One ledger across vendors, clean-environment checks, a public benchmark, negative results published. API-equivalent cost was 1.5&nbsp;% from Claude's own on one run; on a subscription you pay in quota.</p></div>
     <div><h3>⑧ Interface and first steps</h3><p><code>ccx ui</code>: one project on one map; <code>ccx demo</code> with no account; <code>ccx setup</code>, <code>ccx doctor</code>. No user study yet; real use outside our own tests is thin.</p></div>

@@ -28,8 +28,8 @@ in [STATUS](STATUS.md).
 
 | Issue | What is known | Where |
 |---|---|---|
-| Wall time | On the hold-out run ccx took about 3× the wall time of the lead doing the task itself (61 s vs 21 s median) | [hc1 report](research/2026-10-29-hc1-holdout.md) |
-| Savings are narrow | About 30 % cheaper per success on 10 hold-out tasks, one lead model (Sonnet), Codex gpt-6-luna low as the sub-agent; about 15 % on the 5 external-repository tasks. Small tasks delegated from a long lead conversation did not save | [measured](measured.md), [round 4](research/2026-10-26-r4.md) |
+| Wall time | Historical hc1 (old code, 2026-10-29): median 61 s (self 21 s); 0.6.0 candidate hc2: 168 s. Cost and wall were higher; code and sandbox effects not isolated | [hc2](research/2026-11-04-hc2-holdout.md) |
+| Cost and comparison scope | Historical hc1: $0.063 per success, about 30% below self (external tasks 15%); candidate hc2: $0.088 (clean), 28/30 overall, 25/27 clean. Self and built-in not rerun; historical savings do not describe the current version | [measured](measured.md) |
 | Routing priors | The difficulty → model odds are uncalibrated beyond the evaluation tasks | [features](features.md) |
 | Experimental: Gemini CLI | Adapter written from its docs, tested with a stand-in; never run for real; sub-agent only | [faq](faq.md) |
 | Experimental: a real quota stop | The fallback to the other tool is tested with stand-ins only | [features](features.md) |
@@ -37,6 +37,8 @@ in [STATUS](STATUS.md).
 | Experimental: Codex plugin from a GitHub address | Follows Codex's plugin docs, tested with a stand-in only | [install](install.md) |
 | Experimental: `ccx intake` against real GitHub | Only against a stand-in `gh` | [intake](intake.md) |
 | Not run live | `ccx say --now` in the Codex desktop app's window, the Codex rule from `ccx doctor --codex-rule`, the dsh app's own later writes after a queued archive, own sub-agent limits (F11), the `--review auto` trigger rate, a hook timeout in a real session, L2 auto-merge end to end | [STATUS](STATUS.md) |
+
+Receipts: hc2 had 0/19 ordinary ok false positives (approximate 95% upper bound 15%), only 6 done, unable to prove below 2%; pre-#223 audit 8/209 = 3.8%, no sufficient post-#223 done-receipt retest. pg3b had zero ordinary ok (insufficient evidence); review passed all 29 self-checked receipts, including 15 hidden-test failures, so pass is not correctness. See [hc2](research/2026-11-04-hc2-holdout.md) and [pg3b](research/2026-11-03-pg3b-receipts.md).
 
 ## 3. Experimental switches: what ships off, and why
 
@@ -57,7 +59,7 @@ measurement shows right answers do not drop, and the decision gets a row in [DEC
 | `review.fix_rereview` | `"full"` | `"focus"` re-reviews a fix against the first review's problems | timing decides it: a median 2.4 s saved against a 10 s bar (missed `[must]` 24 vs 21 of 33, one pass each, not told apart from noise) | no |
 | `review.cache_ttl` | `""` | sets a Claude reviewer's prompt-cache lifetime (`"5m"` / `"1h"`) | not A/B-tested | no |
 | `routing.small_self` | `false` | `ccx route` / `ccx propose` advise doing a task yourself instead of delegating it (`ccx run` unchanged): by `small_self_by = "files"` (default, the #200 rule) a task of at most `small_self_files` (1) source files; by `"cost"` (experimental) when doing it yourself (requests x your conversation, plus the files read) costs less than delegating's fixed cost on the lead's side (`small_self_overhead_usd`, $0.035 on a fresh Sonnet conversation, scaled to yours) | pg1: 82 % of a delegation's spend is on the lead's side, so the question is whether doing it yourself is dear; the file-count replay of r5 + hold-out lost no task (wall -14 %, cost +5 %); both rules need the hold-out round (self / ccx2 / ccx2+small_self) | yes |
-| `escalate.on_self_checked` | `"review"` (**ships on, not yet measured**) | a run whose check passed only on tests the sub-agent wrote or changed is always reviewed against the task text (`"rung"`: one stronger rung redoes it first; `"off"`: the label `ok_self_checked` only) | the exception to the rule above, decided in [DECISIONS](DECISIONS.md) 2026-10-31: the label is only a more honest class, and pg1 showed the old default let 18 of 18 such passes through; a review that finds problems can now end a run `review_failed` (exit 2) that used to exit 0. The before / after is a ccx2 rerun of pg1 | yes |
+| `escalate.on_self_checked` | `"review"` (**ships on; pg3b remeasured**) | a run whose check passed only on tests the sub-agent wrote or changed is always reviewed against the task text (`"rung"`: one stronger rung redoes it first; `"off"`: the label `ok_self_checked` only) | the exception to the rule above, decided in [DECISIONS](DECISIONS.md) 2026-10-31: the label is only a more honest class, and pg1 showed the old default let 18 of 18 such passes through; a review that finds problems can now end a run `review_failed` (exit 2) that used to exit 0. pg3b: review passed all 29 `ok_self_checked` receipts, including 15 hidden-test failures; pass is not correctness; ordinary ok count 0, insufficient evidence | yes |
 | `lead.model_by_task` | `false` | a new lead conversation picks its model by task difficulty | thresholds are provisional until `scripts/eval/r5.py --lead-model auto` is compared with fixed models | yes |
 | `subagent.codex_memories` | `true` | `false` turns Codex memories off for sub-agents | B3: changes only after the before / after against the person's daily setup ([plan](research/2026-10-30-b3-lean-switches-plan.md)) | no |
 | `subagent.clean` | `false` | sub-agents start without the person's skills and user settings | same B3 measurement; may lose right answers that personal skills bring | no |

@@ -19,7 +19,7 @@ that do not know Terra keep its cost unknown. The example role workflows and the
 
 ## The README's comparison: self, built-in sub-agent, ccx
 
-### Hold-out set (hc1, 2026-10-29)
+### Historical experiment: hold-out set (hc1, old code, 2026-10-29)
 
 The README's hold-out row, from the [hold-out report](research/2026-10-29-hc1-holdout.md): 10 tasks not used while
 building ccx (5 from this repository, 5 from two external repositories) × 3 rounds, a Sonnet medium lead, hidden
@@ -41,6 +41,30 @@ took about 3× self's wall time. Limits that go with these numbers: the built-in
 the full test suite; the lean builtin2 recipe, cheaper than ccx on the dev set, was not in this run); this
 repository's 5 tasks may have their answers in the ccx code ccx ran on, so the external-repository row (−15 % / −42 %)
 is the clean one; 10 tasks and one lead model only; API-equivalent prices. All eight limits are in the report.
+
+### 0.6.0 candidate recheck: hc2 (2026-11-04)
+
+[hc2 report](research/2026-11-04-hc2-holdout.md): 28/30 overall, 25/27 `env_clean` rows, $0.088 per success (clean rows), median wall 168 s.
+**Self and the built-in sub-agent were not rerun.** Historical hc1's $0.063 and “about 30% cheaper” apply to old code only.
+Measured cost and wall time were higher than hc1; code and sandbox effects were not isolated, so neither a product slowdown nor loss of savings is established.
+**ccx is slower than doing it yourself in every round compared with self:** hc1 about 3× (61 vs 21 s; built-in default 123 s), dev set 2.5–2.8×, round 1 about 3× (34 vs 11 s), round 3 about 4.5× (63 vs 14 s), or about 2.5–4.5× across these repository-task rounds; pg1's small exercises about 5×. hc2 adds no new self comparison because self was not rerun; the candidate's median wall time was higher than hc1 (168 vs 61 s), with causes not isolated.
+All 30 rows cost $1.826 → $2.411 (+32%); cumulative wall 2810 → 7212 s (+157%). This was a read-only diagnostic, no pytest; waits were script estimates.
+21/30 event streams reported pytest temporary-directory permission failures, absent from hc1; hc1's sandbox type was unrecorded, unelevated was enforced later, and Claude's version changed.
+
+[pg3b](research/2026-11-03-pg3b-receipts.md): 15 of 29 `ok_self_checked` receipts failed hidden tests; independent review passed all 29. Such a pass is not correctness.
+
+The [pre-#223 verdict audit](research/2026-10-31-verdict-audit.md) found 8/209 receipts said right while hidden tests failed: the check passed without testing what the hidden tests required. In the other direction, 47 of 51 receipts that said wrong were actually right, most because review failed.
+
+**hc2 limits.** The 19 ordinary `ok` receipts had zero false positives in this run only (approximate 95% upper
+bound 15%, not below 2%); just 6 had `status=done`. The pre-#223 audit was 8/209 = 3.8%; there is still no
+sufficient post-#223 done-receipt retest. pg3b had zero ordinary `ok` receipts: insufficient evidence under its
+preregistration, unable to measure the 2% threshold. hc2 rule 3 ambiguously says “≤25/30” and “clean rows only”:
+all rows were 28/30, clean rows 25/27. The lead judged by proportion (about 27.8/30), not the literal number 25
+that would trigger regression. Three `env_clean=False` rows had other local ccx activity writing the real ledger.
+The set had been used after hc1 and published, so is no longer wholly unseen; one task type and one lead configuration.
+Two `undo-not-verdict` external checks failed with `cost_usd=None`: **preliminary** clues suggest an old test's
+hard-coded date (similar to dd88517); only a commit title and code clues were checked. API-equivalent spend:
+pg3 $0.148 + pg3b $1.462 + hc2 $2.411 = **$4.02 rounded**.
 
 ### Round 5, dev set
 

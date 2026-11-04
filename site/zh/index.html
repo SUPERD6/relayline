@@ -48,23 +48,24 @@
   </div>
 
   <section id="numbers">
-    <h2>留出集实测</h2>
-    <p class="note">10 个做 ccx 时没用过的任务（5 个本仓库、5 个来自两个外部仓库）× 3 轮，Claude Code（Sonnet）主导，隐藏测试，规则在跑之前定好（hc1，2026-10-29）。</p>
+    <h2>历史实验与 0.6.0 候选复查</h2>
+    <p class="note">10 个做 ccx 时没用过的任务（5 个本仓库、5 个来自两个外部仓库）× 3 轮，Claude Code（Sonnet）主导，隐藏测试，规则在跑之前定好（历史实验 hc1，旧代码，2026-10-29）。</p>
     <div class="tablewrap"><table class="hc1">
       <thead><tr><td></td><th>做对</th><th>每次成功的花费</th><th>用时中位数</th></tr></thead>
       <tbody>
-        <tr><th scope="row">主导自己做</th><td>29/30</td><td>$0.090</td><td>21 秒</td></tr>
-        <tr><th scope="row">Claude Code 内置子智能体（默认用法）</th><td>27/28 <span class="mutedtext">（剔除 2 行不干净的）</span></td><td>$0.103</td><td>123 秒</td></tr>
-        <tr><th scope="row">ccx → Codex（gpt-6-luna low）</th><td>29/30</td><td><b>$0.063</b></td><td>61 秒</td></tr>
+        <tr><th scope="row">历史 hc1：主导自己做</th><td>29/30</td><td>$0.090</td><td>21 秒</td></tr>
+        <tr><th scope="row">历史 hc1：Claude Code 内置子智能体（默认用法）</th><td>27/28 <span class="mutedtext">（剔除 2 行不干净的）</span></td><td>$0.103</td><td>123 秒</td></tr>
+        <tr><th scope="row">历史 hc1：ccx → Codex（gpt-6-luna low）</th><td>29/30</td><td><b>$0.063</b></td><td>61 秒</td></tr>
+        <tr><th scope="row">hc2：0.6.0 候选 ccx</th><td>28/30（干净 25/27）</td><td>$0.088（干净行）</td><td>168 秒</td></tr>
       </tbody>
     </table></div>
     <ul class="limits">
-      <li><b>未见更差</b>——用的是逐点规则，不是统计意义上的非劣检验。我们不说它更准。</li>
+      <li><b>历史 hc1 未见更差</b>——用的是逐点规则，不是统计意义上的非劣检验。我们不说它更准。</li>
       <li><b>小题方向相反：</b>polyglot 30 道没有自带测试的练习题（pg1，2026-10-31）上，ccx 做对 12/30，自己做 25/30，每次成功贵 3.1 倍、用时约 5 倍；和 hc1 是不同的题和 ccx 版本，不是配对比较。小而接口严格的题自己做（<a href="https://github.com/SUPERD6/relayline/blob/main/docs/research/2026-10-31-polyglot-pg1.zh.md">报告</a>）。</li>
-      <li><b>每次成功比自己做便宜约 30%</b>（差值的 95% 区间 −$0.054 到 −$0.004）；只看 5 个外部仓库任务（干净的那一半：本仓库的任务答案可能就在 ccx 的代码里）约便宜 15%。</li>
-      <li><b>用时约是自己做的 3 倍。</b>不是更快。</li>
+      <li><b>仅历史 hc1（旧代码，2026-10-29）：每次成功比自己做便宜约 30%</b>（差值的 95% 区间 −$0.054 到 −$0.004）；只看 5 个外部仓库任务（干净的那一半：本仓库的任务答案可能就在 ccx 的代码里）约便宜 15%。</li>
+      <li><b>hc2：self 和内置子智能体本轮没有重跑。</b>成本和墙钟都高于 hc1，代码和沙箱环境的影响没有分开，不能认定产品变慢或省钱没了（<a href="https://github.com/SUPERD6/relayline/blob/main/docs/research/2026-11-04-hc2-holdout.zh.md">hc2 报告</a>）。历史 hc1 为 self 用时约 3 倍。</li>
       <li>内置子智能体是默认用法；精简用法的内置子智能体在开发集上比 ccx 便宜。只有 10 个任务、一种主导模型，金额是 API 等价价；只在一台 Windows 电脑上真跑（macOS、Linux 只在 CI 里跑）。</li>
-      <li><b>收据本身也会错：</b>209 次里有 8 次收据说对、隐藏测试却没过（3.8%，超过我们定的 2% 门槛，正在修，<a href="https://github.com/SUPERD6/relayline/blob/main/docs/research/2026-10-31-verdict-audit.zh.md">审计</a>）。ccx 自测之外的真实使用目前几乎没有。仍在开发中：<a href="https://github.com/SUPERD6/relayline/blob/main/docs/STATUS.zh.md">STATUS</a>。</li>
+      <li><b>收据限制：</b>hc2 普通 ok 19 张没有误报，只能说这轮没有；95% 上界约 15%，不能说低于 2%；done 只有 6 张。#223 前审计 8/209 = 3.8%，之后没有 done 收据足够的重测。<a href="https://github.com/SUPERD6/relayline/blob/main/docs/research/2026-11-03-pg3b-receipts.zh.md">pg3b</a> 普通 ok 为 0，按预登记证据不足，测不到 2% 门槛；29 张自检收据独立审查全 pass，其中 15 张隐藏测试不过，pass 不算做对。</li>
     </ul>
     <p class="note">全部数字和怎么测的：<a href="https://github.com/SUPERD6/relayline/blob/main/docs/measured.zh.md">实测</a>；全部 8 条局限：<a href="https://github.com/SUPERD6/relayline/blob/main/docs/research/2026-10-29-hc1-holdout.zh.md">留出集报告</a>。</p>
   </section>
@@ -84,8 +85,8 @@
     <div><h3>① 对话</h3><p><code>ccx discuss</code> 让两三家各给意见；对话板（<code>ccx say</code>、<code>ccx reply</code>）让开着的会话互相留言。还没实测；Claude Code 当主导时要到下一轮才看到消息。</p></div>
     <div><h3>② 共享记忆</h3><p>你的 hub 和项目的 <code>.ccx/</code>；跟任务有关的便签自动写进每份说明；<code>ccx handoff</code> 交接。项目便签被遵守 9/9，没有便签 0/9；3 个任务 × 3。</p></div>
     <div><h3>③ 拆分与流水线</h3><p><code>ccx q</code>：持久的工作队列，每块一个 worktree，按依赖合并。小任务交给 Codex 的对照里，主导每个任务都少发一次请求，21/21，但总花费基本持平、token 3.3 倍。</p></div>
-    <div><h3>④ 派活与选人</h3><p><code>ccx route</code> 选派给谁、什么模型和 effort，或者直说自己做更便宜。仓库任务每次成功 $0.063，自己做 $0.090；小题贵 3.1 倍。</p></div>
-    <div><h3>⑤ 验收与收据</h3><p>ccx 自己重跑你的 <code>--check</code>，另一家审查改动，你给结论；收据写明 check 覆盖了什么。隐藏测试下做对 29/30；跑子智能体自写测试的 check 把 pg1 做错的 18 题全判过；现在这种通过记为自写测试通过并送审（还没重测）。</p></div>
+    <div><h3>④ 派活与选人</h3><p><code>ccx route</code> 选人、模型和 effort。历史 hc1（旧代码，2026-10-29）每成功 $0.063，self $0.090；候选 hc2 $0.088，self 和内置本轮未重跑。代码与沙箱影响未隔离。</p></div>
+    <div><h3>⑤ 验收与收据</h3><p>ccx 重跑你的 <code>--check</code>，另一家审查改动。hc2 隐藏测试 28/30（干净 25/27）；<a href="https://github.com/SUPERD6/relayline/blob/main/docs/research/2026-11-03-pg3b-receipts.zh.md">pg3b</a> 的 29 张 <code>ok_self_checked</code> 中 15 张隐藏测试不过，独立审查全 pass，这种 pass 不算做对。</p></div>
     <div><h3>⑥ 控制与恢复</h3><p><code>ccx stop</code>、<code>ccx resume</code>、<code>ccx undo</code>、<code>--worktree</code>、自主度 L0&ndash;L2。只靠交接文件，下一个智能体接上 3/3（受控运行）；一个真实长会话起初失败。</p></div>
     <div><h3>⑦ 测量与诚实</h3><p>跨厂商一本账、评测前查干净环境、公开基准、负结果也发布。一次运行上 API 等价花费与 Claude 自报差 1.5%；订阅用户付的是额度。</p></div>
     <div><h3>⑧ 界面与上手</h3><p><code>ccx ui</code>：一个项目一张图；<code>ccx demo</code> 不用账号；<code>ccx setup</code>、<code>ccx doctor</code>。还没做用户研究；我们自己测试之外的真实使用还很少。</p></div>
