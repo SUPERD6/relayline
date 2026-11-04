@@ -4,6 +4,7 @@ import json
 import re
 import sys
 import unittest
+from datetime import datetime
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
@@ -301,6 +302,81 @@ class TestGather(unittest.TestCase):
 
 
 class TestFlow(Env):
+    def batch_suggestions(self, label="rule"):
+        return memsuggest.add(Paths(self.hub), [
+            {"kind": "preference", "text": f"always keep {label} number {n} with its source", "by": "user",
+             "source": f"sample session {n}"} for n in range(3)])
+
+    def test_batch_reject_via_cli(self):
+        items = self.batch_suggestions()
+        ids = [i["id"] for i in items]
+        out = self.j("mem", "reject", *map(str, ids))
+        self.assertEqual(out, {"results": [{"id": sid, "status": "rejected"} for sid in ids]})
+        self.assertEqual(memsuggest.pending(Paths(self.hub)), [])
+        self.assertEqual(memory.entries(Paths(self.hub)), [])
+
+    def test_batch_accept_via_cli(self):
+        items = self.batch_suggestions()
+        out = self.j("mem", "accept", *[str(i["id"]) for i in items])
+        self.assertEqual([r["id"] for r in out["results"]], [i["id"] for i in items])
+        self.assertEqual([r["status"] for r in out["results"]], ["accepted"] * 3)
+        notes = memory.entries(Paths(self.hub))
+        self.assertEqual([n["text"] for n in notes], [i["text"] for i in items])
+        self.assertEqual([n["source"] for n in notes], [i["source"] for i in items])
+        self.assertEqual([r["note"] for r in out["results"]], notes)
+
+    def test_batch_accept_overrides_fail_before_any_write(self):
+        items = self.batch_suggestions()
+        p = Paths(self.hub)
+        before = memsuggest._file(p).read_bytes()
+        for options in (("--text", "replacement"), ("--topic", "work"),
+                        ("--text", ""), ("--text", "replacement", "--topic", "work")):
+            with self.subTest(options=options):
+                r = self.ccx("mem", "accept", *[str(i["id"]) for i in items], *options)
+                self.assertNotEqual(r.returncode, 0)
+                error = json.loads(r.stdout)["error"]
+                self.assertIn("exactly one", error)
+                self.assertIn("--text", error)
+                self.assertIn("--topic", error)
+                self.assertEqual(memsuggest._file(p).read_bytes(), before)
+                self.assertEqual(memory.entries(p), [])
+
+    def test_batch_missing_id_continues_for_accept_and_reject(self):
+        for command, status in (("accept", "accepted"), ("reject", "rejected")):
+            with self.subTest(command=command):
+                items = self.batch_suggestions(command)
+                ids = [i["id"] for i in items]
+                r = self.ccx("mem", command, str(ids[0]), "99999", *map(str, ids[1:]))
+                self.assertNotEqual(r.returncode, 0)
+                results = json.loads(r.stdout)["results"]
+                self.assertEqual([i["id"] for i in results], [ids[0], 99999, *ids[1:]])
+                self.assertEqual(results[1], {"id": 99999, "ok": False, "error": "no suggestion #99999"})
+                self.assertEqual([i["status"] for i in results if "status" in i], [status] * 3)
+                self.assertEqual([i["status"] for i in memsuggest.load(Paths(self.hub))], [status] * 3)
+                memsuggest._save(Paths(self.hub), [])
+
+    def test_single_id_output_fields_stay_unchanged(self):
+        items = self.batch_suggestions()
+        out = self.j("mem", "accept", str(items[0]["id"]), "--text", "my wording", "--topic", "work")
+        self.assertEqual(set(out), {"id", "note", "status"})
+        self.assertEqual((out["id"], out["status"]), (items[0]["id"], "accepted"))
+        self.assertEqual((out["note"]["text"], out["note"]["topic"]), ("my wording", "work"))
+        self.assertEqual(self.j("mem", "reject", str(items[1]["id"])),
+                         {"id": items[1]["id"], "status": "rejected"})
+        missing = self.ccx("mem", "reject", "99999")
+        self.assertNotEqual(missing.returncode, 0)
+        self.assertEqual(json.loads(missing.stdout), {"ok": False, "error": "no suggestion #99999"})
+
+    def test_batch_already_decided_id_does_not_stop_others(self):
+        items = self.batch_suggestions()
+        ids = [i["id"] for i in items]
+        self.j("mem", "reject", str(ids[0]))
+        r = self.ccx("mem", "accept", *map(str, ids))
+        self.assertNotEqual(r.returncode, 0)
+        results = json.loads(r.stdout)["results"]
+        self.assertIn("already rejected", results[0]["error"])
+        self.assertEqual([i["status"] for i in results[1:]], ["accepted", "accepted"])
+
     def test_suggest_with_null_assistant_text_via_cli(self):
         self.write_session()
         path = next(self.home_claude.glob("projects/*/abc.jsonl"))
@@ -396,6 +472,110 @@ class TestFlow(Env):
         self.write_session()
         out = self.j("handoff", "--from-transcript", "claude", "--to", "codex", "--no-model")
         self.assertGreaterEqual(out["suggested_notes"], 3)
+
+
+class TestSuggestionExpiry(Env):
+    NOW = 1768478400.0
+    DAY = 86400
+
+    def seed(self, ages):
+        items = [{"id": n, "ts": datetime.fromtimestamp(self.NOW - age * self.DAY).isoformat(),
+                  "status": "pending", "kind": "preference", "text": f"always keep rule number {n}",
+                  "by": "user", "source": "sample session"} for n, age in enumerate(ages, 1)]
+        memsuggest._save(Paths(self.hub), items)
+        return items
+
+    def ccx_at(self, *args):
+        """Run the CLI in a separate process outside the repo with the same fixed clock as the fixture."""
+        import subprocess
+        root = Path(__file__).resolve().parent.parent
+        runner = self.work / "fixed_clock_cli.py"
+        runner.write_text(
+            "import runpy, sys\nfrom unittest.mock import patch\n"
+            f"sys.path.insert(0, {str(root)!r})\n"
+            f"sys.argv = [{str(root / 'ccx.py')!r}, *sys.argv[1:]]\n"
+            f"with patch('ccx.memsuggest.time.time', return_value={self.NOW!r}):\n"
+            f"    runpy.run_path({str(root / 'ccx.py')!r}, run_name='__main__')\n",
+            encoding="utf-8", newline="")
+        return subprocess.run([sys.executable, str(runner), *args], cwd=self.work, env=self.env,
+                              capture_output=True, text=True, encoding="utf-8")
+
+    def j_at(self, *args):
+        r = self.ccx_at(*args)
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        return json.loads(r.stdout)
+
+    def test_expiry_marks_only_pending_strictly_older_than_limit(self):
+        p = Paths(self.hub)
+        items = self.seed([15, 14, 13, -1, 100, 100, 100])
+        items[4]["status"], items[5]["status"] = "accepted", "rejected"
+        items[6]["ts"] = "unknown"
+        memsuggest._save(p, items)
+        got = memsuggest.load(p, now=self.NOW)
+        self.assertEqual([i["status"] for i in got],
+                         ["expired", "pending", "pending", "pending", "accepted", "rejected", "pending"])
+        self.assertEqual(got[0], {**items[0], "status": "expired"})
+        self.assertEqual(json.loads(memsuggest._file(p).read_text(encoding="utf-8")), got)
+        self.assertEqual(memsuggest.load(p, now=self.NOW), got)
+
+    def test_suggestions_expire_on_read_and_count_without_showing_expired(self):
+        self.seed([15, 1])
+        for options in ((), ("--all",)):
+            out = self.j_at("mem", "suggestions", *options)
+            self.assertEqual(out["expired"], 1)
+            self.assertEqual([i["id"] for i in out["pending"]], [2])
+        rejected = self.ccx_at("mem", "accept", "1")
+        self.assertNotEqual(rejected.returncode, 0)
+        self.assertIn("already expired", json.loads(rejected.stdout)["error"])
+        self.assertEqual(memory.entries(Paths(self.hub)), [])
+
+    def test_start_hook_expires_without_prompting(self):
+        self.seed([15])
+        r = self.ccx_at("mem", "delta", "--as", "codex", "--peek")
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertNotIn("suggested note", r.stdout)
+        self.assertNotIn("always keep rule", r.stdout)
+        stored = json.loads(memsuggest._file(Paths(self.hub)).read_text(encoding="utf-8"))
+        self.assertEqual(stored[0]["status"], "expired")
+
+    def test_expired_suggestions_are_not_gathered_again(self):
+        p = Paths(self.hub)
+        items = self.seed([15])
+        items[0]["text"] = SWITCH_RULES[0]
+        memsuggest._save(p, items)
+        slug = re.sub(r"[^A-Za-z0-9]", "-", str(self.work.resolve()))
+        folder = self.home_claude / "projects" / slug
+        folder.mkdir(parents=True)
+        events = [{"type": "user", "message": {"content": SWITCH_RULES[2]}}]
+        (folder / "abc.jsonl").write_text("".join(json.dumps(e) + "\n" for e in events), encoding="utf-8")
+        out = self.j_at("mem", "suggest", "--from-transcript", "claude")
+        self.assertEqual(out["added"], [])
+        self.assertEqual(out["pending"], 0)
+        self.assertEqual(self.j_at("mem", "suggestions", "--all"), {"pending": [], "expired": 1})
+        self.assertEqual(len(memsuggest.load(p, now=self.NOW)), 1)
+
+    def test_zero_disables_expiry_and_custom_days_are_used(self):
+        self.seed([15, 1])
+        key = "memory.suggest_expire_days"
+        self.assertEqual(self.j_at("config", "set", key, "0"), {key: 0})
+        out = self.j_at("mem", "suggestions", "--all")
+        self.assertEqual(out["expired"], 0)
+        self.assertEqual([i["id"] for i in out["pending"]], [2, 1])
+        start = self.ccx_at("mem", "delta", "--as", "codex", "--peek")
+        self.assertEqual(start.returncode, 0, start.stdout + start.stderr)
+        self.assertIn("2 suggested note(s)", start.stdout)
+        self.j_at("config", "set", key, "2")
+        out = self.j_at("mem", "suggestions", "--all")
+        self.assertEqual((out["expired"], [i["id"] for i in out["pending"]]), (1, [2]))
+        self.j_at("config", "set", key, "0")
+        self.assertEqual(self.j_at("mem", "suggestions", "--all")["expired"], 1)
+
+    def test_negative_expiry_setting_is_rejected_without_writing(self):
+        p = Paths(self.hub)
+        r = self.ccx_at("config", "set", "memory.suggest_expire_days", "-1")
+        self.assertNotEqual(r.returncode, 0)
+        self.assertIn("non-negative", json.loads(r.stdout)["error"])
+        self.assertFalse(p.settings.exists())
 
 
 class TestRelevanceAndUse(Env):

@@ -342,14 +342,28 @@ def cmd_mem(a) -> int:
         from .. import memsuggest
         sug = memsuggest.ranked(p)
         shown = sug if a.all else sug[:memsuggest.SHOW]
-        out = {"pending": shown}
+        out = {"pending": shown, "expired": sum(i["status"] == "expired" for i in memsuggest.load(p))}
         if len(sug) > len(shown):
             out["more"] = len(sug) - len(shown)
             out["next"] = "the first ones only (the person's words first); all of them: `ccx mem suggestions --all`"
         _out(out)
     elif a.mem_cmd in ("accept", "reject"):
         from .. import memsuggest
-        _out(memsuggest.decide(p, a.id, a.mem_cmd == "accept", getattr(a, "text", None), getattr(a, "topic", None)))
+        text, topic = getattr(a, "text", None), getattr(a, "topic", None)
+        if len(a.id) > 1 and (text is not None or topic is not None):
+            raise ValueError("--text and --topic require exactly one suggestion id; no suggestions were changed")
+        if len(a.id) == 1:
+            _out(memsuggest.decide(p, a.id[0], a.mem_cmd == "accept", text, topic))
+        else:
+            results = []
+            for sid in a.id:
+                try:
+                    results.append(memsuggest.decide(p, sid, a.mem_cmd == "accept"))
+                except ValueError as e:
+                    results.append({"id": sid, "ok": False, "error": str(e)})
+            failed = any("error" in r for r in results)
+            _out({"results": results})
+            return 3 if failed else 0
     elif a.mem_cmd == "status":
         _out({"snapshot": str(p.memory_index), "snapshot_seq": memory.snapshot_seq(p),
               "snapshot_bytes": p.memory_index.stat().st_size if p.memory_index.exists() else 0,
@@ -529,12 +543,12 @@ def register(sub) -> None:
     sg.add_argument("--max", type=int, default=6)
     sgs = msub.add_parser("suggestions", help="suggested notes waiting for your yes or no (the first 3; --all)")
     sgs.add_argument("--all", action="store_true", help="every pending suggestion, not just the first 3")
-    acc = msub.add_parser("accept", help="write suggested note #N to shared memory (with its source)")
-    acc.add_argument("id", type=int)
-    acc.add_argument("--text", help="your wording instead")
-    acc.add_argument("--topic")
-    rej = msub.add_parser("reject", help="drop suggested note #N")
-    rej.add_argument("id", type=int)
+    acc = msub.add_parser("accept", help="write suggested notes to shared memory (with their sources)")
+    acc.add_argument("id", type=int, nargs="+")
+    acc.add_argument("--text", help="your wording instead (one id only)")
+    acc.add_argument("--topic", help="note topic (one id only)")
+    rej = msub.add_parser("reject", help="drop suggested notes")
+    rej.add_argument("id", type=int, nargs="+")
     m.set_defaults(fn=cmd_mem)
     c = sub.add_parser("ctx", help="per-project context file read by every sub-agent")
     csub = c.add_subparsers(dest="ctx_cmd", required=True)

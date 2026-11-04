@@ -230,6 +230,15 @@ I1 的白名单、同源检查、限长和一次性确认仍然有效，确认�
 
 **找记忆和分类。** `ccx mem search` 按 BM25 排序：少见的词比常见的词分量重，也不要求每个词都出现（`--all-words` 保留旧的“每个词都要有”，`--limit N` 限条数）。每条记忆属于五类之一——偏好、约束、事实、坑、事件（preference / constraint / fact / pitfall / event），都不是就算“其他”：`ccx mem add --kind` 指定；旧记录读取时按 topic 或关键词自动归类（`ccx mem kinds --list` 查看；不改写日志）。打开 `[memory] by_kind = true` 后：开局只推新的偏好和约束，子智能体简报按 BM25 挑相关的坑、事实和其他，事件只能搜到。默认关闭，开局和简报的内容不变；开不开由实测（确认实验）决定，一周的 H11 试用已于 2026-10-26 作废。`ccx mem compact --by project` 给每个项目写一小段场景块到 `memory/scenes.md`；`[memory] start_scene = true` 让开局再带当前项目那一块（默认关：开局的记忆本来就封顶约 600 token）。
 
+**处理记忆建议。** `ccx mem suggestions` 显示前三条待处理建议，`--all` 显示全部待处理建议。
+可以一次处理多条：`ccx mem accept 15 16 18` / `ccx mem reject 15 16 18`。单 id 的输出字段不变；
+多 id 的输出放在 `results` 列表中。不存在或已经处理过的 id 会列出错误，其他 id 照常处理，命令退出码非 0。
+`accept --text` / `--topic` 只允许配一个 id；配多个时整体报错，不改任何建议，也不写入任何记忆。
+未处理建议超过 `[memory] suggest_expire_days` 天（默认 14，0 = 不过期），读取建议时会标成 `expired`，
+开局读取也会检查，不需要后台任务。用 `ccx config set memory.suggest_expire_days N` 调整。
+记录会保留，仍用于去重；已过期的建议不再算待处理，不再在开局或 `suggestions --all` 中显示。
+`suggestions` 输出增加 `expired` 计数；调整天数不会恢复已经标记过期的建议。
+
 **hook 不拖住每一轮。** 开局 hook（`ccx mem delta`）和每轮 hook（`ccx turn`）最多跑 `[hooks] timeout_s` 秒（默认 2 秒；
 `ccx config set hooks.timeout_s N`，0 = 不限）：超时就什么都不输出、退出码 0，在 `ccx/hook-timeouts.jsonl` 记一行（命令、用时、
 卡在哪一步）。`ccx doctor` 显示最近 7 天的次数。

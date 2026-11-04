@@ -385,6 +385,18 @@ to the new one; one nobody has checked for 30 days is shown as "to check" (`ccx 
 `ccx mem search` finds older ones, and a session start carries at most ~600 tokens of new lines. Each tool's own
 automatic memory stays its own: ccx doesn't copy one into the other.
 
+**Handling suggested notes.** `ccx mem suggestions` shows the first three pending notes; `--all` shows every pending
+note. Accept or reject several at once: `ccx mem accept 15 16 18` / `ccx mem reject 15 16 18`. A single ID keeps its
+existing output fields; several IDs return a `results` list. An unknown or already handled ID is listed as an
+error; the other IDs are still processed, and the command exits nonzero. `accept --text` / `--topic` require
+exactly one ID; combining either option with several IDs fails before any suggestion or note is written.
+Pending suggestions older than `[memory] suggest_expire_days` (default 14 days; 0 = never expire) are marked
+`expired` when suggestions are read, including at session start. Set it with
+`ccx config set memory.suggest_expire_days N`; this needs no background task. Their records remain and still
+prevent duplicate suggestions, but they no longer count as pending or appear in start-up hints or
+`suggestions --all`. `suggestions` reports an `expired` count alongside `pending`; changing the limit does not
+revive suggestions already marked expired.
+
 **Finding and sorting notes.** `ccx mem search` ranks notes by BM25: a rare word counts more than a common one and a
 note needn't contain every word (`--all-words` keeps the old filter, `--limit N`). Every note has one of five kinds —
 preference, constraint, fact, pitfall, event (偏好 / 约束 / 事实 / 坑 / 事件), else other: `ccx mem add --kind`, and
