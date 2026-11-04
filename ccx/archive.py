@@ -30,7 +30,10 @@ from pathlib import Path
 
 from . import ledger
 from .config import Paths, claude_home, load_config
-from .runners import bin_argv, find_bin
+from .runners import bin_argv, find_bin, group_flags, kill_tree
+from .sessionguard import guarded, running_sessions
+
+COMMAND_TIMEOUT_S = 30
 
 
 def _log(p: Paths) -> Path:
@@ -91,9 +94,24 @@ def _claude_transcript(sid: str) -> Path | None:
 
 
 def _run(argv: list[str]) -> tuple[int, str]:
-    r = subprocess.run(argv, capture_output=True, text=True, encoding="utf-8", errors="replace",
-                       stdin=subprocess.DEVNULL)
-    return r.returncode, (r.stdout or r.stderr).strip()[-300:]
+    proc = subprocess.Popen(argv, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, encoding="utf-8",
+                            errors="replace", stdin=subprocess.DEVNULL, **group_flags())
+    try:
+        stdout, stderr = proc.communicate(timeout=COMMAND_TIMEOUT_S)
+    except subprocess.TimeoutExpired:
+        # Kill the tree while the .cmd wrapper is still alive. Never call
+        # communicate again: even a failed tree kill must not leave the worker
+        # waiting on an inherited pipe. Timeout output is discarded.
+        try:
+            kill_tree(proc.pid)
+        finally:
+            proc.kill()
+            proc.wait(timeout=COMMAND_TIMEOUT_S)
+        return -1, f"archive command timed out after {COMMAND_TIMEOUT_S}s"
+    else:
+        proc.stdout.close()
+        proc.stderr.close()
+        return proc.returncode, (stdout or stderr).strip()[-300:]
 
 
 def dsh_desktop_open() -> bool:
@@ -189,14 +207,21 @@ def _dsh_write(add: set[str], remove: set[str]) -> tuple[bool, str]:
     return True, "ok"
 
 
+@guarded
 def archive(p: Paths, run_ids: list[str], apply: bool = False, why: str = "") -> dict:
     rows, handled = [], {}            # (agent, session) -> first run that archived it in this call
+    busy = running_sessions(p)
     for run_id in run_ids:
         try:
             sessions = _sessions(p, run_id)
         except FileNotFoundError:
             continue
+        if any(sid in busy for _, sid in sessions):
+            rows.extend({"run_id": run_id, "agent": agent, "session": sid,
+                         "action": "session is running: left alone"} for agent, sid in sessions)
+            continue
         done = []
+        timed_out = False
         for agent, sid in sessions:
             if (agent, sid) in handled:       # auto-continued runs share a session: archive it once
                 first, original = handled[(agent, sid)]
@@ -214,6 +239,7 @@ def archive(p: Paths, run_ids: list[str], apply: bool = False, why: str = "") ->
                         rows.append({"run_id": run_id, "agent": agent, "session": sid, "action": action})
                         continue
                     rc, msg = _run([*bin_argv("codex"), "archive", sid])
+                    timed_out = timed_out or rc == -1
                     action += " -> ok" if rc == 0 else f" -> failed: {msg}"
                     if rc == 0:
                         done.append([agent, sid, None])
@@ -241,7 +267,7 @@ def archive(p: Paths, run_ids: list[str], apply: bool = False, why: str = "") ->
             else:
                 action = f"{agent}: no archive command, left alone"
             rows.append({"run_id": run_id, "agent": agent, "session": sid, "action": action})
-        if apply:
+        if apply and not timed_out:
             _log(p).parent.mkdir(parents=True, exist_ok=True)
             with open(_log(p), "a", encoding="utf-8") as f:
                 f.write(json.dumps({"run_id": run_id, "sessions": done, "ts": time.time(),
@@ -250,6 +276,7 @@ def archive(p: Paths, run_ids: list[str], apply: bool = False, why: str = "") ->
             "note": "" if apply else "dry run: add --apply"}
 
 
+@guarded
 def restore(p: Paths, run_id: str) -> dict:
     entries = _entries(p)
     last = next((e for e in reversed(entries) if e["run_id"] == run_id and not e.get("restored")), None)
@@ -275,6 +302,7 @@ def restore(p: Paths, run_id: str) -> dict:
     return {"run_id": run_id, "restored": out}
 
 
+@guarded
 def auto(p: Paths) -> int:
     """Quiet housekeeping at session start: archive finished runs older than sessions.auto_archive_hours."""
     try:
@@ -315,6 +343,7 @@ def is_final(record: dict) -> bool:
     return res.get("verification", "not-run") not in ("", "not-run")
 
 
+@guarded
 def after_run(p: Paths, record: dict) -> dict | None:
     """sessions.archive = after_run: archive a run's session the moment its result is final. Best effort."""
     if os.environ.get("CCX_NO_AUTO_ARCHIVE") == "1" or mode(p) != "after_run":
@@ -326,6 +355,7 @@ def after_run(p: Paths, record: dict) -> dict | None:
     return archive(p, [record["run_id"]], apply=True, why="after_run")
 
 
+@guarded
 def bring_back(p: Paths, session: str | None) -> dict | None:
     """Before a run continues `session`: if it is archived, put it back (codex unarchive / move the transcript)."""
     if not session:

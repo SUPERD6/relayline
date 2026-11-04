@@ -62,3 +62,35 @@ bootstrap 掩盖读取成本。报告不含主导用量。不读真实账本、�
 
 这些只是实验性工程检查。真实桌面钩子交付、是否出现窗口、各系统父进程退出后的回收、Linux/macOS 实跑、
 远端 CI 和真实用户数据计时均为 **not run / Unknown**。
+
+## PR #268 安全审查
+
+三个 P2 均经源码确认并修复：
+
+| 问题 | 改法 | 回归证据 |
+|---|---|---|
+| resume 漏掉尚未记账的归档，或恢复后又被归档 | 归档、恢复与续跑记录的 running 状态发布共用可重入 OS 锁；任何运行记录引用的 session 都跳过归档，包括旧账本行引用同一 session 的情况 | 用信号把假归档停在记账前，确认恢复等待、随后 unarchive 并发布运行状态，后续 worker 跳过它；仓库外执行 `ccx resume` 另验证 archive → unarchive → exec 顺序 |
+| 外部归档命令卡住，长期占锁 | 外部命令限时 30 秒；复用进程组参数与整棵树清理，再终止并回收直接子进程；超时分支不再等继承的输出管道。超时归档不记为已完成，后续 worker 可重试 | 假 CLI 发出就绪信号后阻塞，注入 `TimeoutExpired` 而不实际等 30 秒；另增包装器继承管道回归，见下方复核 |
+| 切换 worker cwd 后再次解析相对 hub | 启动前先把 hub 解析为绝对路径，再确定 cwd 和 argv | 从仓库外用相对 `CCX_HUB` 启动钩子，确认归档写入正确合成 hub |
+
+新增五项安全回归通过，日志：`.ccx/reports/hook-report-speed/p2-safety-tests.txt`。
+归档、session、钩子相关测试共 49 项通过，最后超时回归另跑一项也通过；日志为同目录的
+`p2-related-tests.txt` 和 `p2-timeout-final.txt`。
+本次未改任何既有测试的设置或断言。安全补丁没有重新计时，不能把前面的计时表当作这版补丁的新性能测量。
+
+再次复核确认：`subprocess.run` 只杀包装器，Windows 随后可能永久等待 Node 后代继承的管道。
+`_run` 现改用 `runners.group_flags()` 和 `kill_tree()`，包装器仍存活时先清理树，再终止、等待直接子进程，
+不再第二次调用 `communicate()`。新增 `tests/test_archive_tree_timeout.py` 在 Windows 实际启动
+`.cmd` → Python 包装器 → 后代进程；注入超时、用释放信号模拟 OS 树终止，验证顺序、后代退出与锁释放，已通过。
+受限环境中真实 `taskkill /T /F` 返回失败，真实 OS 树终止尚未验证。
+
+原超时测试曾因全局 Popen 假对象误拦截 `taskkill`、要求辅助进程输出 `archive-ready` 而失败。
+统筹已授权把该假对象限制到归档命令；清理与重试断言均未改，现已通过。
+
+统筹同时要求等锁预算耗尽时保留原尽力恢复行为：续跑拿不到 `archive.lock`，就尝试原来的无锁恢复、
+发布运行记录并继续；在该记录新增 `archive_restore_lock_timeout: true`，已有字段与成功规则不变。
+线程内的跳过锁状态仅用于本次降级，退出时恢复。因此预算耗尽时不保证归档与恢复串行。
+新增仓库外 `ccx resume` 回归持有真实 OS 锁并注入预算耗尽，不实际等超时，验证恢复尝试、假 CLI 续跑成功和字段落盘。
+
+三个直接检查通过，两个正常归档与恢复交错检查也通过。日志为
+`.ccx/reports/hook-report-speed/final-two-fixes-tests.txt` 和同目录的 `final-resume-normal-tests.txt`。

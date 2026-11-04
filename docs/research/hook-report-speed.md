@@ -73,3 +73,41 @@ passed; output is in `.ccx/reports/hook-report-speed/async-contract-tests.txt`.
 
 These are experimental engineering checks. Real desktop hook delivery, visible-window behavior, orphan adoption
 on each supported OS, Linux/macOS execution, remote CI and timing against real user data remain **not run / Unknown**.
+
+## PR #268 safety review
+
+All three reported P2 issues were confirmed in the source and fixed:
+
+| Issue | Change | Regression evidence |
+|---|---|---|
+| Resume could miss an archive that had not written its journal yet, or be archived just after restoration | Archive/restore operations and publication of a resumed running record now share the same reentrant OS lock; archival skips any session named by a running record, including when an older ledger row names it | Signals pause a fake archive before journaling. Resume waits, unarchives and publishes its running record; another worker skips it. An external `ccx resume` also verifies archive → unarchive → exec ordering |
+| A hung external archive command held the worker lock forever | External archive commands have a 30-second timeout. Commands use the existing process-group flags and tree cleanup before direct-child termination/reaping. The timeout branch never waits for inherited output pipes again. Timed-out archival is not journaled as completed, so a later worker can retry | A fake CLI signals readiness and blocks. Injected `TimeoutExpired` avoids waiting 30 seconds. A further wrapper regression covers inherited output handles; see the review note below |
+| A relative hub was resolved again after changing the worker cwd | Resolve the hub to an absolute path before choosing the worker cwd and argv | An external hook with a relative `CCX_HUB` archives the correct synthetic hub |
+
+Five new safety regressions passed. Logs: `.ccx/reports/hook-report-speed/p2-safety-tests.txt`.
+The related archive/session/hook run passed 49 tests; the final timeout regression also passed separately.
+Logs: `.ccx/reports/hook-report-speed/p2-related-tests.txt` and `p2-timeout-final.txt` in the same folder.
+No existing test setup or assertion was changed for these fixes. The prior timing table has not been rerun for this
+safety patch and must not be treated as a fresh performance measurement of it.
+
+Further timeout review confirmed that `subprocess.run` only killed the wrapper: Windows could then wait forever
+on a Node descendant's inherited pipes. `_run` now uses `runners.group_flags()` and `kill_tree()` while the wrapper
+is still alive, then terminates and waits for the direct child, without a second `communicate()` call. The new
+`tests/test_archive_tree_timeout.py` regression runs an actual `.cmd` → Python wrapper → leaf tree on Windows.
+It injects timeout and simulates the OS tree termination with a release signal, verifies ordering, descendant exit
+and lock release. It passed. Actual `taskkill /T /F` returned failure in this restricted environment, so real OS tree
+termination remains unverified here.
+
+The existing timeout test initially failed because its global Popen fake also intercepted the new `taskkill`
+helper and expected that helper to print `archive-ready`. The lead authorized restricting this fake to the archive
+command. Its cleanup and retry assertions are unchanged, and it now passes.
+
+The lead also required lock-budget exhaustion to preserve the original best-effort resume behavior. When startup
+cannot acquire `archive.lock`, it attempts the original unsynchronized restore, publishes the running record and
+continues. That record adds `archive_restore_lock_timeout: true`; existing fields and success rules are unchanged.
+The thread-local bypass is confined to this fallback and restored on exit. Serialization is therefore best effort
+when the lock budget is exhausted. A new external `ccx resume` test holds the real OS lock and injects exhaustion
+without waiting for the timeout, verifies the restore attempt, successful fake-CLI resume and persisted field.
+
+The three direct checks passed; both normal archive/resume interleaving checks also passed. Logs:
+`.ccx/reports/hook-report-speed/final-two-fixes-tests.txt` and `final-resume-normal-tests.txt` in the same folder.

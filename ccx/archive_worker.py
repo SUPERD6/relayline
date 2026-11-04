@@ -11,6 +11,8 @@ def schedule(p) -> bool:
     """Best effort: no waiting for archival, no inherited pipes or console."""
     from .winproc import BACKGROUND
     try:
+        from .config import Paths
+        p = Paths(p.hub.resolve())
         p.state.mkdir(parents=True, exist_ok=True)
         child = subprocess.Popen([sys.executable, str(Path(__file__).resolve()), str(p.hub)],
                                  cwd=p.state, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
@@ -24,13 +26,13 @@ def schedule(p) -> bool:
 
 
 def run(p) -> int:
-    from ccx.ability import _lock
+    from ccx.sessionguard import lock
     from ccx.archive import auto
     try:
         # Reuse the OS lock implementation, with an independent lock file.
         # A live worker is never displaced by a stale timestamp. A crash frees
         # the OS lock; a second worker skips instead of queuing duplicate work.
-        with _lock(p, name="archive.lock", timeout=0):
+        with lock(p, timeout=0):
             return auto(p)
     except (OSError, TimeoutError):
         return 0
