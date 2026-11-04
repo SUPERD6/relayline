@@ -329,6 +329,77 @@ class TestCheckGap(unittest.TestCase):
         self.assertEqual(review._spans(src), [("f", 0, 3), ("g", 6, 8)])
 
 
+class TestCheckReceipt(unittest.TestCase):
+    def receipt(self, kind, passed, exit_code, status="partial"):
+        from ccx import delegate
+        record = {"run_id": "check", "to": "codex", "tier": "T1", "cwd": str(Path.cwd()),
+                  "attempts": [], "ok": True, "state": "finished", "kind": kind,
+                  "result": {"status": status, "summary": "changed x"},
+                  "check": {"cmd": "check x", "passed": passed, "exit": exit_code}}
+        if kind == "check_broken":
+            record["check"]["broken"] = "no tests collected"
+        out = delegate.compact(record)
+        return record, out, delegate.recap(record, out)
+
+    def test_check_failed_recap_names_failure_without_changing_ok_or_exit(self):
+        from ccx import delegate
+        record, out, text = self.receipt("check_failed", False, 1)
+        self.assertTrue(out["ok"])
+        self.assertTrue(delegate.exit_ok(record))
+        self.assertIn("status=partial outcome=check_failed check=failed (exit 1)", text)
+        self.assertNotIn("ok=true", text)
+
+    def test_check_broken_recap_names_broken_check(self):
+        from ccx import delegate
+        record, out, text = self.receipt("check_broken", False, 5)
+        self.assertFalse(out["ok"])
+        self.assertFalse(delegate.exit_ok(record))
+        self.assertIn("status=partial outcome=check_broken check=broken (exit 5)", text)
+        self.assertNotIn("ok=true", text)
+
+    def test_self_checked_recap_explicitly_says_not_independently_verified(self):
+        from ccx import delegate
+        record, out, text = self.receipt("ok_self_checked", True, 0, "done")
+        self.assertTrue(out["ok"])
+        self.assertTrue(delegate.exit_ok(record))
+        self.assertIn("status=done ok=true check=passed", text)
+        self.assertIn("check not independently verified (self-checked)", text)
+
+    def test_ordinary_ok_recap_is_unchanged(self):
+        from ccx import delegate
+        record, out, text = self.receipt("ok", True, 0, "done")
+        self.assertTrue(out["ok"])
+        self.assertTrue(delegate.exit_ok(record))
+        self.assertEqual(text, "ccx run check: status=done ok=true check=passed review=none cost=~$0.0000; "
+                               "next: ccx show check")
+
+    def test_done_failed_or_broken_check_human_summary_names_outcome(self):
+        from ccx import delegate
+        for kind, exit_code in (("check_failed", 1), ("check_broken", 5)):
+            record, out, _ = self.receipt(kind, False, exit_code, "done")
+            # Exercise the display even when the receipt's ok field is true.
+            out = {**out, "ok": True}
+            for hint in (None, out["hint"]):
+                with self.subTest(kind=kind, hint=hint):
+                    res = {k: v for k, v in out.items() if k != "hint"}
+                    if hint:
+                        res["hint"] = hint
+                    text = delegate.human_summary(record, res)
+                    self.assertEqual(text[0], f"Result: done (outcome={kind}): changed x")
+                    self.assertEqual(text[-1], f"Next: {hint or 'ccx show check --full'}")
+                    self.assertNotIn("ccx verify", text[-1])
+                    self.assertTrue(res["ok"])
+
+    def test_ordinary_done_ok_human_summary_is_unchanged(self):
+        from ccx import delegate
+        record, out, _ = self.receipt("ok", True, 0, "done")
+        self.assertEqual(delegate.human_summary(record, out), [
+            "Result: done: changed x",
+            "Cost: ~$0.0000 on codex None/None",
+            "Next: look at the result, then record your verdict: ccx verify check --ok 1   (wrong: --ok 0)",
+        ])
+
+
 class TestRepairReceipt(unittest.TestCase):
     def record(self, status="partial", verdict="unclear"):
         return {"run_id": "repair", "review_of": "original", "to": "codex", "tier": "T1",

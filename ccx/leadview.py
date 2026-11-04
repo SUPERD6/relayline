@@ -96,6 +96,8 @@ def receipt_status(res: dict) -> str | None:
 
 
 def receipt_outcome(res: dict) -> str:
+    if res.get("kind") in ("check_failed", "check_broken"):
+        return f"outcome={res['kind']}"
     if not res.get("ok"):
         return "ok=false"
     if res.get("kind") != "ok_self_checked" and (
