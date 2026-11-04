@@ -471,6 +471,7 @@ def _cmd_run(a) -> int:
                   namecheck=getattr(a, "namecheck", None),
                   subagents="off" if a.no_subagents else subagents_spec(a.subagents), budget_usd=a.budget,
                   max_usd=max_usd(a, cfg), parallel=True if a.parallel else None, share_context=a.context,
+                  user_words_file=str(Path(a.user_words_file).resolve()) if a.user_words_file else None,
                   progress=not os.environ.get("CCX_RUN_ID"), **kw)    # not the detached child of --bg
     if preauth:
         # the run of a proposal the picked tier pre-authorised starts now: only now is it used (once), and only now
@@ -1465,6 +1466,7 @@ def register(sub) -> None:
                    "conversation has been about lately (the person's recent asks, what was settled, your plan, files "
                    "you changed), read by code from your session file. auto = write tasks only (default, "
                    "[shared_context] run)")
+    adv.add_argument("--user-words-file", metavar="PATH", help="experimental: attach original user wording from a UTF-8 file")
     adv.add_argument("--label")
     r.set_defaults(fn=cmd_run)
     ak = sub.add_parser("ask", help="quick read-only second opinion from the other agent (low effort)")

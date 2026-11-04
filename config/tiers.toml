@@ -479,3 +479,6 @@ vendor = "openrouter"         # 实际厂商看你选的模型；要让“另一
 models = []                   # 没有默认模型：用 --model 指定，并在 prices 里写上它的价格
 env = { ANTHROPIC_BASE_URL = "https://openrouter.ai/api", ANTHROPIC_API_KEY = "$OPENROUTER_API_KEY" }
 daily_usd = 1.0
+[delegate]
+user_words = false          # Experimental: original user wording from the current Claude lead conversation.
+user_words_max_chars = 8000  # Retained characters; an explicit --user-words-file also uses this cap.

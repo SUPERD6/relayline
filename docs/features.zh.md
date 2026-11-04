@@ -2,6 +2,8 @@
 
 [English](features.md) · 中文 · 回到 [README](../README.zh.md)
 
+实验性、默认关闭：[把用户原话带给子智能体](user-words.zh.md)。
+
 ## 看得见派活
 
 `ccx ui` 的“运行”（`/runs` 或 `/#/runs`）列出所有保存的运行，也包含正在跑的；支持按项目、状态、日期筛选，

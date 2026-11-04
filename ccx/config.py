@@ -313,6 +313,8 @@ ROLE_DEFAULTS = {"mode": ("read", "write"), "review": ("auto", "on", "off"),
 
 
 SETTINGS = {   # key -> (type, help). Only these can be set with `ccx config set`.
+    "delegate.user_words": (bool, "experimental: attach the Claude lead's latest real user message (default false)"),
+    "delegate.user_words_max_chars": (int, "maximum retained original-wording characters (default 8000)"),
     # Arbitrary roles.<name> and roles.defaults.<name> mode/worktree/review/check use ccx.roles
     # (ccx roles set/unset), outside this scalar-key allowlist. Default role table: {}.
     "quota.auto_refresh_min": (_quota_minutes, "refresh existing readings older than N minutes (default 60); "
