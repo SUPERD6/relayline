@@ -98,6 +98,8 @@ res = {"status": status, "summary": os.environ.get("FAKE_SUMMARY") or f"fake cla
        "next_step": os.environ.get("FAKE_NEXT_STEP", "") if split_if and split_if in prompt else ""}
 from fake_discuss import answer as _discuss  # noqa: E402
 res = _discuss(prompt, "claude", log) or res
+from fake_test_review import answer as _test_review  # noqa: E402
+res = _test_review(prompt) or res
 if "[ccx review" in prompt:   # F1 reviewer: FAKE_REVIEW="issues,pass" = the answers of successive reviews
     seq = (os.environ.get("FAKE_REVIEW") or "pass").split(",")
     cf = os.path.join(os.path.dirname(log or "."), "fake-review-count")

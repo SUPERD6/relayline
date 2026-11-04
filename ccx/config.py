@@ -313,6 +313,7 @@ ROLE_DEFAULTS = {"mode": ("read", "write"), "review": ("auto", "on", "off"),
 
 
 SETTINGS = {   # key -> (type, help). Only these can be set with `ccx config set`.
+    "review.mode": (str, "read (default) | tests (experimental task-derived tests); legacy auto/on/off remain valid"),
     "delegate.user_words": (bool, "experimental: attach the Claude lead's latest real user message (default false)"),
     "delegate.user_words_max_chars": (int, "maximum retained original-wording characters (default 8000)"),
     # Arbitrary roles.<name> and roles.defaults.<name> mode/worktree/review/check use ccx.roles
@@ -432,6 +433,8 @@ def set_setting(p: Paths, key: str, raw: str) -> dict:
     typ = SETTINGS[key][0]
     if key == "billing.mode" and raw not in ("api", "subscription"):
         raise ValueError("billing.mode must be api or subscription")
+    if key == "review.mode" and raw not in ("read", "tests", "auto", "on", "off"):
+        raise ValueError("review.mode must be read, tests, auto, on or off")
     if key == "defaults.tradeoff" and raw not in ("save", "balanced", "fast", "cheapest"):
         k = float(raw)
         if not 0 <= k <= 1:

@@ -1,0 +1,1 @@
+| 2026-11-04 | Keep task-derived test review opt-in; block only confirmed in-scope implementation failures | 测试型审查默认关闭，只拦已确认且属于任务范围的实现失败 | Missing evidence and environment failures remain Unknown; preserve legacy review_mode trigger semantics / 缺证据和环境错误保留 Unknown，不改旧 review_mode 触发含义 | [test review](../docs/test-review.md) |

@@ -393,6 +393,8 @@ def _cmd_run(a) -> int:
             print(NO_CHECK_NUDGE, file=sys.stderr, flush=True)     # here, where the person sees it
         return _bg_maybe_wait(sys.argv[1:], p, a.wait)
     text = _brief(a)
+    user_task = (Path(a.user_task_file).read_text(encoding="utf-8")
+                 if getattr(a, "user_task_file", None) else text)
     caller = _caller(a.caller)
     spec = _run_spec(a, text)
     if person_named_to(caller, a.to, a.force) and not a.proposal and not (proj or a.autonomy):
@@ -473,7 +475,7 @@ def _cmd_run(a) -> int:
         prev = None if (a.new or a.fork or a.worktree) else find_continuable(p, lead, cwd, kw["to"], mode["mode"])
     if proj:
         text = f"{proj['header']}\n\n{text}"
-    req = Request(brief=text, mode=mode["mode"], mode_source=mode["source"], mode_why=mode["why"], cwd=cwd, caller=caller,
+    req = Request(brief=text, user_task=user_task, mode=mode["mode"], mode_source=mode["source"], mode_why=mode["why"], cwd=cwd, caller=caller,
                   worktree=a.worktree, escalate=False if a.no_escalate else None,
                   label=f"seat:{a.seat}" if a.seat else (a.label or ""),
                   fallback=not a.no_fallback, task=a.task, step=a.step, mcp=True if a.mcp else None,
@@ -788,6 +790,7 @@ def _cmd_resume(a) -> int:
         return _bg_maybe_wait(sys.argv[1:], p, a.wait)
     sweep(p)                            # closes it as interrupted first if its ccx process died mid-run
     req = Request(to="codex", brief=_brief(a), tier=a.tier, resume_run=a.run_id,
+                  user_task=Path(a.user_task_file).read_text(encoding="utf-8") if getattr(a, "user_task_file", None) else None,
                   caller=_caller(a.caller), escalate=False if a.no_escalate else None,
                   model=a.model, effort=a.effort, budget_usd=a.budget, review=a.review, check=a.check,
                   max_usd=max_usd(a, load_config(p)),
@@ -1405,6 +1408,7 @@ def register(sub) -> None:
     r.add_argument("brief", nargs="*", help="task text (or use --brief-file / stdin)")
     r.add_argument("--role", type=role_name, help="configured role: agent/model/effort and optional run defaults")
     r.add_argument("--brief-file")
+    r.add_argument("--user-task-file", help="UTF-8 original task for test review, preferred over the worker brief")
     r.add_argument("--to", choices=["auto", *DELEGATE_AGENTS, *PROVIDER_AGENTS], default="auto")
     adv.add_argument("--from", dest="caller", choices=[*DELEGATE_AGENTS, *PROVIDER_AGENTS, "user"])
     adv.add_argument("--provider", help="model API behind an agent CLI, e.g. deepseek (see [providers] in config)")
@@ -1535,6 +1539,7 @@ def register(sub) -> None:
     rs.add_argument("run_id")
     rs.add_argument("brief", nargs="*")
     rs.add_argument("--brief-file")
+    rs.add_argument("--user-task-file", help="UTF-8 original task for test review; otherwise keep the saved task")
     rs.add_argument("--bg", action="store_true", help="run detached, as ccx run --bg (needs the text or "
                     "--brief-file); wait for it with `ccx show <run_id> --wait`")
     rs.add_argument("--wait", type=float, metavar="SECONDS", help="with --bg: wait up to this long in the same call "
