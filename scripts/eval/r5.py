@@ -366,10 +366,10 @@ USER_WORDS_ARMS = ("ccx2uw",)  # opt-in: ccx2 wording/flags, only delegate.user_
 DAILY_ARMS = {"ccx2daily": {}, "ccx2daily_nomem": {"codex_memories": False}, "ccx2daily_clean": {"clean": True},
               "ccx2daily_leantools": {"codex_lean_tools": True}}
 # leads that may hand work to ccx (session file, metrics)
-CCX_ARMS = ("ccx", "ccx2", *NAMECHECK_ARMS, *USER_WORDS_ARMS, *SKILL_ARMS, *TIER_LEAD_ARMS, *DAILY_ARMS)
+CCX_ARMS = ("ccx", "ccx2", "ccx2small", *NAMECHECK_ARMS, *USER_WORDS_ARMS, *SKILL_ARMS, *TIER_LEAD_ARMS, *DAILY_ARMS)
 BUILTIN_ARMS = PF.BUILTIN_ARMS
 # not in ARMS: the default schedule (and old tags' done-keys) stay
-OPT_IN_ARMS = ("ccx2", "builtin2", "builtin2r", *TIER_ARMS, *SKILL_ARMS, *NAMECHECK_ARMS, *USER_WORDS_ARMS, *DAILY_ARMS)
+OPT_IN_ARMS = ("ccx2", "ccx2small", "builtin2", "builtin2r", *TIER_ARMS, *SKILL_ARMS, *NAMECHECK_ARMS, *USER_WORDS_ARMS, *DAILY_ARMS)
 DEFAULT_LEAD = (r3.LEAD_MODEL, r3.LEAD_EFFORT)
 # --lead-model auto: each task's lead model from its difficulty by ccx's lead.model_by_task rule (ccx/leadmodel.py,
 # this checkout's config/tiers.toml [lead] / [lead_by_task], never the hub's settings), so the next round can compare
@@ -784,6 +784,10 @@ def lead_how(arm: str, label: str, lead: tuple[str, str] = DEFAULT_LEAD) -> str:
     lead passes to ccx propose as --lead)."""
     if arm == "ccx":
         return HOW_CCX.format(ccx=r3.CCX_CMD, label=label)
+    if arm == "ccx2small":
+        return (HOW_CCX2.format(ccx=r3.CCX_CMD, label=label) +
+                " If ccx returns state=small_self, implement and check the task yourself, then commit it; "
+                "do not retry with --force.")
     if arm == "ccx2" or arm in NAMECHECK_ARMS or arm in USER_WORDS_ARMS or arm in DAILY_ARMS:   # same lead
         return HOW_CCX2.format(ccx=r3.CCX_CMD, label=label)
     if arm in SKILL_ARMS:
@@ -1133,6 +1137,19 @@ def set_picked(hub: Path, tier: str, env: dict | None = None) -> str:
     if got != tier:
         raise RuntimeError(f"the unit hub picks {got!r} after setting policy.picked {tier}")
     return got
+
+
+def set_small(hub: Path) -> dict:
+    """Opt-in only: write the unit overlay and assert ccx resolves both switches before launch."""
+    from ccx.config import load_config
+    f = r2.Paths(hub).user_tiers
+    with f.open("a", encoding="utf-8", newline="") as stream:
+        stream.write("\n[routing]\nsmall_self_run = true\nstrict_escalate = true\n")
+    got = load_config(r2.Paths(hub)).get("routing") or {}
+    want = {"small_self_run": True, "strict_escalate": True}
+    if any(got.get(k) is not v for k, v in want.items()):
+        raise RuntimeError("ccx2small routing switches were not applied")
+    return want
 
 
 def set_namecheck(hub: Path, mode: str) -> str:
@@ -1560,6 +1577,9 @@ def bookkeeping(row: dict, arm: str, hub: Path, task: dict) -> None:
     error here is kept in the row (`bookkeeping_error`) and the unit is still scored: its lead and sub-agent are
     already paid for, so a failed read of metadata must not throw the hidden-test result away."""
     try:
+        if arm == "ccx2small":
+            decisions = [r for r in hub_rows(hub) if r.get("type") == "small_self_run"]
+            row["small_self_run"] = {"applied": bool(decisions), "decisions": decisions}
         if arm in TIER_ARMS:
             row.update(tier_fields(arm, hub, task))
         if row.get("ccx_run_ids"):
@@ -1647,6 +1667,8 @@ def run_unit(u: dict, a, work: Path) -> dict:
         hinfo = r3.make_hub(hub)
         hinfo["memory_empty"] = PF.hub_memory_empty(hub)
         row["hub"] = hinfo
+        if u["arm"] == "ccx2small":
+            hinfo["small_routing"] = set_small(hub)
         env = PF.prepare(iso)
         if u["arm"] in TIER_ARMS:                 # the person's choice the arm simulates, in the unit's own hub
             hinfo["picked"] = set_picked(hub, u["arm"], env)
@@ -3094,7 +3116,7 @@ def cmd_export(a) -> int:
             "actual_mode", "misband", "misband_overall", "followed_plan", "ccx_check_passed", "may_be_wrong",
             "ccx_routes", "bookkeeping_error", "lead_usage", "timeline", "skill_used", "skills_used",
             "namecheck_mode", "user_words_mode", "ccx_namecheck", "ccx_check_reason", "sub_usage", "switches_applied",
-            "hidden_failed", "artifacts", "streams", "streams_error", "arm_order", "arm_pos")
+            "hidden_failed", "artifacts", "streams", "streams_error", "arm_order", "arm_pos", "small_self_run")
     rows = summary_rows(a)
     data = {"summary": summarize(rows, a.include_unclean),
             "rows": [r3.scrub({**{k: r[k] for k in keep if k in r},

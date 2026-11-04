@@ -332,6 +332,8 @@ SETTINGS = {   # key -> (type, help). Only these can be set with `ccx config set
                           "and way refuse without --force); cross-vendor review and talk work as before: ccx ask, "
                           "ccx discuss, ccx run --mode read, mem, board"),
     "routing.require_ready": (_bool, "true | false: prefer installed CLIs with local login evidence (default true)"),
+    "routing.small_self_run": (_bool, "true | false: experimental small-task run refusal for leads; --force bypasses (default false)"),
+    "routing.strict_escalate": (_bool, "true | false: experimental cheapest-rung guard for unchecked writes or strict interfaces (default false)"),
     "routing.small_self": (_bool, "true | false: `ccx route` / `ccx propose` advise doing a small task yourself "
                                   "instead of delegating it, sized by routing.small_self_by; `ccx run` still "
                                   "delegates (default false until a measured round backs it)"),

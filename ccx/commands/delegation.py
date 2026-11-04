@@ -371,6 +371,17 @@ def _cmd_run(a) -> int:
         raise ValueError("--bg needs the task as text or --brief-file (stdin is not passed on)")
     if a.wait is not None and not a.bg:
         raise ValueError("--wait N goes with --bg (a foreground run already waits until it is done)")
+    from ..small_tasks import enabled, run_advice
+    if enabled(cfg, "small_self_run"):
+        text = _brief(a)
+        # Cache stdin too: the ordinary foreground/background path still needs the same brief.
+        a.brief, a.brief_file = [text], None
+        advice = run_advice(p, cfg, a, text, _caller(a.caller), _small_self)
+        if advice:
+            ledger.append_event(p, {"type": "small_self_run", **advice})
+            _bg_not_delegated(p, a, advice, _caller(a.caller))
+            _out(advice)
+            return 0
     if a.effort and not a.model and not a.provider and not role:
         print(EFFORT_ALONE_NOTE, file=sys.stderr, flush=True)
     if a.bg and not auto:
@@ -493,7 +504,7 @@ def _cmd_run(a) -> int:
     res["route"] = {k: v for k, v in route.items() if k in ("source", "b", "rung", "p", "chain_p", "tier",
                                                               "stale", "mode", "trial", "cheaper_self", "role",
                                                               "role_effort_auto", "role_fallback", "why", "rubric",
-                                                              "difficulty", "role_effort_reason")}
+                                                              "difficulty", "role_effort_reason", "strict_escalate")}
     if proj:
         res["project"] = {k: proj[k] for k in ("name", "path", "approval_rules") if proj.get(k)}
     if auto:
