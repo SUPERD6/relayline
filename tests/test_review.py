@@ -329,6 +329,68 @@ class TestCheckGap(unittest.TestCase):
         self.assertEqual(review._spans(src), [("f", 0, 3), ("g", 6, 8)])
 
 
+class TestRepairReceipt(unittest.TestCase):
+    def record(self, status="partial", verdict="unclear"):
+        return {"run_id": "repair", "review_of": "original", "to": "codex", "tier": "T1",
+                "cwd": str(Path.cwd()), "attempts": [], "ok": True, "state": "finished",
+                "result": {"status": status, "summary": "attempted fix"},
+                "review": {"verdict": verdict, "reason": "asked"}, "first_review": {"verdict": "issues"}}
+
+    def test_partial_and_other_unfinished_repairs_are_attempts(self):
+        from ccx import delegate
+        for status in ("partial", "blocked", "failed", None):
+            for verdict in ("unclear", "not-run"):
+                with self.subTest(status=status, verdict=verdict):
+                    record = self.record(status, verdict)
+                    baseline = delegate.compact({k: v for k, v in record.items() if k != "first_review"})
+                    out = delegate.compact(record)
+                    text = delegate.recap(record, out)
+                    progress = f"fix attempted (status={status or 'unknown'})"
+                    self.assertIn(progress, out["needs_lead"])
+                    self.assertNotIn("fix completed", out["needs_lead"] + text)
+                    self.assertEqual((out["ok"], out["status"]), (baseline["ok"], baseline["status"]))
+                    if verdict == "unclear":
+                        self.assertIn(progress + "; independent re-review=unclear", text)
+                    else:
+                        self.assertNotIn("independent re-review=not-run", text)
+                        self.assertEqual(text.count("review not run ("), 1)
+
+    def test_existing_env_cue_keeps_its_prefix(self):
+        from ccx import delegate
+        record = self.record()
+        record["kind"] = "env"
+        out = delegate.compact(record)
+        self.assertTrue(out["needs_lead"].startswith("env: "), out)
+        self.assertIn("; repair_review_incomplete:", out["needs_lead"])
+        self.assertIn("needs_lead=env", delegate.recap(record, out))
+
+    def test_long_existing_cue_is_truncated_after_appending(self):
+        from ccx import delegate
+        for kind in (None, "env"):
+            with self.subTest(kind=kind):
+                record = self.record("s" * 400)
+                if kind:
+                    record.update(kind=kind, run_id="r" * 400)
+                baseline = delegate.compact({k: v for k, v in record.items() if k != "first_review"})
+                out = delegate.compact(record)
+                self.assertEqual(len(out["needs_lead"]), 300)
+                if kind:
+                    self.assertEqual(out["needs_lead"], baseline["needs_lead"][:300])
+                    self.assertIn("needs_lead=env", delegate.recap(record, out))
+                else:
+                    self.assertTrue(out["needs_lead"].startswith("repair_review_incomplete: "))
+
+    def test_not_run_without_reviewer_run_id(self):
+        from ccx import delegate
+        record = self.record("done", "not-run")
+        self.assertIsNone(record["review"].get("run_id"))
+        out = delegate.compact(record)
+        self.assertIn("fix completed", out["needs_lead"])
+        text = delegate.recap(record, out)
+        self.assertEqual(text.count("review not run ("), 1)
+        self.assertNotIn("independent re-review=not-run", text)
+
+
 class TestReviewRun(Env):
     def setUp(self):
         super().setUp()
@@ -489,11 +551,12 @@ class TestReviewRun(Env):
         self.assertIn("change x to 2 in a.py", task)
         self.assertNotIn("off by one", task)
 
-    def repair_receipt(self, verdict):
+    def repair_receipt(self, verdict, status="done"):
         from ccx.config import Paths
         from ccx.workspace import canonical
         from test_ccx import FAKES
-        env = {"FAKE_WRITE": f"{self.work / 'a.py'}=x = 2\n", "FAKE_REVIEW": f"issues,{verdict}"}
+        env = {"FAKE_WRITE": f"{self.work / 'a.py'}=x = 2\n", "FAKE_REVIEW": f"issues,{verdict}",
+               "FAKE_STATUS_CODEX": status}
         if verdict == "not-run":
             # Fail only reviewers after the first; keep the worker and its resumed session running normally.
             wrapper = self.work / "reviewer.py"
@@ -518,8 +581,14 @@ class TestReviewRun(Env):
         first, fix = load(out["fixed_after_review_of"]), load(out["run_id"])
         self.assertEqual(fix["resumed_from"], first["run_id"])
         self.assertEqual(fix["session_id"], first["session_id"])
-        reviewer_ids = [first["review"]["run_id"], fix["review"]["run_id"]]
-        self.assertEqual(len(set([first["run_id"], fix["run_id"], *reviewer_ids])), 4)
+        self.assertEqual(fix["result"]["status"], status)
+        reviewer_ids = [first["review"]["run_id"]]
+        fix_reviewer = fix["review"].get("run_id")
+        if fix_reviewer:
+            reviewer_ids.append(fix_reviewer)
+        else:
+            self.assertEqual(verdict, "not-run")
+        self.assertEqual(len(set([first["run_id"], fix["run_id"], *reviewer_ids])), 2 + len(reviewer_ids))
         for rid in reviewer_ids:
             reviewer = load(rid)
             self.assertEqual((reviewer["to"], reviewer["mode"], reviewer["caller"]),
@@ -538,10 +607,15 @@ class TestReviewRun(Env):
             self.assertNotIn(marker, out["recap"])
         else:
             why = "did not run" if verdict == "not-run" else "verdict is unclear"
-            self.assertIn(f"{marker}: fix completed, but independent re-review {why}", out["needs_lead"])
+            progress = "fix completed" if status == "done" else f"fix attempted (status={status})"
+            self.assertIn(f"{marker}: {progress}, but independent re-review {why}", out["needs_lead"])
             self.assertIn("not independently verified", out["needs_lead"])
             self.assertIn(f"needs_lead={marker}", out["recap"])
-            self.assertIn(f"fix completed; independent re-review={verdict}", out["recap"])
+            if verdict == "unclear":
+                self.assertIn(f"{progress}; independent re-review=unclear", out["recap"])
+            else:
+                self.assertEqual(out["recap"].count("review not run ("), 1)
+                self.assertNotIn("independent re-review=not-run", out["recap"])
         shown = json.loads(self.ccx("show", first["run_id"]).stdout)
         self.assertEqual(shown.get("needs_lead"), out.get("needs_lead"))
         self.assertEqual(shown["recap"], out["recap"])
@@ -554,6 +628,9 @@ class TestReviewRun(Env):
 
     def test_repair_receipt_not_run(self):
         self.repair_receipt("not-run")
+
+    def test_repair_receipt_partial(self):
+        self.repair_receipt("unclear", status="partial")
 
     def test_ordinary_unclear_receipt_has_no_repair_hint(self):
         out = self.go("--review", "on", review_seq="unclear")
