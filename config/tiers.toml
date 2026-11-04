@@ -372,7 +372,9 @@ on_self_checked = "review"
 # 独立审查（提案 F1）：子任务改完文件后，由另一家的便宜模型对照任务说明审一遍改动，只回“通过 / 有问题 + 在哪”。
 # auto = 只在 --risk visible/critical、代码改动 ≥ min_lines 行、子智能体自己说没把握（open_questions）、或它说改的文件和实际改动对不上时审；
 # on = 每次改了文件都审；off = 不审（ccx run --review 可以单次覆盖）。有问题时交回原会话改一轮，再审一次。
-mode = "auto"
+# read = existing auto-triggered read review (default). tests = experimental:
+# independently write and execute task-derived tests. Legacy auto/on/off still work.
+mode = "read"
 min_lines = 50        # auto 时：代码（不含 .md 等文档）改动达到这么多行也审；0 = 不按行数触发
 weak = true           # auto 时：证据弱也审一次，只用另一家最便宜的一档。弱 = 没有 --check；--check 不跑测试（只 lint / import / exit 0）；
                       # 它跑的测试没提到改动的代码文件或改动的公开函数；或这条验收命令放过过做错的结果。不需要历史。

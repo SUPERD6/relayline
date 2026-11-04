@@ -355,6 +355,7 @@ TIER_LEAD_ARMS = ("balanced", "save")            # the lead sizes with ccx propo
 SKILL_ARMS = PF.SKILL_ARMS                       # the lead loads the agent-delegate skill (needs ccx-home)
 # namecheck arms (opt-in): ccx2 in a unit hub whose tiers.toml sets [defaults] namecheck to this mode
 NAMECHECK_ARMS = {"ccx2nc": "fail"}
+TEST_REVIEW_ARMS = ("ccx2rt",)  # opt-in: same lead/prompt as ccx2, task-derived test review
 # daily-config arms (opt-in, B3 item 2; scripts/eval/daily_home.py): ccx2's lead and wording, but its sub-agents
 # start with the person's everyday setup (Codex memories, AGENTS.md and skills copied into a per-unit Codex home whose
 # login is the eval home's; Claude with the user settings layer and skills), and each variant turns one experimental
@@ -362,10 +363,10 @@ NAMECHECK_ARMS = {"ccx2nc": "fail"}
 DAILY_ARMS = {"ccx2daily": {}, "ccx2daily_nomem": {"codex_memories": False}, "ccx2daily_clean": {"clean": True},
               "ccx2daily_leantools": {"codex_lean_tools": True}}
 # leads that may hand work to ccx (session file, metrics)
-CCX_ARMS = ("ccx", "ccx2", *NAMECHECK_ARMS, *SKILL_ARMS, *TIER_LEAD_ARMS, *DAILY_ARMS)
+CCX_ARMS = ("ccx", "ccx2", *TEST_REVIEW_ARMS, *NAMECHECK_ARMS, *SKILL_ARMS, *TIER_LEAD_ARMS, *DAILY_ARMS)
 BUILTIN_ARMS = PF.BUILTIN_ARMS
 # not in ARMS: the default schedule (and old tags' done-keys) stay
-OPT_IN_ARMS = ("ccx2", "builtin2", "builtin2r", *TIER_ARMS, *SKILL_ARMS, *NAMECHECK_ARMS, *DAILY_ARMS)
+OPT_IN_ARMS = ("ccx2", "builtin2", "builtin2r", *TEST_REVIEW_ARMS, *TIER_ARMS, *SKILL_ARMS, *NAMECHECK_ARMS, *DAILY_ARMS)
 DEFAULT_LEAD = (r3.LEAD_MODEL, r3.LEAD_EFFORT)
 # --lead-model auto: each task's lead model from its difficulty by ccx's lead.model_by_task rule (ccx/leadmodel.py,
 # this checkout's config/tiers.toml [lead] / [lead_by_task], never the hub's settings), so the next round can compare
@@ -780,7 +781,7 @@ def lead_how(arm: str, label: str, lead: tuple[str, str] = DEFAULT_LEAD) -> str:
     lead passes to ccx propose as --lead)."""
     if arm == "ccx":
         return HOW_CCX.format(ccx=r3.CCX_CMD, label=label)
-    if arm == "ccx2" or arm in NAMECHECK_ARMS or arm in DAILY_ARMS:   # ccx2's lead; only the hub / homes differ
+    if arm == "ccx2" or arm in TEST_REVIEW_ARMS or arm in NAMECHECK_ARMS or arm in DAILY_ARMS:
         return HOW_CCX2.format(ccx=r3.CCX_CMD, label=label)
     if arm in SKILL_ARMS:
         return HOW_CCX2_SKILL
@@ -1149,6 +1150,29 @@ def set_namecheck(hub: Path, mode: str) -> str:
     got = hub_namecheck(hub)
     if got != mode:
         raise RuntimeError(f"the unit hub runs namecheck {got!r} after setting [defaults] namecheck = {mode!r}")
+    return got
+
+
+def set_test_review(hub: Path) -> str:
+    """Write the unit override, then assert the effective setting before any CLI starts."""
+    from ccx.config import Paths, load_config
+    from ccx.review_tests import mode
+    f = Paths(hub).user_tiers
+    f.parent.mkdir(parents=True, exist_ok=True)
+    text = f.read_text(encoding="utf-8") if f.exists() else ""
+    section = re.search(r"(?m)^\[review\][ \t]*$", text)
+    if section:
+        start = section.end()
+        end = re.search(r"(?m)^\[", text[start:])
+        stop = start + end.start() if end else len(text)
+        body = re.sub(r'(?m)^mode\s*=.*\n?', '', text[start:stop])
+        text = text[:start] + '\nmode = "tests"\n' + body + text[stop:]
+    else:
+        text += '\n[review]\nmode = "tests"\n'
+    f.write_text(text, encoding="utf-8", newline="")
+    got = mode(load_config(Paths(hub)).get("review") or {})
+    if got != "tests":
+        raise RuntimeError("ccx2rt requires review.mode=tests before launch")
     return got
 
 
@@ -1626,6 +1650,8 @@ def run_unit(u: dict, a, work: Path) -> dict:
         hinfo["namecheck"] = (set_namecheck(hub, NAMECHECK_ARMS[u["arm"]]) if u["arm"] in NAMECHECK_ARMS
                               else hub_namecheck(hub))
         row["namecheck_mode"] = hinfo["namecheck"]
+        if u["arm"] in TEST_REVIEW_ARMS:
+            hinfo["review_mode"] = row["review_mode"] = set_test_review(hub)
         if u["arm"] in DAILY_ARMS:                # its own Codex home and HOME, and its [subagent] overlay
             row["daily"], env = set_daily(iso, hub, env, u["arm"], a)
         row.update(direct_unit(u, a, repo, hub, env, job) if not has_lead(u["arm"]) else

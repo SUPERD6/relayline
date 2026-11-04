@@ -327,7 +327,7 @@ def test_set_daily_needs_an_eval_codex_home(homes):
 def test_daily_arms_are_additive():
     assert r5.ARMS == ("self", "builtin", "ccx", "direct")
     assert r5.OPT_IN_ARMS[:len(r5.OPT_IN_ARMS) - len(r5.DAILY_ARMS)] == (
-        "ccx2", "builtin2", "builtin2r", *r5.TIER_ARMS, *r5.SKILL_ARMS, *r5.NAMECHECK_ARMS)
+        "ccx2", "builtin2", "builtin2r", "ccx2rt", *r5.TIER_ARMS, *r5.SKILL_ARMS, *r5.NAMECHECK_ARMS)
     for arm in r5.DAILY_ARMS:
         assert arm in r5.OPT_IN_ARMS and arm in r5.CCX_ARMS and arm in PF.CODEX_ARMS
         assert r5.lead_how(arm, "L") == r5.lead_how("ccx2", "L") and r5.lead_flags_arm(arm) == "ccx"

@@ -824,7 +824,8 @@ def review_run(req: Request, p: Paths, cfg: dict, record: dict, cwd: Path, run_d
     import sys
     rv = sys.modules[__name__]
     rc = cfg.get("review") or {}
-    mode = req.review if req.review != "auto" else rc.get("mode", "auto")
+    from . import review_tests
+    mode = req.review if req.review != "auto" else review_tests.trigger(rc)
     # the run's own snapshot (a resume or fix round inherits its chain's), else the chain's: followed back through
     # resumed_from, so resuming a fix run reviews the whole change, not an empty diff (older records had none)
     from .workspace import run_snapshot
@@ -858,12 +859,19 @@ def review_run(req: Request, p: Paths, cfg: dict, record: dict, cwd: Path, run_d
         return
     from .delegate import _capped
     if _capped(req, record, "review"):            # P0-15 --max-usd: a review was due; the lead does it instead
+        if review_tests.mode(rc) == "tests":
+            record["review_test_mode"] = "tests"
+            record["review"] = review_tests.unknown("budget cap reached (--max-usd)", reason=why)
+            return
         record["review"] = {"verdict": "not-run", "reason": why, "error": "budget cap reached (--max-usd)"}
         if edited:
             record["review"]["edited_tests"] = edited
         return
     # a weak-evidence review is the routine one (most write runs): only the other vendors' cheapest rung
     cands = rv.reviewers(cfg, req.provider or req.to, find_bin, None if weak else p, cheapest=weak)
+    if review_tests.mode(rc) == "tests":
+        review_tests.run_review(req, p, cfg, record, cwd, run_dir, cands, why, cancel)
+        return
     if not cands:
         record["review"] = {"verdict": "not-run", "reason": why, "error": "no reviewer from another vendor installed"}
         if edited:

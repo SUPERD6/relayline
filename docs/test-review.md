@@ -1,0 +1,100 @@
+# Task-derived test review (experimental)
+
+English · [中文](test-review.zh.md)
+
+`ccx config set review.mode tests` opts into independent task-derived tests. The default
+`read` keeps the existing read-review prompt and trigger rules. Legacy configuration values
+`auto`, `on`, `off` remain accepted with their original meaning; `--review auto/on/off`
+still controls when review runs. No commands, options or existing exit codes are removed.
+
+The reviewer is selected by the existing cross-vendor selection logic. A same-vendor
+candidate is explicitly marked `independent=false` and Unknown, without running it.
+The input is `user_task` if recorded, otherwise the original brief (including on a fix
+round). Shared context and the implementer's test results are not an oracle.
+`ccx run --user-task-file original.txt` supplies UTF-8 original wording separately from
+the worker brief. Otherwise the run entry captures the supplied task before role/project
+wrapping. Test-mode runs save it as `run.json.user_task`; fix rounds and resumes retain it.
+`ccx resume --user-task-file original.txt` can explicitly replace the saved task.
+Programmatic callers pass `Request.user_task`; replay carries the receipt's original
+through its clean-room job and Request instead of relying on the worker brief.
+
+The reviewer gets a temporary source copy without Git history, `.ccx`, instructions or
+the implementer's test files. It writes Python `unittest` files in `checks/` and a
+`manifest.json` containing filenames and exact task quotes. ccx executes these tests
+in a separate Python process. Assertion failures and exceptions raised inside test methods
+are checked by the reviewer against the task and for errors in the test itself. Only
+confirmed in-scope implementation failures produce issues and the existing fix/block path. Missing tests, collection/import
+errors, skips, timeouts, unavailable reviewers and unconfirmed failures are Unknown.
+Passing generated tests only establish those checks; they do not prove task correctness.
+This first implementation supports Python unittest; other test environments are Unknown.
+
+Test source and actual output are retained under the run's `review-tests/`, outside the
+implementation's diff. The ledger does not contain test source. `run.json` adds
+`review_test_mode="tests"`; `review` adds `review_mode`, `tests_written` (collected test
+cases), `tests_run` (executed cases excluding skips), `tests_failed` (assertion failures and runtime exceptions),
+`unknown_reasons`, `independent`, and evidence file/output paths. The **existing top-level
+`review_mode` remains the auto/on/off trigger**, used by resume. Unknown is a new review
+verdict with a `needs_lead` cue, not pass and not an additional blocking exit code.
+Counts are `null` if execution timed out or the machine-readable result was lost.
+Generated code is executed with the current user's Python permissions, as existing
+acceptance commands are; the source copy is an evidence boundary, not an OS sandbox.
+Its subprocess receives only the runtime environment allowlist (PATH, Windows system
+and command lookup variables, temporary-directory and locale/timezone variables), plus
+`PYTHONDONTWRITEBYTECODE=1`; parent API keys, tokens and arbitrary variables are not inherited.
+
+## pg3b replay
+
+First check the saved material without calling model CLIs:
+
+```console
+python scripts/eval/p2_review_replay.py --dry-run --budget 3 --exercise-source /path/to/exercism-clone
+```
+
+Defaults are `.ccx/eval/r5/pg3b-results.jsonl` and `pg3b-results-artifacts/`.
+The audit requires each selected row's last receipt kind, recorded implementer,
+hidden outcome, full final diff, hidden pytest output, pinned original stubs and task
+instructions. It reports every missing item and cannot infer a vendor from the lead.
+It does not download a benchmark. Linked worktrees use the main checkout's saved data
+when their own ignored result file is absent. For the documented 30-row pg3b dataset,
+the public report establishes 29 self-checked receipts and one failed review. The row's
+ccx telemetry identifies that exception: pg-bowling's final builder has an unresolved
+issues review. Cohort membership is reconstructed from these two sources and recorded
+as inferred (`receipt_basis`); the missing literal receipt bytes are not claimed recovered.
+If no unique final failed review can be identified, missing receipt kinds stay Unknown.
+A cohort other than 29 prevents paid replay rather than silently changing it.
+
+The 2026-11-04 offline audit found 30 result rows and artifact directories. The selected
+29 have all final diffs and hidden outputs, 14 hidden passes and 15 failures, and recorded
+Codex implementers. 28 diffs contain cache blocks; replay filters those and builder tests
+before applying solution hunks. No source clone was found at the named local cache
+locations: dry-run reports 29 units, 0 ready, maximum reserved estimate $2.90.
+Task instructions and original stubs still require a local pinned clone.
+With the subsequently supplied `polyglot-benchmark.git` cache, the same audit resolves
+the full pin `7e0611e77b54e2dea774cdc0aa00cf9f7ed6144f` and reports 29/29 ready, still
+without model calls. A sandbox account may need a temporary, path-specific Git
+`safe.directory` setting to read a clone owned by the lead account; no global setting is changed.
+Supply `--exercise-source CLONE` or r5-compatible `--ext-cache DIR` (with `polyglot`
+or `polyglot.git` beneath it; `polyglot-benchmark` and `polyglot-benchmark.git` are also accepted).
+Missing material prints one `git clone --bare` command
+for the lead to run; the script does not run it. The 29 cases have not been measured.
+
+Paid execution requires `--run --pin-commit SHA --budget USD`; `--wait-quiet MINUTES`
+uses r5's quiet-machine wait. Each unit reserves `--unit-cap` (default $0.10), including
+lost responses, before starting. Each of its at most two Claude calls receives half
+that amount through native `--max-budget-usd`; a CLI without native USD enforcement
+is Unknown. This bounds launch reservations and sets the provider's native limit;
+it cannot promise a stricter billing limit than the CLI itself enforces. Prices are API
+equivalent, not subscription bills. Real CLI budget/isolation behaviour is not measured.
+
+Each replay tree is built from original solution stubs and **only solution-file diff
+hunks**; neither builder tests nor hidden tests/output enter the reviewer job or tree.
+Full source rows are retained in output JSONL, along with all failures and Unknowns.
+An existing output is refused to preserve earlier evidence and prevent budget resets.
+Evidence directories are retained for inspection. Catch rate is blocked wrong / all
+wrong; false-block rate is blocked correct / all correct. Both print numerator and
+denominator, Unknown separately, and worst-case rates (Unknown misses every wrong case
+and blocks every correct case). Zero denominators remain Unknown.
+
+r5 adds opt-in `--arms ccx2rt`: the same lead and prompt as `ccx2`, with the unit hub's
+`review.mode="tests"` written and read back before launch. It is not a default arm.
+Only fake-CLI engineering checks have been run; the pg3b efficacy gate remains Unknown.

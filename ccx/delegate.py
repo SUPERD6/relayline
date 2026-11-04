@@ -94,6 +94,7 @@ class Request:
     merge_of: str | None = None     # a follow-up / spun-off run of a merged run (`ccx batch --merge`): that run's id
     max_usd: float | None = None    # P0-15 --max-usd: cap on this whole delegation (attempts, review, fix round)
     chain_usd: float = 0.0          # what the chain spent before this run (a fix round: its first run + review)
+    user_task: str | None = None    # original task, before role/project wrapping; explicit callers may supply it
 
 
 def _busy(p: Paths, prev: dict, scan: int = 300) -> str | None:
@@ -195,7 +196,7 @@ def _finish_review(bg: dict, record: dict, p: Paths, keep: bool, wait: float = 1
     t, shadow = bg["thread"], bg["shadow"]
     if keep:
         t.join()
-        for k in ("review", "edited_tests", "max_usd"):
+        for k in ("review", "edited_tests", "max_usd", "review_test_mode"):
             if k in shadow:
                 record[k] = shadow[k]
         if shadow.get("kind") in ("review_issues", "review_failed"):
@@ -505,6 +506,8 @@ def run(req: Request, p: Paths) -> dict:
         req.route = req.route or prev.get("route")
         req.task, req.step = req.task or prev.get("task"), req.step or prev.get("step")
         req.provider = req.provider or prev.get("provider")
+        if req.user_task is None:
+            req.user_task = prev.get("user_task")
         # the same task: a lead's `ccx resume` keeps its label (the queue finds a piece's runs by `q:<id>`), its
         # acceptance command (a fix nobody checks is no evidence) and its risk, as ccx's own review fix round does
         req.label = req.label or prev.get("label") or ""
@@ -650,6 +653,7 @@ def run(req: Request, p: Paths) -> dict:
         "forked_from_lead": bool(req.fork_lead), "ephemeral": req.ephemeral,
         "mode_source": req.mode_source, "mode_why": req.mode_why, "check_cmd": req.check, "risk": req.risk,
         "namecheck_mode": req.namecheck,
+        **({"user_task": req.user_task} if req.user_task is not None and (cfg.get("review") or {}).get("mode") == "tests" else {}),
         **({"merge_of": req.merge_of} if req.merge_of else {}),
         # the review the person asked for, which a later resume inherits; a review fix round (forced "on")
         # keeps the setting of the run it fixes
@@ -1496,6 +1500,12 @@ def compact(record: dict) -> dict:
         rv = record["review"]
         out["review"] = {k: rv[k] for k in ("verdict", "reason", "by", "issues", "notes", "usd", "error",
                                             "edited_tests", "downgraded") if rv.get(k)}
+        if rv.get("review_mode") == "tests":
+            out["review_mode"] = "tests"
+            out["review"].update({k: rv[k] for k in ("review_mode", "tests_written", "tests_run", "tests_failed",
+                                                   "unknown_reasons", "independent", "evidence") if k in rv})
+            if rv.get("verdict") == "unknown":
+                out["needs_lead"] = "test review Unknown: " + "; ".join(rv.get("unknown_reasons") or [])[:240]
         if rv.get("edited_tests"):                    # a builder that changed existing tests: the lead looks first
             out["edited_tests"] = rv["edited_tests"]
     if record.get("cost_chain_error"):
