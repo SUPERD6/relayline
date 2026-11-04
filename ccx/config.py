@@ -407,7 +407,7 @@ SETTINGS = {   # key -> (type, help). Only these can be set with `ccx config set
                                   "`ccx mem compact --by project` (default false)"),
     "memory.suggest_expire_days": (int, "days before an unhandled suggestion is marked expired when read "
                                         "(default 14; 0 = never expire; records are kept)"),
-    "hooks.timeout_s": (float, "seconds a session hook (ccx mem delta / turn) may run before it prints nothing and "
+    "hooks.timeout_s": (float, "seconds a session hook (ccx mem delta / turn) may run before it keeps completed hints and "
                                "exits 0; logged, shown by `ccx doctor` (0 = no limit)"),
     "ui.lang": (str, "zh | en: language of `ccx ui` and of the lines ccx writes into conversations (unset: the "
                      "page follows the browser, the lines stay English)"),

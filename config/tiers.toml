@@ -352,7 +352,7 @@ max_files = 5           # 和文件数
 protected = ["main", "master", "trunk", "release/*"]
 
 [hooks]
-# 开局 hook（ccx mem delta）和每轮 hook（ccx turn）最多跑这么多秒；超时就什么都不输出、退出码 0，
+# 开局 hook（ccx mem delta）和每轮 hook（ccx turn）最多跑这么多秒；超时保留完整提示、退出码 0，
 # 在 hub 的 ccx/hook-timeouts.jsonl 记一行（命令、用时、在哪一步），ccx doctor 显示最近次数。0 = 不限。
 timeout_s = 2.0
 

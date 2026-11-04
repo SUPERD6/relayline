@@ -234,6 +234,8 @@ def cmd_mem(a) -> int:
               "next": "check each: `ccx mem verify N`, or replace: `ccx mem add \"...\" --supersedes N`; notes "
                       f"nobody used for {memory.UNUSED_DAYS} days can go at the next `ccx mem compact`"})
     elif a.mem_cmd == "delta":
+        from ..hookbudget import check, hints
+        check()
         if os.environ.get("CCX_ROLE") == "subagent":
             return 0          # sub-agents get the notes their task is about in the brief (I6), not memory deltas
         from .. import project
@@ -243,14 +245,18 @@ def cmd_mem(a) -> int:
         by_kind = memory.by_kind_on(p)          # L2: off by default; decided by measurement (H11 voided)
         parts = [memory.format_delta(memory.delta(p, me, advance=not a.peek), project=(root or Path.cwd()).name,
                                      shown=shown, kinds=memory.START_KINDS if by_kind else None)]
+        hints(parts, a.as_)
         if memory.start_scene_on(p):            # L3: optional, this project's scene block only
             parts.append(memory.scene_block(p, (root or Path.cwd()).name))
+            hints(parts, a.as_)
         if not a.peek:
             memory.mark_used(p, shown, by=me, project=(root or Path.cwd()).name, via="start")
+        check()
         old = memory.stale(p)
         if old:
             from ..lang import say
             parts.append(say("hint_mem_stale", p, n=len(old), days=memory.STALE_DAYS))
+        hints(parts, a.as_)
         try:                           # H5: suggested notes wait for the person's yes or no
             from .. import memsuggest
             from ..lang import say
@@ -261,11 +267,15 @@ def cmd_mem(a) -> int:
                                  items="\n".join(f"- #{i['id']} ({i['kind']}): {i['text']}" for i in top)))
         except Exception:  # noqa: BLE001 — never break session start
             pass
+        hints(parts, a.as_)
         root = project.find_root()
         if root:
             parts.append(project.pending_handoff(root, a.as_, advance=not a.peek))
+            hints(parts, a.as_)
             parts.append(project.delta_text(root, a.as_, advance=not a.peek))
+            hints(parts, a.as_)
         parts.append(_unfinished_tasks())
+        hints(parts, a.as_)
         if root:
             try:
                 from .. import queue as wq
@@ -273,6 +283,7 @@ def cmd_mem(a) -> int:
             except Exception:  # noqa: BLE001 — never break session start
                 pass
         try:                           # delegated work that waits for the person: point at `ccx ui` (G1)
+            hints(parts, a.as_)
             from ..lang import say
             from ..ui import waiting
             n = waiting(p)
@@ -281,6 +292,7 @@ def cmd_mem(a) -> int:
         except Exception:  # noqa: BLE001 — never break session start
             pass
         try:                           # the project catalog: a project named without a path -> `ccx where`
+            hints(parts, a.as_)
             from .. import projects as pj
             from ..lang import say
             n = len(pj.load(p).get("projects") or [])
@@ -289,9 +301,11 @@ def cmd_mem(a) -> int:
         except Exception:  # noqa: BLE001 — never break session start
             pass
         out = "\n\n".join(x for x in parts if x)
+        hints(parts, a.as_)
         if out:
             print(hook_text(out, a.as_))
         if not a.peek:
+            check()
             try:                       # quiet: probable verdicts for runs nobody judged (H13); never blocks the start
                 from ..delegate import soft_verdicts
                 soft_verdicts(p)
@@ -300,17 +314,20 @@ def cmd_mem(a) -> int:
             except Exception:  # noqa: BLE001
                 pass
             try:                       # quiet housekeeping: old finished sub-sessions out of the apps' history
-                from .. import archive as arc
-                arc.auto(p)
+                check()
+                from ..archive_worker import schedule
+                schedule(p)
             except Exception:  # noqa: BLE001 — never break session start
                 pass
             try:                       # the project catalog, rescanned in the background once a day
+                check()
                 from .. import projects as pj
                 from ..config import load_config
                 pj.refresh_later(p, load_config(p))
             except Exception:  # noqa: BLE001 — never break session start
                 pass
             if os.environ.get("CCX_NO_BENCH_REFRESH") != "1":
+                check()
                 try:                   # weekly public benchmark data for routing, in the background
                     from .. import learn
                     learn.refresh_benchmarks_later(p)

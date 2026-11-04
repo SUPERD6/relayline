@@ -409,9 +409,14 @@ writes one short block per project to `memory/scenes.md`; `[memory] start_scene 
 block at a session start (off by default: a start's notes are already capped at ~600 tokens).
 
 **Hooks never hold up a turn.** The session-start hook (`ccx mem delta`) and the per-turn hook (`ccx turn`) stop at
-`[hooks] timeout_s` (default 2 s; `ccx config set hooks.timeout_s N`, 0 = no limit): past it they print nothing and
-exit 0, and `ccx/hook-timeouts.jsonl` gets one line (command, seconds, the step it was in). `ccx doctor` shows how
-many there were in the last 7 days.
+`[hooks] timeout_s` (default 2 s; `ccx config set hooks.timeout_s N`, 0 = no limit): the hook checkpoints complete
+hints between steps, skips later steps when its budget is exhausted, and exits 0. A stuck read still triggers the
+hard deadline, which emits the last complete checkpoint (nothing if none exists) and logs one line to
+`ccx/hook-timeouts.jsonl` (command, seconds, the step it was in). `ccx doctor` shows the hard-timeout count over
+7 days. Session-start archival runs in a detached, windowless worker; overlapping workers use an OS lock and skip
+busy work. Its failure does not affect hook output. Settings, command options and JSON fields are unchanged.
+These paths have offline engineering checks; live-client behavior is not verified. Reproduce the synthetic timing
+check with `python scripts/benchmark_hook_report.py`; see [the results](research/hook-report-speed.md).
 
 **Which shared skills are used.** `ccx skills stats [--days N] [--json]` counts, from the Claude Code and Codex
 session files, how often each shared skill (hub `skills/` plus this repo's) was loaded in each tool and when last,

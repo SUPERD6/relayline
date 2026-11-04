@@ -280,14 +280,14 @@ def find_session(agent: str, root: Path, exclude: set[str], session: str | None 
     """The newest main session of `agent` in this project folder (not a ccx sub-run, not a sub-agent)."""
     from .config import claude_home as ch, codex_home as xh
     from .usage import codex_parent
+    from .sessionmeta import header
     here = str(root.resolve()).lower().rstrip("\\/")
     if agent == "codex":
         for f in _codex_sessions(codex_home or xh()):
             if session and session not in f.name:
                 continue
             try:
-                with f.open(encoding="utf-8", errors="replace") as fh:
-                    meta = (json.loads(fh.readline()) or {}).get("payload") or {}
+                meta = header(f)
             except (OSError, ValueError):
                 continue
             sid = meta.get("id") or meta.get("session_id")

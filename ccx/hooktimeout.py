@@ -1,4 +1,4 @@
-"""L4: a session hook (`ccx mem delta`, `ccx turn`, `ccx lead --hint`) that runs past a time limit prints nothing and
+"""L4: a session hook (`ccx mem delta`, `ccx turn`, `ccx lead --hint`) preserves complete hints at its time limit and
 exits 0, so a slow disk or a big journal never holds up the lead's start or its turn. The command runs in a worker
 thread with its output caught; past the limit the process leaves with os._exit(0) (works the same on Windows,
 no signals) and the hub gets one line in ccx/hook-timeouts.jsonl: the command, how long it had run, and the step it
@@ -58,17 +58,23 @@ def _step(thread: threading.Thread) -> str:
     return where or "?"
 
 
-def run(name: str, fn, p, timeout: float | None = None) -> int:
+def run(name: str, fn, p, timeout: float | None = None, *, clock=time.monotonic) -> int:
     """Run fn() (the command) under the hook limit; returns its exit code, or leaves the process after the limit."""
     timeout = limit(p) if timeout is None else timeout
     if timeout <= 0:
         return fn()
     out, err = io.StringIO(), io.StringIO()
     result: dict = {}
+    from .hookbudget import Budget, Exhausted, using
+    budget = Budget(timeout, clock)
 
     def work():
         try:
-            result["rc"] = fn()
+            with using(budget):
+                result["rc"] = fn()
+        except Exhausted:
+            result["rc"] = 0
+            result["exhausted"] = True
         except BaseException as e:  # noqa: BLE001 — carried back to the main thread
             result["exc"] = e
 
@@ -83,6 +89,8 @@ def run(name: str, fn, p, timeout: float | None = None) -> int:
         sys.stdout, sys.stderr = real_out, real_err
         raise
     if t.is_alive():                   # output stays caught: whatever the worker prints now goes nowhere
+        real_out.write(budget.ready or out.getvalue())
+        real_out.flush()
         rec = {"at": datetime.now(timezone.utc).isoformat(timespec="seconds"), "cmd": name,
                "elapsed_s": round(time.monotonic() - t0, 2), "limit_s": timeout, "step": _step(t)}
         try:
@@ -91,10 +99,9 @@ def run(name: str, fn, p, timeout: float | None = None) -> int:
                 f.write(json.dumps(rec, ensure_ascii=False) + "\n")
         except OSError:
             pass
-        real_out.flush()
         os._exit(0)                    # the worker may sit in a read; nothing waits for it
     sys.stdout, sys.stderr = real_out, real_err
-    real_out.write(out.getvalue())
+    real_out.write(budget.ready if result.get("exhausted") else out.getvalue())
     real_err.write(err.getvalue())
     if "exc" in result:
         raise result["exc"]
@@ -128,5 +135,5 @@ def doctor_row(p, days: int = 7) -> tuple[str, str]:
         by[r.get("cmd", "?")] = by.get(r.get("cmd", "?"), 0) + 1
     last = recs[-1]
     return "WARN", (f"{len(recs)} in {days} days (" + ", ".join(f"{k} {v}" for k, v in sorted(by.items()))
-                    + f"); last {last.get('cmd')} at {last.get('step')} after {last.get('elapsed_s')}s, printed "
-                    f"nothing. Limit {lim:g}s: `ccx config set hooks.timeout_s N`; log {log_file(p)}")
+                    + f"); last {last.get('cmd')} at {last.get('step')} after {last.get('elapsed_s')}s. "
+                    f"Limit {lim:g}s: `ccx config set hooks.timeout_s N`; log {log_file(p)}")

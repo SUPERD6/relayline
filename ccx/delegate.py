@@ -485,12 +485,6 @@ def run(req: Request, p: Paths) -> dict:
     prev = ledger.load_run(p, req.resume_run) if req.resume_run else None
     if prev:
         refuse_if_busy(p, prev)
-    if prev and prev.get("session_id"):
-        try:                               # archived after its run (or by hand): put it back before continuing it
-            from . import archive
-            archive.bring_back(p, prev["session_id"])
-        except Exception:  # noqa: BLE001 — the resume itself then says what is wrong
-            pass
     cont = bool(prev and req.continued)      # new task, old session: keep the new task's own settings
     if cont:
         req.to = prev["to"]
@@ -666,7 +660,8 @@ def run(req: Request, p: Paths) -> dict:
         record["requested_model"] = prev.get("requested_model") or first.get("model") or requested["model"]
         if prev.get("quota_fallback"):
             record["quota_fallback"] = dict(prev["quota_fallback"])
-    _write_record(run_dir, record)          # visible to `ccx show` at once (background runs, crashes)
+    from .sessionguard import start
+    start(p, record, lambda: _write_record(run_dir, record))
     board_run({**record, "label": req.label or req.brief}, "started")      # as the UI shows it: what was asked
     if req.mode == "write":
         # a fresh task takes its own snapshot; a resume or review fix round inherits the one of the run it goes on
