@@ -1,0 +1,4 @@
+- Add an experimental, default-off `--codex-workspace-tmp` evaluation launcher for workspace-write Codex runs and resumes, without changing sandbox permissions or product defaults.
+- Require the Codex preflight canary to create, write, read, and remove a temporary directory; reuse existing sandbox metadata and add the temporary-directory policy to row fingerprints.
+- Retain redacted lead and ccx sub-agent event/stderr streams for every r5 result under invocation-specific artifacts, with file hashes and relative references.
+- Record a measured Windows temporary-directory probe and fake-CLI regressions; no command or option was removed, and existing receipt fields, exit codes, and scoring rules are retained.

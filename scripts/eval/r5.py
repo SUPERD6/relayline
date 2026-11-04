@@ -133,7 +133,7 @@ copies are denied to its agents along with Claude's web tools, pip has no index,
 fetching packages; tests run with PYTHONPATH=src and the Python given with --ext-python, which must have the modules
 the repository's tests need and not the library itself, and must not sit next to the --ext-cache copies). Its
 results go to their own file, and every finished unit's repository, hub and lead stream leave the
-work dir after scoring (the stream is kept under .ccx/eval/r5/streams/<tag>/), so a later round's agents cannot find
+work dir after scoring (redacted lead and ccx sub-agent streams are kept under the results artifacts), so a later round's agents cannot find
 an earlier round's finished answer next to them. r5 keeps its old behaviour.
 
 Polyglot (--taskset polyglot, scripts/eval/tasks_polyglot.py, P0-5): 30 Python exercises of aider's polyglot
@@ -178,6 +178,7 @@ import ext_repo  # noqa: E402
 import r5_timeline as TL  # noqa: E402
 import harness_audit as HA  # noqa: E402
 import daily_home as DH  # noqa: E402
+import evidence_streams as ES  # noqa: E402
 import tasks_holdout  # noqa: E402
 import tasks_polyglot  # noqa: E402
 import tasks_r5  # noqa: E402
@@ -1562,7 +1563,8 @@ def unit_of(u: dict, a, work: Path) -> PF.Unit:
     return PF.Unit(key=key, work=work, repo=work / key, hub=work / f"h-{key}", label=u["label"],
                    claude=a.claude_isolation, ccx_home=a.claude_isolation == "ccx-home" and u["arm"] in CCX_ARMS,
                    codex_home=Path(PF.codex_home_arg(a.codex_home)) if a.codex_home else None,
-                   dsh=a.dsh_home, agents=tuple(r3.WORKER), **ext_guard(by_id(u["task"]), a, work))
+                   dsh=a.dsh_home, agents=tuple(r3.WORKER),
+                   codex_workspace_tmp=getattr(a, "codex_workspace_tmp", False), **ext_guard(by_id(u["task"]), a, work))
 
 
 def unit_models(u: dict, row: dict) -> dict:
@@ -1683,13 +1685,20 @@ def run_unit(u: dict, a, work: Path) -> dict:
             except Exception as e:  # noqa: BLE001
                 row["artifacts"] = {"error": f"{type(e).__name__}: {e}"[:200]}
         fresh = u.get("taskset", "r5") != "r5"     # hold-out: nothing of a finished unit stays in the work dir
-        if fresh and stream.exists():
-            keep = OUT / "streams" / str(u.get("tag") or "untagged")
-            keep.mkdir(parents=True, exist_ok=True)
-            try:  # shutil.move: the work dir (temp) and the repo can be on different drives (os.replace cannot)
-                shutil.move(str(stream), str(keep / stream.name))
-            except OSError as e:
-                row["audit"].setdefault("problems", []).append(f"stream not kept: {type(e).__name__}: {e}"[:200])
+        # Keep the sub-agent streams before after_unit removes their hub, also on successful/aborted units.
+        # A normal invocation supplies an invocation-specific artifacts_dir; library callers retain a fallback.
+        dest = (Path(art) / f"{u.get('tag') or 'untagged'}-{iso.key}" if art else
+                OUT / "streams" / str(u.get("tag") or "untagged") / iso.key)
+        try:
+            kept = ES.keep(dest / "streams", iso, stream, env)
+            if kept:
+                if getattr(a, "artifacts_run", None):
+                    kept["run"] = a.artifacts_run
+                row["streams"] = kept
+            if fresh:
+                stream.unlink(missing_ok=True)
+        except Exception as e:  # noqa: BLE001 — evidence failure must not skip unit cleanup
+            row["streams_error"] = type(e).__name__  # diagnostic only; preserve existing audit/scoring semantics
         row["leftovers"] = PF.after_unit(iso, before, job, row["audit"].get("session_ids") or [], keep_repo=not fresh)
         if "ext" in row and getattr(a, "ext_venv", None):
             # the Python that scores every unit is shared: something installed into it changes later units
@@ -3056,7 +3065,7 @@ def cmd_export(a) -> int:
             "actual_mode", "misband", "misband_overall", "followed_plan", "ccx_check_passed", "may_be_wrong",
             "ccx_routes", "bookkeeping_error", "lead_usage", "timeline", "skill_used", "skills_used",
             "namecheck_mode", "ccx_namecheck", "ccx_check_reason", "sub_usage", "switches_applied",
-            "hidden_failed", "artifacts", "arm_order", "arm_pos")
+            "hidden_failed", "artifacts", "streams", "streams_error", "arm_order", "arm_pos")
     rows = summary_rows(a)
     data = {"summary": summarize(rows, a.include_unclean),
             "rows": [r3.scrub({**{k: r[k] for k in keep if k in r},
