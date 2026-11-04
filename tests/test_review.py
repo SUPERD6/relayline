@@ -489,6 +489,87 @@ class TestReviewRun(Env):
         self.assertIn("change x to 2 in a.py", task)
         self.assertNotIn("off by one", task)
 
+    def repair_receipt(self, verdict):
+        from ccx.config import Paths
+        from ccx.workspace import canonical
+        from test_ccx import FAKES
+        env = {"FAKE_WRITE": f"{self.work / 'a.py'}=x = 2\n", "FAKE_REVIEW": f"issues,{verdict}"}
+        if verdict == "not-run":
+            # Fail only reviewers after the first; keep the worker and its resumed session running normally.
+            wrapper = self.work / "reviewer.py"
+            wrapper.write_text("import os, runpy, sys\nfrom pathlib import Path\n"
+                               "count = Path(os.environ['FAKE_LOG']).with_name('fake-review-count')\n"
+                               "if count.exists():\n    os.environ['FAKE_STATUS_CLAUDE'] = 'quota'\n"
+                               f"sys.path.insert(0, {str(FAKES)!r})\n"
+                               f"runpy.run_path({str(FAKES / 'fake_claude.py')!r}, run_name='__main__')\n",
+                               encoding="utf-8", newline="")
+            env["CCX_CLAUDE_BIN"] = str(wrapper)
+        r = self.ccx("run", "--to", "codex", "--model", "gpt-6-luna", "--effort", "low", "--mode", "write",
+                     "--no-fallback", "--review", "on", "change x to 2 in a.py", env=env)
+        self.assertEqual(r.returncode, 0, r.stderr)       # receipt changes never change the exit code or ok
+        out = json.loads(r.stdout)
+        self.assertTrue(out["ok"], out)
+        self.assertEqual(out["review"]["verdict"], verdict)
+        self.assertEqual(out["review"]["first_round"]["verdict"], "issues")
+        runs = Paths(self.hub).runs
+        def load(rid):
+            return json.loads((runs / rid / "run.json").read_text(encoding="utf-8"))
+
+        first, fix = load(out["fixed_after_review_of"]), load(out["run_id"])
+        self.assertEqual(fix["resumed_from"], first["run_id"])
+        self.assertEqual(fix["session_id"], first["session_id"])
+        reviewer_ids = [first["review"]["run_id"], fix["review"]["run_id"]]
+        self.assertEqual(len(set([first["run_id"], fix["run_id"], *reviewer_ids])), 4)
+        for rid in reviewer_ids:
+            reviewer = load(rid)
+            self.assertEqual((reviewer["to"], reviewer["mode"], reviewer["caller"]),
+                             ("claude", "read", "ccx-review"))
+            self.assertTrue(reviewer["ephemeral"])
+            self.assertFalse(reviewer.get("resumed_from"))
+            self.assertEqual(canonical(reviewer["cwd"]), canonical(self.work))
+        for call in self.reviews():
+            self.assertNotIn("--resume", call["argv"])
+            task = call["prompt"].split("## The task it was given", 1)[1].split("## What it says it did", 1)[0]
+            self.assertIn("change x to 2 in a.py", task)
+            self.assertNotIn("off by one", task)
+        marker = "repair_review_incomplete"
+        if verdict == "pass":
+            self.assertNotIn("needs_lead", out)
+            self.assertNotIn(marker, out["recap"])
+        else:
+            why = "did not run" if verdict == "not-run" else "verdict is unclear"
+            self.assertIn(f"{marker}: fix completed, but independent re-review {why}", out["needs_lead"])
+            self.assertIn("not independently verified", out["needs_lead"])
+            self.assertIn(f"needs_lead={marker}", out["recap"])
+            self.assertIn(f"fix completed; independent re-review={verdict}", out["recap"])
+        shown = json.loads(self.ccx("show", first["run_id"]).stdout)
+        self.assertEqual(shown.get("needs_lead"), out.get("needs_lead"))
+        self.assertEqual(shown["recap"], out["recap"])
+
+    def test_repair_receipt_pass(self):
+        self.repair_receipt("pass")
+
+    def test_repair_receipt_unclear(self):
+        self.repair_receipt("unclear")
+
+    def test_repair_receipt_not_run(self):
+        self.repair_receipt("not-run")
+
+    def test_ordinary_unclear_receipt_has_no_repair_hint(self):
+        out = self.go("--review", "on", review_seq="unclear")
+        self.assertNotIn("fixed_after_review_of", out)
+        self.assertNotIn("needs_lead", out)
+        self.assertNotIn("repair_review_incomplete", out["recap"])
+        self.assertNotIn("fix completed", out["recap"])
+
+    def test_ordinary_not_run_receipt_has_no_repair_hint(self):
+        out = self.go("--review", "on", env_extra={"FAKE_STATUS_CLAUDE": "quota"})
+        self.assertEqual(out["review"]["verdict"], "not-run")
+        self.assertNotIn("fixed_after_review_of", out)
+        self.assertNotIn("needs_lead", out)
+        self.assertNotIn("repair_review_incomplete", out["recap"])
+        self.assertNotIn("fix completed", out["recap"])
+
     def test_long_must_reaches_the_fix_brief_whole(self):
         # r5: the fix brief got each [must] cut at 300 characters; the cut part held the fix the reviewer asked for
         must = ('[must] a.py:1 - "set x to 2" - ' +          # ASCII: an env var carries it to the fake reviewer

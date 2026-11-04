@@ -1509,6 +1509,18 @@ def compact(record: dict) -> dict:
         out["hint"] = REVIEW_FAILED_HINT.format(run_id=record["run_id"])
         first = ((record.get("review") or {}).get("issues") or ["(see review)"])[0]
         out["needs_lead"] = f"review_failed: {first}"[:300]
+    if record.get("first_review") and (out.get("review") or {}).get("verdict") in ("not-run", "unclear"):
+        # A completed fix is not an independent pass. Keep this a receipt cue, without changing ok or gates.
+        verdict = out["review"]["verdict"]
+        why = "did not run" if verdict == "not-run" else "verdict is unclear"
+        previous = out.get("needs_lead")
+        out["needs_lead"] = (f"repair_review_incomplete: fix completed, but independent re-review {why}; "
+                             "not independently verified" + (f"; {previous}" if previous else ""))
+        previous_hint = out.get("hint")
+        out["hint"] = ((previous_hint + "; " if previous_hint else "") +
+                       "check the fix against the original task yourself before accepting it; "
+                       f"see `ccx show {record['run_id']} --full` and give your verdict "
+                       f"(`ccx verify {record['run_id']} --ok 1|0`)")
     if record.get("check"):
         c = record["check"]
         out["check"] = {"cmd": c["cmd"], "passed": c["passed"], "exit": c["exit"],
@@ -1572,6 +1584,8 @@ def recap(record: dict, res: dict) -> str:
         usd = cc["ae_usd"]
     lead = f" needs_lead={res['needs_lead'].split(':')[0]}" if res.get("needs_lead") else ""
     notes = receipt_notes(res)
+    if record.get("first_review") and review in ("not-run", "unclear"):
+        notes.append(f"fix completed; independent re-review={review} (not independently verified)")
     receipt = {"ok": record.get("ok"), "kind": record.get("kind"), **res}
     return (f"ccx run {record['run_id']}: status={receipt_status(receipt)} {receipt_outcome(receipt)} "
             f"check={check} review={review}{lead} cost=~${usd:.4f}"
