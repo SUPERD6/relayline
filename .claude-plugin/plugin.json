@@ -1,6 +1,6 @@
 {
   "name": "relayline",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "description": "Claude Code, Codex and DeepSeek as each other's lead or sub-agent (Gemini CLI only as a sub-agent adapter, not run for real): the delegation, routing, splitting, checkpoint and project-manager skills, plus ccx's start-of-session and per-turn hooks.",
   "author": { "name": "SUPERD6" },
   "homepage": "https://github.com/SUPERD6/relayline",
