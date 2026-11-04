@@ -1,0 +1,2 @@
+- Document long-term engineering standards for evidence, metrics, evaluations, compatibility, delivery and file hygiene.
+- Add a staged optimization plan with proposed gates and a $60 hard cap; preserve existing defaults and negative results.

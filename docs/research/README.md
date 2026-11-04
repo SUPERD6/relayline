@@ -8,6 +8,7 @@ not proof; the exception is the hold-out run hc1 (2026-10-29), on tasks not used
 
 | Date | Question | Result in one line | Main limit | Report |
 |---|---|---|---|---|
+| 2026-11-04 | How should the next optimization round proceed? | Plan: preserve default quality and find one reproducible positive scenario; $60 hard cap | not run; stage thresholds remain proposals until preregistered | [Optimization plan](2026-11-04-optimization-plan.md) |
 | 2026-11-04 | hc2: 0.6.0 candidate repository-task recheck | 28/30 overall, 25/27 clean; $0.088 per success, 168 s; passed under proportional reading of ambiguous rule | Self / built-in not rerun; 0/19 cannot prove below 2%, only 6 done; code and sandbox effects not isolated | [hc2](2026-11-04-hc2-holdout.md) |
 | 2026-11-03 | pg3b: receipt recheck | Zero ordinary ok: insufficient evidence; review passed all 29 self-checked receipts, 15 failed hidden tests | Cannot measure 2% threshold; small tasks, one lead configuration | [pg3b](2026-11-03-pg3b-receipts.md) |
 | 2026-10-23 | How should token savings be measured? | One unit (API-equivalent USD); headline metric is cost per success against the lead doing it itself | Literature gains are from single-call QA; expect much smaller for multi-turn coding agents | [token-cost quantification](2026-10-23-token-cost-quantification.md) |
