@@ -209,8 +209,8 @@ def plugin_ccx(tools: list[str], which=None) -> tuple[str, str]:
     if found and not inside:
         return "ok", f"{where}; ccx itself: {found}"
     return "WARN", (f"{where}, but ccx is not installed on its own: the plugin's hooks and skills run its bundled "
-                    "copy inside the tool only. For your terminal and Codex: `pipx install "
-                    "git+https://github.com/SUPERD6/relayline`, then `ccx init`")
+                    "copy inside the tool only. For your terminal and Codex: `pipx install relayline`, "
+                    "then `ccx init`")
 
 
 def routing_prior(p: Paths) -> tuple[str, str]:

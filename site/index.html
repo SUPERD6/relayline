@@ -31,8 +31,8 @@
       <h1>Claude Code, Codex and DeepSeek hand work to each other. Every hand-off comes with a receipt.</h1>
       <p class="sub">What it cost, whether the check ran, who reviewed it, and one command to undo it. Any of the three can lead or take work, with shared memory and working context. One ledger across vendors: every sub-agent run and its own child sessions, Claude and Codex in one book. Measured in the open: negative results are published too, every number carries its limits, and the benchmark can be re-run (<a href="https://github.com/SUPERD6/relayline/blob/main/docs/measured.md">Measured</a> &middot; <a href="https://github.com/SUPERD6/relayline/blob/main/bench/README.md">bench/</a>). The command is <code>ccx</code>; Python standard library only.</p>
       <div class="install">
-        <code>pipx install git+https://github.com/SUPERD6/relayline</code>
-        <button class="copy" type="button" data-copy="pipx install git+https://github.com/SUPERD6/relayline"
+        <code>pipx install relayline</code>
+        <button class="copy" type="button" data-copy="pipx install relayline"
                 data-done="Copied" data-fail="Copy manually">Copy</button>
       </div>
       <p class="then">No account yet? <code>ccx demo</code> shows the whole page on made-up data, offline.</p>
@@ -73,7 +73,7 @@
   <section id="start">
     <h2>Three steps</h2>
     <ol class="how three">
-      <li><b>Install</b><code>pipx install git+https://github.com/SUPERD6/relayline</code> (or <code>ccx demo</code> first, no account needed).</li>
+      <li><b>Install</b><code>pipx install relayline</code> (or <code>ccx demo</code> first, no account needed).</li>
       <li><b>Set up</b><code>ccx setup</code> wires ccx into Claude Code and Codex; it explains each step and asks before changing anything.</li>
       <li><b>Hand off</b>In Claude Code: &ldquo;hand this to Codex through ccx, check with <code>pytest -q</code>&rdquo;. Then <code>ccx ui</code> shows the receipt.</li>
     </ol>
