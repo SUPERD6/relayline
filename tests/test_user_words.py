@@ -129,6 +129,43 @@ class TestUserWords(Env):
         self.assertEqual(record["user_words"]["source"], "claude")
         self.assertIn("Return an empty tuple for None", self.calls()[-1]["prompt"])
 
+    def test_cp936_stdio_preserves_utf8_artifacts_retry_resume_and_fallback(self):
+        # Force the Python fake CLIs' Windows legacy pipe encoding on every OS,
+        # even when the pytest process inherited PYTHONUTF8=1 from its launcher.
+        words = "parse_event(value) 必须保留接口并返回元组。"
+        legacy = {"PYTHONUTF8": "0", "PYTHONIOENCODING": "cp936:replace"}
+        for mode in ("retry", "fallback"):
+            with self.subTest(mode=mode):
+                start = len(self.calls())
+                f = self.work / "words-cp936.txt"
+                f.write_text(words, encoding="utf-8")
+                result = self.ccx("run", "--from", "claude", "--to", "codex", "--tier", "T1", "--new",
+                                  "--mode", "read", "--review", "off", "--context", "off",
+                                  "--user-words-file", str(f), "Read interface",
+                                  env={**legacy, "FAKE_STATUS_CODEX": "blocked_then_done" if mode == "retry" else "quota"})
+                self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+                rid = json.loads(result.stdout)["run_id"]
+                folder = Paths(self.hub).runs / rid
+                # Check product artifacts before the fake CLI's decoded prompt:
+                # a decoder failure must not be mistaken for file corruption.
+                for name in ("prompt.md", "user-words.md"):
+                    self.assertIn(words, (folder / name).read_bytes().decode("utf-8"))
+                calls = [c for c in self.calls()[start:] if c.get("prompt")]
+                self.assertEqual(len(calls), 2)
+                self.assertEqual({c["agent"] for c in calls},
+                                 {"codex"} if mode == "retry" else {"codex", "claude"})
+                for call in calls:
+                    self.assertIn(words, call["prompt"])
+                    self.assertEqual(call["prompt"].count(user_words.HEADER), 1)
+                if mode == "retry":
+                    snapshot = (folder / "user-words.md").read_bytes()
+                    f.write_text("Source changed", encoding="utf-8")
+                    resumed = self.ccx("resume", rid, "Check again", "--review", "off", "--no-escalate", env=legacy)
+                    self.assertEqual(resumed.returncode, 0, resumed.stdout + resumed.stderr)
+                    resumed_folder = Paths(self.hub).runs / json.loads(resumed.stdout)["run_id"]
+                    self.assertEqual((resumed_folder / "user-words.md").read_bytes(), snapshot)
+                    self.assertIn(words, self.calls()[-1]["prompt"])
+
 
 def user(text, **flags):
     return {"type": "user", "message": {"content": text}, **flags}
