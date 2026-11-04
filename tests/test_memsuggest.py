@@ -511,15 +511,29 @@ class TestSuggestionExpiry(Env):
         items[4]["status"], items[5]["status"] = "accepted", "rejected"
         items[6]["ts"] = "unknown"
         memsuggest._save(p, items)
+        before = memsuggest._file(p).read_bytes()
         got = memsuggest.load(p, now=self.NOW)
         self.assertEqual([i["status"] for i in got],
                          ["expired", "pending", "pending", "pending", "accepted", "rejected", "pending"])
         self.assertEqual(got[0], {**items[0], "status": "expired"})
-        self.assertEqual(json.loads(memsuggest._file(p).read_text(encoding="utf-8")), got)
+        self.assertEqual(memsuggest._file(p).read_bytes(), before)
         self.assertEqual(memsuggest.load(p, now=self.NOW), got)
+        self.assertEqual(memsuggest._file(p).read_bytes(), before)
+
+    def test_ranked_and_pending_hide_expired_without_writing(self):
+        from unittest.mock import patch
+        p = Paths(self.hub)
+        self.seed([15, 1])
+        before = memsuggest._file(p).read_bytes()
+        with patch("ccx.memsuggest.time.time", return_value=self.NOW):
+            self.assertEqual([i["id"] for i in memsuggest.pending(p)], [2])
+            self.assertEqual([i["id"] for i in memsuggest.ranked(p)], [2])
+        self.assertEqual(memsuggest._file(p).read_bytes(), before)
 
     def test_suggestions_expire_on_read_and_count_without_showing_expired(self):
         self.seed([15, 1])
+        path = memsuggest._file(Paths(self.hub))
+        before = path.read_bytes()
         for options in ((), ("--all",)):
             out = self.j_at("mem", "suggestions", *options)
             self.assertEqual(out["expired"], 1)
@@ -528,15 +542,58 @@ class TestSuggestionExpiry(Env):
         self.assertNotEqual(rejected.returncode, 0)
         self.assertIn("already expired", json.loads(rejected.stdout)["error"])
         self.assertEqual(memory.entries(Paths(self.hub)), [])
+        self.assertEqual(path.read_bytes(), before)
+
+    def test_read_then_accept_persists_expiry_with_the_decision(self):
+        p = Paths(self.hub)
+        self.seed([15, 1])
+        before = memsuggest._file(p).read_bytes()
+        self.assertEqual(self.j_at("mem", "suggestions")["expired"], 1)
+        self.assertEqual(memsuggest._file(p).read_bytes(), before)
+        out = self.j_at("mem", "accept", "2")
+        self.assertEqual((out["id"], out["status"]), (2, "accepted"))
+        stored = json.loads(memsuggest._file(p).read_text(encoding="utf-8"))
+        self.assertEqual([i["status"] for i in stored], ["expired", "accepted"])
+        self.assertEqual([i["text"] for i in memory.entries(p)], ["always keep rule number 2"])
+        self.j_at("config", "set", "memory.suggest_expire_days", "0")
+        self.assertEqual(self.j_at("mem", "suggestions", "--all"), {"pending": [], "expired": 1})
+
+    def test_read_does_not_overwrite_later_writes(self):
+        from unittest.mock import patch
+        p = Paths(self.hub)
+        self.seed([15, 1, 1])
+        path = memsuggest._file(p)
+        before = path.read_bytes()
+        with patch("ccx.memsuggest.time.time", return_value=self.NOW):
+            real_read = Path.read_text
+
+            def read_then_decide(file, *args, **kwargs):
+                text = real_read(file, *args, **kwargs)
+                if file == path:
+                    # A reader has a stale snapshot while a writer changes the table.
+                    with patch.object(Path, "read_text", real_read):
+                        memsuggest.decide(p, 2, False)
+                        memsuggest.add(p, [{"kind": "preference", "text": "always keep the new candidate source",
+                                            "by": "user", "source": "sample session"}])
+                return text
+
+            with patch.object(Path, "read_text", read_then_decide):
+                got = memsuggest.load(p)
+        self.assertEqual([i["status"] for i in got], ["expired", "pending", "pending"])
+        stored = json.loads(path.read_text(encoding="utf-8"))
+        self.assertEqual([i["status"] for i in stored], ["expired", "rejected", "pending", "pending"])
+        self.assertEqual(stored[-1]["text"], "always keep the new candidate source")
+        self.assertNotEqual(path.read_bytes(), before)
 
     def test_start_hook_expires_without_prompting(self):
         self.seed([15])
+        path = memsuggest._file(Paths(self.hub))
+        before = path.read_bytes()
         r = self.ccx_at("mem", "delta", "--as", "codex", "--peek")
         self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
         self.assertNotIn("suggested note", r.stdout)
         self.assertNotIn("always keep rule", r.stdout)
-        stored = json.loads(memsuggest._file(Paths(self.hub)).read_text(encoding="utf-8"))
-        self.assertEqual(stored[0]["status"], "expired")
+        self.assertEqual(path.read_bytes(), before)
 
     def test_expired_suggestions_are_not_gathered_again(self):
         p = Paths(self.hub)
@@ -553,6 +610,8 @@ class TestSuggestionExpiry(Env):
         self.assertEqual(out["pending"], 0)
         self.assertEqual(self.j_at("mem", "suggestions", "--all"), {"pending": [], "expired": 1})
         self.assertEqual(len(memsuggest.load(p, now=self.NOW)), 1)
+        stored = json.loads(memsuggest._file(p).read_text(encoding="utf-8"))
+        self.assertEqual(stored[0]["status"], "expired")  # suggest/add is a write path, even with no new notes.
 
     def test_zero_disables_expiry_and_custom_days_are_used(self):
         self.seed([15, 1])
@@ -567,8 +626,23 @@ class TestSuggestionExpiry(Env):
         self.j_at("config", "set", key, "2")
         out = self.j_at("mem", "suggestions", "--all")
         self.assertEqual((out["expired"], [i["id"] for i in out["pending"]]), (1, [2]))
+        self.j_at("mem", "reject", "2")  # Persist the computed expiry with an existing write operation.
         self.j_at("config", "set", key, "0")
         self.assertEqual(self.j_at("mem", "suggestions", "--all")["expired"], 1)
+
+    def test_invalid_expiry_configuration_falls_back_to_fourteen_days(self):
+        p = Paths(self.hub)
+        self.seed([15, 14, 1])
+        before = memsuggest._file(p).read_bytes()
+        for raw in ('"bad"', '"0"', '-1', '1.5', 'true', '[]', '{}'):
+            with self.subTest(raw=raw):
+                p.settings.write_text(f"[memory]\nsuggest_expire_days = {raw}\n", encoding="utf-8", newline="")
+                r = self.ccx_at("mem", "suggestions", "--all")
+                self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+                out = json.loads(r.stdout)
+                self.assertEqual((out["expired"], [i["id"] for i in out["pending"]]), (1, [3, 2]))
+                self.assertEqual(r.stderr.count("using default 14"), 1)
+                self.assertEqual(memsuggest._file(p).read_bytes(), before)
 
     def test_negative_expiry_setting_is_rejected_without_writing(self):
         p = Paths(self.hub)
