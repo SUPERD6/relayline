@@ -80,7 +80,7 @@
 
 ```bash
 claude plugin install relayline --marketplace SUPERD6/relayline   # Claude Code 里的技能和 hook（2.1.275+）
-pipx install git+https://github.com/SUPERD6/relayline             # ccx 本体，给终端和 Codex 用
+pipx install relayline                                            # ccx 本体，给终端和 Codex 用
 ccx setup                    # 向导：每一步都说明，改东西前先问
 ccx run --to codex --mode read "Summarise README.md in three lines for a new user: what this project does, how to install it, and the first command to try"
 ```

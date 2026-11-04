@@ -31,8 +31,8 @@
       <h1>Claude Code、Codex、DeepSeek 互相派活，每次派活都有收据。</h1>
       <p class="sub">花了多少、验收跑没跑、谁审的，撤回只要一条命令。三家谁都能当主导、谁都能接活，共享记忆和工作上下文。跨厂商一本账：每次子智能体运行和它自己开的子会话，Claude 和 Codex 记在同一本账上。测量公开：负结果也公开，每个数字带限制，基准可以重跑（<a href="https://github.com/SUPERD6/relayline/blob/main/docs/measured.zh.md">实测</a> · <a href="https://github.com/SUPERD6/relayline/blob/main/bench/README.zh.md">bench/</a>）。命令是 <code>ccx</code>，只用 Python 标准库。</p>
       <div class="install">
-        <code>pipx install git+https://github.com/SUPERD6/relayline</code>
-        <button class="copy" type="button" data-copy="pipx install git+https://github.com/SUPERD6/relayline"
+        <code>pipx install relayline</code>
+        <button class="copy" type="button" data-copy="pipx install relayline"
                 data-done="已复制" data-fail="请手动复制">复制</button>
       </div>
       <p class="then">还没有账号？<code>ccx demo</code> 用编好的数据离线打开整个页面。</p>
@@ -73,7 +73,7 @@
   <section id="start">
     <h2>三步上手</h2>
     <ol class="how three">
-      <li><b>安装</b><code>pipx install git+https://github.com/SUPERD6/relayline</code>（也可以先 <code>ccx demo</code>，不用账号）。</li>
+      <li><b>安装</b><code>pipx install relayline</code>（也可以先 <code>ccx demo</code>，不用账号）。</li>
       <li><b>接好</b><code>ccx setup</code> 把 ccx 接进 Claude Code 和 Codex；每一步都说明，改东西之前先问你。</li>
       <li><b>派活</b>在 Claude Code 里说：“通过 ccx 交给 Codex，用 <code>pytest -q</code> 验收”。然后 <code>ccx ui</code> 看收据。</li>
     </ol>

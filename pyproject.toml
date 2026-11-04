@@ -52,5 +52,5 @@ package-dir = { "ccx" = "ccx", "ccx.commands" = "ccx/commands", "ccx.agents" = "
 "ccx._hubseed" = ["**/*.md", "**/*.json"]
 "ccx._hubseed.mcp" = ["*.json"]
 
-# Install:   pipx install git+https://github.com/SUPERD6/relayline   (or from a clone: pipx install .)
+# Install:   pipx install relayline   (or from a clone: pipx install .)
 # Develop:   python -m pip install -e <path-to-clone>   — a clone keeps using config/ and skills/ in place
