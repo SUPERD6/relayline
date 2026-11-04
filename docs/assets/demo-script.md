@@ -19,7 +19,7 @@ For recording by hand with your own Claude Code and Codex. The 15-second loop in
 | 15–30 s | The run working (cut the wait), then its last line: `status=done ok=true check=passed review=pass cost=~$…` | "Codex did it in one attempt. ccx ran the check again itself, and another vendor's model reviewed the diff." |
 | 30–45 s | `ccx ui` → the task → click the finished piece: who, cost, check (with its output), review, the changed files | "Every hand-off comes with a receipt: what it cost, whether the check ran, who reviewed it. Undo is one button." |
 | 45–55 s | `ccx ui` → "Measured & where tokens go": the historical hc1 table, alongside an hc2 caption | "Historical hc1, old code, 2026-10-29: 29/30 right, about 30% cheaper per success than self, about 3× the wall time. Candidate hc2: higher cost and wall time ($0.088 vs $0.063; 168 vs 61 s). Self was not rerun; causes were not isolated." |
-| 55–60 s | `pipx install git+https://github.com/SUPERD6/relayline` and `ccx demo` | "Try it without an account: `ccx demo`." |
+| 55–60 s | `pipx install relayline` and `ccx demo` | "Try it without an account: `ccx demo`." |
 
 **Keep it honest** (the same rules as the README)
 - Label hc1 as a historical experiment on old code, dated 2026-10-29 (`docs/measured.md`); its roughly 30% saving

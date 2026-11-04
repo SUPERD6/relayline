@@ -95,6 +95,7 @@ class Request:
     max_usd: float | None = None    # P0-15 --max-usd: cap on this whole delegation (attempts, review, fix round)
     chain_usd: float = 0.0          # what the chain spent before this run (a fix round: its first run + review)
     user_task: str | None = None    # original task, before role/project wrapping; explicit callers may supply it
+    user_words_file: str | None = None  # explicit original wording; otherwise opt-in Claude transcript
 
 
 def _busy(p: Paths, prev: dict, scan: int = 300) -> str | None:
@@ -486,12 +487,6 @@ def run(req: Request, p: Paths) -> dict:
     prev = ledger.load_run(p, req.resume_run) if req.resume_run else None
     if prev:
         refuse_if_busy(p, prev)
-    if prev and prev.get("session_id"):
-        try:                               # archived after its run (or by hand): put it back before continuing it
-            from . import archive
-            archive.bring_back(p, prev["session_id"])
-        except Exception:  # noqa: BLE001 — the resume itself then says what is wrong
-            pass
     cont = bool(prev and req.continued)      # new task, old session: keep the new task's own settings
     if cont:
         req.to = prev["to"]
@@ -612,6 +607,9 @@ def run(req: Request, p: Paths) -> dict:
             memory_line=(f"User background index (open only if the task needs it): {p.memory_index}\n"
                          if p.memory_index.exists() else "") + _brief_notes(p, cfg, req.to, brief, req.cwd.resolve()),
         )
+    from . import user_words
+    words, words_meta = user_words.capture(req, cfg, p, run_dir, prev_for_settings)
+    first_prompt = user_words.attach(first_prompt, words)
     (run_dir / "prompt.md").write_text(first_prompt, encoding="utf-8")
     if not prev:
         # the person's own brief: `ccx task resume` restarts from it when the run was killed before its session began
@@ -659,6 +657,7 @@ def run(req: Request, p: Paths) -> dict:
         # keeps the setting of the run it fixes
         "review_mode": ((prev or {}).get("review_mode") or "auto") if req.review_round else req.review,
         "shared_context": shared_meta,
+        "user_words": words_meta,
         "subagent_switches": switches,         # [subagent]: what this run's sub-agent loaded (ledger / eval group by it)
         **({"parallel_fork_turns": fork_turns} if fork_turns else {}),
         **({"base_note": stale_base} if stale_base else {}),
@@ -670,7 +669,8 @@ def run(req: Request, p: Paths) -> dict:
         record["requested_model"] = prev.get("requested_model") or first.get("model") or requested["model"]
         if prev.get("quota_fallback"):
             record["quota_fallback"] = dict(prev["quota_fallback"])
-    _write_record(run_dir, record)          # visible to `ccx show` at once (background runs, crashes)
+    from .sessionguard import start
+    start(p, record, lambda: _write_record(run_dir, record))
     board_run({**record, "label": req.label or req.brief}, "started")      # as the UI shows it: what was asked
     if req.mode == "write":
         # a fresh task takes its own snapshot; a resume or review fix round inherits the one of the run it goes on
@@ -798,7 +798,7 @@ def run(req: Request, p: Paths) -> dict:
         if cli == "claude" and clean_claude:
             kw["clean"] = True                 # not in a fork run (see clean_claude)
         inv = BUILDERS[cli](model=spec["model"], effort=spec["effort"], perm=perm, cwd=cwd,
-                           prompt=prompt, run_dir=run_dir, resume_id=resume_id, lean=spec["lean"], **kw)
+                           prompt=user_words.attach(prompt, words), run_dir=run_dir, resume_id=resume_id, lean=spec["lean"], **kw)
         t0 = time.time()
         # the attempt in flight: if this process dies, `ccx stop` / the sweep turn it into an attempt (ccx/recover.py)
         record["current"] = {"n": len(record["attempts"]), "agent": to, "cli": cli, "tier": spec.get("tier"),

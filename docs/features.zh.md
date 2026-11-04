@@ -2,6 +2,8 @@
 
 [English](features.md) · 中文 · 回到 [README](../README.zh.md)
 
+实验性、默认关闭：[把用户原话带给子智能体](user-words.zh.md)。
+
 ## 看得见派活
 
 `ccx ui` 的“运行”（`/runs` 或 `/#/runs`）列出所有保存的运行，也包含正在跑的；支持按项目、状态、日期筛选，
@@ -240,8 +242,12 @@ I1 的白名单、同源检查、限长和一次性确认仍然有效，确认�
 `suggestions` 输出增加 `expired` 计数；调整天数不会恢复已经标记过期的建议。
 
 **hook 不拖住每一轮。** 开局 hook（`ccx mem delta`）和每轮 hook（`ccx turn`）最多跑 `[hooks] timeout_s` 秒（默认 2 秒；
-`ccx config set hooks.timeout_s N`，0 = 不限）：超时就什么都不输出、退出码 0，在 `ccx/hook-timeouts.jsonl` 记一行（命令、用时、
-卡在哪一步）。`ccx doctor` 显示最近 7 天的次数。
+`ccx config set hooks.timeout_s N`，0 = 不限）：每步保存完整提示，预算用完就跳过后续步骤，退出码仍为 0。
+读取卡住时，硬超时会输出最后保存的完整提示（没有才不输出），在 `ccx/hook-timeouts.jsonl` 记一行（命令、用时、
+卡在哪一步）。`ccx doctor` 显示最近 7 天的硬超时次数。开局归档改由脱离钩子的无窗口后台进程执行；
+重叠进程用 OS 锁，遇忙跳过，失败不影响提示。设置、命令选项和 JSON 字段不变。
+这些路径只有离线 engineering check，尚未验证真实客户端行为。用 `python scripts/benchmark_hook_report.py`
+复现合成计时，见[结果](research/hook-report-speed.zh.md)。
 
 **共享技能用了没有。** `ccx skills stats [--days N] [--json]` 从 Claude Code 和 Codex 的会话文件里数每个共享技能（hub 的
 `skills/` 加本仓库的）在两边各被加载几次、最近一次是什么时候，并列出从没加载过的技能、它们的描述每轮大约占多少 token

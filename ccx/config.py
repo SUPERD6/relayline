@@ -314,6 +314,8 @@ ROLE_DEFAULTS = {"mode": ("read", "write"), "review": ("auto", "on", "off"),
 
 SETTINGS = {   # key -> (type, help). Only these can be set with `ccx config set`.
     "review.mode": (str, "read (default) | tests (experimental task-derived tests); legacy auto/on/off remain valid"),
+    "delegate.user_words": (bool, "experimental: attach the Claude lead's latest real user message (default false)"),
+    "delegate.user_words_max_chars": (int, "maximum retained original-wording characters (default 8000)"),
     # Arbitrary roles.<name> and roles.defaults.<name> mode/worktree/review/check use ccx.roles
     # (ccx roles set/unset), outside this scalar-key allowlist. Default role table: {}.
     "quota.auto_refresh_min": (_quota_minutes, "refresh existing readings older than N minutes (default 60); "
@@ -331,6 +333,8 @@ SETTINGS = {   # key -> (type, help). Only these can be set with `ccx config set
                           "and way refuse without --force); cross-vendor review and talk work as before: ccx ask, "
                           "ccx discuss, ccx run --mode read, mem, board"),
     "routing.require_ready": (_bool, "true | false: prefer installed CLIs with local login evidence (default true)"),
+    "routing.small_self_run": (_bool, "true | false: experimental small-task run refusal for leads; --force bypasses (default false)"),
+    "routing.strict_escalate": (_bool, "true | false: experimental cheapest-rung guard for unchecked writes or strict interfaces (default false)"),
     "routing.small_self": (_bool, "true | false: `ccx route` / `ccx propose` advise doing a small task yourself "
                                   "instead of delegating it, sized by routing.small_self_by; `ccx run` still "
                                   "delegates (default false until a measured round backs it)"),
@@ -406,7 +410,7 @@ SETTINGS = {   # key -> (type, help). Only these can be set with `ccx config set
                                   "`ccx mem compact --by project` (default false)"),
     "memory.suggest_expire_days": (int, "days before an unhandled suggestion is marked expired when read "
                                         "(default 14; 0 = never expire; records are kept)"),
-    "hooks.timeout_s": (float, "seconds a session hook (ccx mem delta / turn) may run before it prints nothing and "
+    "hooks.timeout_s": (float, "seconds a session hook (ccx mem delta / turn) may run before it keeps completed hints and "
                                "exits 0; logged, shown by `ccx doctor` (0 = no limit)"),
     "ui.lang": (str, "zh | en: language of `ccx ui` and of the lines ccx writes into conversations (unset: the "
                      "page follows the browser, the lines stay English)"),

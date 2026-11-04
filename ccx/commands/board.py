@@ -223,6 +223,8 @@ def turn_output(agent: str, data: dict, threshold: int) -> str:
     """Everything one turn of a lead sees from ccx: board messages for it, the shared document's changed lines,
     the others' journal lines, and the H10 hint. '' when nothing is new (a hook that costs nothing)."""
     from .. import context, context_share, learn, project
+    from ..hookbudget import check, hints
+    check()
     parts = []
     lead = not int(os.environ.get("CCX_DEPTH", "0") or 0)       # a ccx sub-agent's turn is not the lead's
     if lead:
@@ -235,14 +237,19 @@ def turn_output(agent: str, data: dict, threshold: int) -> str:
                     .startswith(board.MARK):
                 board.human_turn(root, reader)                   # a person typed this turn
             parts.append(board.turn_text(root, reader))
+            hints(parts, agent)
             if context_share.setting(load_config(paths()), "turn", True):
                 parts.append(context_share.turn_delta(paths(), root, reader))   # what the other tools just did
+                hints(parts, agent)
             sync_in_background(root)                             # the private GitHub copy, when configured
+            check()
     if lead:                                                     # background runs that finished (ccx/wake.py)
         from .. import wake
         parts.extend(wake.take(paths(), agent, data.get("session_id"), Path(data.get("cwd") or Path.cwd())))
+        hints(parts, agent)
     if lead and agent == "claude":                               # the context hint is advice for the lead only
         parts.append(context.hint(paths(), agent, data, threshold))
+        hints(parts, agent)
     return "\n\n".join(x for x in parts if x)
 
 

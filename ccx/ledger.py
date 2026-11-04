@@ -365,6 +365,11 @@ WEAK_CHECK_NOTE = "this acceptance command has let wrong work through before: lo
 
 
 def rows(p: Paths) -> list[dict]:
+    from .readscope import read
+    return read(p.ledger, lambda: _read_rows(p))
+
+
+def _read_rows(p: Paths) -> list[dict]:
     if not p.ledger.exists():
         return []
     out = []

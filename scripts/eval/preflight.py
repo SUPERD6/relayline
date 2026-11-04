@@ -35,7 +35,8 @@ What it guarantees, by mechanism (command-line flags, environment, settings file
                             connector and plugin catalog caches untouched): a change stops the run. With --canary and
                             an arm that needs Codex, a Codex canary runs one real `codex exec` the way a unit does
                             (codex_invocation, T1 model, write permission, the eval home, CCX_CODEX_ISOLATE=1) that
-                            must run one shell command and show its output: a Windows sandbox that cannot start
+                            must run one shell command and show its output, including a temporary-directory
+                            create/write/read/remove probe: a Windows sandbox that cannot start
                             (UAC cancelled, error 1223) stops the run before any unit, and the home is checked again
                             after it. Rows record the home's Windows sandbox (codex_windows_sandbox). On Windows the
                             eval home must use [windows] sandbox = "unelevated" (a new home's config.toml is written
@@ -118,7 +119,7 @@ FRESH_HOMES = ("config-dir", "ccx-home")
 CCX_HOOK_EVENTS = ("SessionStart", "UserPromptSubmit")
 # arms whose units start Codex (ccx routes to it); r5's tier arms balanced / save may delegate through ccx and
 # cheapest runs ccx straight to Codex (r5.CHEAPEST; fast never delegates)
-CODEX_ARMS = ("ccx", "ccx2", "ccx2rt", "ccx2nc", "ccx2-skill", "direct", "balanced", "save", "cheapest",
+CODEX_ARMS = ("ccx", "ccx2", "ccx2small", "ccx2rt", "ccx2nc", "ccx2uw", "ccx2-skill", "direct", "balanced", "save", "cheapest",
               # the daily-config arms (r5.DAILY_ARMS): their per-unit Codex home takes its login from the eval one
               "ccx2daily", "ccx2daily_nomem", "ccx2daily_clean", "ccx2daily_leantools")
 # arms whose lead hands the work to Claude Code's own Agent-tool worker (no Codex: no eval CODEX_HOME needed)
@@ -295,10 +296,15 @@ class Unit:
     deny: tuple = ()                      # more Claude deny rules (e.g. WebFetch for a task whose fix is public)
     flags: tuple = ()                     # regexes the audit flags in any tool call (fetching the fix, a cache name)
     real: dict = field(default_factory=real_paths)
+    codex_workspace_tmp: bool = False     # experimental, eval-only CLI launcher; no new sandbox permission
 
     @property
     def x(self) -> Path:
         return self.work / f"x-{self.key}"
+
+    @property
+    def tmp(self) -> Path:
+        return self.x / "tmp"
 
     @property
     def worktrees(self) -> Path:
@@ -509,7 +515,7 @@ def prepare(u: Unit, extra_deny: list[str] = ()) -> dict:
     env["PATH"] = str(Path(sys.executable).parent) + os.pathsep + env.get("PATH", "")
     if "CLAUDE_CODE_GIT_BASH_PATH" not in env and _git_bash():
         env["CLAUDE_CODE_GIT_BASH_PATH"] = _git_bash()     # the user settings that usually set it are not loaded
-    tmp = str(u.x / "tmp")
+    tmp = str(u.tmp)
     env.update({
         "PYTHONIOENCODING": "utf-8", "TMP": tmp, "TEMP": tmp, "TMPDIR": tmp,
         "GIT_CONFIG_GLOBAL": str(u.x / "gitconfig"), "GIT_CONFIG_NOSYSTEM": "1",
@@ -524,6 +530,25 @@ def prepare(u: Unit, extra_deny: list[str] = ()) -> dict:
     })
     if u.fresh_home:
         env["CLAUDE_CONFIG_DIR"] = str(u.x / "claude-config")
+    if u.codex_workspace_tmp:
+        from ccx.runners import bin_argv
+        env["CCX_EVAL_CODEX_ARGV"] = json.dumps(bin_argv("codex"))
+        env["CCX_CODEX_BIN"] = str(Path(__file__).with_name("codex_tmp.py"))
+        # Local metadata only, shared by this unit's linked worktrees. Even an interrupted launcher's temp
+        # directory is ignored by git add/status and ccx's change accounting. No tracked ignore file is edited.
+        r = subprocess.run(["git", "rev-parse", "--git-path", "info/exclude"], cwd=u.repo,
+                           capture_output=True, text=True, encoding="utf-8") if (u.repo / ".git").exists() else None
+        if r is not None and r.returncode == 0:
+            exclude = Path(r.stdout.strip())
+            if not exclude.is_absolute():
+                exclude = u.repo / exclude
+            if not _inside(exclude, u.work):
+                raise ValueError("the eval repository's git exclude file is outside its work directory")
+            old = exclude.read_text(encoding="utf-8") if exclude.exists() else ""
+            rule = "/.ccx-eval-tmp-*/"
+            if rule not in old.splitlines():
+                exclude.parent.mkdir(parents=True, exist_ok=True)
+                exclude.write_text(old.rstrip("\n") + "\n" + rule + "\n", encoding="utf-8", newline="")
     return env
 
 
@@ -1161,6 +1186,11 @@ def after_unit(u: Unit, before: list[dict] | None, job: Job | None = None, sids:
         if wts:
             subprocess.run(["git", "worktree", "prune"], cwd=u.repo, capture_output=True)
     dirs = []
+    if u.codex_workspace_tmp and u.repo.is_dir():
+        for temp in u.repo.glob(".ccx-eval-tmp-*"):
+            if temp.is_dir() and not temp.is_symlink():
+                dirs.append(str(temp))
+                rmtree(temp)
     if u.worktrees.exists():
         dirs.append(str(u.worktrees))
         rmtree(u.worktrees)
@@ -1677,7 +1707,8 @@ def skill_canary(work: Path, u_kw: dict, timeout: int = 300) -> dict:
 
 # The Codex canary's one shell command: plain on PowerShell 5.1 and POSIX shells alike (no inner quotes), python is
 # first on the unit's PATH (prepare), and the expected output is not written in the prompt, so it must really run.
-CODEX_CANARY_CMD, CODEX_CANARY_OUT = 'python -c "print(760761*2)"', "1521522"
+CODEX_CANARY_CMD, CODEX_CANARY_OUT = "python ccx_tmp_canary.py", "1521522"
+CODEX_CANARY_TMP_OUT = "TMP_RW_1521523"
 # UAC cancelled (Windows' ERROR_CANCELLED, 1223) on the sandbox's setup helper: "setup helper" anywhere, or 1223 on
 # a line that also names the launch (launch_canceled, ShellExecuteExW, "os error"), so a source line (exec.rs:1223),
 # a pid or a port of 1223 is not taken for one
@@ -1739,10 +1770,13 @@ def codex_canary(work: Path, u_kw: dict, timeout: int = 240) -> dict:
     perm = list(tiers["permissions"]["codex"]["write"])
     run_dir = u.x / "codex-canary"
     run_dir.mkdir(parents=True, exist_ok=True)
+    shutil.copyfile(Path(__file__).with_name("tmp_canary.py"), repo / "ccx_tmp_canary.py")
     prompt = (f"Run this one shell command exactly once, as written: {CODEX_CANARY_CMD}\n"
-              "Do not change any file. Then finish: status done, the command's output as the summary.")
+              "It creates, reads and removes a temporary probe. Do not change project files. "
+              "Then finish: status done, the command's output as the summary.")
     sandbox = codex_windows_sandbox(u.codex_home)
-    with _environ({"CODEX_HOME": env["CODEX_HOME"], "CCX_CODEX_ISOLATE": "1"}):
+    with _environ({"CODEX_HOME": env["CODEX_HOME"], "CCX_CODEX_ISOLATE": "1",
+                   **({"CCX_CODEX_BIN": env["CCX_CODEX_BIN"]} if u.codex_workspace_tmp else {})}):
         try:
             inv = codex_invocation(model=t1["model"], effort=t1["effort"], perm=perm, cwd=repo, prompt=prompt,
                                    run_dir=run_dir)
@@ -1758,6 +1792,8 @@ def codex_canary(work: Path, u_kw: dict, timeout: int = 240) -> dict:
         item = ev.get("item") or {}
         if t == "item.completed" and item.get("type") == "command_execution":
             outputs.append(str(item.get("aggregated_output") or ""))
+            if item.get("exit_code") != 0:
+                errors.append(f"command failed rc={item.get('exit_code')}: {outputs[-1][-240:]}")
         elif t == "item.completed" and item.get("type") == "error":
             errors.append(str(item.get("message") or json.dumps(item)))
         elif t in ("error", "turn.failed"):
@@ -1774,11 +1810,16 @@ def codex_canary(work: Path, u_kw: dict, timeout: int = 240) -> dict:
                      "sandbox = \"unelevated\" in its config.toml)")
     if not any(CODEX_CANARY_OUT in o for o in outputs):
         probs.append(f"codex canary: no command output {CODEX_CANARY_OUT} came back ({len(outputs)} command(s) ran)")
+    tmp_ok = any(CODEX_CANARY_TMP_OUT in o.splitlines() for o in outputs)
+    if not tmp_ok:
+        probs.append("codex canary: temporary directory create/read/write probe did not pass")
+    if errors and not hit and not rc:
+        probs.append(f"codex canary: {errors[-1][-240:]}")
     after_unit(u, before, job, [], keep_repo=False)
     rmtree(d)
     return {"ok": not probs, "problems": probs,
             "info": {"windows_sandbox": sandbox, "model": t1["model"], "effort": t1["effort"],
-                     "commands": len(outputs), "rc": rc}}
+                     "commands": len(outputs), "rc": rc, "tmp_probe": "pass" if tmp_ok else "fail"}}
 
 
 @dataclass
@@ -1793,6 +1834,7 @@ class Options:
     force_unclean: bool = False
     start: bool = False                   # the run starts after this check (it may clean and write); else check only
     tasks_file: Path = TASKS_FILE
+    codex_workspace_tmp: bool = False
 
 
 def _pkg_version(name: str) -> str | None:
@@ -1865,7 +1907,8 @@ def run_checks(o: Options) -> dict:
         homes = {"eval CODEX_HOME": o.codex_home, "your own CODEX_HOME": real["codex_home"]}
         secrets_before = {k: sandbox_secrets_meta(h) for k, h in homes.items()}      # metadata only, never read
         try:
-            ccan = codex_canary(cw, {"claude": o.claude, "codex_home": o.codex_home, "dsh": o.dsh})
+            ccan = codex_canary(cw, {"claude": o.claude, "codex_home": o.codex_home, "dsh": o.dsh,
+                                     "codex_workspace_tmp": o.codex_workspace_tmp})
         except Exception as e:            # tiers.toml unreadable, the CLI could not start, ...: a problem, no traceback
             rmtree(cw / "canary")
             ccan = {"ok": False, "problems": [f"codex canary could not run: {type(e).__name__}: {e}"], "info": {}}
@@ -1904,6 +1947,7 @@ def run_checks(o: Options) -> dict:
         rep["codex_canary_info"] = ccan.get("info")
     if warnings:                         # not problems: printed loudly (r5.py, batch.py, this script's main)
         rep["warnings"] = warnings
+    rep["tmp_policy"] = "codex-workspace-private" if o.codex_workspace_tmp else "unit-x"
     rep["result"] = "pass" if rep["ok"] else ("forced" if o.force_unclean else "fail")
     return rep
 
@@ -1922,6 +1966,7 @@ def fingerprint(rep: dict, u: Unit | None, env: dict | None, models: dict | None
           "codex_windows_sandbox": rep["codex"].get("windows_sandbox")}
     if rep.get("codex_canary"):          # the one real codex exec before the run
         fp["codex_canary"] = rep["codex_canary"]
+    fp["tmp_policy"] = rep.get("tmp_policy")
     if rep["codex"].get("mode") == "eval":
         fp["codex_features_off"] = rep["codex"].get("features_off")
     if rep.get("lead"):                  # the run's lead model / effort (r5 --lead-model / --lead-effort)
@@ -2030,6 +2075,9 @@ def parser() -> argparse.ArgumentParser:
 
 
 def add_options(ap: argparse.ArgumentParser) -> None:
+    ap.add_argument("--codex-workspace-tmp", action="store_true",
+                    help="experimental, off by default: a private temp directory inside each Codex invocation's "
+                         "working directory (including resume/worktrees); adds no sandbox permission")
     ap.add_argument("--claude-isolation", choices=("flags", *FRESH_HOMES), default="flags",
                     help="flags: setting sources, settings and deny rules (login stays in the real ~/.claude); "
                          "config-dir: a fresh CLAUDE_CONFIG_DIR per unit; ccx-home: the same, holding only ccx's "
@@ -2048,7 +2096,8 @@ def options_from(a, arms: list[str], work: Path, canary_on: bool, start: bool = 
                  tasks_file: Path = TASKS_FILE) -> Options:
     return Options(work=work, arms=arms, jobs=getattr(a, "jobs", 2), claude=a.claude_isolation,
                    codex_home=Path(codex_home_arg(a.codex_home)) if a.codex_home else None, dsh=a.dsh_home,
-                   canary=canary_on, force_unclean=a.force_unclean, start=start, tasks_file=tasks_file)
+                   canary=canary_on, force_unclean=a.force_unclean, start=start, tasks_file=tasks_file,
+                   codex_workspace_tmp=getattr(a, "codex_workspace_tmp", False))
 
 
 def main(argv=None) -> int:

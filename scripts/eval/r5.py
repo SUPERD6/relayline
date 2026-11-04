@@ -20,6 +20,8 @@ so doing it takes many requests. Arms (the lead is a fresh headless Claude Code,
            ccx's own default stays "warn". Every row records the hub's mode (`namecheck_mode`) and each builder
            run's own (`ccx_namecheck`: mode, hits, climbs past a hit), counted per arm in the summary
            (`namecheck`), so ccx2 vs ccx2nc measures the change before / after
+  ccx2uw   opt-in (--arms ccx2uw): exactly ccx2, only enabling delegate.user_words in the unit hub (asserted
+           before launch). The lead's task message supplies original wording; rows record user_words_mode.
   ccx2daily, ccx2daily_nomem, ccx2daily_clean, ccx2daily_leantools
            opt-in (B3, docs/research/2026-10-30-b3-lean-switches-plan.md): exactly ccx2's lead, but the sub-agents
            start with the person's daily setup: Codex in a per-unit home (scripts/eval/daily_home.py) holding copies
@@ -133,7 +135,7 @@ copies are denied to its agents along with Claude's web tools, pip has no index,
 fetching packages; tests run with PYTHONPATH=src and the Python given with --ext-python, which must have the modules
 the repository's tests need and not the library itself, and must not sit next to the --ext-cache copies). Its
 results go to their own file, and every finished unit's repository, hub and lead stream leave the
-work dir after scoring (the stream is kept under .ccx/eval/r5/streams/<tag>/), so a later round's agents cannot find
+work dir after scoring (redacted lead and ccx sub-agent streams are kept under the results artifacts), so a later round's agents cannot find
 an earlier round's finished answer next to them. r5 keeps its old behaviour.
 
 Polyglot (--taskset polyglot, scripts/eval/tasks_polyglot.py, P0-5): 30 Python exercises of aider's polyglot
@@ -178,6 +180,7 @@ import ext_repo  # noqa: E402
 import r5_timeline as TL  # noqa: E402
 import harness_audit as HA  # noqa: E402
 import daily_home as DH  # noqa: E402
+import evidence_streams as ES  # noqa: E402
 import tasks_holdout  # noqa: E402
 import tasks_polyglot  # noqa: E402
 import tasks_r5  # noqa: E402
@@ -356,6 +359,7 @@ SKILL_ARMS = PF.SKILL_ARMS                       # the lead loads the agent-dele
 # namecheck arms (opt-in): ccx2 in a unit hub whose tiers.toml sets [defaults] namecheck to this mode
 NAMECHECK_ARMS = {"ccx2nc": "fail"}
 TEST_REVIEW_ARMS = ("ccx2rt",)  # opt-in: same lead/prompt as ccx2, task-derived test review
+USER_WORDS_ARMS = ("ccx2uw",)  # opt-in: ccx2 wording/flags, only delegate.user_words differs
 # daily-config arms (opt-in, B3 item 2; scripts/eval/daily_home.py): ccx2's lead and wording, but its sub-agents
 # start with the person's everyday setup (Codex memories, AGENTS.md and skills copied into a per-unit Codex home whose
 # login is the eval home's; Claude with the user settings layer and skills), and each variant turns one experimental
@@ -363,10 +367,10 @@ TEST_REVIEW_ARMS = ("ccx2rt",)  # opt-in: same lead/prompt as ccx2, task-derived
 DAILY_ARMS = {"ccx2daily": {}, "ccx2daily_nomem": {"codex_memories": False}, "ccx2daily_clean": {"clean": True},
               "ccx2daily_leantools": {"codex_lean_tools": True}}
 # leads that may hand work to ccx (session file, metrics)
-CCX_ARMS = ("ccx", "ccx2", *TEST_REVIEW_ARMS, *NAMECHECK_ARMS, *SKILL_ARMS, *TIER_LEAD_ARMS, *DAILY_ARMS)
+CCX_ARMS = ("ccx", "ccx2", "ccx2small", *TEST_REVIEW_ARMS, *NAMECHECK_ARMS, *USER_WORDS_ARMS, *SKILL_ARMS, *TIER_LEAD_ARMS, *DAILY_ARMS)
 BUILTIN_ARMS = PF.BUILTIN_ARMS
 # not in ARMS: the default schedule (and old tags' done-keys) stay
-OPT_IN_ARMS = ("ccx2", "builtin2", "builtin2r", *TEST_REVIEW_ARMS, *TIER_ARMS, *SKILL_ARMS, *NAMECHECK_ARMS, *DAILY_ARMS)
+OPT_IN_ARMS = ("ccx2", "ccx2small", "builtin2", "builtin2r", *TEST_REVIEW_ARMS, *TIER_ARMS, *SKILL_ARMS, *NAMECHECK_ARMS, *USER_WORDS_ARMS, *DAILY_ARMS)
 DEFAULT_LEAD = (r3.LEAD_MODEL, r3.LEAD_EFFORT)
 # --lead-model auto: each task's lead model from its difficulty by ccx's lead.model_by_task rule (ccx/leadmodel.py,
 # this checkout's config/tiers.toml [lead] / [lead_by_task], never the hub's settings), so the next round can compare
@@ -781,7 +785,11 @@ def lead_how(arm: str, label: str, lead: tuple[str, str] = DEFAULT_LEAD) -> str:
     lead passes to ccx propose as --lead)."""
     if arm == "ccx":
         return HOW_CCX.format(ccx=r3.CCX_CMD, label=label)
-    if arm == "ccx2" or arm in TEST_REVIEW_ARMS or arm in NAMECHECK_ARMS or arm in DAILY_ARMS:
+    if arm == "ccx2small":
+        return (HOW_CCX2.format(ccx=r3.CCX_CMD, label=label) +
+                " If ccx returns state=small_self, implement and check the task yourself, then commit it; "
+                "do not retry with --force.")
+    if arm == "ccx2" or arm in TEST_REVIEW_ARMS or arm in NAMECHECK_ARMS or arm in USER_WORDS_ARMS or arm in DAILY_ARMS:
         return HOW_CCX2.format(ccx=r3.CCX_CMD, label=label)
     if arm in SKILL_ARMS:
         return HOW_CCX2_SKILL
@@ -1132,6 +1140,19 @@ def set_picked(hub: Path, tier: str, env: dict | None = None) -> str:
     return got
 
 
+def set_small(hub: Path) -> dict:
+    """Opt-in only: write the unit overlay and assert ccx resolves both switches before launch."""
+    from ccx.config import load_config
+    f = r2.Paths(hub).user_tiers
+    with f.open("a", encoding="utf-8", newline="") as stream:
+        stream.write("\n[routing]\nsmall_self_run = true\nstrict_escalate = true\n")
+    got = load_config(r2.Paths(hub)).get("routing") or {}
+    want = {"small_self_run": True, "strict_escalate": True}
+    if any(got.get(k) is not v for k, v in want.items()):
+        raise RuntimeError("ccx2small routing switches were not applied")
+    return want
+
+
 def set_namecheck(hub: Path, mode: str) -> str:
     """A namecheck arm's unit hub: `[defaults] namecheck = "<mode>"` written into the hub's own tiers.toml (the
     hand-edited overrides file r2.make_hub writes, ccx's `[defaults] namecheck` setting), then read back the way ccx
@@ -1173,6 +1194,28 @@ def set_test_review(hub: Path) -> str:
     got = mode(load_config(Paths(hub)).get("review") or {})
     if got != "tests":
         raise RuntimeError("ccx2rt requires review.mode=tests before launch")
+    return got
+
+
+def hub_user_words(hub: Path, enable: bool = False) -> bool:
+    """Set only the unit hub's opt-in, then assert the effective config before launch."""
+    from ccx.config import load_config
+    p = r2.Paths(hub)
+    if enable:
+        f = p.user_tiers
+        text = f.read_text(encoding="utf-8") if f.exists() else ""
+        text = re.sub(r"(?m)^user_words[ \t]*=.*(?:\n|\Z)", "", text)
+        line = "user_words = true\n"
+        if re.search(r"(?m)^\[delegate\][ \t]*$", text):
+            text = re.sub(r"(?m)^\[delegate\][ \t]*(?:\n|\Z)",
+                          lambda m: m.group(0).rstrip("\n") + "\n" + line, text, count=1)
+        else:
+            text += ("" if not text or text.endswith("\n") else "\n") + "[delegate]\n" + line
+        f.parent.mkdir(parents=True, exist_ok=True)
+        f.write_text(text, encoding="utf-8")
+    got = (load_config(p).get("delegate") or {}).get("user_words", False)
+    if enable and got is not True:
+        raise RuntimeError("unit hub did not enable delegate.user_words")
     return got
 
 
@@ -1558,6 +1601,9 @@ def bookkeeping(row: dict, arm: str, hub: Path, task: dict) -> None:
     error here is kept in the row (`bookkeeping_error`) and the unit is still scored: its lead and sub-agent are
     already paid for, so a failed read of metadata must not throw the hidden-test result away."""
     try:
+        if arm == "ccx2small":
+            decisions = [r for r in hub_rows(hub) if r.get("type") == "small_self_run"]
+            row["small_self_run"] = {"applied": bool(decisions), "decisions": decisions}
         if arm in TIER_ARMS:
             row.update(tier_fields(arm, hub, task))
         if row.get("ccx_run_ids"):
@@ -1586,7 +1632,8 @@ def unit_of(u: dict, a, work: Path) -> PF.Unit:
     return PF.Unit(key=key, work=work, repo=work / key, hub=work / f"h-{key}", label=u["label"],
                    claude=a.claude_isolation, ccx_home=a.claude_isolation == "ccx-home" and u["arm"] in CCX_ARMS,
                    codex_home=Path(PF.codex_home_arg(a.codex_home)) if a.codex_home else None,
-                   dsh=a.dsh_home, agents=tuple(r3.WORKER), **ext_guard(by_id(u["task"]), a, work))
+                   dsh=a.dsh_home, agents=tuple(r3.WORKER),
+                   codex_workspace_tmp=getattr(a, "codex_workspace_tmp", False), **ext_guard(by_id(u["task"]), a, work))
 
 
 def unit_models(u: dict, row: dict) -> dict:
@@ -1601,6 +1648,8 @@ def unit_models(u: dict, row: dict) -> dict:
         out["tier_picked"] = u["arm"]
     if u["arm"] in NAMECHECK_ARMS:                # the hub's [defaults] namecheck
         out["namecheck"] = NAMECHECK_ARMS[u["arm"]]
+    if u["arm"] in USER_WORDS_ARMS:
+        out["user_words"] = True
     if u["arm"] in DAILY_ARMS:                    # the daily home and the hub's [subagent] overlay
         out["daily"] = {"subagent": DAILY_ARMS[u["arm"]], "claude_setting_sources": DH.DAILY_CLAUDE_SOURCES,
                         "sha256": (row.get("daily") or {}).get("sha256")}    # the snapshot of the copied setup
@@ -1642,6 +1691,8 @@ def run_unit(u: dict, a, work: Path) -> dict:
         hinfo = r3.make_hub(hub)
         hinfo["memory_empty"] = PF.hub_memory_empty(hub)
         row["hub"] = hinfo
+        if u["arm"] == "ccx2small":
+            hinfo["small_routing"] = set_small(hub)
         env = PF.prepare(iso)
         if u["arm"] in TIER_ARMS:                 # the person's choice the arm simulates, in the unit's own hub
             hinfo["picked"] = set_picked(hub, u["arm"], env)
@@ -1652,6 +1703,8 @@ def run_unit(u: dict, a, work: Path) -> dict:
         row["namecheck_mode"] = hinfo["namecheck"]
         if u["arm"] in TEST_REVIEW_ARMS:
             hinfo["review_mode"] = row["review_mode"] = set_test_review(hub)
+        hinfo["user_words"] = hub_user_words(hub, u["arm"] in USER_WORDS_ARMS)
+        row["user_words_mode"] = hinfo["user_words"]
         if u["arm"] in DAILY_ARMS:                # its own Codex home and HOME, and its [subagent] overlay
             row["daily"], env = set_daily(iso, hub, env, u["arm"], a)
         row.update(direct_unit(u, a, repo, hub, env, job) if not has_lead(u["arm"]) else
@@ -1709,13 +1762,20 @@ def run_unit(u: dict, a, work: Path) -> dict:
             except Exception as e:  # noqa: BLE001
                 row["artifacts"] = {"error": f"{type(e).__name__}: {e}"[:200]}
         fresh = u.get("taskset", "r5") != "r5"     # hold-out: nothing of a finished unit stays in the work dir
-        if fresh and stream.exists():
-            keep = OUT / "streams" / str(u.get("tag") or "untagged")
-            keep.mkdir(parents=True, exist_ok=True)
-            try:  # shutil.move: the work dir (temp) and the repo can be on different drives (os.replace cannot)
-                shutil.move(str(stream), str(keep / stream.name))
-            except OSError as e:
-                row["audit"].setdefault("problems", []).append(f"stream not kept: {type(e).__name__}: {e}"[:200])
+        # Keep the sub-agent streams before after_unit removes their hub, also on successful/aborted units.
+        # A normal invocation supplies an invocation-specific artifacts_dir; library callers retain a fallback.
+        dest = (Path(art) / f"{u.get('tag') or 'untagged'}-{iso.key}" if art else
+                OUT / "streams" / str(u.get("tag") or "untagged") / iso.key)
+        try:
+            kept = ES.keep(dest / "streams", iso, stream, env)
+            if kept:
+                if getattr(a, "artifacts_run", None):
+                    kept["run"] = a.artifacts_run
+                row["streams"] = kept
+            if fresh:
+                stream.unlink(missing_ok=True)
+        except Exception as e:  # noqa: BLE001 — evidence failure must not skip unit cleanup
+            row["streams_error"] = type(e).__name__  # diagnostic only; preserve existing audit/scoring semantics
         row["leftovers"] = PF.after_unit(iso, before, job, row["audit"].get("session_ids") or [], keep_repo=not fresh)
         if "ext" in row and getattr(a, "ext_venv", None):
             # the Python that scores every unit is shared: something installed into it changes later units
@@ -3081,8 +3141,8 @@ def cmd_export(a) -> int:
             "env_clean", "fingerprint", "lead_model", "lead_effort", "lead_pick", "lead_b", "lead_band", "phases", "tier", "tier_plan", "ref_size",
             "actual_mode", "misband", "misband_overall", "followed_plan", "ccx_check_passed", "may_be_wrong",
             "ccx_routes", "bookkeeping_error", "lead_usage", "timeline", "skill_used", "skills_used",
-            "namecheck_mode", "ccx_namecheck", "ccx_check_reason", "sub_usage", "switches_applied",
-            "hidden_failed", "artifacts", "arm_order", "arm_pos")
+            "namecheck_mode", "user_words_mode", "ccx_namecheck", "ccx_check_reason", "sub_usage", "switches_applied",
+            "hidden_failed", "artifacts", "streams", "streams_error", "arm_order", "arm_pos", "small_self_run")
     rows = summary_rows(a)
     data = {"summary": summarize(rows, a.include_unclean),
             "rows": [r3.scrub({**{k: r[k] for k in keep if k in r},

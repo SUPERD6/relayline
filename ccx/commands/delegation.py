@@ -371,6 +371,17 @@ def _cmd_run(a) -> int:
         raise ValueError("--bg needs the task as text or --brief-file (stdin is not passed on)")
     if a.wait is not None and not a.bg:
         raise ValueError("--wait N goes with --bg (a foreground run already waits until it is done)")
+    from ..small_tasks import enabled, run_advice
+    if enabled(cfg, "small_self_run"):
+        text = _brief(a)
+        # Cache stdin too: the ordinary foreground/background path still needs the same brief.
+        a.brief, a.brief_file = [text], None
+        advice = run_advice(p, cfg, a, text, _caller(a.caller), _small_self)
+        if advice:
+            ledger.append_event(p, {"type": "small_self_run", **advice})
+            _bg_not_delegated(p, a, advice, _caller(a.caller))
+            _out(advice)
+            return 0
     if a.effort and not a.model and not a.provider and not role:
         print(EFFORT_ALONE_NOTE, file=sys.stderr, flush=True)
     if a.bg and not auto:
@@ -473,6 +484,7 @@ def _cmd_run(a) -> int:
                   namecheck=getattr(a, "namecheck", None),
                   subagents="off" if a.no_subagents else subagents_spec(a.subagents), budget_usd=a.budget,
                   max_usd=max_usd(a, cfg), parallel=True if a.parallel else None, share_context=a.context,
+                  user_words_file=str(Path(a.user_words_file).resolve()) if a.user_words_file else None,
                   progress=not os.environ.get("CCX_RUN_ID"), **kw)    # not the detached child of --bg
     if preauth:
         # the run of a proposal the picked tier pre-authorised starts now: only now is it used (once), and only now
@@ -494,7 +506,7 @@ def _cmd_run(a) -> int:
     res["route"] = {k: v for k, v in route.items() if k in ("source", "b", "rung", "p", "chain_p", "tier",
                                                               "stale", "mode", "trial", "cheaper_self", "role",
                                                               "role_effort_auto", "role_fallback", "why", "rubric",
-                                                              "difficulty", "role_effort_reason")}
+                                                              "difficulty", "role_effort_reason", "strict_escalate")}
     if proj:
         res["project"] = {k: proj[k] for k in ("name", "path", "approval_rules") if proj.get(k)}
     if auto:
@@ -1469,6 +1481,7 @@ def register(sub) -> None:
                    "conversation has been about lately (the person's recent asks, what was settled, your plan, files "
                    "you changed), read by code from your session file. auto = write tasks only (default, "
                    "[shared_context] run)")
+    adv.add_argument("--user-words-file", metavar="PATH", help="experimental: attach original user wording from a UTF-8 file")
     adv.add_argument("--label")
     r.set_defaults(fn=cmd_run)
     ak = sub.add_parser("ask", help="quick read-only second opinion from the other agent (low effort)")
