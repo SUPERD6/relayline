@@ -230,14 +230,14 @@ def one(job_file: Path) -> None:
     candidates = [c for c in candidates if c[0] == "claude"]
     record = {"run_id": job["key"]}
     if not candidates:
-        record["review"] = unknown("no independent reviewer with a native USD budget limit", usd=0.0)
+        record["review"] = unknown("no independent reviewer with a native USD budget limit", usd=0.0, native_usd=0.0)
     else:
         run_review(Request(to=job["implementer"], brief=job["task_text"], user_task=job.get("user_task"), review="on"), p, cfg, record,
                    Path(job["tree"]), Path(job["evidence"]), candidates, "pg3b replay")
     print(json.dumps(record["review"]))
 
 
-def replay(case: dict, base: Path, unit_cap: float) -> dict:
+def replay(case: dict, base: Path, unit_cap: float, reviewer_model: str = "", reviewer_effort: str = "") -> dict:
     import preflight as PF
     key = f"p2-{case['index']}"
     work = base / key
@@ -252,12 +252,15 @@ def replay(case: dict, base: Path, unit_cap: float) -> dict:
     config = hub / "ccx" / "tiers.toml"
     config.parent.mkdir(parents=True)
     cap = unit_cap / 2  # at most two requests: write, then validate failures
-    config.write_text('[review]\nmode = "tests"\n[permissions.claude]\n'
+    config.write_text('[review]\nmode = "tests"\n'
+                      f'tests_model = {json.dumps(reviewer_model)}\ntests_effort = {json.dumps(reviewer_effort)}\n'
+                      '[permissions.claude]\n'
                       f'write = ["--permission-mode", "acceptEdits", "--max-budget-usd", "{cap}"]\n'
-                      f'read = ["--permission-mode", "plan", "--max-budget-usd", "{cap}"]\n',
+                      f'read = ["--permission-mode", "dontAsk", "--allowed-tools", "Read Grep Glob", "--max-budget-usd", "{cap}"]\n',
                       encoding="utf-8", newline="")
     job = {"key": key, "tree": str(tree), "hub": str(hub), "evidence": str(work / "evidence"),
-           "implementer": case["implementer"], "task_text": case["task_text"], "user_task": case.get("user_task")}
+           "implementer": case["implementer"], "task_text": case["task_text"], "user_task": case.get("user_task"),
+           "reviewer_model": reviewer_model, "reviewer_effort": reviewer_effort, "unit_cap": unit_cap}
     f = work / "job.json"
     f.write_text(json.dumps(job), encoding="utf-8", newline="")
     try:
@@ -269,7 +272,24 @@ def replay(case: dict, base: Path, unit_cap: float) -> dict:
         return json.loads(r.stdout.splitlines()[-1])
     except (OSError, ValueError, subprocess.TimeoutExpired):
         # A lost response may have spent the whole reservation. Never reclaim it.
-        return {"verdict": "unknown", "unknown_reasons": ["review worker unavailable"], "usd": None}
+        return {"verdict": "unknown", "unknown_reasons": ["review worker unavailable"], "usd": None, "native_usd": None}
+
+
+def unit_cap(values: list[str] | None, model: str) -> float:
+    """Keep the numeric option; optionally repeat it as MODEL=USD for a pinned model."""
+    default, models = 0.10, {}
+    for value in values or []:
+        name, sep, amount = value.partition("=")
+        cap = float(amount if sep else name)
+        if not math.isfinite(cap) or cap <= 0:
+            raise ValueError("unit-cap must be finite and positive")
+        if sep:
+            if not name.strip() or not model:
+                raise ValueError("model unit-cap requires MODEL=USD and --reviewer-model")
+            models[name] = cap
+        else:
+            default = cap
+    return models.get(model, default)
 
 
 def main(argv=None) -> int:
@@ -282,7 +302,10 @@ def main(argv=None) -> int:
     p.add_argument("--out", type=Path, default=ROOT / ".ccx/eval/p2-review-replay.jsonl")
     p.add_argument("--work", type=Path, help="evidence directory outside hidden material")
     p.add_argument("--budget", type=float, default=0.0, help="hard admission cap including lost-response reservations")
-    p.add_argument("--unit-cap", type=float, default=0.10)
+    p.add_argument("--unit-cap", action="append", metavar="USD|MODEL=USD",
+                   help="per-unit reservation (default 0.10); repeat MODEL=USD with --reviewer-model")
+    p.add_argument("--reviewer-model", default="", help="test-review model override; empty keeps the existing candidate")
+    p.add_argument("--reviewer-effort", default="", help="test-review effort override; empty keeps the existing candidate")
     p.add_argument("--pin-commit", default="")
     p.add_argument("--wait-quiet", type=float, default=0.0, metavar="MINUTES")
     p.add_argument("--dry-run", action="store_true")
@@ -292,6 +315,10 @@ def main(argv=None) -> int:
     if a.one:
         one(a.one)
         return 0
+    try:
+        a.unit_cap = unit_cap(a.unit_cap, a.reviewer_model)
+    except ValueError as exc:
+        p.error(str(exc))
     if not all(math.isfinite(x) and x >= 0 for x in (a.budget, a.unit_cap, a.wait_quiet)) or not a.unit_cap:
         p.error("budget/wait must be finite nonnegative; unit-cap must be positive")
     a.exercise_source = exercise_source(a.exercise_source, a.ext_cache, data_root)
@@ -311,6 +338,8 @@ def main(argv=None) -> int:
         print(f"[{case['index']}] {case['task']}: " + ("ready" if not case["missing"] else "; ".join(case["missing"])))
     print(f"units={len(cases)} ready={sum(not c['missing'] for c in cases)} estimate<=${len(cases) * a.unit_cap:.2f}; "
           f"budget=${a.budget:.2f} (API-equivalent USD, two native-limited calls/unit)")
+    print(f"reviewer model={a.reviewer_model or '(existing candidate)'} effort={a.reviewer_effort or '(existing candidate)'}; "
+          f"unit-cap=${a.unit_cap:.3f}")
     if a.dry_run or not a.run:
         return 0
     if not a.pin_commit:
@@ -341,7 +370,8 @@ def main(argv=None) -> int:
             row = {"index": case["index"], "task": case["task"], "hidden_ok": case["hidden_ok"],
                    "implementer": case["implementer"], "source_row": case["source_row"], "pin_commit": head,
                    "receipt_basis": case.get("receipt_basis", "unknown"), "cohort_excluded": case.get("cohort_excluded"),
-                   "verdict": "unknown", "unknown_reasons": case["missing"], "usd": 0.0}
+                   "reviewer_model": a.reviewer_model, "reviewer_effort": a.reviewer_effort, "unit_cap": a.unit_cap,
+                   "verdict": "unknown", "unknown_reasons": case["missing"], "usd": 0.0, "native_usd": 0.0}
             if problems:
                 row["unknown_reasons"] += problems
             if not quiet:
@@ -352,9 +382,10 @@ def main(argv=None) -> int:
                 else:
                     reserved += a.unit_cap
                     try:
-                        row.update(replay(case, base, a.unit_cap))
+                        overrides = {"reviewer_model": a.reviewer_model, "reviewer_effort": a.reviewer_effort}
+                        row.update(replay(case, base, a.unit_cap, **{k: v for k, v in overrides.items() if v}))
                     except (OSError, ValueError, subprocess.SubprocessError):
-                        row.update(unknown_reasons=["reconstruction/review unavailable"], usd=None)
+                        row.update(unknown_reasons=["reconstruction/review unavailable"], usd=None, native_usd=None)
             row["reserved_usd"] = reserved
             rows.append(row)
             f.write(json.dumps(row, ensure_ascii=False) + "\n")

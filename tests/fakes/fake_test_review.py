@@ -11,8 +11,11 @@ def answer(prompt):
     out = {"status": "done", "summary": "independent test file prepared", "files_changed": [],
            "commands_run": [], "verification": "not-run", "open_questions": [], "next_step": ""}
     if "Actual test execution" in prompt:
+        if os.environ.get("FAKE_TEST_CONFIRM_INVALID"):
+            out["open_questions"] = ["null", "[]", "false", "invalid JSON"]
+            return out
         if scenario not in ("wrong-test", "out-of-scope", "unconfirmed"):
-            out["open_questions"] = [json.dumps({"file": "test_independent.py", "task_quote": "x to 2",
+            out["open_questions"] = [json.dumps({"file": "test_independent.py", "task_quote": os.environ.get("FAKE_CONFIRM_QUOTE", "x to 2"),
                                                   "test_correct": True})]
         return out
     checks = Path.cwd() / "checks"
@@ -34,6 +37,14 @@ def answer(prompt):
                                                  f"    def test_value(self):\n        {assertion}\n",
                                                  encoding="utf-8", newline="")
     quote = "x to 3" if scenario == "out-of-scope" else "x to 2"
-    Path("manifest.json").write_text(json.dumps({"cases": [{"file": "test_independent.py", "task_quote": quote}]}),
-                                     encoding="utf-8", newline="")
+    quote = os.environ.get("FAKE_TEST_QUOTE", quote)
+    cases = [{"file": "test_independent.py", "task_quote": quote}]
+    if scenario in ("duplicate", "invalid-duplicate"):
+        cases.append({"file": "test_independent.py", "task_quote":
+                      "x to 3" if scenario == "invalid-duplicate" else "x to 2 in a.py"})
+    manifest = checks / "manifest.json" if scenario == "local-manifest" else Path("manifest.json")
+    manifest.write_text(json.dumps({"cases": cases}), encoding="utf-8", newline="")
+    if scenario == "malformed-root":
+        (checks / "manifest.json").write_text(manifest.read_text(encoding="utf-8"), encoding="utf-8")
+        manifest.write_text("invalid JSON", encoding="utf-8")
     return out
