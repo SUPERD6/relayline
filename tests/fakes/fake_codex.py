@@ -109,18 +109,18 @@ if mode == "auth":
     print(json.dumps({"type": "turn.failed", "error": {"message": "401 Unauthorized"}}))
     sys.exit(1)
 
-# FAKE_WRITE_RESUMED: what a resumed session (an escalation in the same session) writes instead of FAKE_WRITE
-_writes = (os.environ.get("FAKE_WRITE_RESUMED") if resuming else None) or os.environ.get("FAKE_WRITE", "")
+# ccx runs the review alongside the check, so a reviewer that rewrites the file breaks the check's import.
+_writes = "" if "[ccx review" in prompt else (os.environ.get("FAKE_WRITE_RESUMED") if resuming else None) or os.environ.get("FAKE_WRITE", "")
 for spec in filter(None, _writes.split(";")):   # "path=content;path2=content"
     path, _, content = spec.partition("=")
     with open(path, "w", encoding="utf-8") as fh:
         fh.write(content)
-for path in filter(None, os.environ.get("FAKE_DELETE", "").split(";")):   # files the builder deletes
+for path in filter(None, "" if "[ccx review" in prompt else os.environ.get("FAKE_DELETE", "").split(";")):   # files the builder deletes
     os.remove(path)
-if os.environ.get("FAKE_TOUCH"):         # a change of its own on every call: a new file in its working folder
+if os.environ.get("FAKE_TOUCH") and "[ccx review" not in prompt:         # a change of its own on every call: a new file in its working folder
     with open(f"fake-{tid}-{time.time_ns()}.txt", "w", encoding="utf-8") as fh:
         fh.write("touched\n")
-if os.environ.get("FAKE_COMMIT"):        # the builder commits its own work (FAKE_COMMIT = the commit message)
+if os.environ.get("FAKE_COMMIT") and "[ccx review" not in prompt:        # the builder commits its own work (FAKE_COMMIT = the commit message)
     import subprocess
     g = ["git", "-c", "user.name=fake", "-c", "user.email=fake@fake"]
     subprocess.run(g + ["add", "-A"], check=True)
