@@ -66,7 +66,10 @@ def test_cached_negative_login_and_missing_installation_override_files(tmp_path,
     from ccx.config import codex_home
     monkeypatch.setattr("ccx.runners.find_bin", lambda name: "fake")
     p = Paths(tmp_path / "hub")
-    (codex_home() / "auth.json").touch()
+    auth = codex_home() / "auth.json"
+    auth.touch()
+    stamp = time.time() - 60
+    os.utime(auth, (stamp, stamp))
     cache_login(p, "codex", False)
     assert not readiness(p, {}, ["codex"])["codex"]["ready"]
     cache_login(p, "codex", True)
