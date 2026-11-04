@@ -19,7 +19,9 @@ that do not know Terra keep its cost unknown. The example role workflows and the
 
 ## The README's comparison: self, built-in sub-agent, ccx
 
-### Historical experiment: hold-out set (hc1, old code, 2026-10-29)
+<a id="hold-out-set-hc1-2026-10-29"></a>
+
+### Hold-out set (hc1, old code, historical experiment, 2026-10-29)
 
 The README's hold-out row, from the [hold-out report](research/2026-10-29-hc1-holdout.md): 10 tasks not used while
 building ccx (5 from this repository, 5 from two external repositories) × 3 rounds, a Sonnet medium lead, hidden

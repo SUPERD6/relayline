@@ -26,11 +26,11 @@ The command is `ccx`; Python standard library only.
 Historical experiments and the candidate recheck, side by side
 ([every number with its limits](https://github.com/SUPERD6/relayline/blob/main/docs/measured.md)):
 
-- **Repository tasks, historical experiment (hc1, old code, 2026-10-29):** 10 tasks not used while building ccx × 3 rounds, a Sonnet
+- **Repository tasks, historical experiment: Hold-out set (hc1, old code, 2026-10-29):** 10 tasks not used while building ccx × 3 rounds, a Sonnet
   lead, hidden tests. ccx was not seen to be less right (29/30, against 29/30 doing it yourself and 27/28 for Claude
   Code's built-in sub-agent in its default usage) and cost $0.063 per success against $0.090 and $0.103 (27/28: two unclean rows left out; 28/30 with them), at about 3× the wall time of doing it yourself
   ([report and limits](https://github.com/SUPERD6/relayline/blob/main/docs/research/2026-10-29-hc1-holdout.md)).
-- **0.6.0 candidate recheck (hc2, 2026-11-04):** 28/30 overall, 25/27 `env_clean` rows, $0.088 per success (clean rows), median wall time 168 s. **Self and the built-in sub-agent were not rerun.** Cost and wall time were higher than hc1; code and sandbox environment effects were not isolated ([report](https://github.com/SUPERD6/relayline/blob/main/docs/research/2026-11-04-hc2-holdout.md)).
+- **Candidate recheck (hc2, 2026-11-04):** 28/30 overall, 25/27 `env_clean` rows, $0.088 per success (clean rows), median wall time 168 s. **Self and the built-in sub-agent were not rerun.** Cost and wall time were higher than hc1; code and sandbox environment effects were not isolated ([report](https://github.com/SUPERD6/relayline/blob/main/docs/research/2026-11-04-hc2-holdout.md)).
 - **Small exercises, external benchmark (polyglot pg1, 2026-10-31):** 30 Python exercises with no tests of their
   own. Through a Sonnet lead to the cheapest tier, ccx was right 12/30 against 25/30 doing it yourself, at 3.1× the
   cost per success and about 5× the wall time. Small strict-interface tasks are not worth delegating. The two are
@@ -134,7 +134,7 @@ after the round-5 fixes (the first run, before them, was 17/20 at $0.248).
 | Historical hc1 (old code, 2026-10-29), [hold-out set](https://github.com/SUPERD6/relayline/blob/main/docs/research/2026-10-29-hc1-holdout.md) (10 tasks × 3): right, cost per success, wall | 29/30, $0.090, 21 s | 27/28, $0.103, 123 s (default usage) | 29/30, $0.063, 61 s |
 | [hc2 candidate recheck](https://github.com/SUPERD6/relayline/blob/main/docs/research/2026-11-04-hc2-holdout.md) (0.6.0): right, cost per success, wall | Not rerun | Not rerun | 28/30 (clean 25/27), $0.088 (clean), 168 s |
 
-- **Cost.** “About 30% cheaper per success than self” (39% against built-in default usage; external tasks 15% / 42%) describes historical hc1 only (old code, 2026-10-29). Candidate hc2 was $0.088 against historical hc1's $0.063. Self and built-in were not rerun, so neither current savings nor their disappearance is established. Historical dev-set builtin2 was $0.114 versus ccx's $0.116–0.135.
+- **Cost.** “About 30% cheaper per success than self” (39% against built-in default usage; external tasks 15% / 42%) describes historical hc1 only (old code, 2026-10-29). Candidate hc2 was $0.088 against historical hc1's $0.063. Self and built-in were not rerun, so neither current savings nor their disappearance is established. Historical dev-set builtin2 was $0.114 versus ccx's $0.116–0.135 (r5h: $0.135).
 - **Speed: ccx is slower than doing it yourself.** It was slower in every round compared with self: about 3× on hc1 (61 s vs 21 s; built-in default 123 s), 2.5–2.8× on the dev set, about 3× in round 1 (34 s vs 11 s), and about 4.5× in round 3 (63 s vs 14 s): about 2.5–4.5× across these repository-task rounds. On pg1's small exercises it took about 5× self's wall time. hc2 did not rerun self, so adds no new self comparison; the candidate's median wall time was higher than hc1 (168 s vs 61 s), with code and sandbox environment effects not isolated.
 - **What ccx adds over the built-in sub-agent:** the work runs on another vendor's model and quota; ccx re-runs your
   `--check` itself instead of trusting the report; a different vendor reviews the diff; every run's cost goes into a
