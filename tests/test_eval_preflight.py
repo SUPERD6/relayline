@@ -1182,6 +1182,29 @@ def test_codex_canary_fails_on_the_sandbox_helper_and_on_no_output(machine, monk
     assert not out["ok"] and any("1223" in p and "sandbox" in p for p in out["problems"]), out["problems"]
 
 
+@pytest.mark.parametrize("failure", ["fail", "missing"])
+def test_codex_canary_requires_temp_read_write_even_with_arithmetic_output(machine, monkeypatch, failure):
+    _pass_fake_switches(monkeypatch)
+    monkeypatch.setenv("CCX_CODEX_BIN", str(FAKES / "fake_codex.py"))
+    monkeypatch.setenv("FAKE_COMMAND_OUTPUT", PF.CODEX_CANARY_OUT)
+    monkeypatch.setenv("FAKE_TMP_PROBE", failure)
+    res = PF.codex_canary(machine["work"], _codex_canary_home(machine))
+    assert not res["ok"] and res["info"]["tmp_probe"] == "fail"
+    assert any("create/read/write" in p for p in res["problems"])
+
+
+def test_codex_canary_uses_the_workspace_tmp_launcher(machine, monkeypatch):
+    _pass_fake_switches(monkeypatch)
+    monkeypatch.setenv("CCX_CODEX_BIN", str(FAKES / "fake_codex.py"))
+    monkeypatch.setenv("FAKE_COMMAND_OUTPUT", PF.CODEX_CANARY_OUT)
+    monkeypatch.setenv("FAKE_TMP_ROOT", "cwd")
+    kw = {**_codex_canary_home(machine), "codex_workspace_tmp": True}
+    res = PF.codex_canary(machine["work"], kw)
+    assert res["ok"] and res["info"]["tmp_probe"] == "pass", res
+    assert Path(os.environ["CCX_CODEX_BIN"]).name == "fake_codex.py"
+    assert not (machine["work"] / "canary").exists()
+
+
 def test_codex_canary_needs_the_commands_own_output(machine, monkeypatch):
     _pass_fake_switches(monkeypatch)
     monkeypatch.setenv("CCX_CODEX_BIN", str(FAKES / "fake_codex.py"))
