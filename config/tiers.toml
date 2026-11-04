@@ -332,6 +332,8 @@ total_minutes = 15
 # start_scene = true：开局再带当前项目的场景块（先 ccx mem compact --by project 生成）。默认 false。
 by_kind = false
 start_scene = false
+# 未处理建议读取时超过此天数就标为 expired，不删记录、不再提示或重复收集。0 = 不过期。
+suggest_expire_days = 14
 
 [autonomy]
 # 总管自动档位（K4，docs/DECISIONS.md）：总管用 ccx run --project（或带 --autonomy）派活时按档位行事。

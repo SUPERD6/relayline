@@ -8,9 +8,10 @@ import difflib
 import json
 import re
 import time
+from datetime import datetime
 from pathlib import Path
 
-from .config import Paths
+from .config import Paths, _warn_once, load_config
 
 # A preference is a standing rule in the person's words ("from now on ...", "以后不要 ..."), not an instruction for the
 # task at hand: "改成"/"统一" name an edit as often as a rule, so they are not markers; "继续"/"第 N 步" are the task.
@@ -60,11 +61,29 @@ def _file(p: Paths) -> Path:
     return p.state / "mem-suggestions.json"
 
 
-def load(p: Paths) -> list[dict]:
+def load(p: Paths, *, now: float | None = None) -> list[dict]:
+    """Compute expiry in memory only; add/decide persist it with their existing writes, retaining deduplication history."""
     try:
-        return json.loads(_file(p).read_text(encoding="utf-8"))
+        items = json.loads(_file(p).read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return []
+    days = load_config(p).get("memory", {}).get("suggest_expire_days", 14)
+    if type(days) is not int or days < 0:
+        _warn_once("memory.suggest_expire_days must be a non-negative integer (0 = never expire); using default 14")
+        days = 14
+    if not days:
+        return items
+    now = time.time() if now is None else now
+    for item in items:
+        if item.get("status") != "pending":
+            continue
+        try:
+            ts = datetime.fromisoformat(item["ts"]).timestamp()
+        except (KeyError, TypeError, ValueError, OSError, OverflowError):
+            continue  # An unknown age is not grounds for expiring a suggestion.
+        if now - ts > days * 86400:
+            item["status"] = "expired"
+    return items
 
 
 def _save(p: Paths, items: list[dict]) -> None:

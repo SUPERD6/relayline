@@ -403,6 +403,8 @@ SETTINGS = {   # key -> (type, help). Only these can be set with `ccx config set
                               "on 2026-10-26)"),
     "memory.start_scene": (_bool, "true | false: a session start also carries this project's block from "
                                   "`ccx mem compact --by project` (default false)"),
+    "memory.suggest_expire_days": (int, "days before an unhandled suggestion is marked expired when read "
+                                        "(default 14; 0 = never expire; records are kept)"),
     "hooks.timeout_s": (float, "seconds a session hook (ccx mem delta / turn) may run before it prints nothing and "
                                "exits 0; logged, shown by `ccx doctor` (0 = no limit)"),
     "ui.lang": (str, "zh | en: language of `ccx ui` and of the lines ccx writes into conversations (unset: the "
@@ -462,6 +464,8 @@ def set_setting(p: Paths, key: str, raw: str) -> dict:
         raise ValueError("quota.probe_timeout must be a finite positive number")
     if key == "worktree.fetch_timeout":
         worktree_fetch_timeout({"worktree": {"fetch_timeout": val}})
+    if key == "memory.suggest_expire_days" and val < 0:
+        raise ValueError("memory.suggest_expire_days must be a non-negative integer (0 = never expire)")
     cur = {}
     if p.settings.exists():
         cur = tomllib.loads(p.settings.read_text(encoding="utf-8"))
