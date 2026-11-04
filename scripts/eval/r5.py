@@ -20,6 +20,8 @@ so doing it takes many requests. Arms (the lead is a fresh headless Claude Code,
            ccx's own default stays "warn". Every row records the hub's mode (`namecheck_mode`) and each builder
            run's own (`ccx_namecheck`: mode, hits, climbs past a hit), counted per arm in the summary
            (`namecheck`), so ccx2 vs ccx2nc measures the change before / after
+  ccx2uw   opt-in (--arms ccx2uw): exactly ccx2, only enabling delegate.user_words in the unit hub (asserted
+           before launch). The lead's task message supplies original wording; rows record user_words_mode.
   ccx2daily, ccx2daily_nomem, ccx2daily_clean, ccx2daily_leantools
            opt-in (B3, docs/research/2026-10-30-b3-lean-switches-plan.md): exactly ccx2's lead, but the sub-agents
            start with the person's daily setup: Codex in a per-unit home (scripts/eval/daily_home.py) holding copies
@@ -356,6 +358,7 @@ TIER_LEAD_ARMS = ("balanced", "save")            # the lead sizes with ccx propo
 SKILL_ARMS = PF.SKILL_ARMS                       # the lead loads the agent-delegate skill (needs ccx-home)
 # namecheck arms (opt-in): ccx2 in a unit hub whose tiers.toml sets [defaults] namecheck to this mode
 NAMECHECK_ARMS = {"ccx2nc": "fail"}
+USER_WORDS_ARMS = ("ccx2uw",)  # opt-in: ccx2 wording/flags, only delegate.user_words differs
 # daily-config arms (opt-in, B3 item 2; scripts/eval/daily_home.py): ccx2's lead and wording, but its sub-agents
 # start with the person's everyday setup (Codex memories, AGENTS.md and skills copied into a per-unit Codex home whose
 # login is the eval home's; Claude with the user settings layer and skills), and each variant turns one experimental
@@ -363,10 +366,10 @@ NAMECHECK_ARMS = {"ccx2nc": "fail"}
 DAILY_ARMS = {"ccx2daily": {}, "ccx2daily_nomem": {"codex_memories": False}, "ccx2daily_clean": {"clean": True},
               "ccx2daily_leantools": {"codex_lean_tools": True}}
 # leads that may hand work to ccx (session file, metrics)
-CCX_ARMS = ("ccx", "ccx2", "ccx2small", *NAMECHECK_ARMS, *SKILL_ARMS, *TIER_LEAD_ARMS, *DAILY_ARMS)
+CCX_ARMS = ("ccx", "ccx2", "ccx2small", *NAMECHECK_ARMS, *USER_WORDS_ARMS, *SKILL_ARMS, *TIER_LEAD_ARMS, *DAILY_ARMS)
 BUILTIN_ARMS = PF.BUILTIN_ARMS
 # not in ARMS: the default schedule (and old tags' done-keys) stay
-OPT_IN_ARMS = ("ccx2", "ccx2small", "builtin2", "builtin2r", *TIER_ARMS, *SKILL_ARMS, *NAMECHECK_ARMS, *DAILY_ARMS)
+OPT_IN_ARMS = ("ccx2", "ccx2small", "builtin2", "builtin2r", *TIER_ARMS, *SKILL_ARMS, *NAMECHECK_ARMS, *USER_WORDS_ARMS, *DAILY_ARMS)
 DEFAULT_LEAD = (r3.LEAD_MODEL, r3.LEAD_EFFORT)
 # --lead-model auto: each task's lead model from its difficulty by ccx's lead.model_by_task rule (ccx/leadmodel.py,
 # this checkout's config/tiers.toml [lead] / [lead_by_task], never the hub's settings), so the next round can compare
@@ -785,7 +788,7 @@ def lead_how(arm: str, label: str, lead: tuple[str, str] = DEFAULT_LEAD) -> str:
         return (HOW_CCX2.format(ccx=r3.CCX_CMD, label=label) +
                 " If ccx returns state=small_self, implement and check the task yourself, then commit it; "
                 "do not retry with --force.")
-    if arm == "ccx2" or arm in NAMECHECK_ARMS or arm in DAILY_ARMS:   # ccx2's lead; only the hub / homes differ
+    if arm == "ccx2" or arm in NAMECHECK_ARMS or arm in USER_WORDS_ARMS or arm in DAILY_ARMS:   # same lead
         return HOW_CCX2.format(ccx=r3.CCX_CMD, label=label)
     if arm in SKILL_ARMS:
         return HOW_CCX2_SKILL
@@ -1167,6 +1170,28 @@ def set_namecheck(hub: Path, mode: str) -> str:
     got = hub_namecheck(hub)
     if got != mode:
         raise RuntimeError(f"the unit hub runs namecheck {got!r} after setting [defaults] namecheck = {mode!r}")
+    return got
+
+
+def hub_user_words(hub: Path, enable: bool = False) -> bool:
+    """Set only the unit hub's opt-in, then assert the effective config before launch."""
+    from ccx.config import load_config
+    p = r2.Paths(hub)
+    if enable:
+        f = p.user_tiers
+        text = f.read_text(encoding="utf-8") if f.exists() else ""
+        text = re.sub(r"(?m)^user_words[ \t]*=.*(?:\n|\Z)", "", text)
+        line = "user_words = true\n"
+        if re.search(r"(?m)^\[delegate\][ \t]*$", text):
+            text = re.sub(r"(?m)^\[delegate\][ \t]*(?:\n|\Z)",
+                          lambda m: m.group(0).rstrip("\n") + "\n" + line, text, count=1)
+        else:
+            text += ("" if not text or text.endswith("\n") else "\n") + "[delegate]\n" + line
+        f.parent.mkdir(parents=True, exist_ok=True)
+        f.write_text(text, encoding="utf-8")
+    got = (load_config(p).get("delegate") or {}).get("user_words", False)
+    if enable and got is not True:
+        raise RuntimeError("unit hub did not enable delegate.user_words")
     return got
 
 
@@ -1599,6 +1624,8 @@ def unit_models(u: dict, row: dict) -> dict:
         out["tier_picked"] = u["arm"]
     if u["arm"] in NAMECHECK_ARMS:                # the hub's [defaults] namecheck
         out["namecheck"] = NAMECHECK_ARMS[u["arm"]]
+    if u["arm"] in USER_WORDS_ARMS:
+        out["user_words"] = True
     if u["arm"] in DAILY_ARMS:                    # the daily home and the hub's [subagent] overlay
         out["daily"] = {"subagent": DAILY_ARMS[u["arm"]], "claude_setting_sources": DH.DAILY_CLAUDE_SOURCES,
                         "sha256": (row.get("daily") or {}).get("sha256")}    # the snapshot of the copied setup
@@ -1650,6 +1677,8 @@ def run_unit(u: dict, a, work: Path) -> dict:
         hinfo["namecheck"] = (set_namecheck(hub, NAMECHECK_ARMS[u["arm"]]) if u["arm"] in NAMECHECK_ARMS
                               else hub_namecheck(hub))
         row["namecheck_mode"] = hinfo["namecheck"]
+        hinfo["user_words"] = hub_user_words(hub, u["arm"] in USER_WORDS_ARMS)
+        row["user_words_mode"] = hinfo["user_words"]
         if u["arm"] in DAILY_ARMS:                # its own Codex home and HOME, and its [subagent] overlay
             row["daily"], env = set_daily(iso, hub, env, u["arm"], a)
         row.update(direct_unit(u, a, repo, hub, env, job) if not has_lead(u["arm"]) else
@@ -3086,7 +3115,7 @@ def cmd_export(a) -> int:
             "env_clean", "fingerprint", "lead_model", "lead_effort", "lead_pick", "lead_b", "lead_band", "phases", "tier", "tier_plan", "ref_size",
             "actual_mode", "misband", "misband_overall", "followed_plan", "ccx_check_passed", "may_be_wrong",
             "ccx_routes", "bookkeeping_error", "lead_usage", "timeline", "skill_used", "skills_used",
-            "namecheck_mode", "ccx_namecheck", "ccx_check_reason", "sub_usage", "switches_applied",
+            "namecheck_mode", "user_words_mode", "ccx_namecheck", "ccx_check_reason", "sub_usage", "switches_applied",
             "hidden_failed", "artifacts", "streams", "streams_error", "arm_order", "arm_pos", "small_self_run")
     rows = summary_rows(a)
     data = {"summary": summarize(rows, a.include_unclean),

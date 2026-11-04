@@ -2,6 +2,8 @@
 
 English · [中文](features.zh.md) · back to the [README](../README.md)
 
+Experimental, off by default: [carry original user wording to sub-agents](user-words.md).
+
 ## See delegated work
 
 `ccx ui` links to **Runs** (`/runs` or `/#/runs`). All saved runs, including live ones, have project/status/date

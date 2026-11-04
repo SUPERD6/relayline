@@ -12,6 +12,11 @@ import uuid
 from fake_log import locked_append  # noqa: E402  (several fakes may append at once)
 
 argv = sys.argv[1:]
+# ccx.runners.execute writes UTF-8 bytes, independent of the Python fake's
+# locale (Windows pipes otherwise default to cp936 on a Chinese installation).
+# runpy wrappers may provide already-decoded io.StringIO instead of a byte pipe.
+if hasattr(sys.stdin, "reconfigure"):
+    sys.stdin.reconfigure(encoding="utf-8")
 prompt = sys.stdin.read()
 if os.environ.get("FAKE_QUOTA_CODEX"):
     from datetime import datetime, timezone

@@ -13,6 +13,10 @@ from pathlib import Path
 from fake_log import locked_append  # noqa: E402  (several fakes may append at once)
 
 argv = sys.argv[1:]
+# Match ccx.runners.execute's UTF-8 pipe encoding, not Python's locale-dependent stdin.
+# runpy wrappers may provide already-decoded io.StringIO instead of a byte pipe.
+if hasattr(sys.stdin, "reconfigure"):
+    sys.stdin.reconfigure(encoding="utf-8")
 prompt = sys.stdin.read() if "-p" in argv else ""
 log = os.environ.get("FAKE_LOG")
 if log:
