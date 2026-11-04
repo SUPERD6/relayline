@@ -41,9 +41,46 @@ def _user_text(t: str) -> str | None:
     return None if not t or t.startswith(_INJECTED) else t
 
 
+_TASK_BRIEF = re.compile(
+    r"\[ccx (?:sub-task|shared work context)|"
+    r"(?:^|\n)[ \t]*(?:#{1,6}[ \t]*)?(?:Task|任务)[ \t]*[:：]?[ \t]*\r?\n(?=[\s\S]*\S)|"
+    r"Background \(from the session that started this one\)|"
+    r"你是[^\n。]{0,100}(?:主统筹|接替|接任)", re.I)
+
+
+def _preference_text(t: str) -> str | None:
+    """A user-role envelope can contain an agent's assignment, not the person's words.
+
+    ccx/prompts.py emits `[ccx sub-task]`; lead handoffs use a Background/Task
+    heading. Role alone cannot establish authorship for these briefs. Claude's
+    isMeta/isSidechain/isCompactSummary flags are handled by read_claude; Codex's
+    session_meta originator/source by read_codex. Unmarked ordinary user text has
+    no finer author field in the formats we read; do not invent one.
+    """
+    text = _user_text(t)
+    return text if text and not _TASK_BRIEF.search(text) else None
+
+
+def _append_user(d: dict, raw: str, delegated: bool = False) -> bool:
+    text = _user_text(raw)
+    if text:
+        # Without spawn metadata, a first-turn task brief still identifies an
+        # agent-started session. Return the state for every Codex message format.
+        if not d["users"] and _TASK_BRIEF.search(text):
+            delegated = True
+        d["users"].append(text)  # preserve the handoff reader's existing field
+        human = _preference_text(raw)
+        # A spawned/headless helper's user turns can all come from its lead.
+        # There is no verified human-author signal for later turns either.
+        if human and not delegated:
+            d["preference_users"].append(human)
+    return delegated
+
+
 def read_codex(path: Path) -> dict:
     d = {"agent": "codex", "users": [], "final": "", "plan": [], "files": [], "failed": [], "texts": [],
-         "session": None}
+         "session": None, "preference_users": []}
+    delegated = False
     for line in path.read_text(encoding="utf-8", errors="replace").splitlines():
         try:
             e = json.loads(line)
@@ -53,19 +90,21 @@ def read_codex(path: Path) -> dict:
         typ = pl.get("type")
         it = pl.get("item") or {}
         if e.get("type") == "session_meta" and not d["session"]:
+            from .usage import codex_parent
             d["session"] = pl.get("id") or pl.get("session_id")
+            # These are the existing ccx session-discovery/usage signals for a
+            # headless run or native spawned helper, not a guessed author field.
+            delegated = pl.get("originator") == "codex_exec" or bool(codex_parent(pl))
         if typ == "item_completed" and it.get("type") == "AgentMessage":
-            d["texts"].append("".join(c.get("text", "") for c in it.get("content") or []))
+            d["texts"].append("".join(c.get("text") or "" for c in it.get("content") or []))
         elif typ == "agent_message" and pl.get("message"):
             d["texts"].append(pl["message"])
         elif e.get("type") == "response_item" and typ == "message" and pl.get("role") == "assistant":
-            d["texts"].append("".join(c.get("text", "") for c in pl.get("content") or []))
+            d["texts"].append("".join(c.get("text") or "" for c in pl.get("content") or []))
         if typ == "item_completed" and it.get("type") == "UserMessage":
-            t = _user_text("".join(c.get("text", "") for c in it.get("content") or []))
-            if t:
-                d["users"].append(t)
+            delegated = _append_user(d, "".join(c.get("text") or "" for c in it.get("content") or []), delegated)
         elif typ == "item_completed" and it.get("type") == "AgentMessage" and it.get("phase") == "final_answer":
-            d["final"] = "".join(c.get("text", "") for c in it.get("content") or [])
+            d["final"] = "".join(c.get("text") or "" for c in it.get("content") or [])
         elif typ == "item_completed" and it.get("type") == "FileChange":
             d["files"] += list((it.get("changes") or {}).keys())
         elif typ == "item_completed" and it.get("type") == "CommandExecution" and it.get("exit_code") not in (0, None):
@@ -75,9 +114,7 @@ def read_codex(path: Path) -> dict:
         elif typ == "task_complete" and pl.get("last_agent_message"):
             d["final"] = pl["last_agent_message"]
         elif typ == "user_message":
-            t = _user_text(pl.get("message") or "")
-            if t:
-                d["users"].append(t)
+            delegated = _append_user(d, pl.get("message") or "", delegated)
         elif typ == "agent_message" and pl.get("message"):
             d["final"] = pl["message"]
         elif e.get("type") == "response_item" and typ == "function_call":
@@ -96,16 +133,15 @@ def read_codex(path: Path) -> dict:
             except ValueError:
                 continue
             if pl.get("type") == "message" and pl.get("role") == "user":
-                t = _user_text("".join(c.get("text", "") for c in pl.get("content") or []))
-                if t:
-                    d["users"].append(t)
+                delegated = _append_user(d, "".join(c.get("text") or "" for c in pl.get("content") or []), delegated)
     return d
 
 
 def read_claude(path: Path) -> dict:
     d = {"agent": "claude", "users": [], "final": "", "plan": [], "files": [], "failed": [], "texts": [],
-         "session": path.stem}
+         "session": path.stem, "preference_users": []}
     bash: dict[str, str] = {}
+    delegated = False
     for line in path.read_text(encoding="utf-8", errors="replace").splitlines():
         try:
             e = json.loads(line)
@@ -116,6 +152,19 @@ def read_claude(path: Path) -> dict:
         msg = e.get("message") or {}
         content = msg.get("content")
         if e.get("type") == "user":
+            # One user turn may contain several text blocks. Classify the whole
+            # brief so a second block cannot turn its instructions into preferences.
+            raw = content if isinstance(content, str) else "\n".join(
+                c.get("text") or "" for c in content or [] if c.get("type") == "text")
+            text = _user_text(raw)
+            if not d["users"] and text and _TASK_BRIEF.search(text):
+                # A task brief as the first real user turn identifies an agent-
+                # started session. Later user-role turns may also be from its
+                # lead, so exclude preferences for the whole session.
+                delegated = True
+            human = _preference_text(raw)
+            if human and not delegated:
+                d["preference_users"].append(human)
             if isinstance(content, str):
                 t = _user_text(content)
                 if t:
@@ -130,7 +179,7 @@ def read_claude(path: Path) -> dict:
                     out = out if isinstance(out, str) else json.dumps(out, ensure_ascii=False)
                     d["failed"].append({"cmd": bash[c["tool_use_id"]], "exit": "error", "out": out[-300:]})
         elif e.get("type") == "assistant":
-            texts = [c.get("text", "") for c in content or [] if isinstance(c, dict) and c.get("type") == "text"]
+            texts = [c.get("text") or "" for c in content or [] if isinstance(c, dict) and c.get("type") == "text"]
             if any(t.strip() for t in texts):
                 d["final"] = "\n".join(t for t in texts if t.strip())
                 d["texts"].append(d["final"])
