@@ -1,5 +1,5 @@
 {
   "name": "relayline",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "description": "Claude Code, Codex and DeepSeek as each other's lead or sub-agent (Gemini CLI only as a sub-agent adapter, not run for real). The five relayline skills: delegation, routing, splitting, checkpoints and the project manager. Codex's hooks stay with `ccx sync`."
 }
