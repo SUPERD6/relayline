@@ -11,6 +11,7 @@ from dataclasses import dataclass
 import json
 import math
 import os
+import re
 from pathlib import Path
 import shutil
 import statistics
@@ -31,6 +32,22 @@ from common import ROOT, append_jsonl, read_jsonl
 ARMS = ("self", "ccxlong")
 N = 4
 LIMITATION = "Delegation and one-line acceptance change together; their effects are not separated."
+
+
+def pin_matches(requested: str, actual: str) -> bool:
+    """Git may report a full SHA or an abbreviation; refuse ambiguous tiny pins."""
+    requested, actual = requested.lower(), actual.lower()
+    return bool(re.fullmatch(r"[0-9a-f]{7,40}", requested)
+                and re.fullmatch(r"[0-9a-f]{7,40}", actual)
+                and (requested.startswith(actual) or actual.startswith(requested)))
+
+
+def pin_refused(requested: str, actual: str) -> bool:
+    if not requested or pin_matches(requested, actual):
+        return False
+    why = "at least 7 hexadecimal characters required" if len(requested) < 7 else "SHA prefixes do not match"
+    print(f"P4 --pin-commit refused: requested={requested} actual={actual}; {why}", file=sys.stderr)
+    return True
 
 
 def schedule(tasks: list[dict], rounds: int = 1) -> list[dict]:
@@ -184,7 +201,7 @@ class Episode:
                             for prefix in ("repo-", "hub-", "x-"))
         grade_files = (a.out, a.out.with_suffix(".pending.jsonl"), a.out.with_suffix(".events.jsonl"))
         self.iso = PF.Unit(key, a.work, a.work / ("repo-" + key), a.work / ("hub-" + key),
-                           claude="config-dir", codex_home=Path(a.codex_home), codex_workspace_tmp=True,
+                           claude=getattr(a, "claude_isolation", "flags"), codex_home=Path(a.codex_home), codex_workspace_tmp=True,
                            hidden=(a.ext_cache, a.artifacts, *other_roots, *grade_files),
                            deny=("WebFetch", "WebSearch", *(f"Read({PF._rule_path(p)})" for p in grade_files)),
                            flags=(*r5.EXT_FLAGS, r"git\s+(?:fetch|clone|pull)"))
@@ -202,6 +219,9 @@ class Episode:
         (self.iso.hub / "ccx").mkdir(parents=True)
         # Fresh hub, shipped settings: unlike r3.make_hub, no model holdbacks.
         self.memory_empty = PF.hub_memory_empty(self.iso.hub)
+        # Prepare once per episode. In flags mode native transcripts live in
+        # Claude's projects/<slug(repo)>/<sid>.jsonl, outside the reset repo.
+        # step() preserves this cwd and home; close() performs session cleanup.
         self.env = {**PF.prepare(self.iso), **E.run_env({"pythonpath": "."}),
                     "CCX_LEAD_VIEW": "line", "PYTEST_DISABLE_PLUGIN_AUTOLOAD": "1", "CCX_P4_ROOT": str(ROOT)}
         self.receipt = self.iso.x / "p4_receipt.py"
@@ -214,6 +234,7 @@ class Episode:
         row = {**u, "session_id": self.sid, "reference_commit": task["commit"], "repo": task["repo"],
                "env_clean": False, "ok": None, "usd": None, "cost_complete": False,
                "evidence": getattr(a, "evidence", "not run"),
+               "claude_isolation": self.iso.claude,
                "lead_model": "sonnet", "lead_effort": "medium", "tmp_policy": "codex-workspace-private"}
         self.rows.append(row)
         lead_cap, child_cap = task_caps(a, u["arm"])
@@ -362,7 +383,7 @@ def parser():
     p.add_argument("--ext-python", default=sys.executable)
     p.add_argument("--timeout", type=int, default=1200)
     PF.add_options(p)
-    p.set_defaults(claude_isolation="config-dir", codex_workspace_tmp=True)
+    p.set_defaults(claude_isolation="flags", codex_workspace_tmp=True)
     return p
 
 
@@ -387,14 +408,15 @@ def main(argv=None) -> int:
         print(json.dumps(summary(selected, expected_count(a), limits), indent=2))
         return 0
     head = r5.git(ROOT, "rev-parse", "HEAD").strip()
-    if a.pin_commit and a.pin_commit != head:
-        raise SystemExit("--pin-commit does not match HEAD")
+    if pin_refused(a.pin_commit, head):
+        return 2
     if previous:
         raise SystemExit("tag already has attempts; use a new tag (never silently restart a lost long session)")
     plan = {"units": units, "estimate": estimate(units), "budget_usd": a.budget,
             "budget_envelope": budget_envelope(a), "available_tasks": len(tasks), "target_tasks": expected_count(a) // a.rounds,
             "pinned_commit": head, "tasks_sha256": PF.sha256_file(Path(TASKS.__file__)),
             "selection_sha256": PF.sha256_file(TASKS.SELECTION_FILE),
+            "claude_isolation": a.claude_isolation,
             "cli_checked": "Claude Code 2.1.316 --help (2026-11-04): --session-id, --resume, -p; live resume not run",
             "limitation": LIMITATION, "run": a.run,
             "budget_semantics": "before a task: spent + lead allowance + child allowance <= budget; unknown accounting stops; operational overrun envelope is not an absolute provider hard cap"}
@@ -427,14 +449,17 @@ def run_experiment(a, tasks: list[dict], units: list[dict]) -> int:
     # in evaluator memory, and deny that cache to the agents.
     materials = {t["id"]: LC.material(a.ext_cache, t) for t in tasks}
     if a.wait_quiet and not r5.wait_quiet(a.wait_quiet):
+        print(f"P4 wait-quiet failed before preflight (limit={a.wait_quiet:g} minutes)", file=sys.stderr)
         return 2
-    rep = PF.run_checks(PF.Options(a.work, ["self", "ccx2"], jobs=1, claude="config-dir",
+    rep = PF.run_checks(PF.Options(a.work, ["self", "ccx2"], jobs=1, claude=getattr(a, "claude_isolation", "flags"),
                                   codex_home=Path(a.codex_home), canary=False, start=True,
                                   tasks_file=Path(TASKS.__file__), codex_workspace_tmp=True))
     if not rep["ok"]:
+        for problem in rep.get("problems") or ["preflight returned ok=false without a diagnostic"]:
+            print(f"P4 preflight refused: {problem}", file=sys.stderr)
         return 2
-    if a.pin_commit and a.pin_commit != rep["commit"]:
-        raise ValueError("pin changed before run")
+    if pin_refused(a.pin_commit, rep["commit"]):
+        return 2
     sessions, rows = {}, []
     watcher = PF.Watch([str(a.work)]).start()
     between = []
@@ -449,6 +474,7 @@ def run_experiment(a, tasks: list[dict], units: list[dict]) -> int:
                                "child_allowance_usd": child_cap, "reservation_usd": lead_cap + child_cap}
                 break
             if a.wait_quiet and not r5.wait_quiet(a.wait_quiet, busy=lambda: r5._busy_now([str(a.work)])):
+                print(f"P4 wait-quiet failed before task {u['task']} (limit={a.wait_quiet:g} minutes)", file=sys.stderr)
                 stopped = "busy"
                 break
             task = next(t for t in tasks if t["id"] == u["task"])
@@ -466,7 +492,8 @@ def run_experiment(a, tasks: list[dict], units: list[dict]) -> int:
                 if session and session.rows and session.rows[-1].get("turn") == u["turn"]:
                     row = session.rows[-1]
                 else:
-                    row = {**u, "tag": a.tag, "usd": None, "cost_complete": False}
+                    row = {**u, "tag": a.tag, "usd": None, "cost_complete": False,
+                           "claude_isolation": getattr(a, "claude_isolation", "flags")}
                     if session:
                         session.rows.append(row)
                 row.update({"ok": None, "env_clean": False, "error": type(exc).__name__, "environment_error": True})
@@ -499,7 +526,12 @@ def run_experiment(a, tasks: list[dict], units: list[dict]) -> int:
                      "spent_known_usd": budget.spent, "cost_unknown": budget.unknown, "budget_usd": budget.cap,
                      "budget_envelope": limits, "not_started": not_started})
     print(json.dumps(summary(rows, expected_count(a, len(units) // 2), limits), indent=2))
-    return 2 if stopped else 0
+    if stopped:
+        print(f"P4 stopped: {stopped}; known_spend=${budget.spent:g} budget=${budget.cap:g}", file=sys.stderr)
+        for problem in between:
+            print(f"P4 environment: {problem}", file=sys.stderr)
+        return 2
+    return 0
 
 
 if __name__ == "__main__":
