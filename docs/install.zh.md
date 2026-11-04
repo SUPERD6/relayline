@@ -9,10 +9,12 @@
 **不克隆仓库**（技能和配置都打在包里）：
 
 ```bash
-pipx install git+https://github.com/SUPERD6/relayline
+pipx install relayline
 ccx setup        # 向导：hub、接线、体检；每次改动前先问
 ccx run --to codex --mode read "Summarise README.md in three lines for a new user: what this project does, how to install it, and the first command to try"
 ```
+
+想用还没发布的最新代码，可以运行：`pipx install git+https://github.com/SUPERD6/relayline`。
 
 最后一行是第一次派活（和 README、`ccx setup` 给的是同一条）。不用向导、一步步来：`ccx init --hub <你的个人hub路径>`、
 `ccx sync`、`ccx sync --apply`、`ccx doctor`。hub 是你自己的一个文件夹，放共享记忆、技能和每次运行的记录。
@@ -22,11 +24,11 @@ ccx run --to codex --mode read "Summarise README.md in three lines for a new use
 没有 pipx？给它单独建一个虚拟环境一样能装：
 
 ```bash
-python3 -m venv ~/.relayline && ~/.relayline/bin/python -m pip install git+https://github.com/SUPERD6/relayline
+python3 -m venv ~/.relayline && ~/.relayline/bin/python -m pip install relayline
 ```
 
 ```powershell
-python -m venv "$env:USERPROFILE\.relayline"; & "$env:USERPROFILE\.relayline\Scripts\python.exe" -m pip install git+https://github.com/SUPERD6/relayline
+python -m venv "$env:USERPROFILE\.relayline"; & "$env:USERPROFILE\.relayline\Scripts\python.exe" -m pip install relayline
 ```
 
 然后从这个环境的 `bin`（Windows 上是 `Scripts`）文件夹运行 `ccx`，或者只把 `ccx` 一个文件链接到 PATH 里的某个文件夹
@@ -49,7 +51,7 @@ Claude Code 这条真跑过（用临时配置）。从 GitHub 地址装 Codex �
 - **Codex** 只得到五个技能。它的 hook 仍由 `ccx sync` 写（Codex 的插件 hook 要用户手动信任，这里不提供）。
 - **DeepSeek Harness（`dsh`）** 目前没有插件市场或技能安装方式（看的是它的 README，2026-10-25）；`dsh` 在 PATH 上时，主导说明照旧由
   `ccx sync` 写。只在已安装的桌面应用里找到的 `dsh` 默认不接入；sync 只提一次，说明是可选的（把它加到 PATH 后再跑 `ccx sync`）。
-- **ccx 本体仍要装**（`pipx install git+https://github.com/SUPERD6/relayline`，再 `ccx init` 或 `ccx setup`），才能在
+- **ccx 本体仍要装**（`pipx install relayline`，再 `ccx init` 或 `ccx setup`），才能在
   终端或 Codex 里派活。插件已启用、但 ccx 没单独装时，`ccx doctor` 会提示。
 - **不会接两遍：** 插件启用的工具里，`ccx sync` 把 Claude 的 hook 和这五个技能交给插件，并删掉它以前写的那份
   （`settings.json` 里 ccx 的 hook、各工具 `skills/` 里的链接）；Codex 的 hook 块不动。hook 仍有两份时 `ccx doctor` 会警告。

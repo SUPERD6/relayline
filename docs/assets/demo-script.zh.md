@@ -18,7 +18,7 @@
 | 15–30 秒 | 运行中（等待剪掉），然后最后一行：`status=done ok=true check=passed review=pass cost=~$…` | "Codex 一次做完。ccx 自己又跑了一遍验收，另一家的模型审了改动。" |
 | 30–45 秒 | `ccx ui` → 这件任务 → 点完成的那块：谁做的、花费、验收（带输出）、审查、改了哪些文件 | "每次派活都有收据：花了多少、验收跑没跑、谁审的。撤回也只是一个按钮。" |
 | 45–55 秒 | `ccx ui` →"实测与 token 去向"：历史 hc1 表，旁边加 hc2 字幕 | "历史 hc1，旧代码，2026-10-29：做对 29/30，每次成功比自己做便宜约 30%，用时约 3 倍。候选 hc2 成本和墙钟都更高：$0.088 对 $0.063，168 对 61 秒。self 未重跑，原因没有隔离。" |
-| 55–60 秒 | `pipx install git+https://github.com/SUPERD6/relayline` 和 `ccx demo` | "不用账号先看看：`ccx demo`。" |
+| 55–60 秒 | `pipx install relayline` 和 `ccx demo` | "不用账号先看看：`ccx demo`。" |
 
 **说实话**（和 README 同一套规矩）
 - hc1 标明历史实验、旧代码、2026-10-29（`docs/measured.zh.md`）；便宜约 30% 不描述当前版本。

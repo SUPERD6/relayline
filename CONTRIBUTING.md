@@ -7,6 +7,7 @@ CLI checked against that CLI. Please keep it that way.
 
 ## Before you start
 
+- Read the [engineering standards](docs/engineering-standards.md) before changing defaults, evaluating, publishing numbers or cleaning files.
 - Bugs and ideas: open an issue (templates are provided). Security problems: see [SECURITY.md](SECURITY.md), not a
   public issue.
 - Bigger changes: open an issue first, so we agree on the shape before you write it.

@@ -51,6 +51,23 @@ if argv[:1] == ["queue"]:
 
 mode = os.environ.get("FAKE_STATUS_CODEX") or os.environ.get("FAKE_STATUS", "done")
 resuming = argv[:2] == ["exec", "resume"]
+
+if os.environ.get("FAKE_TMP_ROOT"):
+    # Model the sandbox's allowed temp root without relying on this machine's ACLs.
+    from pathlib import Path
+    values = [os.environ.get(k, "") for k in ("TMP", "TEMP", "TMPDIR")]
+    allowed = Path.cwd() if os.environ["FAKE_TMP_ROOT"] == "cwd" else Path(os.environ["FAKE_TMP_ROOT"]).resolve()
+    try:
+        assert len(set(values)) == 1 and values[0]
+        temp = Path(values[0]).resolve()
+        temp.relative_to(allowed)
+        assert temp.is_dir()
+    except (AssertionError, ValueError):
+        print(json.dumps({"type": "error", "message": "temporary directory outside allowed root: WinError 5"}))
+        sys.exit(1)
+    if log:
+        with locked_append(log) as f:
+            f.write(json.dumps({"tmp_check": values, "resuming": resuming, "cwd": os.getcwd()}) + "\n")
 tid = argv[2] if resuming else str(uuid.uuid4())
 out_file = argv[argv.index("-o") + 1] if "-o" in argv else None
 
@@ -214,9 +231,23 @@ if os.environ.get("FAKE_STOP_AT_END"):
 if os.environ.get("FAKE_COMMAND_OUTPUT") is not None:
     # FAKE_COMMAND_OUTPUT: a shell command it ran, as codex-cli 0.164 exec --json reports one (item.completed,
     # command_execution, aggregated_output = this text); for the eval's Codex canary. Unset: no command event at all.
+    output, cmd, code = os.environ["FAKE_COMMAND_OUTPUT"], 'python -c "print(760761*2)"', 0
+    if "python ccx_tmp_canary.py" in prompt:
+        import subprocess
+        cmd = "python ccx_tmp_canary.py"
+        if os.environ.get("FAKE_TMP_PROBE") == "fail":
+            output += "\nPermissionError: [WinError 5] Access is denied\n"
+            code = 1
+        elif os.environ.get("FAKE_TMP_PROBE") != "missing":
+            probe = subprocess.run([sys.executable, "ccx_tmp_canary.py"], capture_output=True, text=True,
+                                   encoding="utf-8", timeout=10)
+            code = probe.returncode
+            # Keep FAKE_COMMAND_OUTPUT's meaning: a wrong arithmetic result is still wrong.
+            output += "\n" + "\n".join(x for x in probe.stdout.splitlines() if x.startswith("TMP_RW_"))
+            output += probe.stderr
     print(json.dumps({"type": "item.completed", "item": {
-        "id": "c1", "type": "command_execution", "command": "python -c \"print(760761*2)\"",
-        "aggregated_output": os.environ["FAKE_COMMAND_OUTPUT"], "exit_code": 0, "status": "completed"}}))
+        "id": "c1", "type": "command_execution", "command": cmd,
+        "aggregated_output": output, "exit_code": code, "status": "completed" if code == 0 else "failed"}}))
 if os.environ.get("FAKE_ERROR_EVENT"):       # an `error` event with this message (the run still ends normally)
     print(json.dumps({"type": "error", "message": os.environ["FAKE_ERROR_EVENT"]}))
 if os.environ.get("FAKE_ERROR_ITEM"):        # an item.completed of type error with this message
