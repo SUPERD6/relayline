@@ -18,12 +18,15 @@ For recording by hand with your own Claude Code and Codex. The 15-second loop in
 | 5–15 s | In Claude Code: *"Add a `slugify()` helper with a test; hand it to Codex through ccx, check with `pytest -q`."* Claude runs `ccx route` then `ccx run --to codex --check "pytest -q" …` | "ccx picks the cheapest Codex model likely to finish." |
 | 15–30 s | The run working (cut the wait), then its last line: `status=done ok=true check=passed review=pass cost=~$…` | "Codex did it in one attempt. ccx ran the check again itself, and another vendor's model reviewed the diff." |
 | 30–45 s | `ccx ui` → the task → click the finished piece: who, cost, check (with its output), review, the changed files | "Every hand-off comes with a receipt: what it cost, whether the check ran, who reviewed it. Undo is one button." |
-| 45–55 s | `ccx ui` → "Measured & where tokens go": the hold-out table | "On our 10-task hold-out set, ccx got 29 of 30 right, the same as doing it yourself — not seen to be less right — and cost about 30 % less per success. It took about 3× the wall time." |
+| 45–55 s | `ccx ui` → "Measured & where tokens go": the historical hc1 table, alongside an hc2 caption | "Historical hc1, old code, 2026-10-29: 29/30 right, about 30% cheaper per success than self, about 3× the wall time. Candidate hc2: higher cost and wall time ($0.088 vs $0.063; 168 vs 61 s). Self was not rerun; causes were not isolated." |
 | 55–60 s | `pipx install git+https://github.com/SUPERD6/relayline` and `ccx demo` | "Try it without an account: `ccx demo`." |
 
 **Keep it honest** (the same rules as the README)
-- Only the hold-out numbers (hc1, `docs/measured.md`), with their limits: "not seen to be less right", not "more
-  accurate"; "about 3× the wall time", never "faster".
+- Label hc1 as a historical experiment on old code, dated 2026-10-29 (`docs/measured.md`); its roughly 30% saving
+  is not a current-version claim. Say "not seen to be less right", not "more accurate"; "about 3× the wall time",
+  never "faster". Show hc2 alongside it: cost per success (clean rows) $0.088 vs $0.063, median wall 168 vs 61 s,
+  both higher. Self and the built-in sub-agent were not rerun; code and sandbox environment effects were not
+  isolated. If the UI shows only hc1, add the hc2 caption; do not present the old table as the candidate result.
 - The cost on screen is the run's API-equivalent price; say "API-equivalent" if you show a subscription account.
 - If the real run escalates, fails its check or the review finds issues, keep it or re-record — do not edit the
   numbers.

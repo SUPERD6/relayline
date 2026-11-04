@@ -8,6 +8,8 @@ not proof; the exception is the hold-out run hc1 (2026-10-29), on tasks not used
 
 | Date | Question | Result in one line | Main limit | Report |
 |---|---|---|---|---|
+| 2026-11-04 | hc2: 0.6.0 candidate repository-task recheck | 28/30 overall, 25/27 clean; $0.088 per success, 168 s; passed under proportional reading of ambiguous rule | Self / built-in not rerun; 0/19 cannot prove below 2%, only 6 done; code and sandbox effects not isolated | [hc2](2026-11-04-hc2-holdout.md) |
+| 2026-11-03 | pg3b: receipt recheck | Zero ordinary ok: insufficient evidence; review passed all 29 self-checked receipts, 15 failed hidden tests | Cannot measure 2% threshold; small tasks, one lead configuration | [pg3b](2026-11-03-pg3b-receipts.md) |
 | 2026-10-23 | How should token savings be measured? | One unit (API-equivalent USD); headline metric is cost per success against the lead doing it itself | Literature gains are from single-call QA; expect much smaller for multi-turn coding agents | [token-cost quantification](2026-10-23-token-cost-quantification.md) |
 | 2026-10-24 | What does the lead itself cost, and does delegating small tasks save it anything? | Only if the lead trusts ccx's check (one request fewer per task); a lead that re-checks pays more | Tasks too small and easy; haiku 8 pairs, sonnet 6; lead not a real long session | [H11 / E8 / F9 measurements](2026-10-24-h11-e8-f9-measurements.md) |
 | 2026-10-24 | Do the seven cores work on real CLIs (round 1, Claude Code + Codex)? | Leading each other and project memory work; no evidence yet that working together is better | Small tasks, core n = 7; headless ~12k-context lead; cheapest sub-agent only | [seven cores A/B](2026-10-24-seven-cores-ab.md) ([plan](2026-10-24-seven-cores-plan.md)) |

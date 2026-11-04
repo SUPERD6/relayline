@@ -26,8 +26,8 @@
 
 | 问题 | 已知情况 | 在哪 |
 |---|---|---|
-| 用时 | 留出集上 ccx 的用时约为主导自己做的 3 倍（中位 61 秒对 21 秒） | [hc1 报告](research/2026-10-29-hc1-holdout.zh.md) |
-| 省钱的范围很窄 | 10 个留出任务、一个主导模型（Sonnet）、子智能体是 Codex gpt-6-luna low：每次成功约省 30%；只看 5 个外部仓库任务约省 15%。长对话的主导把小任务派出去不省 | [实测](measured.zh.md)、[第 4 轮](research/2026-10-26-r4.zh.md) |
+| 用时 | 历史 hc1（旧代码，2026-10-29）中位 61 秒（self 21 秒）；0.6.0 候选 hc2 中位 168 秒。成本和墙钟高了，代码与沙箱影响未隔离 | [hc2](research/2026-11-04-hc2-holdout.zh.md) |
+| 花费与比较范围 | 历史 hc1 每成功 $0.063、比 self 低约 30%（外部题约 15%）；候选 hc2 $0.088（干净行），全部 28/30、干净 25/27。self 和内置子智能体本轮未重跑，历史节省不描述当前版本 | [实测](measured.zh.md) |
 | 选模型的先验 | 难度 → 模型成功率在评测任务之外没校准过 | [功能说明](features.zh.md) |
 | 实验性：Gemini CLI | 按文档写的适配器，用替身测过，没真跑过；只能当子智能体 | [常见问题](faq.zh.md) |
 | 实验性：真实的额度用完 | 换到另一个工具只用替身测过 | [功能说明](features.zh.md) |
@@ -35,6 +35,8 @@
 | 实验性：从 GitHub 地址装 Codex 插件 | 按 Codex 插件文档写，只用替身测过 | [安装](install.zh.md) |
 | 实验性：`ccx intake` 对真实 GitHub | 只对替身 `gh` 跑过 | [intake](intake.zh.md) |
 | 没真跑过 | Codex 桌面端窗口里的 `ccx say --now`、`ccx doctor --codex-rule` 生成的 Codex 规则、排队归档后 dsh 应用自己后来的写入、子智能体自己的子智能体上限（F11）、`--review auto` 的触发率、真实会话里 hook 超时、L2 自动合并全流程 | [STATUS](STATUS.zh.md) |
+
+收据口径：hc2 普通 ok 0/19 误报，95% 上界约 15%，只有 6 张 done，不能证明低于 2%；#223 前审计 8/209 = 3.8%，之后无 done 收据足够的重测。pg3b 普通 ok 为 0（证据不足）；29 张自检收据审查全 pass，其中 15 张隐藏测试不过，pass 不算做对。详见 [hc2](research/2026-11-04-hc2-holdout.zh.md) 和 [pg3b](research/2026-11-03-pg3b-receipts.zh.md)。
 
 ## 3. 实验性开关：哪些默认关、为什么
 
@@ -54,7 +56,7 @@
 | `review.fix_rereview` | `"full"` | `"focus"` 让修复轮的复审对着首轮问题看 | 由用时决定：中位只省 2.4 秒，门槛是 10 秒（漏掉的 `[must]` 24 对 21，共 33，各跑 1 遍，分不出是不是噪声） | 不能 |
 | `review.cache_ttl` | `""` | 设 Claude 审查者的提示缓存时长（`"5m"` / `"1h"`） | 没做 A/B | 不能 |
 | `routing.small_self` | `false` | `ccx route` / `ccx propose` 建议自己做、不派（`ccx run` 不变）：`small_self_by = "files"`（默认，#200 的规则）对最多改 `small_self_files`（1）个源文件的活；`"cost"`（实验）在自己做的成本（请求数 × 你的会话，加读进的文件）低于派活在主导侧的固定开销时（`small_self_overhead_usd`，新会话的 Sonnet 主导 $0.035，按你的会话缩放） | pg1：派活花费 82% 在主导侧，所以要看自己做贵不贵；按文件数复算 r5 + 留出集一题不少（墙钟 -14%、成本 +5%）；两条规则都要等留出集一轮（self / ccx2 / ccx2+small_self） | 能 |
-| `escalate.on_self_checked` | `"review"`（**默认开，尚未实测**） | check 只在子智能体这次新写或改过的测试上通过的运行，一定送审并对照任务原文核对（`"rung"`：先升一档重做；`"off"`：只打 `ok_self_checked` 标记） | 上面规矩的例外，见 [DECISIONS](DECISIONS.md) 2026-10-31：标记只是更诚实的分类，pg1 里旧默认放过了全部 18 个这种通过；审查找出问题时，原来退出 0 的运行可能以 `review_failed`（退出码 2）结束。前后对比用 pg1 的 ccx2 重跑 | 能 |
+| `escalate.on_self_checked` | `"review"`（**默认开，pg3b 已重测**） | check 只在子智能体这次新写或改过的测试上通过的运行，一定送审并对照任务原文核对（`"rung"`：先升一档重做；`"off"`：只打 `ok_self_checked` 标记） | 上面规矩的例外，见 [DECISIONS](DECISIONS.md) 2026-10-31：标记只是更诚实的分类，pg1 里旧默认放过了全部 18 个这种通过；审查找出问题时，原来退出 0 的运行可能以 `review_failed`（退出码 2）结束。pg3b：29 张 `ok_self_checked` 审查全 pass，其中 15 张隐藏测试不过，pass 不算做对；普通 ok 为 0，证据不足 | 能 |
 | `lead.model_by_task` | `false` | 新开主导对话时按任务难度选模型 | 阈值是暂定的，等 `scripts/eval/r5.py --lead-model auto` 和固定模型比过 | 能 |
 | `subagent.codex_memories` | `true` | `false` 给子智能体关掉 Codex memories | B3：对着用户日常配置做完前后对比再改（[计划](research/2026-10-30-b3-lean-switches-plan.zh.md)） | 不能 |
 | `subagent.clean` | `false` | 子智能体不加载个人技能和用户设置 | 同一个 B3 测量；个人技能带来的正确率可能丢掉 | 不能 |
