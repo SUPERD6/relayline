@@ -39,6 +39,7 @@ from pathlib import Path
 
 from . import accuracy, learn, ledger, usage
 from .config import Paths, load_config
+from .readscope import once
 
 STREAMS = [("claude", "lead"), ("claude", "sub"), ("codex", "lead"), ("codex", "sub"), ("gemini", "sub"),
            ("claude", "builtin"), ("codex", "builtin"), ("deepseek", "sub"), ("other", "sub")]
@@ -93,6 +94,7 @@ def task_sized(u: dict, agent: str | None = None) -> dict:
     return {"input_tokens": max(0, fresh - startup), "output_tokens": u.get("output_tokens", 0) or 0}
 
 
+@once
 def collect(p: Paths, days: int = 30, include_lead: bool = True) -> dict:
     since = time.time() - days * 86400
     cfg = load_config(p)
@@ -169,6 +171,7 @@ def _stream(e: dict, cfg: dict) -> tuple[str, str]:
     return ("deepseek", "sub") if vendor(e["agent"], cfg) == "deepseek" else ("other", "sub")
 
 
+@once
 def summarize(p: Paths, data: dict) -> dict:
     by_stream = {s: {"ae": 0.0, "quota_units": 0.0, "n": 0, **{k: 0 for k, _ in BUCKETS}} for s in STREAMS}
     by_day: dict[str, dict] = defaultdict(lambda: {s: 0.0 for s in STREAMS})
@@ -646,6 +649,7 @@ measured one (measured totals so far were about even, docs/measured.md).</p></di
 </div></div><div id="tip" role="tooltip"></div><script>{JS}</script></body></html>"""
 
 
+@once
 def write(p: Paths, days: int = 30, out: Path | None = None, include_lead: bool = True,
           include_evals: bool = False) -> dict:
     s = summarize(p, {**collect(p, days, include_lead), "include_evals": include_evals})

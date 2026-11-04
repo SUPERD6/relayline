@@ -109,6 +109,23 @@ class TestOneShotAndArchive(AdapterEnv):
         (self.hub / "ccx" / "ledger.jsonl").write_text(json.dumps(old) + "\n")
         r = self.ccx("mem", "delta", "--as", "claude")
         self.assertEqual(r.returncode, 0, r.stderr)
+        # The hook schedules archival; a complete journal row signals that the
+        # worker has finished the fake CLI call. Retry transient/partial reads.
+        import threading
+        deadline = time.monotonic() + 60
+        pause = 0.01
+        while True:
+            try:
+                text = (self.hub / "ccx" / "archived.jsonl").read_text(encoding="utf-8")
+                if text.endswith("\n") and any(json.loads(line).get("run_id") == old["run_id"]
+                                               for line in text.splitlines()):
+                    break
+            except (OSError, ValueError):
+                pass
+            remaining = deadline - time.monotonic()
+            self.assertGreater(remaining, 0, "background archival did not finish within 60 seconds")
+            threading.Event().wait(min(pause, remaining))
+            pause = min(pause * 2, 0.25)
         self.assertTrue((self.hub / "ccx" / "archived.jsonl").exists())
         self.assertEqual(self.calls()[-1]["argv"][0], "archive")
 

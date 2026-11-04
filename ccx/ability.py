@@ -220,14 +220,14 @@ def _observation(p: Paths, row: dict, event: dict, cfg: dict) -> dict | None:
 
 
 @contextmanager
-def _lock(p: Paths):
+def _lock(p: Paths, *, name: str = "ability.lock", timeout: float = 10.0):
     """An OS lock: concurrent commands cannot lose a verdict or an override; a crash releases it."""
     p.state.mkdir(parents=True, exist_ok=True)
-    with open(p.state / "ability.lock", "a+b") as f:
+    with open(p.state / name, "a+b") as f:
         if f.tell() == 0:
             f.write(b"0")
         f.flush()
-        deadline = time.monotonic() + 10
+        deadline = time.monotonic() + timeout
         while True:
             try:
                 f.seek(0)
