@@ -1593,6 +1593,8 @@ def recap(record: dict, res: dict) -> str:
     if record.get("first_review") and review == "unclear":
         notes.append(f"{_fix_progress(record)}; independent re-review=unclear (not independently verified)")
     receipt = {"ok": record.get("ok"), "kind": record.get("kind"), **res}
+    if receipt.get("kind") == SELF_CHECKED:
+        notes.append("check not independently verified (self-checked)")
     return (f"ccx run {record['run_id']}: status={receipt_status(receipt)} {receipt_outcome(receipt)} "
             f"check={check} review={review}{lead} cost=~${usd:.4f}"
             + (f" ({len(cc['runs'])} runs + {cc.get('reviews', 0)} reviews)" if cc.get("ae_usd") is not None else "")
@@ -1633,7 +1635,7 @@ def human_summary(record: dict, res: dict) -> list[str]:
     said = said if len(said) <= 160 else said[:157] + "..."
     if not res.get("ok"):
         head = f"not done (status {status}" + (f", {res['kind']}" if res.get("kind") else "") + ")"
-    elif status in ("stopped", "partial"):
+    elif status in ("stopped", "partial") or res.get("kind") in ("check_failed", "check_broken"):
         head = f"{status} ({outcome})"
     else:
         head = "done"
