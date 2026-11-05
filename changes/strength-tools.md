@@ -1,0 +1,3 @@
+- Offline context/memory retest manifests with historical $4/$3 budget estimates, six memory cases and a separate startup-payload probe.
+- Explicit-file cross-vendor ledger/CLI reconciliation with native usage extraction and per-attempt Unknown preservation.
+- A descriptive task-type/model fit board with sample counts and failure-inclusive cost per success.

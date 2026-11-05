@@ -259,9 +259,10 @@ def plugin_tools() -> set[str]:
 CLAUDE_HOOKS = {"SessionStart": lambda c: "ccx" in c and "mem delta" in c, "UserPromptSubmit": _is_turn_hook}
 
 
-def drop_claude_hooks(data: dict) -> list[str]:
+def drop_claude_hooks(data: dict, *, include_relay: bool = True) -> list[str]:
     """Take ccx's own hooks out of a Claude settings.json dict; -> the events that changed."""
-    changed = []
+    from .relay import sync_hook
+    changed = ["StopFailure"] if include_relay and sync_hook(data, False, "") else []
     for event, is_mine in CLAUDE_HOOKS.items():
         groups = (data.get("hooks") or {}).get(event, [])
         keep = [g for g in groups if not any(is_mine(h.get("command", "")) for h in g.get("hooks", []))]
@@ -285,8 +286,15 @@ def sync_hooks(p: Paths, plan: Plan) -> None:
         except json.JSONDecodeError:
             plan.warnings.append(f"{sj} is not valid JSON; skipped Claude hook")
             data = None
+    if data is not None:
+        from .config import load_config, relay_enabled
+        from .relay import sync_hook
+        if sync_hook(data, relay_enabled(load_config(p)), ccx_command("relay", "capture", "--hook")):
+            text = json.dumps(data, ensure_ascii=False, indent=2) + "\n"
+            plan.do(f"update ccx experimental StopFailure relay hook in {sj}", lambda: _write(sj, text))
     if data is not None and "claude" in plugin_tools():
-        if changed := drop_claude_hooks(data):
+        # The bundled plugin owns the ordinary hooks, but not the opt-in relay hook.
+        if changed := drop_claude_hooks(data, include_relay=False):
             text = json.dumps(data, ensure_ascii=False, indent=2) + "\n"
             plan.do(f"remove ccx {' and '.join(changed)} hook(s) from {sj}: the relayline plugin runs them",
                     lambda: _write(sj, text))

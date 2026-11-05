@@ -1,0 +1,917 @@
+{
+  "evidence": "engineering check: historical event replay; no model calls",
+  "source_results": "p4final-results.jsonl",
+  "source_results_sha256": "06d17caf499b35e6c0c542dc41759da3ac38a7e5f0b5644984f60cb99a4a9af3",
+  "source_artifact_run": "20261105-000145Z",
+  "historical_code_pins": [
+    "5acfa7d76479d55ab18dd8e8061ca0fd6a339f46"
+  ],
+  "rows": [
+    {
+      "task": "long-boltons-iterutils",
+      "controller_checks": [
+        {
+          "cmd": "python -m pytest -q -o addopts=",
+          "passed": false,
+          "exit": 1,
+          "covers": "covers: . (30 test files) | written by the sub-agent: tests/test_iterutils_edge_cases.py"
+        }
+      ],
+      "child_pytest_commands": [
+        {
+          "run_id": "20261104-190247-3319",
+          "event_file": "events.0.log",
+          "command": "python -m pytest -q -o addopts= tests/test_iterutils.py -x",
+          "exit_code": 1,
+          "pytest_reported_seconds": 0.15
+        },
+        {
+          "run_id": "20261104-190247-3319",
+          "event_file": "events.0.log",
+          "command": "python -m pytest -q -o addopts= tests/test_iterutils.py tests/test_iterutils_edge_cases.py -k 'not test_namedtuple' -x",
+          "exit_code": 0,
+          "pytest_reported_seconds": 0.21
+        },
+        {
+          "run_id": "20261104-190247-3319",
+          "event_file": "events.0.log",
+          "command": "python -m pytest -q -o addopts=",
+          "exit_code": 1,
+          "pytest_reported_seconds": 0.96
+        },
+        {
+          "run_id": "20261104-190247-3319",
+          "event_file": "events.1.log",
+          "command": "python -m pytest -q -o addopts= -p no:cacheprovider tests/test_iterutils.py tests/test_iterutils_edge_cases.py -k 'not TestRemap.test_namedtuple' -x",
+          "exit_code": 1,
+          "pytest_reported_seconds": 0.09
+        },
+        {
+          "run_id": "20261104-190247-3319",
+          "event_file": "events.1.log",
+          "command": "python -m pytest -q -o addopts= -p no:cacheprovider tests/test_iterutils.py tests/test_iterutils_edge_cases.py --deselect=tests/test_iterutils.py::TestRemap::test_namedtuple -x",
+          "exit_code": 0,
+          "pytest_reported_seconds": 0.21
+        },
+        {
+          "run_id": "20261104-190247-3319",
+          "event_file": "events.1.log",
+          "command": "python -m pytest -q -o addopts= -p no:cacheprovider --ignore-glob=pytest-cache-files-*",
+          "exit_code": 1,
+          "pytest_reported_seconds": 4.05
+        }
+      ],
+      "controller_known_seconds": 0,
+      "controller_unknown_timing": 1,
+      "command_exit_candidates": [
+        {
+          "run_id": "20261104-190247-3319",
+          "event_file": "events.0.log",
+          "command": "python -m pytest -q -o addopts=",
+          "exit_code": 1,
+          "pytest_reported_seconds": 0.96
+        }
+      ],
+      "unit_wall_s": 252.469,
+      "safe_reusable_checks": 0,
+      "tree_binding": "Unknown: no before/after tree fingerprint in retained events"
+    },
+    {
+      "task": "long-boltons-file-path-names",
+      "controller_checks": [
+        {
+          "cmd": "python -m pytest -q -o addopts=",
+          "passed": false,
+          "exit": 1,
+          "covers": "covers: . (31 test files) | written by the sub-agent: tests/test_file_path_named_edge_cases.py"
+        }
+      ],
+      "child_pytest_commands": [
+        {
+          "run_id": "20261104-190247-3319",
+          "event_file": "events.0.log",
+          "command": "python -m pytest -q -o addopts= tests/test_iterutils.py -x",
+          "exit_code": 1,
+          "pytest_reported_seconds": 0.15
+        },
+        {
+          "run_id": "20261104-190247-3319",
+          "event_file": "events.0.log",
+          "command": "python -m pytest -q -o addopts= tests/test_iterutils.py tests/test_iterutils_edge_cases.py -k 'not test_namedtuple' -x",
+          "exit_code": 0,
+          "pytest_reported_seconds": 0.21
+        },
+        {
+          "run_id": "20261104-190247-3319",
+          "event_file": "events.0.log",
+          "command": "python -m pytest -q -o addopts=",
+          "exit_code": 1,
+          "pytest_reported_seconds": 0.96
+        },
+        {
+          "run_id": "20261104-190247-3319",
+          "event_file": "events.1.log",
+          "command": "python -m pytest -q -o addopts= -p no:cacheprovider tests/test_iterutils.py tests/test_iterutils_edge_cases.py -k 'not TestRemap.test_namedtuple' -x",
+          "exit_code": 1,
+          "pytest_reported_seconds": 0.09
+        },
+        {
+          "run_id": "20261104-190247-3319",
+          "event_file": "events.1.log",
+          "command": "python -m pytest -q -o addopts= -p no:cacheprovider tests/test_iterutils.py tests/test_iterutils_edge_cases.py --deselect=tests/test_iterutils.py::TestRemap::test_namedtuple -x",
+          "exit_code": 0,
+          "pytest_reported_seconds": 0.21
+        },
+        {
+          "run_id": "20261104-190247-3319",
+          "event_file": "events.1.log",
+          "command": "python -m pytest -q -o addopts= -p no:cacheprovider --ignore-glob=pytest-cache-files-*",
+          "exit_code": 1,
+          "pytest_reported_seconds": 4.05
+        },
+        {
+          "run_id": "20261104-190703-c776",
+          "event_file": "events.0.log",
+          "command": "python -m pytest -q -o addopts= tests/test_fileutils.py tests/test_namedutils.py",
+          "exit_code": 1,
+          "pytest_reported_seconds": 0.89
+        },
+        {
+          "run_id": "20261104-190703-c776",
+          "event_file": "events.0.log",
+          "command": "python -m pytest -q -o addopts= -p no:cacheprovider tests/test_namedutils.py tests/test_fileutils.py -k 'fileperms or iter_find_files or named",
+          "exit_code": 0,
+          "pytest_reported_seconds": 0.04
+        },
+        {
+          "run_id": "20261104-190703-c776",
+          "event_file": "events.1.log",
+          "command": "python -m pytest -q -o addopts= -p no:cacheprovider --basetemp=.ccx-eval-tmp-37c6r5np/targeted tests/test_fileutils.py tests/test_pathutils.py tests/test_namedutils.py tests/test_file_path_named_edge_cases.py",
+          "exit_code": 1,
+          "pytest_reported_seconds": null
+        },
+        {
+          "run_id": "20261104-190703-c776",
+          "event_file": "events.1.log",
+          "command": "pytest-cache-files-d72_5_7m', 'pytest-cache-files-xqluwr4m')) { \"'$cachePath=[System.IO.Path]::GetFullPath((Join-Path $taskRoot $cacheName))",
+          "exit_code": 1,
+          "pytest_reported_seconds": null
+        }
+      ],
+      "controller_known_seconds": 0,
+      "controller_unknown_timing": 1,
+      "command_exit_candidates": [],
+      "unit_wall_s": 277.64,
+      "safe_reusable_checks": 0,
+      "tree_binding": "Unknown: no before/after tree fingerprint in retained events"
+    },
+    {
+      "task": "long-boltons-gc-types-trace",
+      "controller_checks": [
+        {
+          "cmd": "python -m pytest -q -o addopts=",
+          "passed": false,
+          "exit": 1,
+          "covers": "covers: . (30 test files) | written by the sub-agent: tests/test_gc_type_trace_edge_cases.py"
+        }
+      ],
+      "child_pytest_commands": [
+        {
+          "run_id": "20261104-190247-3319",
+          "event_file": "events.0.log",
+          "command": "python -m pytest -q -o addopts= tests/test_iterutils.py -x",
+          "exit_code": 1,
+          "pytest_reported_seconds": 0.15
+        },
+        {
+          "run_id": "20261104-190247-3319",
+          "event_file": "events.0.log",
+          "command": "python -m pytest -q -o addopts= tests/test_iterutils.py tests/test_iterutils_edge_cases.py -k 'not test_namedtuple' -x",
+          "exit_code": 0,
+          "pytest_reported_seconds": 0.21
+        },
+        {
+          "run_id": "20261104-190247-3319",
+          "event_file": "events.0.log",
+          "command": "python -m pytest -q -o addopts=",
+          "exit_code": 1,
+          "pytest_reported_seconds": 0.96
+        },
+        {
+          "run_id": "20261104-190247-3319",
+          "event_file": "events.1.log",
+          "command": "python -m pytest -q -o addopts= -p no:cacheprovider tests/test_iterutils.py tests/test_iterutils_edge_cases.py -k 'not TestRemap.test_namedtuple' -x",
+          "exit_code": 1,
+          "pytest_reported_seconds": 0.09
+        },
+        {
+          "run_id": "20261104-190247-3319",
+          "event_file": "events.1.log",
+          "command": "python -m pytest -q -o addopts= -p no:cacheprovider tests/test_iterutils.py tests/test_iterutils_edge_cases.py --deselect=tests/test_iterutils.py::TestRemap::test_namedtuple -x",
+          "exit_code": 0,
+          "pytest_reported_seconds": 0.21
+        },
+        {
+          "run_id": "20261104-190247-3319",
+          "event_file": "events.1.log",
+          "command": "python -m pytest -q -o addopts= -p no:cacheprovider --ignore-glob=pytest-cache-files-*",
+          "exit_code": 1,
+          "pytest_reported_seconds": 4.05
+        },
+        {
+          "run_id": "20261104-190703-c776",
+          "event_file": "events.0.log",
+          "command": "python -m pytest -q -o addopts= tests/test_fileutils.py tests/test_namedutils.py",
+          "exit_code": 1,
+          "pytest_reported_seconds": 0.89
+        },
+        {
+          "run_id": "20261104-190703-c776",
+          "event_file": "events.0.log",
+          "command": "python -m pytest -q -o addopts= -p no:cacheprovider tests/test_namedutils.py tests/test_fileutils.py -k 'fileperms or iter_find_files or named",
+          "exit_code": 0,
+          "pytest_reported_seconds": 0.04
+        },
+        {
+          "run_id": "20261104-190703-c776",
+          "event_file": "events.1.log",
+          "command": "python -m pytest -q -o addopts= -p no:cacheprovider --basetemp=.ccx-eval-tmp-37c6r5np/targeted tests/test_fileutils.py tests/test_pathutils.py tests/test_namedutils.py tests/test_file_path_named_edge_cases.py",
+          "exit_code": 1,
+          "pytest_reported_seconds": null
+        },
+        {
+          "run_id": "20261104-190703-c776",
+          "event_file": "events.1.log",
+          "command": "pytest-cache-files-d72_5_7m', 'pytest-cache-files-xqluwr4m')) { \"'$cachePath=[System.IO.Path]::GetFullPath((Join-Path $taskRoot $cacheName))",
+          "exit_code": 1,
+          "pytest_reported_seconds": null
+        },
+        {
+          "run_id": "20261104-191333-a50d",
+          "event_file": "events.0.log",
+          "command": "pytest.ini -g setup.cfg -g pyproject.toml",
+          "exit_code": 0,
+          "pytest_reported_seconds": null
+        },
+        {
+          "run_id": "20261104-191333-a50d",
+          "event_file": "events.0.log",
+          "command": "python -m pytest -q -o addopts= tests/test_gcutils.py tests/test_typeutils.py tests/test_debugutils_trace.py",
+          "exit_code": 0,
+          "pytest_reported_seconds": 0.23
+        },
+        {
+          "run_id": "20261104-191333-a50d",
+          "event_file": "events.0.log",
+          "command": "python -m pytest -q -o addopts= tests/test_gcutils.py tests/test_typeutils.py tests/test_debugutils_trace.py tests/test_gc_type_trace_edge_cases.py",
+          "exit_code": 0,
+          "pytest_reported_seconds": 0.23
+        },
+        {
+          "run_id": "20261104-191333-a50d",
+          "event_file": "events.1.log",
+          "command": "python -m pytest -q -o addopts= tests/test_jsonutils.py::test_reverse_iter_lines",
+          "exit_code": 0,
+          "pytest_reported_seconds": 0.05
+        },
+        {
+          "run_id": "20261104-191333-a50d",
+          "event_file": "events.1.log",
+          "command": "python -m pytest -q -o addopts=",
+          "exit_code": 1,
+          "pytest_reported_seconds": 0.78
+        },
+        {
+          "run_id": "20261104-191333-a50d",
+          "event_file": "events.1.log",
+          "command": "python -m pytest -q -o addopts= tests/test_gcutils.py tests/test_typeutils.py tests/test_debugutils_trace.py tests/test_gc_type_trace_edge_cases.py",
+          "exit_code": 0,
+          "pytest_reported_seconds": 0.23
+        }
+      ],
+      "controller_known_seconds": 0,
+      "controller_unknown_timing": 1,
+      "command_exit_candidates": [
+        {
+          "run_id": "20261104-191333-a50d",
+          "event_file": "events.1.log",
+          "command": "python -m pytest -q -o addopts=",
+          "exit_code": 1,
+          "pytest_reported_seconds": 0.78
+        }
+      ],
+      "unit_wall_s": 184.718,
+      "safe_reusable_checks": 0,
+      "tree_binding": "Unknown: no before/after tree fingerprint in retained events"
+    },
+    {
+      "task": "long-boltons-indexed-set",
+      "controller_checks": [
+        {
+          "cmd": "python -m pytest -q -o addopts=",
+          "passed": false,
+          "exit": 1,
+          "covers": "covers: . (30 test files) | written by the sub-agent: tests/test_setutils_regressions.py"
+        }
+      ],
+      "child_pytest_commands": [
+        {
+          "run_id": "20261104-190247-3319",
+          "event_file": "events.0.log",
+          "command": "python -m pytest -q -o addopts= tests/test_iterutils.py -x",
+          "exit_code": 1,
+          "pytest_reported_seconds": 0.15
+        },
+        {
+          "run_id": "20261104-190247-3319",
+          "event_file": "events.0.log",
+          "command": "python -m pytest -q -o addopts= tests/test_iterutils.py tests/test_iterutils_edge_cases.py -k 'not test_namedtuple' -x",
+          "exit_code": 0,
+          "pytest_reported_seconds": 0.21
+        },
+        {
+          "run_id": "20261104-190247-3319",
+          "event_file": "events.0.log",
+          "command": "python -m pytest -q -o addopts=",
+          "exit_code": 1,
+          "pytest_reported_seconds": 0.96
+        },
+        {
+          "run_id": "20261104-190247-3319",
+          "event_file": "events.1.log",
+          "command": "python -m pytest -q -o addopts= -p no:cacheprovider tests/test_iterutils.py tests/test_iterutils_edge_cases.py -k 'not TestRemap.test_namedtuple' -x",
+          "exit_code": 1,
+          "pytest_reported_seconds": 0.09
+        },
+        {
+          "run_id": "20261104-190247-3319",
+          "event_file": "events.1.log",
+          "command": "python -m pytest -q -o addopts= -p no:cacheprovider tests/test_iterutils.py tests/test_iterutils_edge_cases.py --deselect=tests/test_iterutils.py::TestRemap::test_namedtuple -x",
+          "exit_code": 0,
+          "pytest_reported_seconds": 0.21
+        },
+        {
+          "run_id": "20261104-190247-3319",
+          "event_file": "events.1.log",
+          "command": "python -m pytest -q -o addopts= -p no:cacheprovider --ignore-glob=pytest-cache-files-*",
+          "exit_code": 1,
+          "pytest_reported_seconds": 4.05
+        },
+        {
+          "run_id": "20261104-190703-c776",
+          "event_file": "events.0.log",
+          "command": "python -m pytest -q -o addopts= tests/test_fileutils.py tests/test_namedutils.py",
+          "exit_code": 1,
+          "pytest_reported_seconds": 0.89
+        },
+        {
+          "run_id": "20261104-190703-c776",
+          "event_file": "events.0.log",
+          "command": "python -m pytest -q -o addopts= -p no:cacheprovider tests/test_namedutils.py tests/test_fileutils.py -k 'fileperms or iter_find_files or named",
+          "exit_code": 0,
+          "pytest_reported_seconds": 0.04
+        },
+        {
+          "run_id": "20261104-190703-c776",
+          "event_file": "events.1.log",
+          "command": "python -m pytest -q -o addopts= -p no:cacheprovider --basetemp=.ccx-eval-tmp-37c6r5np/targeted tests/test_fileutils.py tests/test_pathutils.py tests/test_namedutils.py tests/test_file_path_named_edge_cases.py",
+          "exit_code": 1,
+          "pytest_reported_seconds": null
+        },
+        {
+          "run_id": "20261104-190703-c776",
+          "event_file": "events.1.log",
+          "command": "pytest-cache-files-d72_5_7m', 'pytest-cache-files-xqluwr4m')) { \"'$cachePath=[System.IO.Path]::GetFullPath((Join-Path $taskRoot $cacheName))",
+          "exit_code": 1,
+          "pytest_reported_seconds": null
+        },
+        {
+          "run_id": "20261104-191333-a50d",
+          "event_file": "events.0.log",
+          "command": "pytest.ini -g setup.cfg -g pyproject.toml",
+          "exit_code": 0,
+          "pytest_reported_seconds": null
+        },
+        {
+          "run_id": "20261104-191333-a50d",
+          "event_file": "events.0.log",
+          "command": "python -m pytest -q -o addopts= tests/test_gcutils.py tests/test_typeutils.py tests/test_debugutils_trace.py",
+          "exit_code": 0,
+          "pytest_reported_seconds": 0.23
+        },
+        {
+          "run_id": "20261104-191333-a50d",
+          "event_file": "events.0.log",
+          "command": "python -m pytest -q -o addopts= tests/test_gcutils.py tests/test_typeutils.py tests/test_debugutils_trace.py tests/test_gc_type_trace_edge_cases.py",
+          "exit_code": 0,
+          "pytest_reported_seconds": 0.23
+        },
+        {
+          "run_id": "20261104-191333-a50d",
+          "event_file": "events.1.log",
+          "command": "python -m pytest -q -o addopts= tests/test_jsonutils.py::test_reverse_iter_lines",
+          "exit_code": 0,
+          "pytest_reported_seconds": 0.05
+        },
+        {
+          "run_id": "20261104-191333-a50d",
+          "event_file": "events.1.log",
+          "command": "python -m pytest -q -o addopts=",
+          "exit_code": 1,
+          "pytest_reported_seconds": 0.78
+        },
+        {
+          "run_id": "20261104-191333-a50d",
+          "event_file": "events.1.log",
+          "command": "python -m pytest -q -o addopts= tests/test_gcutils.py tests/test_typeutils.py tests/test_debugutils_trace.py tests/test_gc_type_trace_edge_cases.py",
+          "exit_code": 0,
+          "pytest_reported_seconds": 0.23
+        },
+        {
+          "run_id": "20261104-191641-6116",
+          "event_file": "events.0.log",
+          "command": "python -m pytest -q -o addopts= tests/test_setutils.py",
+          "exit_code": 0,
+          "pytest_reported_seconds": 0.08
+        },
+        {
+          "run_id": "20261104-191641-6116",
+          "event_file": "events.0.log",
+          "command": "python -m pytest -q -o addopts= tests/test_setutils.py tests/test_setutils_regressions.py",
+          "exit_code": 1,
+          "pytest_reported_seconds": 0.11
+        },
+        {
+          "run_id": "20261104-191641-6116",
+          "event_file": "events.0.log",
+          "command": "python -m pytest -q -o addopts= tests/test_setutils.py tests/test_setutils_regressions.py",
+          "exit_code": 0,
+          "pytest_reported_seconds": 0.07
+        },
+        {
+          "run_id": "20261104-191641-6116",
+          "event_file": "events.0.log",
+          "command": "python -m pytest -q -o addopts=",
+          "exit_code": 1,
+          "pytest_reported_seconds": 0.99
+        },
+        {
+          "run_id": "20261104-191641-6116",
+          "event_file": "events.1.log",
+          "command": "python -m pytest -q -o addopts= -p no:cacheprovider tests/test_jsonutils.py::test_reverse_iter_lines -x",
+          "exit_code": 1,
+          "pytest_reported_seconds": 0.04
+        },
+        {
+          "run_id": "20261104-191641-6116",
+          "event_file": "events.1.log",
+          "command": "python -m pytest -q -o addopts= -p no:cacheprovider tests/test_setutils.py tests/test_setutils_regressions.py",
+          "exit_code": 0,
+          "pytest_reported_seconds": 0.06
+        }
+      ],
+      "controller_known_seconds": 0,
+      "controller_unknown_timing": 1,
+      "command_exit_candidates": [
+        {
+          "run_id": "20261104-191641-6116",
+          "event_file": "events.0.log",
+          "command": "python -m pytest -q -o addopts=",
+          "exit_code": 1,
+          "pytest_reported_seconds": 0.99
+        }
+      ],
+      "unit_wall_s": 286.36,
+      "safe_reusable_checks": 0,
+      "tree_binding": "Unknown: no before/after tree fingerprint in retained events"
+    },
+    {
+      "task": "long-boltons-mapping-updates",
+      "controller_checks": [
+        {
+          "cmd": "python -m pytest -q -o addopts=",
+          "passed": false,
+          "exit": 1,
+          "covers": "covers: . (29 test files)"
+        }
+      ],
+      "child_pytest_commands": [
+        {
+          "run_id": "20261104-192309-6a4a",
+          "event_file": "events.0.log",
+          "command": "python -m pytest -q -o addopts= tests/test_dictutils.py tests/test_urlutils.py",
+          "exit_code": 0,
+          "pytest_reported_seconds": 0.2
+        },
+        {
+          "run_id": "20261104-192309-6a4a",
+          "event_file": "events.0.log",
+          "command": "python -m pytest -q -o addopts= _mapping_regression_checks.py",
+          "exit_code": 0,
+          "pytest_reported_seconds": 0.02
+        },
+        {
+          "run_id": "20261104-192309-6a4a",
+          "event_file": "events.1.log",
+          "command": "pytest.ini",
+          "exit_code": 0,
+          "pytest_reported_seconds": null
+        },
+        {
+          "run_id": "20261104-192309-6a4a",
+          "event_file": "events.1.log",
+          "command": "python -m pytest -q -o addopts= tests/test_jsonutils.py::test_reverse_iter_lines -x",
+          "exit_code": 1,
+          "pytest_reported_seconds": 0.05
+        },
+        {
+          "run_id": "20261104-192309-6a4a",
+          "event_file": "events.1.log",
+          "command": "python -m pytest -q -o addopts=",
+          "exit_code": 1,
+          "pytest_reported_seconds": 0.68
+        }
+      ],
+      "controller_known_seconds": 0,
+      "controller_unknown_timing": 1,
+      "command_exit_candidates": [
+        {
+          "run_id": "20261104-192309-6a4a",
+          "event_file": "events.1.log",
+          "command": "python -m pytest -q -o addopts=",
+          "exit_code": 1,
+          "pytest_reported_seconds": 0.68
+        }
+      ],
+      "unit_wall_s": 180.094,
+      "safe_reusable_checks": 0,
+      "tree_binding": "Unknown: no before/after tree fingerprint in retained events"
+    },
+    {
+      "task": "long-boltons-barrel-list",
+      "controller_checks": [
+        {
+          "cmd": "python -m pytest -q -o addopts=",
+          "passed": false,
+          "exit": 1,
+          "covers": "covers: . (29 test files)"
+        }
+      ],
+      "child_pytest_commands": [
+        {
+          "run_id": "20261104-192309-6a4a",
+          "event_file": "events.0.log",
+          "command": "python -m pytest -q -o addopts= tests/test_dictutils.py tests/test_urlutils.py",
+          "exit_code": 0,
+          "pytest_reported_seconds": 0.2
+        },
+        {
+          "run_id": "20261104-192309-6a4a",
+          "event_file": "events.0.log",
+          "command": "python -m pytest -q -o addopts= _mapping_regression_checks.py",
+          "exit_code": 0,
+          "pytest_reported_seconds": 0.02
+        },
+        {
+          "run_id": "20261104-192309-6a4a",
+          "event_file": "events.1.log",
+          "command": "pytest.ini",
+          "exit_code": 0,
+          "pytest_reported_seconds": null
+        },
+        {
+          "run_id": "20261104-192309-6a4a",
+          "event_file": "events.1.log",
+          "command": "python -m pytest -q -o addopts= tests/test_jsonutils.py::test_reverse_iter_lines -x",
+          "exit_code": 1,
+          "pytest_reported_seconds": 0.05
+        },
+        {
+          "run_id": "20261104-192309-6a4a",
+          "event_file": "events.1.log",
+          "command": "python -m pytest -q -o addopts=",
+          "exit_code": 1,
+          "pytest_reported_seconds": 0.68
+        },
+        {
+          "run_id": "20261104-192745-6853",
+          "event_file": "events.0.log",
+          "command": "python -m pytest -q -o addopts= tests/test_listutils.py",
+          "exit_code": 0,
+          "pytest_reported_seconds": 0.14
+        },
+        {
+          "run_id": "20261104-192745-6853",
+          "event_file": "events.1.log",
+          "command": "python -m pytest -q -o addopts= tests/test_jsonutils.py::test_reverse_iter_lines",
+          "exit_code": 1,
+          "pytest_reported_seconds": 0.05
+        },
+        {
+          "run_id": "20261104-192745-6853",
+          "event_file": "events.1.log",
+          "command": "python -m pytest -q -o addopts= tests/test_listutils.py",
+          "exit_code": 0,
+          "pytest_reported_seconds": 0.13
+        },
+        {
+          "run_id": "20261104-192745-6853",
+          "event_file": "events.1.log",
+          "command": "python -m pytest -q -o addopts=",
+          "exit_code": 1,
+          "pytest_reported_seconds": 0.73
+        }
+      ],
+      "controller_known_seconds": 0,
+      "controller_unknown_timing": 1,
+      "command_exit_candidates": [
+        {
+          "run_id": "20261104-192745-6853",
+          "event_file": "events.1.log",
+          "command": "python -m pytest -q -o addopts=",
+          "exit_code": 1,
+          "pytest_reported_seconds": 0.73
+        }
+      ],
+      "unit_wall_s": 288.843,
+      "safe_reusable_checks": 0,
+      "tree_binding": "Unknown: no before/after tree fingerprint in retained events"
+    },
+    {
+      "task": "long-boltons-ellipsize",
+      "controller_checks": [
+        {
+          "cmd": "python -m pytest -q -o addopts=",
+          "passed": false,
+          "exit": 1,
+          "covers": "covers: . (30 test files) | written by the sub-agent: tests/test_strutils_ellipsize.py"
+        }
+      ],
+      "child_pytest_commands": [
+        {
+          "run_id": "20261104-192309-6a4a",
+          "event_file": "events.0.log",
+          "command": "python -m pytest -q -o addopts= tests/test_dictutils.py tests/test_urlutils.py",
+          "exit_code": 0,
+          "pytest_reported_seconds": 0.2
+        },
+        {
+          "run_id": "20261104-192309-6a4a",
+          "event_file": "events.0.log",
+          "command": "python -m pytest -q -o addopts= _mapping_regression_checks.py",
+          "exit_code": 0,
+          "pytest_reported_seconds": 0.02
+        },
+        {
+          "run_id": "20261104-192309-6a4a",
+          "event_file": "events.1.log",
+          "command": "pytest.ini",
+          "exit_code": 0,
+          "pytest_reported_seconds": null
+        },
+        {
+          "run_id": "20261104-192309-6a4a",
+          "event_file": "events.1.log",
+          "command": "python -m pytest -q -o addopts= tests/test_jsonutils.py::test_reverse_iter_lines -x",
+          "exit_code": 1,
+          "pytest_reported_seconds": 0.05
+        },
+        {
+          "run_id": "20261104-192309-6a4a",
+          "event_file": "events.1.log",
+          "command": "python -m pytest -q -o addopts=",
+          "exit_code": 1,
+          "pytest_reported_seconds": 0.68
+        },
+        {
+          "run_id": "20261104-192745-6853",
+          "event_file": "events.0.log",
+          "command": "python -m pytest -q -o addopts= tests/test_listutils.py",
+          "exit_code": 0,
+          "pytest_reported_seconds": 0.14
+        },
+        {
+          "run_id": "20261104-192745-6853",
+          "event_file": "events.1.log",
+          "command": "python -m pytest -q -o addopts= tests/test_jsonutils.py::test_reverse_iter_lines",
+          "exit_code": 1,
+          "pytest_reported_seconds": 0.05
+        },
+        {
+          "run_id": "20261104-192745-6853",
+          "event_file": "events.1.log",
+          "command": "python -m pytest -q -o addopts= tests/test_listutils.py",
+          "exit_code": 0,
+          "pytest_reported_seconds": 0.13
+        },
+        {
+          "run_id": "20261104-192745-6853",
+          "event_file": "events.1.log",
+          "command": "python -m pytest -q -o addopts=",
+          "exit_code": 1,
+          "pytest_reported_seconds": 0.73
+        },
+        {
+          "run_id": "20261104-193237-772a",
+          "event_file": "events.0.log",
+          "command": "python -m pytest -q -o addopts= tests/test_strutils.py tests/test_strutils_ellipsize.py",
+          "exit_code": 0,
+          "pytest_reported_seconds": 0.08
+        },
+        {
+          "run_id": "20261104-193237-772a",
+          "event_file": "events.1.log",
+          "command": "python -m pytest -q -o addopts= tests/test_jsonutils.py::test_reverse_iter_lines",
+          "exit_code": 1,
+          "pytest_reported_seconds": 0.05
+        },
+        {
+          "run_id": "20261104-193237-772a",
+          "event_file": "events.1.log",
+          "command": "python -m pytest -q -o addopts=",
+          "exit_code": 1,
+          "pytest_reported_seconds": 0.66
+        },
+        {
+          "run_id": "20261104-193237-772a",
+          "event_file": "events.1.log",
+          "command": "python -m pytest -q -o addopts= tests/test_strutils.py tests/test_strutils_ellipsize.py",
+          "exit_code": 0,
+          "pytest_reported_seconds": 0.04
+        }
+      ],
+      "controller_known_seconds": 0,
+      "controller_unknown_timing": 1,
+      "command_exit_candidates": [
+        {
+          "run_id": "20261104-193237-772a",
+          "event_file": "events.1.log",
+          "command": "python -m pytest -q -o addopts=",
+          "exit_code": 1,
+          "pytest_reported_seconds": 0.66
+        }
+      ],
+      "unit_wall_s": 145.875,
+      "safe_reusable_checks": 0,
+      "tree_binding": "Unknown: no before/after tree fingerprint in retained events"
+    },
+    {
+      "task": "long-boltons-timezone-fold",
+      "controller_checks": [
+        {
+          "cmd": "python -m pytest -q -o addopts=",
+          "passed": false,
+          "exit": 1,
+          "covers": "covers: . (30 test files) | written by the sub-agent: tests/test_timeutils_ustimezone.py"
+        }
+      ],
+      "child_pytest_commands": [
+        {
+          "run_id": "20261104-192309-6a4a",
+          "event_file": "events.0.log",
+          "command": "python -m pytest -q -o addopts= tests/test_dictutils.py tests/test_urlutils.py",
+          "exit_code": 0,
+          "pytest_reported_seconds": 0.2
+        },
+        {
+          "run_id": "20261104-192309-6a4a",
+          "event_file": "events.0.log",
+          "command": "python -m pytest -q -o addopts= _mapping_regression_checks.py",
+          "exit_code": 0,
+          "pytest_reported_seconds": 0.02
+        },
+        {
+          "run_id": "20261104-192309-6a4a",
+          "event_file": "events.1.log",
+          "command": "pytest.ini",
+          "exit_code": 0,
+          "pytest_reported_seconds": null
+        },
+        {
+          "run_id": "20261104-192309-6a4a",
+          "event_file": "events.1.log",
+          "command": "python -m pytest -q -o addopts= tests/test_jsonutils.py::test_reverse_iter_lines -x",
+          "exit_code": 1,
+          "pytest_reported_seconds": 0.05
+        },
+        {
+          "run_id": "20261104-192309-6a4a",
+          "event_file": "events.1.log",
+          "command": "python -m pytest -q -o addopts=",
+          "exit_code": 1,
+          "pytest_reported_seconds": 0.68
+        },
+        {
+          "run_id": "20261104-192745-6853",
+          "event_file": "events.0.log",
+          "command": "python -m pytest -q -o addopts= tests/test_listutils.py",
+          "exit_code": 0,
+          "pytest_reported_seconds": 0.14
+        },
+        {
+          "run_id": "20261104-192745-6853",
+          "event_file": "events.1.log",
+          "command": "python -m pytest -q -o addopts= tests/test_jsonutils.py::test_reverse_iter_lines",
+          "exit_code": 1,
+          "pytest_reported_seconds": 0.05
+        },
+        {
+          "run_id": "20261104-192745-6853",
+          "event_file": "events.1.log",
+          "command": "python -m pytest -q -o addopts= tests/test_listutils.py",
+          "exit_code": 0,
+          "pytest_reported_seconds": 0.13
+        },
+        {
+          "run_id": "20261104-192745-6853",
+          "event_file": "events.1.log",
+          "command": "python -m pytest -q -o addopts=",
+          "exit_code": 1,
+          "pytest_reported_seconds": 0.73
+        },
+        {
+          "run_id": "20261104-193237-772a",
+          "event_file": "events.0.log",
+          "command": "python -m pytest -q -o addopts= tests/test_strutils.py tests/test_strutils_ellipsize.py",
+          "exit_code": 0,
+          "pytest_reported_seconds": 0.08
+        },
+        {
+          "run_id": "20261104-193237-772a",
+          "event_file": "events.1.log",
+          "command": "python -m pytest -q -o addopts= tests/test_jsonutils.py::test_reverse_iter_lines",
+          "exit_code": 1,
+          "pytest_reported_seconds": 0.05
+        },
+        {
+          "run_id": "20261104-193237-772a",
+          "event_file": "events.1.log",
+          "command": "python -m pytest -q -o addopts=",
+          "exit_code": 1,
+          "pytest_reported_seconds": 0.66
+        },
+        {
+          "run_id": "20261104-193237-772a",
+          "event_file": "events.1.log",
+          "command": "python -m pytest -q -o addopts= tests/test_strutils.py tests/test_strutils_ellipsize.py",
+          "exit_code": 0,
+          "pytest_reported_seconds": 0.04
+        },
+        {
+          "run_id": "20261104-193606-4929",
+          "event_file": "events.0.log",
+          "command": "python -m pytest -q -o addopts= tests/test_timeutils.py tests/test_timeutils_ustimezone.py",
+          "exit_code": 0,
+          "pytest_reported_seconds": 0.14
+        },
+        {
+          "run_id": "20261104-193606-4929",
+          "event_file": "events.1.log",
+          "command": "python -m pytest -q -o addopts= tests/test_jsonutils.py::test_reverse_iter_lines",
+          "exit_code": 1,
+          "pytest_reported_seconds": 0.04
+        },
+        {
+          "run_id": "20261104-193606-4929",
+          "event_file": "events.1.log",
+          "command": "python -m pytest -q -o addopts=",
+          "exit_code": 1,
+          "pytest_reported_seconds": 0.66
+        },
+        {
+          "run_id": "20261104-193606-4929",
+          "event_file": "events.1.log",
+          "command": "python -m pytest -q -o addopts= -p no:cacheprovider tests/test_timeutils.py tests/test_timeutils_ustimezone.py",
+          "exit_code": 0,
+          "pytest_reported_seconds": 0.12
+        }
+      ],
+      "controller_known_seconds": 0,
+      "controller_unknown_timing": 1,
+      "command_exit_candidates": [
+        {
+          "run_id": "20261104-193606-4929",
+          "event_file": "events.1.log",
+          "command": "python -m pytest -q -o addopts=",
+          "exit_code": 1,
+          "pytest_reported_seconds": 0.66
+        }
+      ],
+      "unit_wall_s": 158.922,
+      "safe_reusable_checks": 0,
+      "tree_binding": "Unknown: no before/after tree fingerprint in retained events"
+    }
+  ],
+  "units": 8,
+  "controller_known_seconds": 0,
+  "controller_unknown_timing": 8,
+  "command_exit_candidates": 7,
+  "passing_command_exit_candidates": 0,
+  "candidate_pytest_reported_seconds": 5.46,
+  "delegated_wall_seconds": 1774.921,
+  "controller_known_fraction_of_wall": null,
+  "safe_reusable_seconds": 0,
+  "potential_savings_seconds": "Unknown",
+  "decision": "Do not implement reuse: command/exit/tree binding is absent; timing alone cannot authorize skipping acceptance.",
+  "limitation": "Known controller time is an upper bound on that observed portion only, not proven duplicate work; missing receipt timing is Unknown."
+}

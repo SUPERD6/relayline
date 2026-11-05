@@ -27,7 +27,7 @@ import time
 from dataclasses import dataclass
 from pathlib import Path
 
-from . import agents, context_share, learn, ledger, quota, recover, subagents
+from . import agents, context_share, dispatch, learn, ledger, quota, recover, subagents
 from .check_baseline import BASELINE_FAILED, Checks, only_baseline
 from .config import DELEGATE_AGENTS, SUBAGENT_SWITCHES, Paths, load_config, provider_of, subagent_switches  # noqa: F401
 from .runners import BUILDERS, Outcome, execute, usage_dict, without_launcher_vars
@@ -622,6 +622,7 @@ def run(req: Request, p: Paths) -> dict:
         req.provider = req.to
     plan = _plan(req, p, cfg, max_esc)
     requested = plan[0]
+    plan, cheap_dispatch = dispatch.prepare(req, cfg, plan, max_esc)
     plan = [_usable(p, x) for x in plan]
     pv_env = _provider_envs(cfg, plan)       # missing key for the first rung -> clear error before anything runs
     plan = _within_budget(p, cfg, plan)
@@ -652,7 +653,9 @@ def run(req: Request, p: Paths) -> dict:
         "forked_from_lead": bool(req.fork_lead), "ephemeral": req.ephemeral,
         "mode_source": req.mode_source, "mode_why": req.mode_why, "check_cmd": req.check, "risk": req.risk,
         "namecheck_mode": req.namecheck,
-        **({"user_task": req.user_task} if req.user_task is not None and (cfg.get("review") or {}).get("mode") == "tests" else {}),
+        **({"user_task": req.user_task} if req.user_task is not None and
+           ((cfg.get("review") or {}).get("mode") == "tests" or
+            (cfg.get("review") or {}).get("contract_diag") is True) else {}),
         **({"merge_of": req.merge_of} if req.merge_of else {}),
         # the review the person asked for, which a later resume inherits; a review fix round (forced "on")
         # keeps the setting of the run it fixes
@@ -700,8 +703,11 @@ def run(req: Request, p: Paths) -> dict:
     kids = dict((prev or {}).get("codex_children") or {})   # child sessions it spawned -> totals counted
     record["codex_children"] = kids
     prompt, i, fell_back, swaps, policy_retried = first_prompt, 0, False, 0, False
+    dispatch_phase = "first"
     oc, early_check, bg_review = None, None, None
-    checks = Checks(cfg, cwd, run_dir, record, run_check,
+    if cheap_dispatch:
+        record["dispatch"] = {"cheap_first": True, "first_rung": plan[0]["rung"], "requested_rung": requested["rung"]}
+    checks = Checks(dispatch.check_config(cfg, cheap_dispatch), cwd, run_dir, record, run_check,
                     enabled=bool(req.check or str(req.label or "").startswith(("merge:", "eval-merge:"))))
     want_review = req.mode == "write" and req.review != "off" and not req.ephemeral
     stop_file = run_dir / "stop.request"         # written by `ccx stop <run_id>`
@@ -862,6 +868,7 @@ def run(req: Request, p: Paths) -> dict:
                 oc.usage = _add_children(oc.usage, oc.session_id, t0, kids)
         ae = learn.price_usd(p, to, spec["model"], oc.usage, ts=t0) if oc.usage else None
         record["attempts"].append({
+            **({"dispatch_phase": dispatch_phase} if cheap_dispatch else {}),
             "agent": to, "tier": spec.get("tier"), "rung": spec["rung"], "model": spec["model"],
             "effort": spec["effort"], "ok": oc.ok, "kind": oc.kind, "seconds": dt, "usage": oc.usage,
             # through a provider the CLI still prices with its own vendor's table: only ccx's price is right
@@ -931,6 +938,7 @@ def run(req: Request, p: Paths) -> dict:
                     "message": (f"因 {to} 限额改派 {fb['agent']}，重置时间 {quota.reset_text(reset)}"
                                 f"（{to} -> {fb['agent']}）")}
                 plan = plan[:i + 1] + [fb]
+                dispatch_phase = "recovery"
                 prompt, session = first_prompt, None      # fresh session on the other agent
                 i += 1
                 continue
@@ -947,10 +955,13 @@ def run(req: Request, p: Paths) -> dict:
                 new = _rung_spec(f"{to}:{sub[0]}:{sub[1]}")
                 new["substituted_for"] = spec["rung"]
                 plan = plan[:i + 1] + [new] + [x for x in plan[i + 1:] if x["model"] != spec["model"]]
+                dispatch_phase = "recovery"
                 prompt, session = first_prompt, None
                 i += 1
                 continue
-        if (req.check and oc.ok and status in ("done", "partial") and i + 1 < len(plan) and not oc.auth_problem):
+        if (req.check and (oc.ok and status in ("done", "partial") or
+                          cheap_dispatch and status in ("blocked", "failed"))
+                and i + 1 < len(plan) and not oc.auth_problem):
             # "done" but ccx's own run of the check fails: that is a failure too, so climb while a rung is left.
             # Before, only blocked/failed escalated, and a cheap model that wrongly said done stopped there
             # (needed once tradeoff = save picks cheap models first, 2026-10-25)
@@ -962,7 +973,8 @@ def run(req: Request, p: Paths) -> dict:
             chk = (_namecheck(req, p, cfg, record, cwd)         # mode fail + a hit: the command is not run
                    or checks(req.check, **({"tail_chars": CHECK_TAIL_CHARS} if focused else {})))
             early_check = (len(record["attempts"]), chk, left)
-            if not chk["passed"] and not chk.get("broken") and not only_baseline(chk):
+            if (not chk["passed"] and not chk.get("broken") and not only_baseline(chk)
+                    and (not cheap_dispatch or dispatch.may_escalate(chk, _self_checked_now(p, record, cwd, chk)))):
                 if bg_review is not None:
                     _finish_review(bg_review, record, p, keep=False)
                     bg_review = None
@@ -989,9 +1001,10 @@ def run(req: Request, p: Paths) -> dict:
                     prompt, session = first_prompt, None
                     if chk.get("new_failures"):
                         prompt += "\n" + retry_tail
+                dispatch_phase = "escalation"
                 i += 1
                 continue
-            if (chk["passed"] and req.mode == "write" and left is not True and on_self_checked(cfg) == "rung"
+            if (not cheap_dispatch and chk["passed"] and req.mode == "write" and left is not True and on_self_checked(cfg) == "rung"
                     and not any(a.get("kind") == SELF_CHECKED for a in record["attempts"][:-1])
                     and _self_checked_now(p, record, cwd, chk)):
                 # P0-8, [escalate] on_self_checked = "rung": it passed only on tests this attempt wrote or changed,
@@ -1008,7 +1021,7 @@ def run(req: Request, p: Paths) -> dict:
                     prompt, session = first_prompt, None
                 i += 1
                 continue
-        stuck = (not oc.ok and oc.kind == "error") or status in ("blocked", "failed")
+        stuck = not cheap_dispatch and ((not oc.ok and oc.kind == "error") or status in ("blocked", "failed"))
         if stuck and i + 1 < len(plan) and plan[i + 1]["agent"] == to and session and not oc.auth_problem:
             prompt = ESCALATE.format(run_id=run_id, status=status or "error",
                                      summary=((oc.result or {}).get("summary") or oc.error or "")[:400])
@@ -1058,6 +1071,12 @@ def run(req: Request, p: Paths) -> dict:
         elif not check_passed:
             # the sub-agent said it was done; the check says otherwise: that's a failure, and it is learned as one
             record["kind"] = BASELINE_FAILED if only_baseline(record["check"]) else "check_failed"
+    elif cheap_dispatch and same:
+        record["check"] = early_check[1]
+        check_passed = record["check"]["passed"]
+        if not check_passed:
+            record["kind"] = ("check_broken" if record["check"].get("broken") else
+                              BASELINE_FAILED if only_baseline(record["check"]) else "check_failed")
     if bg_review is not None:
         _finish_review(bg_review, record, p, keep=record.get("kind") not in ("check_failed", "check_broken", BASELINE_FAILED))
     elif want_review and record.get("kind") not in ("check_failed", "check_broken", BASELINE_FAILED):
@@ -1153,6 +1172,7 @@ def run(req: Request, p: Paths) -> dict:
                           + ((run_dir / "final.lock").read_text(encoding="utf-8", errors="replace")[:200]))
         board_run(closed, "finished")
         return closed
+    dispatch.receipt(record)
     _write_record(run_dir, record)
     ledger.append(p, record)
     board_run(record, "finished")          # before a review fix round, which posts its own start and end
@@ -1422,6 +1442,12 @@ def compact(record: dict) -> dict:
     for key in ("requested_agent", "requested_model"):
         if key in record:
             out[key] = record[key]
+    if "contract_diagnostic" in record:
+        from .review_pipeline import evidence
+        out["contract_diagnostic"] = record["contract_diagnostic"]
+        out.update(evidence(record))
+    if "dispatch" in record:
+        out["dispatch"] = record["dispatch"]
     if last.get("substituted_for"):
         out["substituted_for"] = last["substituted_for"]
     if record.get("diffstat"):

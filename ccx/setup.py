@@ -161,6 +161,9 @@ def run(yes: bool = False, hub: str | None = None) -> int:
     from .sync import sync_all
     w = Wizard(yes, sys.stdin.isatty())
     w.say("ccx setup — every change is shown first and only made after you say yes.")
+    w.say("  Keep working when quota runs out (experimental; real quota recovery is not verified).")
+    w.say("  Share memory and context between Claude Code and Codex.")
+    w.say("  Keep one ledger across tools (API-equivalent costs; subscriptions use quota).")
 
     w.step(1, "Check the tools")
     agents = [a for a in ("codex", "claude", "gemini") if find_bin(a)]

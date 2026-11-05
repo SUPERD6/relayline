@@ -29,6 +29,7 @@ import long_check as LC
 import tasks_long as TASKS
 import p5_costs as P5
 import p5_arms as P5A
+import dispatch_eval as DE
 import long_environment as LE
 from common import ROOT, append_jsonl, read_jsonl
 
@@ -107,6 +108,8 @@ def pin_refused(requested: str, actual: str) -> bool:
 
 
 def schedule(tasks: list[dict], rounds: int = 1, arms=ARMS) -> list[dict]:
+    if DE.ARM in arms:
+        return DE.schedule(tasks, rounds, arms)
     if len(tasks) % N:
         raise ValueError("episodes must contain exactly four tasks")
     result = []
@@ -299,9 +302,10 @@ class Episode:
         self.rows = []
         self.streams = []
         self.artifacts = a.artifacts
-        self.native = getattr(a, "split", None) == "p5"
+        self.native = native_checkout(a)
         reset_repo(self.iso.repo, material["tar"], self.native)
         (self.iso.hub / "ccx").mkdir(parents=True)
+        DE.configure(self.iso.hub, key.endswith("-" + DE.ARM))
         # Fresh hub, shipped settings: unlike r3.make_hub, no model holdbacks.
         self.memory_empty = PF.hub_memory_empty(self.iso.hub)
         # Prepare once per episode. In flags mode native transcripts live in
@@ -309,6 +313,12 @@ class Episode:
         # step() preserves this cwd and home; close() performs session cleanup.
         self.env = {**PF.prepare(self.iso), **E.run_env({"pythonpath": "."}),
                     "CCX_LEAD_VIEW": "line", "PYTEST_DISABLE_PLUGIN_AUTOLOAD": "1", "CCX_P4_ROOT": str(ROOT)}
+        if getattr(a, "focused_retry", False):
+            # Only this disposable episode's hub; never modify shipped/user defaults.
+            from ccx.config import Paths
+            settings = Paths(self.iso.hub).settings
+            settings.parent.mkdir(parents=True, exist_ok=True)
+            settings.write_text("[defaults]\nfocused_retry = true\n", encoding="utf-8", newline="")
         self.receipt = self.iso.x / "p4_receipt.py"
         shutil.copy2(Path(__file__).with_name("p4_receipt.py"), self.receipt)
         self.python = a.ext_python
@@ -324,6 +334,7 @@ class Episode:
                "claude_isolation": self.iso.claude,
                "lead_model": "sonnet", "lead_effort": "medium", "tmp_policy": "codex-workspace-private"}
         row["lead_previous_cumulative_usd"] = self.lead_cost.cumulative
+        row["focused_retry"] = bool(getattr(a, "focused_retry", False))
         row.update({"lead_cumulative_usd": None, "lead_usd": None,
                     "cost_cumulative_check": False, "cost_basis": COST_BASIS})
         self.rows.append(row)
@@ -375,9 +386,11 @@ class Episode:
         self.run_ids.update(child["run_ids"])
         ledger = r5.hub_rows(self.iso.hub)
         row["side_ledger"] = [{k: entry[k] for k in
-                              ("run_id", "label", "vendor", "model", "rungs", "ae_usd") if k in entry}
+                              ("run_id", "label", "vendor", "model", "rungs", "ae_usd", "dispatch") if k in entry}
                              for entry in ledger[self.side_ledger_count:] if not entry.get("type")]
         self.side_ledger_count = len(ledger)
+        if u["arm"] == DE.ARM:
+            row["dispatch_observed"] = any(e.get("dispatch", {}).get("cheap_first") for e in row["side_ledger"])
         row.update(P5.costs(row))
         row["known_usd"] = row["ccx_usd"] + (lead or 0)
         if lead is not None:
@@ -486,6 +499,8 @@ def summary(rows: list[dict], expected: int, limits: dict | None = None, gates: 
                                    for arm in ("ccxlong", P5A.CHEAP)}
         result["p5_arms"] = {arm: P5.arm_summary([r for r in rows if r.get("arm") == arm])
                              for arm in P5A.ARMS}
+    if any(r.get("arm") == DE.ARM for r in rows):
+        result["dispatch"] = DE.comparison(rows, expected)
     return result
 
 
@@ -534,10 +549,14 @@ def parser():
     action.add_argument("--dry-run", action="store_true")
     action.add_argument("--summary", action="store_true")
     action.add_argument("--recompute", type=Path, help="read-only cost correction of an existing results.jsonl; no model calls")
+    action.add_argument("--validate-native", action="store_true", help="offline parent full-suite and hidden parent/reference audit; no model calls")
+    p.add_argument("--audit-output", type=Path, help="optional JSON output for --validate-native")
+    p.add_argument("--native-checkout", action="store_true", help="experimental, default off except p5: native Git EOL checkout plus baseline gate")
+    p.add_argument("--focused-retry", action="store_true", help="experimental, default off: enable existing defaults.focused_retry in each isolated ccx hub")
     p.add_argument("--artifacts-root", type=Path, help="explicit artifact run directory for legacy --recompute receipts")
-    p.add_argument("--split", choices=("dev", "final", "all", "p5"), default="all")
+    p.add_argument("--split", choices=("dev", "final", "all", "p5", "dispatch"), default="all")
     p.add_argument("--gates", choices=("p4", "p5"), default="p4", help="opt-in Stage 5 gates; Stage 4 verdicts unchanged")
-    p.add_argument("--arms", default=",".join(ARMS), help="opt-in ccxlongcheap; defaults remain self,ccxlong")
+    p.add_argument("--arms", default=",".join(ARMS), help="opt-in ccxlongcheap / ccxcheapfirst; defaults remain self,ccxlong")
     p.add_argument("--focused-context", action="store_true", help="experimental, default off: concise delegated brief and implementation file pointers; use a separate tag")
     p.add_argument("--rounds", type=int, default=1)
     p.add_argument("--budget", type=float, default=None, help="must be explicit with --run; dry-run defaults to $12")
@@ -559,6 +578,19 @@ def parser():
 
 def main(argv=None) -> int:
     a = parser().parse_args(argv)
+    if a.validate_native:
+        if not native_checkout(a) or not a.ext_cache:
+            raise SystemExit("--validate-native requires --native-checkout (or --split p5) and --ext-cache; no model called")
+        tasks = selected_tasks(a.split)
+        if not tasks:
+            raise SystemExit("empty native validation is Unknown; no model called")
+        audit = LE.audit(tasks, a.ext_cache, a.ext_python)
+        audit.update(status="Fail" if audit["excluded"] else "Pass", models_called=False)
+        if a.audit_output:
+            a.audit_output.parent.mkdir(parents=True, exist_ok=True)
+            a.audit_output.write_text(json.dumps(audit, indent=2)+"\n", encoding="utf-8", newline="")
+        print(json.dumps(audit, indent=2))
+        return 1 if audit["excluded"] else 0
     if a.recompute:
         rows = recompute_rows(read_jsonl(a.recompute), a.artifacts_root)
         selected = [r for r in rows if r.get("tag") == a.tag and
@@ -566,7 +598,7 @@ def main(argv=None) -> int:
         print(json.dumps({"rows": selected, "summary": summary(selected, expected_count(a), gates=a.gates)}, indent=2))
         return 0
     explicit_budget = a.budget is not None
-    a.budget = 12.0 if a.budget is None else a.budget
+    a.budget = (8.0 if a.split == "dispatch" else 12.0) if a.budget is None else a.budget
     if a.run and not explicit_budget:
         raise SystemExit("--run requires explicit --budget; this is a bounded step budget, not an absolute hard cap. No model was called.")
     if (not math.isfinite(a.budget) or a.budget <= 0
@@ -576,8 +608,13 @@ def main(argv=None) -> int:
         raise SystemExit("budget, task-cap and rounds must be positive; wait-quiet must be finite and nonnegative")
     tasks = selected_tasks(a.split)
     arms = tuple(a.arms.split(","))
-    if len(set(arms)) != len(arms) or not arms or set(arms)-set(P5A.ARMS):
+    if len(set(arms)) != len(arms) or not arms or set(arms)-set((*P5A.ARMS, DE.ARM)):
         raise SystemExit("unknown or duplicate arm")
+    if a.split == "dispatch" or DE.ARM in arms:
+        if a.split != "dispatch" or set(arms) != {"self", DE.ARM} or a.rounds != 1 or a.budget > 8:
+            raise SystemExit("cheap-first requires --split dispatch --arms self,ccxcheapfirst --rounds 1 and budget <= $8")
+        if a.run and budget_envelope(a)["operational_upper_usd"] > 8:
+            raise SystemExit("cheap-first operational budget envelope must be <= $8; reduce budget/task allowances; no model called")
     units = schedule(tasks, a.rounds, arms)
     previous = [r for r in read_jsonl(a.out) if r.get("tag") == a.tag]
     if a.summary:
@@ -596,11 +633,15 @@ def main(argv=None) -> int:
             "pinned_commit": head, "tasks_sha256": PF.sha256_file(Path(TASKS.__file__)),
             "selection_sha256": PF.sha256_file(TASKS.P5_SELECTION_FILE if a.split == "p5" else TASKS.SELECTION_FILE),
             "claude_isolation": a.claude_isolation,
-            "arms": arms, "focused_context": a.focused_context,
-            "checkout_policy": LE.POLICY if a.split == "p5" else "legacy-lf",
+            "arms": arms, "focused_context": a.focused_context, "focused_retry": a.focused_retry,
+            "checkout_policy": LE.POLICY if native_checkout(a) else "legacy-lf",
             "cli_checked": "Claude Code 2.1.316 --help (2026-11-04): --session-id, --resume, -p; cumulative result cost observed in retained development streams; --max-budget-usd resume scope Unknown",
             "limitation": LIMITATION, "run": a.run,
             "budget_semantics": "before a task: spent + lead allowance + child allowance <= budget; unknown accounting stops; operational overrun envelope is not an absolute provider hard cap; Claude Code 2.1.316 --help: --max-budget-usd resume scope (invocation vs session) Unknown"}
+    if DE.ARM in arms:
+        plan["dispatch"] = {"cheap_first": True, "tasks": 6, "selection": "first six validated P4 tasks in frozen order; reused dev/final, not unseen",
+                            "stop_escalation_rate_above": .3, "maximum_operational_envelope_usd": 8,
+                            "evidence": "not run", "policy": "independent check only; check.baseline on_fail; new failures only"}
     if a.split == "p5" and len(tasks) != 8:
         plan["selection_status"] = "Unknown: incomplete eligible episodes; selected estimate is not a full experiment price"
         if len(TASKS.P5_AUDITED_T) == 8:
@@ -616,12 +657,18 @@ def main(argv=None) -> int:
 
 
 def selected_tasks(split):
+    if split == "dispatch":
+        return list(TASKS.T[:6])
     return list(TASKS.P5_T) if split == "p5" else [t for t in TASKS.T if split == "all" or t["split"] == split]
+
+
+def native_checkout(a):
+    return getattr(a, "split", None) == "p5" or bool(getattr(a, "native_checkout", False))
 
 
 def expected_count(a, fallback: int = 0) -> int:
     split = getattr(a, "split", None)
-    return {"dev": 4, "final": 8, "all": 12, "p5": 8}[split] * a.rounds if split else fallback
+    return {"dev": 4, "final": 8, "all": 12, "p5": 8, "dispatch": 6}[split] * a.rounds if split else fallback
 
 
 def run_experiment(a, tasks: list[dict], units: list[dict]) -> int:
@@ -640,13 +687,13 @@ def run_experiment(a, tasks: list[dict], units: list[dict]) -> int:
     # Read only the explicit bare clones before any model starts, keep solutions
     # in evaluator memory, and deny that cache to the agents.
     materials = {t["id"]: LC.material(a.ext_cache, t) for t in tasks}
-    if getattr(a, "split", None) == "p5":
+    if native_checkout(a):
         # Fail before canaries/models if the exact parent acceptance baseline is broken.
         a.artifacts.mkdir(parents=True, exist_ok=True)
         audit = LE.audit(tasks, a.ext_cache, a.ext_python, a.artifacts/"baseline")
         (a.artifacts/"baseline.json").write_text(json.dumps(audit, indent=2)+"\n", encoding="utf-8", newline="")
         if audit["excluded"]:
-            print("P5 baseline/reference validation refused; no model called", file=sys.stderr)
+            print("Native baseline/reference validation refused; no model called", file=sys.stderr)
             return 2
     if a.wait_quiet and not r5.wait_quiet(a.wait_quiet):
         print(f"P4 wait-quiet failed before preflight (limit={a.wait_quiet:g} minutes)", file=sys.stderr)
@@ -701,6 +748,8 @@ def run_experiment(a, tasks: list[dict], units: list[dict]) -> int:
                 stopped = "interrupted_or_error"
             row.update(P5.costs(row))
             rows.append(row)
+            if any(u["arm"] == DE.ARM for u in units):
+                stopped = stopped or DE.stop_reason(rows)
             budget.charge(row.get("usd"))
             if row.get("usd") is None:
                 budget.spent += row.get("known_usd", 0)

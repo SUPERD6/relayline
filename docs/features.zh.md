@@ -3,6 +3,7 @@
 [English](features.md) · 中文 · 回到 [README](../README.zh.md)
 
 实验性、默认关闭：[把用户原话带给子智能体](user-words.zh.md)。
+同样实验性、默认关闭：[额度交接与显式跨厂商接续](relay.zh.md)。
 
 ## 看得见派活
 

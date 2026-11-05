@@ -826,6 +826,9 @@ def review_run(req: Request, p: Paths, cfg: dict, record: dict, cwd: Path, run_d
     rc = cfg.get("review") or {}
     from . import review_tests
     mode = req.review if req.review != "auto" else review_tests.trigger(rc)
+    if rc.get("contract_diag") is True and mode != "off":
+        from .review_pipeline import attach
+        attach(p, req, record, cwd, run_dir)
     # the run's own snapshot (a resume or fix round inherits its chain's), else the chain's: followed back through
     # resumed_from, so resuming a fix run reviews the whole change, not an empty diff (older records had none)
     from .workspace import run_snapshot

@@ -1,0 +1,3 @@
+- Narrow the English and Chinese README introductions and setup introduction to experimental quota continuity, shared context/memory and one cross-tool ledger; retain the eight-layer explanation and qualified measurements after quick start.
+- Add an opt-in installed-wheel walkthrough (`pip wheel`, a clean venv and installed entry point outside the checkout, fake CLIs only), run it in package CI and a dedicated Linux job, and document macOS's CI-only evidence.
+- Preserve all commands, options, defaults, JSON meanings, exit codes and verdict rules; existing editable walkthrough mode remains the default.

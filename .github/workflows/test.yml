@@ -85,15 +85,36 @@ jobs:
           if [ -x "$RUNNER_TEMP/venv/Scripts/python.exe" ]; then B="$RUNNER_TEMP/venv/Scripts"; else B="$RUNNER_TEMP/venv/bin"; fi
           "$B/python" -m pip install dist/*.whl
           cd "$RUNNER_TEMP" && "$B/python" "$GITHUB_WORKSPACE/tests/smoke_installed.py" "$B/ccx"
+      - name: installed-wheel newcomer walkthrough (fake CLIs only)
+        shell: bash
+        run: |
+          python -m pip download --only-binary=:all: --no-deps --dest "$RUNNER_TEMP/walkthrough-wheels" "setuptools>=77" wheel
+          cd "$RUNNER_TEMP"
+          python "$GITHUB_WORKSPACE/scripts/walkthrough.py" --installed-wheel --wheelhouse "$RUNNER_TEMP/walkthrough-wheels"
+
+  walkthrough-linux:
+    name: walkthrough (Linux, installed wheel, fake CLIs)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: prepare public build dependencies
+        run: python -m pip download --only-binary=:all: --no-deps --dest "$RUNNER_TEMP/walkthrough-wheels" "setuptools>=77" wheel
+      - name: run outside the checkout, without credentials or models
+        run: |
+          cd "$RUNNER_TEMP"
+          python "$GITHUB_WORKSPACE/scripts/walkthrough.py" --installed-wheel --wheelhouse "$RUNNER_TEMP/walkthrough-wheels"
 
   ci-ok:
     # the one check branch protection needs. `always()` so it reports (and fails) when a job above failed or was
     # cancelled; a skipped required check would count as passed.
     if: always()
-    needs: [plan, test, package]
+    needs: [plan, test, package, walkthrough-linux]
     runs-on: ubuntu-latest
     steps:
       - shell: bash
         run: |
-          echo "plan=${{ needs.plan.result }} test=${{ needs.test.result }} package=${{ needs.package.result }}"
-          [ "${{ needs.plan.result }}" = success ] && [ "${{ needs.test.result }}" = success ] && [ "${{ needs.package.result }}" = success ]
+          echo "plan=${{ needs.plan.result }} test=${{ needs.test.result }} package=${{ needs.package.result }} walkthrough-linux=${{ needs.walkthrough-linux.result }}"
+          [ "${{ needs.plan.result }}" = success ] && [ "${{ needs.test.result }}" = success ] && [ "${{ needs.package.result }}" = success ] && [ "${{ needs.walkthrough-linux.result }}" = success ]

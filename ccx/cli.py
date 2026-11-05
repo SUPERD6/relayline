@@ -24,7 +24,7 @@ GROUPS = (
     ("Memory and context", ("ctx", "project", "fresh", "inbox", "skills")),
     ("Accounting and reports", ("stats", "report", "quota")),
     ("Between agents", ("peek", "board", "say", "reply")),
-    ("Advanced", ("init", "projects", "where", "intake", "sync", "config", "uninstall", "repair", "agents", "ability", "roles")),
+    ("Advanced", ("init", "projects", "where", "intake", "sync", "config", "uninstall", "repair", "agents", "ability", "roles", "relay")),
     ("Maintenance", ("task", "send", "plan", "batch", "route", "propose", "way", "discuss", "turn", "sum", "archive",
                      "autonomy", "selftest")),
     ("Developer", ("trial", "ab", "bench", "improve", "namecheck")),
