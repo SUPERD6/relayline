@@ -302,7 +302,8 @@ def missing_test_paths(cmd: str, cwd: Path) -> list[dict]:
     return out
 
 
-def run_check(cmd: str, cwd: Path, timeout: int = 900, tail_chars: int = 800) -> dict:
+def run_check(cmd: str, cwd: Path, timeout: int = 900, tail_chars: int = 800, *,
+              log_dir: Path | None = None, log_name: str = "check") -> dict:
     """The lead's acceptance command, run by ccx after the sub-agent says it is done (not trusting its report).
     `broken` (status check_broken) = the command could not test anything, which is not a verdict on the work.
     `tail_chars`: how much of the end of its output is kept (a focused retry hands the sub-agent ~2000)."""
@@ -311,14 +312,28 @@ def run_check(cmd: str, cwd: Path, timeout: int = 900, tail_chars: int = 800) ->
     t0 = time.time()
     ran = quote_k_expr(cmd)
     ran = _expand_globs(ran, cwd) if os.name == "nt" else ran
+    check_env = without_launcher_vars(os.environ)
+    stdout, stderr = "", ""
     try:
         r = subprocess.run(ran, shell=True, cwd=cwd, capture_output=True, text=True, timeout=timeout,
                            stdin=subprocess.DEVNULL, encoding="utf-8", errors="replace",
-                           env=without_launcher_vars(os.environ))
-        code, tail = r.returncode, (r.stdout + r.stderr)[-tail_chars:]
-    except subprocess.TimeoutExpired:
+                           env=check_env)
+        stdout, stderr = r.stdout, r.stderr
+        code, tail = r.returncode, (stdout + stderr)[-tail_chars:]
+    except subprocess.TimeoutExpired as e:
+        stdout = e.stdout or b""
+        stderr = e.stderr or b""
+        stdout = stdout.decode("utf-8", errors="replace") if isinstance(stdout, bytes) else stdout
+        stderr = stderr.decode("utf-8", errors="replace") if isinstance(stderr, bytes) else stderr
         code, tail = -1, f"timed out after {timeout}s"
     out = {"cmd": cmd, "exit": code, "passed": code == 0, "seconds": round(time.time() - t0, 1), "tail": tail}
+    if log_dir is not None:
+        from .check_baseline import failed_cases, save_logs
+        out["failed_cases"] = failed_cases(stdout + "\n" + stderr, code)
+        save_logs(out, stdout, stderr, log_dir, log_name)
+    if check_env.get("CCX_CHECK_ARTIFACTS"):
+        from .check_artifacts import save
+        out["artifacts"] = save(check_env, cmd, ran, cwd, code, stdout, stderr)
     if ran != cmd:
         out["ran"] = ran
     if code in PYTEST_BROKEN and "pytest" in cmd:

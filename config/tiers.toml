@@ -33,6 +33,9 @@ namecheck = "warn"        # 写入运行后，静态查改动过的函数里有�
 # off = 不查。也可 ccx run --namecheck；手动查用 ccx namecheck。默认 warn 的依据：本仓库、标准库 0 误报，r5 的
 # 3 万多个文件里唯一命中是真 bug，没命中时没有代价；有命中的运行不自动记“大概率对”。换成 fail 要等 r5 前后对比。
 
+[check]
+baseline = "off"         # experimental: on_fail reruns a failed check on the clean dispatch-time Git tree
+
 [worktree]
 location = "sibling"      # sibling = <repo parent>/.ccx-worktrees/<repo>/<run_id> (unchanged default)
 # inside = <repo>/.ccx/worktrees/<run_id>; ignore .ccx/ in the project's .gitignore
@@ -130,6 +133,7 @@ avoid_above = 0.8         # any window > 80%, or projected > 100%, sorts last / 
 routing = "on"           # off keeps the previous routing / off 关闭配额排序
 
 [lead]                    # 主导平时用的模型：估算“如果自己做要花多少”；lead.model_by_task 开时也是“强档”的名字（强档不传 --model，工具照常用自己的模型）
+slim_small = false        # experimental: skip routing call/brief for clearly small tasks; see docs/lead-slim.md
 claude = "opus"
 codex = "gpt-6.1-sol"
 model_by_task = false     # 按任务选主导模型（默认关）：ccx 新开/推荐一个新的主对话时按难度选，见 [lead_by_task]
@@ -377,7 +381,8 @@ on_self_checked = "review"
 # read = existing auto-triggered read review (default). tests = experimental:
 # independently write and execute task-derived tests. Legacy auto/on/off still work.
 mode = "read"
-# Optional overrides for test review only; use a model supported by the selected reviewer vendor.
+# Optional overrides for test review only; model or vendor:model[:effort].
+# A vendor pin still requires cross-vendor independence; it never enables same-vendor review.
 # Empty = preserve the existing candidate. These do not enable test review or affect read review.
 tests_model = ""
 tests_effort = ""

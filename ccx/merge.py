@@ -33,13 +33,15 @@ import os
 import re
 from pathlib import Path
 
+from .check_baseline import BASELINE_FAILED, Checks, log_fields, only_baseline
+
 DEFAULTS = {"default": False, "max_pieces": 5, "piece_minutes": 5.0, "total_minutes": 15.0}
 # a piece line as models write it: "- [p1] done: ...", "**[p1]** — DONE", "1. `[p1]`: 完成", several on one line
 STATUS_LINE = re.compile(r"\[(?P<id>[^\]\n]{1,80})\][*_`]*\s*[:：\-—–]?\s*[*_`]*\s*"
                          r"(?P<st>(?:done|partial|failed)(?![a-z])|完成|部分完成|部分|失败)", re.I)
 _ST = {"完成": "done", "部分完成": "partial", "部分": "partial", "失败": "failed"}
 TAIL_CHARS = 1500            # of a failed check's output, in the follow-up
-NOT_DONE = ("check_failed", "check_broken", "no_changes", "review_issues", "review_failed")
+NOT_DONE = ("check_failed", "check_broken", "check_baseline_failed", "no_changes", "review_issues", "review_failed")
 # the merged run's own verdict that no piece can pass on its own check: the review (after its fix round) or ccx
 # turned the whole diff down, or nothing changed
 HELD = ("check_broken", "no_changes", "review_issues", "review_failed")
@@ -245,7 +247,7 @@ def _judge(x: dict, said: dict[str, str]) -> None:
     """A piece's state from its check (when it has one) or its own line."""
     if x.get("check"):
         x["ok"] = bool(x["check"]["passed"])
-        x["state"] = "done" if x["ok"] else "check_failed"
+        x["state"] = "done" if x["ok"] else BASELINE_FAILED if only_baseline(x["check"]) else "check_failed"
         return
     st = said.get(x["id"])
     x["said"] = st or x.get("said")
@@ -262,8 +264,16 @@ def finish(rec: dict, reqs: list, tasks: list[dict], p, cfg: dict) -> dict:
     from .delegate import Request, compact, run  # noqa: F401
     from .workspace import run_check
     cwd = Path(rec["cwd"])
-    timeout = int(cfg["defaults"].get("check_timeout_sec", 900))
     first = rec.get("review_of") or rec["run_id"]       # run() hands back a review fix round's record
+    start = rec.get("check_baseline_start")
+    if first != rec["run_id"] and (cfg.get("check") or {}).get("baseline") == "on_fail":
+        try:
+            start = ledger.load_run(p, first).get("check_baseline_start") or start
+        except (OSError, ValueError):
+            start = None
+    start = start or {"status": "Unknown", "reason": "merged dispatch snapshot unavailable"}
+    checks = Checks(cfg, cwd, Path(getattr(p, "runs", ".")) / rec["run_id"], rec, run_check, enabled=True,
+                    start=start, mark_attempt=False)
     base = compact(rec)
     kind = rec.get("kind")
     ids = piece_ids(reqs)
@@ -272,7 +282,7 @@ def finish(rec: dict, reqs: list, tasks: list[dict], p, cfg: dict) -> dict:
     for r, t, pid in zip(reqs, tasks, ids):
         x = {"id": pid, "paths": sorted(_files(t)) or None, "check_cmd": r.check}
         if r.check:
-            x["check"] = run_check(r.check, cwd, timeout)
+            x["check"] = checks(r.check)
         _judge(x, said)
         pieces.append(x)
     # how the group ends when no piece can be judged done on its own: the run's own verdict holds for every piece
@@ -282,12 +292,12 @@ def finish(rec: dict, reqs: list, tasks: list[dict], p, cfg: dict) -> dict:
     if rec.get("result") is None and not stop_kind and not held:
         stop_kind = kind or "error"                      # it ended without a result: nothing was reported done
     fix_id, fix_runs = None, []
-    todo = [x for x in pieces if not x["ok"]]
+    todo = [x for x in pieces if not x["ok"] and x["state"] != BASELINE_FAILED]
     if todo and not (stop_kind or held) and rec.get("session_id"):
         lines = []
         for x in todo:
             if x.get("check"):
-                tail = str(x["check"].get("tail") or "")[-TAIL_CHARS:]
+                tail = str(x["check"].get("retry_tail", x["check"].get("tail")) or "")[-TAIL_CHARS:]
                 lines.append(f"- [{x['id']}] `{x['check_cmd']}` failed (exit {x['check'].get('exit')}):\n```\n{tail}\n```")
             elif x["state"] == "unconfirmed":
                 lines.append(f"- [{x['id']}] your summary had no line for it: do it if it is not done, then report it")
@@ -308,7 +318,7 @@ def finish(rec: dict, reqs: list, tasks: list[dict], p, cfg: dict) -> dict:
         for x in todo:
             x["fixed_in"] = fix_id
             if x.get("check_cmd"):
-                x["check"] = run_check(x["check_cmd"], cwd, timeout)
+                x["check"] = checks(x["check_cmd"])
                 _judge(x, {})
             else:
                 # its line in the follow-up, else what it said before (a failed / partial stays that)
@@ -316,7 +326,7 @@ def finish(rec: dict, reqs: list, tasks: list[dict], p, cfg: dict) -> dict:
                     x["id"])) else {})
     spun: dict[int, dict] = {}
     for n, (x, r) in enumerate(zip(pieces, reqs)):
-        if x["ok"] or stop_kind or held or x["state"] == "unconfirmed":
+        if x["ok"] or stop_kind or held or x["state"] in ("unconfirmed", BASELINE_FAILED):
             continue                       # unconfirmed: no sign it failed; redoing it could undo good work
         # a run of its own, in the folder the merged run worked in (a worktree stays that worktree), with the
         # piece's own settings and ladder; the follow-up above was its one shared chance
@@ -327,7 +337,7 @@ def finish(rec: dict, reqs: list, tasks: list[dict], p, cfg: dict) -> dict:
         # later runs changed the same folder: a check that passed before is run again, the last result counts
         for n, x in enumerate(pieces):
             if n not in spun and x.get("check_cmd") and x["ok"]:
-                x["check"] = run_check(x["check_cmd"], cwd, timeout)
+                x["check"] = checks(x["check_cmd"])
                 _judge(x, {})
     for x in pieces:
         if held:
@@ -342,22 +352,33 @@ def finish(rec: dict, reqs: list, tasks: list[dict], p, cfg: dict) -> dict:
         row = {k: v for k, v in x.items() if k != "check"}
         if x.get("check"):
             row["check"] = {k: x["check"].get(k) for k in ("cmd", "passed", "exit")}
+            row["check"].update(log_fields(x["check"]))
         rows.append(row)
     merged = {"pieces": ids, "first_run": first, "fix_run": fix_id, "fix_runs": fix_runs,
               "spun_off": {pieces[n]["id"]: v["run_id"] for n, v in spun.items()},
               **({"unattributed": unattributed} if unattributed else {}),
               **({"stopped": stop_kind, "stopped_run": stop_run} if stop_kind else {}),
               **({"held": held} if held else {})}
+    baseline_held = (not (stop_kind or held) and any(x["state"] == BASELINE_FAILED for x in pieces)
+                     and all(x["ok"] or x["state"] == BASELINE_FAILED for x in pieces))
     for rid in dict.fromkeys([rec["run_id"], first]):
         try:
             d = ledger.load_run(p, rid)
             d.update(pieces=rows, merged=merged)
+            if baseline_held:
+                d["kind"] = BASELINE_FAILED
+            d.update({k: rec[k] for k in ("checks", "check_baseline", "check_baselines", "check_baseline_seconds")
+                      if k in rec})
             ledger.write_record(p.runs / rid, d)
         except Exception:  # noqa: BLE001 — bookkeeping; the results below still say everything
             pass
     try:
         ledger.append_event(p, {"type": "merge", "run_id": first, "last_run": rec["run_id"], "fix_run": fix_id,
-                                "ts": time.time(), **({"stopped": stop_kind} if stop_kind else {}),
+                                "ts": time.time(),
+                                **({"kind": BASELINE_FAILED} if baseline_held else {}),
+                                **({"check_baseline_seconds": rec["check_baseline_seconds"]}
+                                   if "check_baseline_seconds" in rec else {}),
+                                **({"stopped": stop_kind} if stop_kind else {}),
                                 **({"held": held} if held else {}),
                                 "pieces": [{"id": x["id"], "ok": x["ok"], "state": x["state"],
                                             "check_passed": (x.get("check") or {}).get("passed"),
@@ -389,8 +410,15 @@ def finish(rec: dict, reqs: list, tasks: list[dict], p, cfg: dict) -> dict:
         if x.get("check"):
             c = x["check"]
             out["check"] = {"cmd": c["cmd"], "passed": c["passed"], "exit": c["exit"]}
+            out["check"].update(log_fields(c))
+            if x["check_cmd"] in checks.baselines:
+                out["check_baseline"] = checks.baselines[x["check_cmd"]]
         if not x["ok"]:
-            if x["state"] == "not_run":
+            if x["state"] == BASELINE_FAILED:
+                out["kind"] = BASELINE_FAILED
+                out["hint"] = "baseline already fails; no check repair or escalation; fix the baseline before accepting"
+                out["recap"] = "check_baseline_failed: baseline already fails; no check repair or escalation"
+            elif x["state"] == "not_run":
                 out["kind"] = stop_kind
                 out["hint"] = f"the merged run stopped ({stop_kind}); continue with `ccx resume {stop_run}`"
             elif held:
