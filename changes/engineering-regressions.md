@@ -1,0 +1,2 @@
+- Add fake-CLI subprocess regressions for original-task files through test review, repair and explicit resume overrides; retained wording snapshots and source metadata; a core run/show/verify/resume/stop/undo/UI-export chain; and hook-triggered archival completion after a controlled delay.
+- Verify that independent test review receives saved original wording when only `--user-words-file` is supplied; remove the expected-failure marker now that the wording is forwarded. All commands and options are preserved.

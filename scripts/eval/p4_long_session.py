@@ -27,6 +27,9 @@ import ext_repo as E
 import evidence_streams as ES
 import long_check as LC
 import tasks_long as TASKS
+import p5_costs as P5
+import p5_arms as P5A
+import long_environment as LE
 from common import ROOT, append_jsonl, read_jsonl
 
 ARMS = ("self", "ccxlong")
@@ -103,7 +106,7 @@ def pin_refused(requested: str, actual: str) -> bool:
     return True
 
 
-def schedule(tasks: list[dict], rounds: int = 1) -> list[dict]:
+def schedule(tasks: list[dict], rounds: int = 1, arms=ARMS) -> list[dict]:
     if len(tasks) % N:
         raise ValueError("episodes must contain exactly four tasks")
     result = []
@@ -114,13 +117,15 @@ def schedule(tasks: list[dict], rounds: int = 1) -> list[dict]:
                 raise ValueError("an episode must use one repository")
             for turn, task in enumerate(group, 1):
                 # Same task order in both arms; alternate who runs first.
-                for arm in (ARMS if (rd + ep + turn) % 2 else ARMS[::-1]):
+                order = (arms if (rd + ep + turn) % 2 else arms[::-1]) if len(arms) == 2 else (
+                    arms[(rd+ep+turn) % len(arms):] + arms[:(rd+ep+turn) % len(arms)])
+                for arm in order:
                     result.append({"round": rd, "episode": ep, "turn": turn,
                                    "task": task["id"], "arm": arm})
     return result
 
 
-def estimate(units: list[dict]) -> dict:
+def estimate(units: list[dict], arms=ARMS) -> dict:
     # Historical r5 tasks were about 40 changed code lines. Scale by the
     # frozen task's actual implementation size, not documentation/type stubs.
     details = []
@@ -129,9 +134,11 @@ def estimate(units: list[dict]) -> dict:
         lines, files = task.get("code_lines", 40), len(task["code"])
         scale = max(1, lines / 40, files / 2)
         base = r5.UNIT_USD["self" if u["arm"] == "self" else "ccx2"]
+        base, note = P5A.estimate_base(u["arm"], base)
         details.append({"task": u["task"], "arm": u["arm"], "code_lines": lines, "code_files": files,
-                        "size_multiplier": scale, "usd": round(base * scale * 1.5, 6)})
-    by_arm = {a: round(sum(x["usd"] for x in details if x["arm"] == a), 4) for a in ARMS}
+                        "size_multiplier": scale, "usd": round(base * scale * 1.5, 6), "basis": note})
+    by_arm = {a: round(sum(x["usd"] for x in details if x["arm"] == a), 4)
+              for a in dict.fromkeys([*arms, *(u["arm"] for u in units)])}
     return {"usd": round(sum(by_arm.values()), 4), "by_arm": by_arm,
             "tasks": details,
             "method": "r5 means self=$0.20, ccx2=$0.12 x max(1, code_lines/40, code_files/2) x1.5 context; API-equivalent USD",
@@ -143,7 +150,7 @@ def task_caps(a, arm: str) -> tuple[float, float]:
     legacy = getattr(a, "task_cap", None)
     if legacy is not None:
         return (legacy, 0.0) if arm == "self" else (legacy / 2, legacy / 2)
-    return float(getattr(a, "lead_budget", 1.5)), (float(getattr(a, "child_budget", 1.5)) if arm == "ccxlong" else 0.0)
+    return float(getattr(a, "lead_budget", 1.5)), (float(getattr(a, "child_budget", 1.5)) if arm != "self" else 0.0)
 
 
 def budget_envelope(a) -> dict:
@@ -170,26 +177,40 @@ class Budget:
             self.spent += amount
 
 
-def prompt(task: dict, arm: str, child_cap: float, receipt: Path | None = None) -> str:
+def prompt(task: dict, arm: str, child_cap: float, receipt: Path | None = None,
+           check_command=None, focused=False) -> str:
     common = ("The repository has been reset to a different historical parent for this task. "
               "Earlier code changes are intentionally absent; conversation context is preserved. "
               "Implement only the request below. Do not fetch history or packages, commit, or inspect other "
               "sessions, grading files, or evaluation artifacts. Run relevant existing tests, using "
               "python -m pytest -q -o addopts= with PYTHONPATH=. . Do not change existing tests.\n\n"
-              + task["brief"] + "\n\n")
+              + (P5A.focused_brief(task) if focused and arm != "self" else task["brief"]) + "\n\n")
+    if focused and arm != "self":
+        common = ("This task starts from a reset historical parent; conversation context persists. "
+                  "No downloads, history, commits, other sessions or grading artifacts. Run relevant existing tests "
+                  "with PYTHONPATH=.; do not change existing tests.\n\n" + P5A.focused_brief(task) + "\n\n")
     if arm == "self":
         how = "Do all implementation and checking yourself. Do not use Agent, ccx, or another model/CLI."
     else:
         ccx = f'python "{(receipt or Path(__file__).with_name("p4_receipt.py")).as_posix()}"'
         how = ("Do not edit code yourself. Delegate the request verbatim to Codex through ccx. "
                "Use the shipped default tradeoff (omit --tradeoff), review and routing; run synchronously:\n"
-               f'{ccx} run --to codex --mode write --context auto --new --no-ab '
+               f'{ccx} run --to codex {P5A.initial_model_flags(arm)}--mode write --context auto --new --no-ab '
                f'--max-usd {child_cap:g} --check "python -m pytest -q -o addopts=" "<verbatim request>"\n'
                "CCX_LEAD_VIEW=line enables the existing compact receipt. If receipt ok=true, accept that one "
                "line and finish: do not read files, diff, full result, or rerun checks. Only if receipt ok is not "
                "true may you use ccx show <run_id> and ccx resume <run_id> to diagnose or request a repair; "
                "any repair shares the remaining delegation allowance, never increase it. Do not use another "
                "delegation path or run in the background.")
+        if check_command:
+            import shlex
+            how = how.replace('--check "python -m pytest -q -o addopts="', '--check '+shlex.quote(check_command))
+        if focused:
+            command = how.split("run synchronously:\n", 1)[1].split("\n", 1)[0]
+            how = ("Delegate verbatim; do not implement yourself. Use default tradeoff/review, synchronously:\n"+command+
+                   "\nOn receipt ok=true, accept the one line and finish without reading files/diff or rerunning tests. "
+                   "Otherwise inspect ccx show or request ccx resume within the remaining child allowance; never raise it, "
+                   "use another delegation path or run in background.")
     return common + how + "\nFinish with one line DONE: <summary>."
 
 
@@ -214,16 +235,18 @@ def telemetry(stream: str) -> dict:
             "lead_usage": r5.TL.lead_stream(stream)["usage"]}
 
 
-def reset_repo(repo: Path, tree: bytes) -> None:
+def reset_repo(repo: Path, tree: bytes, native=False) -> None:
     # Owned, disposable episode directory only; never git reset the source checkout.
     PF.rmtree(repo)
     E.repo_from_tar(tree, {"stubs": []}, repo)
+    if native:
+        LE.checkout(repo)
     exclude = repo / ".git" / "info" / "exclude"
     with exclude.open("a", encoding="utf-8", newline="") as f:
         f.write("\n/.ccx-eval-tmp-*/\n")
 
 
-def score(repo: Path, task: dict, material: dict, python: str) -> dict:
+def score(repo: Path, task: dict, material: dict, python: str, native=False) -> dict:
     # The live repo never contains hidden tests or their output. A separate copy
     # also prevents a later --resume from seeing a previous hidden test.
     with tempfile.TemporaryDirectory(prefix="p4-score-") as tmp:
@@ -233,6 +256,11 @@ def score(repo: Path, task: dict, material: dict, python: str) -> dict:
         for rel, body in material["tests"].items():
             (target / rel).parent.mkdir(parents=True, exist_ok=True)
             (target / rel).write_bytes(body)
+        if native:
+            E._git(target, "init", "-q")
+            E._git(target, "add", "-A")
+            E._git(target, "commit", "-q", "--no-verify", "-m", "score snapshot")
+            LE.checkout(target)
         # check_tree extracts a supplied tar; score the already assembled copy.
         return run_hidden(target, task["tests"], python)
 
@@ -265,11 +293,14 @@ class Episode:
         self.child_total = 0.0
         self.review_total = 0.0
         self.run_ids = set()
+        self.side_ledger_count = 0
         self.first_context = None
         self.last_context = None
         self.rows = []
         self.streams = []
-        reset_repo(self.iso.repo, material["tar"])
+        self.artifacts = a.artifacts
+        self.native = getattr(a, "split", None) == "p5"
+        reset_repo(self.iso.repo, material["tar"], self.native)
         (self.iso.hub / "ccx").mkdir(parents=True)
         # Fresh hub, shipped settings: unlike r3.make_hub, no model holdbacks.
         self.memory_empty = PF.hub_memory_empty(self.iso.hub)
@@ -282,9 +313,11 @@ class Episode:
         shutil.copy2(Path(__file__).with_name("p4_receipt.py"), self.receipt)
         self.python = a.ext_python
         self.env["PATH"] = str(Path(a.ext_python).parent) + os.pathsep + self.env["PATH"]
+        if self.native:
+            self.env["PYTHONDONTWRITEBYTECODE"] = "1"
 
     def step(self, u: dict, task: dict, material: dict, a, cap: float) -> dict:
-        reset_repo(self.iso.repo, material["tar"])
+        reset_repo(self.iso.repo, material["tar"], self.native)
         row = {**u, "session_id": self.sid, "reference_commit": task["commit"], "repo": task["repo"],
                "env_clean": False, "ok": None, "usd": None, "cost_complete": False,
                "evidence": getattr(a, "evidence", "not run"),
@@ -297,13 +330,29 @@ class Episode:
         lead_cap, child_cap = task_caps(a, u["arm"])
         self.env["CCX_P4_CHILD_LIMIT"] = str(child_cap)
         self.env["CCX_P4_CHILD_START"] = str(self.child_total)
+        checks_root = self.iso.hub/"ccx"/"check-artifacts"/str(u["turn"])
+        self.env["CCX_CHECK_ARTIFACTS"] = str(checks_root)
+        if self.native:
+            self.env["CCX_P4_CHECK_COMMAND"] = LE.command(self.python)
+            check_tmp = self.iso.repo/".ccx-eval-tmp-acceptance"
+            check_tmp.mkdir()
+            self.env.update({k: str(check_tmp) for k in ("TMP", "TEMP", "TMPDIR")})
+        for key in ("CCX_P4_CHILD_MODEL", "CCX_P4_CHILD_EFFORT"):
+            self.env.pop(key, None)
+        if u["arm"] == P5A.CHEAP:
+            self.env.update(CCX_P4_CHILD_MODEL=P5A.MODEL, CCX_P4_CHILD_EFFORT=P5A.EFFORT)
+        row.update(checkout_policy=LE.POLICY if self.native else "legacy-lf",
+                   focused_context=getattr(a, "focused_context", False))
+        if self.native:
+            row["checkout_evidence"] = LE.checkout_evidence(self.iso.repo)
         row["budget_envelope"] = budget_envelope(a)
         row.update({"lead_allowance_usd": lead_cap, "child_allowance_usd": child_cap,
                     "reservation_usd": lead_cap + child_cap})
         stream = a.work / f"{self.iso.key}-{u['turn']}.jsonl"
         t0 = time.monotonic()
         out, err, rc, _ = PF.run(lead_argv(self.iso, self.sid, u["turn"], lead_cap),
-                                  input=prompt(task, u["arm"], child_cap, self.receipt), cwd=self.iso.repo, env=self.env,
+                                  input=prompt(task, u["arm"], child_cap, self.receipt,
+                                               self.env.get("CCX_P4_CHECK_COMMAND"), getattr(a, "focused_context", False)), cwd=self.iso.repo, env=self.env,
                                   timeout=a.timeout, job=self.job)
         row["wall_s"] = round(time.monotonic() - t0, 3)
         self.wall += row["wall_s"]
@@ -324,6 +373,12 @@ class Episode:
         self.child_total = child["usd"]
         self.review_total = child["review_usd"]
         self.run_ids.update(child["run_ids"])
+        ledger = r5.hub_rows(self.iso.hub)
+        row["side_ledger"] = [{k: entry[k] for k in
+                              ("run_id", "label", "vendor", "model", "rungs", "ae_usd") if k in entry}
+                             for entry in ledger[self.side_ledger_count:] if not entry.get("type")]
+        self.side_ledger_count = len(ledger)
+        row.update(P5.costs(row))
         row["known_usd"] = row["ccx_usd"] + (lead or 0)
         if lead is not None:
             row["usd"] = round(lead + row["ccx_usd"], 6)
@@ -342,6 +397,7 @@ class Episode:
         dest = a.artifacts / f"{self.iso.key}-{u['turn']}"
         dest.mkdir(parents=True)
         row["streams"] = ES.keep(dest / "streams", self.iso, stream, self.env)
+        row["checks"] = ES.keep_checks(dest/"checks", checks_root, self.iso, self.env)
         (dest / "stderr.txt").write_text(redactor.text(err), encoding="utf-8", newline="")
         diff = r5.final_diff(self.iso.repo)
         if diff is not None:
@@ -350,7 +406,8 @@ class Episode:
         stream.unlink(missing_ok=True)
         stream.with_suffix(".stderr").unlink(missing_ok=True)
         scoring_start = time.monotonic()
-        sc = score(self.iso.repo, task, material, self.python)
+        sc = (score(self.iso.repo, task, material, self.python, True) if self.native else
+              score(self.iso.repo, task, material, self.python))
         row.update({"ok": sc["ok"], "pytest": sc["summary"], "score_rc": sc["rc"],
                     "environment_error": sc["environment_error"] or not row["session_match"],
                     "score_wall_s": time.monotonic() - scoring_start})
@@ -358,6 +415,15 @@ class Episode:
         return row
 
     def close(self, rep: dict, between: list[str]) -> None:
+        # An interrupted lead can leave completed host checks before step() exports them.
+        for row in self.rows:
+            if "checks" not in row:
+                dest = self.artifacts/f"{self.iso.key}-{row['turn']}"/"checks"
+                source = self.iso.hub/"ccx"/"check-artifacts"/str(row["turn"])
+                try:
+                    row["checks"] = ES.keep_checks(dest, source, self.iso, self.env)
+                except (OSError, ValueError) as exc:
+                    row["checks"] = {"status": "Unknown", "error": type(exc).__name__}
         cleanup = PF.after_unit(self.iso, self.before, self.job, [self.sid], keep_repo=False)
         for row in self.rows:
             row.update({"leftovers": cleanup, "hub": {"memory_empty": self.memory_empty},
@@ -374,14 +440,14 @@ def _ratio(numerator, denominator):
             "ratio": numerator / denominator if numerator is not None and denominator else None}
 
 
-def summary(rows: list[dict], expected: int, limits: dict | None = None) -> dict:
+def summary(rows: list[dict], expected: int, limits: dict | None = None, gates: str = "p4") -> dict:
     evidence = {r.get("evidence", "not run") for r in rows}
     result = {"evidence": next(iter(evidence)) if len(evidence) == 1 else "not run",
               "limitation": LIMITATION}
     result["budget_envelope"] = limits or next((r["budget_envelope"] for r in rows if r.get("budget_envelope")), None)
     for name, subset in (("all", rows), ("env_clean", [r for r in rows if r.get("env_clean") is True])):
         arms = {}
-        for arm in ARMS:
+        for arm in dict.fromkeys([*ARMS, *(r["arm"] for r in subset)]):
             rs = [r for r in subset if r["arm"] == arm]
             wall = [r["wall_s"] for r in rs if r.get("wall_s") is not None]
             arms[arm] = {"attempted": len(rs), "right": sum(r.get("ok") is True for r in rs),
@@ -390,6 +456,7 @@ def summary(rows: list[dict], expected: int, limits: dict | None = None) -> dict
                          "cost_unknown": sum(not r.get("cost_complete") for r in rs),
                          "wall_median_s": statistics.median(wall) if wall else None,
                          "wall_total_s": sum(wall), "episodes": {}}
+            arms[arm].update(P5.aggregate(rs))
             groups = {}
             for r in rs:
                 groups.setdefault((r.get("tag"), r["round"], r["episode"]), []).append(r)
@@ -412,6 +479,13 @@ def summary(rows: list[dict], expected: int, limits: dict | None = None) -> dict
             "Pass" if all(vals.values()) else "Fail")
         result[name] = {"arms": arms, "ratios": ratios, "thresholds": {"cost": .8, "right": "ccxlong >= self", "wall_median": 2},
                         "expected_per_arm": expected, "verdict": verdict}
+    if gates == "p5":
+        result["p5"] = P5.gates(rows, expected)
+        result["p5_candidates"] = {arm: P5.gates([r for r in rows if r.get("arm") in ("self", arm)],
+                                                 expected, candidate=arm)
+                                   for arm in ("ccxlong", P5A.CHEAP)}
+        result["p5_arms"] = {arm: P5.arm_summary([r for r in rows if r.get("arm") == arm])
+                             for arm in P5A.ARMS}
     return result
 
 
@@ -448,6 +522,7 @@ def recompute_rows(rows: list[dict], artifacts: Path | None = None) -> list[dict
         row["episode_usd"] = round(totals[key], 6) if row["cost_complete"] else None
         if not row["cost_complete"]:
             state.failed = True
+        row.update(P5.costs(row))
         corrected.append(row)
     return corrected
 
@@ -460,7 +535,10 @@ def parser():
     action.add_argument("--summary", action="store_true")
     action.add_argument("--recompute", type=Path, help="read-only cost correction of an existing results.jsonl; no model calls")
     p.add_argument("--artifacts-root", type=Path, help="explicit artifact run directory for legacy --recompute receipts")
-    p.add_argument("--split", choices=("dev", "final", "all"), default="all")
+    p.add_argument("--split", choices=("dev", "final", "all", "p5"), default="all")
+    p.add_argument("--gates", choices=("p4", "p5"), default="p4", help="opt-in Stage 5 gates; Stage 4 verdicts unchanged")
+    p.add_argument("--arms", default=",".join(ARMS), help="opt-in ccxlongcheap; defaults remain self,ccxlong")
+    p.add_argument("--focused-context", action="store_true", help="experimental, default off: concise delegated brief and implementation file pointers; use a separate tag")
     p.add_argument("--rounds", type=int, default=1)
     p.add_argument("--budget", type=float, default=None, help="must be explicit with --run; dry-run defaults to $12")
     p.add_argument("--lead-budget", type=float, default=1.5, help="Claude --max-budget-usd for each resumed invocation")
@@ -484,8 +562,8 @@ def main(argv=None) -> int:
     if a.recompute:
         rows = recompute_rows(read_jsonl(a.recompute), a.artifacts_root)
         selected = [r for r in rows if r.get("tag") == a.tag and
-                    (a.split == "all" or r.get("task") in {t["id"] for t in TASKS.T if t["split"] == a.split})]
-        print(json.dumps({"rows": selected, "summary": summary(selected, expected_count(a))}, indent=2))
+                    (a.split == "all" or r.get("task") in {t["id"] for t in selected_tasks(a.split)})]
+        print(json.dumps({"rows": selected, "summary": summary(selected, expected_count(a), gates=a.gates)}, indent=2))
         return 0
     explicit_budget = a.budget is not None
     a.budget = 12.0 if a.budget is None else a.budget
@@ -496,38 +574,54 @@ def main(argv=None) -> int:
             or (a.task_cap is not None and (not math.isfinite(a.task_cap) or a.task_cap <= 0))
             or a.rounds < 1 or not math.isfinite(a.wait_quiet) or a.wait_quiet < 0):
         raise SystemExit("budget, task-cap and rounds must be positive; wait-quiet must be finite and nonnegative")
-    tasks = [t for t in TASKS.T if a.split == "all" or t["split"] == a.split]
-    units = schedule(tasks, a.rounds)
+    tasks = selected_tasks(a.split)
+    arms = tuple(a.arms.split(","))
+    if len(set(arms)) != len(arms) or not arms or set(arms)-set(P5A.ARMS):
+        raise SystemExit("unknown or duplicate arm")
+    units = schedule(tasks, a.rounds, arms)
     previous = [r for r in read_jsonl(a.out) if r.get("tag") == a.tag]
     if a.summary:
         ids = {t["id"] for t in tasks}
         selected = [r for r in previous if r.get("task") in ids]
         limits = budget_envelope(a) if explicit_budget or not selected else None
-        print(json.dumps(summary(selected, expected_count(a), limits), indent=2))
+        print(json.dumps(summary(selected, expected_count(a), limits, a.gates), indent=2))
         return 0
     head = r5.git(ROOT, "rev-parse", "HEAD").strip()
     if pin_refused(a.pin_commit, head):
         return 2
     if previous:
         raise SystemExit("tag already has attempts; use a new tag (never silently restart a lost long session)")
-    plan = {"units": units, "estimate": estimate(units), "budget_usd": a.budget,
+    plan = {"units": units, "estimate": estimate(units, arms), "budget_usd": a.budget,
             "budget_envelope": budget_envelope(a), "available_tasks": len(tasks), "target_tasks": expected_count(a) // a.rounds,
             "pinned_commit": head, "tasks_sha256": PF.sha256_file(Path(TASKS.__file__)),
-            "selection_sha256": PF.sha256_file(TASKS.SELECTION_FILE),
+            "selection_sha256": PF.sha256_file(TASKS.P5_SELECTION_FILE if a.split == "p5" else TASKS.SELECTION_FILE),
             "claude_isolation": a.claude_isolation,
+            "arms": arms, "focused_context": a.focused_context,
+            "checkout_policy": LE.POLICY if a.split == "p5" else "legacy-lf",
             "cli_checked": "Claude Code 2.1.316 --help (2026-11-04): --session-id, --resume, -p; cumulative result cost observed in retained development streams; --max-budget-usd resume scope Unknown",
             "limitation": LIMITATION, "run": a.run,
             "budget_semantics": "before a task: spent + lead allowance + child allowance <= budget; unknown accounting stops; operational overrun envelope is not an absolute provider hard cap; Claude Code 2.1.316 --help: --max-budget-usd resume scope (invocation vs session) Unknown"}
+    if a.split == "p5" and len(tasks) != 8:
+        plan["selection_status"] = "Unknown: incomplete eligible episodes; selected estimate is not a full experiment price"
+        if len(TASKS.P5_AUDITED_T) == 8:
+            plan["audited_estimate"] = {**estimate(schedule(TASKS.P5_AUDITED_T, a.rounds, arms), arms),
+                                        "eligibility": "not runnable; original eight audited tasks, hypothetical planning only"}
     print(json.dumps(plan, indent=2), flush=True)
     if not a.run:
         return 0
+    if a.split == "p5" and len(tasks) != 8:
+        raise SystemExit(f"P5 selection incomplete: {len(tasks)}/8 tasks; no model called")
     a.evidence = "measured"
     return run_experiment(a, tasks, units)
 
 
+def selected_tasks(split):
+    return list(TASKS.P5_T) if split == "p5" else [t for t in TASKS.T if split == "all" or t["split"] == split]
+
+
 def expected_count(a, fallback: int = 0) -> int:
     split = getattr(a, "split", None)
-    return {"dev": 4, "final": 8, "all": 12}[split] * a.rounds if split else fallback
+    return {"dev": 4, "final": 8, "all": 12, "p5": 8}[split] * a.rounds if split else fallback
 
 
 def run_experiment(a, tasks: list[dict], units: list[dict]) -> int:
@@ -546,6 +640,14 @@ def run_experiment(a, tasks: list[dict], units: list[dict]) -> int:
     # Read only the explicit bare clones before any model starts, keep solutions
     # in evaluator memory, and deny that cache to the agents.
     materials = {t["id"]: LC.material(a.ext_cache, t) for t in tasks}
+    if getattr(a, "split", None) == "p5":
+        # Fail before canaries/models if the exact parent acceptance baseline is broken.
+        a.artifacts.mkdir(parents=True, exist_ok=True)
+        audit = LE.audit(tasks, a.ext_cache, a.ext_python, a.artifacts/"baseline")
+        (a.artifacts/"baseline.json").write_text(json.dumps(audit, indent=2)+"\n", encoding="utf-8", newline="")
+        if audit["excluded"]:
+            print("P5 baseline/reference validation refused; no model called", file=sys.stderr)
+            return 2
     if a.wait_quiet and not r5.wait_quiet(a.wait_quiet):
         print(f"P4 wait-quiet failed before preflight (limit={a.wait_quiet:g} minutes)", file=sys.stderr)
         return 2
@@ -597,6 +699,7 @@ def run_experiment(a, tasks: list[dict], units: list[dict]) -> int:
                 row.update({"ok": None, "env_clean": False, "error": type(exc).__name__, "environment_error": True})
                 row["known_usd"] = row.get("known_usd", 0) + max(0, child["usd"] - (session.child_total if session else 0))
                 stopped = "interrupted_or_error"
+            row.update(P5.costs(row))
             rows.append(row)
             budget.charge(row.get("usd"))
             if row.get("usd") is None:
@@ -623,7 +726,7 @@ def run_experiment(a, tasks: list[dict], units: list[dict]) -> int:
         append_jsonl(a.out.with_suffix(".events.jsonl"), {"event": "stop" if stopped else "complete", "reason": stopped,
                      "spent_known_usd": budget.spent, "cost_unknown": budget.unknown, "budget_usd": budget.cap,
                      "budget_envelope": limits, "not_started": not_started})
-    print(json.dumps(summary(rows, expected_count(a, len(units) // 2), limits), indent=2))
+    print(json.dumps(summary(rows, expected_count(a, len(units) // 2), limits, getattr(a, "gates", "p4")), indent=2))
     if stopped:
         print(f"P4 stopped: {stopped}; known_spend=${budget.spent:g} budget=${budget.cap:g}", file=sys.stderr)
         for problem in between:

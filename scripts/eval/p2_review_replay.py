@@ -220,6 +220,8 @@ def one(job_file: Path) -> None:
     from ccx.delegate import Request
     from ccx.review import reviewers
     from ccx.review_tests import run_review, unknown
+    from ccx.review_contract import reviewer
+    from ccx.agents import same_vendor
     from ccx.runners import find_bin
     job = json.loads(job_file.read_text(encoding="utf-8"))
     p = Paths(Path(job["hub"]))
@@ -227,8 +229,22 @@ def one(job_file: Path) -> None:
     candidates = reviewers(cfg, job["implementer"], find_bin, cheapest=True)
     # Claude's native per-call max-budget-usd is the available budget enforcement.
     # Never silently use an unbounded CLI when a hard budget was requested.
+    record = {"run_id": job["key"], "review_interface_base": "HEAD"}
+    pin = (cfg.get("review") or {}).get("tests_model") or ""
+    if ":" in pin:
+        try:
+            selected = reviewer(candidates or [("claude", "haiku", "low")], cfg["review"])
+        except ValueError as exc:
+            record["review"] = unknown(str(exc), usd=0.0, native_usd=0.0)
+            print(json.dumps(record["review"]))
+            return
+        if same_vendor(selected[0], job["implementer"], cfg):
+            record["review"] = unknown("same vendor: review does not count as independent", independent=False,
+                                       by=":".join(selected), usd=0.0, native_usd=0.0)
+            print(json.dumps(record["review"]))
+            return
+        candidates = [selected]
     candidates = [c for c in candidates if c[0] == "claude"]
-    record = {"run_id": job["key"]}
     if not candidates:
         record["review"] = unknown("no independent reviewer with a native USD budget limit", usd=0.0, native_usd=0.0)
     else:
@@ -304,7 +320,8 @@ def main(argv=None) -> int:
     p.add_argument("--budget", type=float, default=0.0, help="hard admission cap including lost-response reservations")
     p.add_argument("--unit-cap", action="append", metavar="USD|MODEL=USD",
                    help="per-unit reservation (default 0.10); repeat MODEL=USD with --reviewer-model")
-    p.add_argument("--reviewer-model", default="", help="test-review model override; empty keeps the existing candidate")
+    p.add_argument("--review-model", "--reviewer-model", dest="reviewer_model", default="",
+                   help="test-review model or vendor:model[:effort]; legacy --reviewer-model remains valid")
     p.add_argument("--reviewer-effort", default="", help="test-review effort override; empty keeps the existing candidate")
     p.add_argument("--pin-commit", default="")
     p.add_argument("--wait-quiet", type=float, default=0.0, metavar="MINUTES")
@@ -340,6 +357,9 @@ def main(argv=None) -> int:
           f"budget=${a.budget:.2f} (API-equivalent USD, two native-limited calls/unit)")
     print(f"reviewer model={a.reviewer_model or '(existing candidate)'} effort={a.reviewer_effort or '(existing candidate)'}; "
           f"unit-cap=${a.unit_cap:.3f}")
+    if a.reviewer_model.startswith("codex:"):
+        print("Unknown: Codex has no native USD limit in this replay; no paid Codex calls will be launched. "
+              "Codex-built receipts also fail the unchanged cross-vendor requirement.")
     if a.dry_run or not a.run:
         return 0
     if not a.pin_commit:

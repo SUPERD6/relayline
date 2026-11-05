@@ -5,15 +5,24 @@ from pathlib import Path
 
 SWITCHES = {"delegate.user_words": True, "routing.small_self_run": True,
             "routing.strict_escalate": True, "review.mode": "read"}
+SLIM_SWITCHES = {**SWITCHES, "lead.slim_small": True}
 
 
-def assert_config(hub: Path) -> dict:
+def assert_config(hub: Path, *, slim: bool = False) -> dict:
     from ccx.config import Paths, load_config
     cfg = load_config(Paths(hub))
-    got = {key: (cfg.get(key.split(".")[0]) or {}).get(key.split(".")[1]) for key in SWITCHES}
-    if got != SWITCHES:
-        raise RuntimeError(f"ccx2cand switches not applied: {got}")
+    want = SLIM_SWITCHES if slim else SWITCHES
+    got = {key: (cfg.get(key.split(".")[0]) or {}).get(key.split(".")[1]) for key in want}
+    if got != want:
+        name = "ccx3cand" if slim else "ccx2cand"
+        raise RuntimeError(f"{name} switches not applied: {got}")
     return got
+
+
+def set_slim(hub: Path) -> dict:
+    from ccx.config import Paths, set_setting
+    set_setting(Paths(hub), "lead.slim_small", "true")
+    return assert_config(hub, slim=True)
 
 
 def collect(hub: Path, events: list[dict], run_ids: list[str], record) -> dict:

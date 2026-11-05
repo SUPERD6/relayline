@@ -1,0 +1,203 @@
+{
+  "source_pin": "6105f6d9d3ef66ce3d5c8f529d2882af3d76b706",
+  "method": "Pinned GitHub raw files (trailing newlines normalized), checked with r5.score_exercise; no model",
+  "initial_attempt": {
+    "passed": 29,
+    "total": 30,
+    "rejected": [
+      {
+        "id": "fresh2-alphametics",
+        "stub": "7 failed, 2 passed, 1 skipped in 0.49s",
+        "example": "9 passed, 1 skipped in 0.07s",
+        "ok": false
+      }
+    ]
+  },
+  "final": {
+    "passed": 30,
+    "total": 30,
+    "rows": [
+      {
+        "id": "fresh2-rectangles",
+        "stub": "14 failed in 0.47s",
+        "example": "14 passed in 0.05s",
+        "ok": true
+      },
+      {
+        "id": "fresh2-all-your-base",
+        "stub": "21 failed in 0.44s",
+        "example": "21 passed in 0.05s",
+        "ok": true
+      },
+      {
+        "id": "fresh2-word-count",
+        "stub": "17 failed in 0.74s",
+        "example": "17 passed in 0.14s",
+        "ok": true
+      },
+      {
+        "id": "fresh2-crypto-square",
+        "stub": "8 failed in 0.70s",
+        "example": "8 passed in 0.03s",
+        "ok": true
+      },
+      {
+        "id": "fresh2-strain",
+        "stub": "8 failed in 0.56s",
+        "example": "8 passed in 0.03s",
+        "ok": true
+      },
+      {
+        "id": "fresh2-satellite",
+        "stub": "9 failed in 0.77s",
+        "example": "9 passed in 0.02s",
+        "ok": true
+      },
+      {
+        "id": "fresh2-word-search",
+        "stub": "19 failed, 5 passed in 0.52s",
+        "example": "24 passed in 0.08s",
+        "ok": true
+      },
+      {
+        "id": "fresh2-knapsack",
+        "stub": "7 failed in 0.51s",
+        "example": "7 passed in 0.08s",
+        "ok": true
+      },
+      {
+        "id": "fresh2-bank-account",
+        "stub": "16 failed in 0.70s",
+        "example": "16 passed in 0.10s",
+        "ok": true
+      },
+      {
+        "id": "fresh2-twelve-days",
+        "stub": "15 failed in 0.48s",
+        "example": "15 passed in 0.06s",
+        "ok": true
+      },
+      {
+        "id": "fresh2-ocr-numbers",
+        "stub": "17 failed in 0.57s",
+        "example": "17 passed in 0.03s",
+        "ok": true
+      },
+      {
+        "id": "fresh2-binary",
+        "stub": "11 failed in 0.38s",
+        "example": "11 passed in 0.02s",
+        "ok": true
+      },
+      {
+        "id": "fresh2-camicia",
+        "stub": "28 failed in 0.52s",
+        "example": "28 passed in 0.08s",
+        "ok": true
+      },
+      {
+        "id": "fresh2-change",
+        "stub": "13 failed in 0.48s",
+        "example": "13 passed in 0.02s",
+        "ok": true
+      },
+      {
+        "id": "fresh2-series",
+        "stub": "11 failed in 0.31s",
+        "example": "11 passed in 0.02s",
+        "ok": true
+      },
+      {
+        "id": "fresh2-spiral-matrix",
+        "stub": "6 failed in 0.26s",
+        "example": "6 passed in 0.02s",
+        "ok": true
+      },
+      {
+        "id": "fresh2-accumulate",
+        "stub": "6 failed in 0.68s",
+        "example": "6 passed in 0.14s",
+        "ok": true
+      },
+      {
+        "id": "fresh2-point-mutations",
+        "stub": "8 failed in 0.55s",
+        "example": "8 passed in 0.03s",
+        "ok": true
+      },
+      {
+        "id": "fresh2-eliuds-eggs",
+        "stub": "4 failed in 0.55s",
+        "example": "4 passed in 0.10s",
+        "ok": true
+      },
+      {
+        "id": "fresh2-sieve",
+        "stub": "5 failed in 0.54s",
+        "example": "5 passed in 0.03s",
+        "ok": true
+      },
+      {
+        "id": "fresh2-parallel-letter-frequency",
+        "stub": "7 failed in 0.51s",
+        "example": "7 passed in 28.40s",
+        "ok": true
+      },
+      {
+        "id": "fresh2-palindrome-products",
+        "stub": "13 failed in 0.67s",
+        "example": "13 passed in 0.09s",
+        "ok": true
+      },
+      {
+        "id": "fresh2-scrabble-score",
+        "stub": "11 failed in 0.81s",
+        "example": "11 passed in 0.04s",
+        "ok": true
+      },
+      {
+        "id": "fresh2-binary-search-tree",
+        "stub": "10 failed in 0.54s",
+        "example": "10 passed in 0.12s",
+        "ok": true
+      },
+      {
+        "id": "fresh2-acronym",
+        "stub": "9 failed in 0.62s",
+        "example": "9 passed in 0.05s",
+        "ok": true
+      },
+      {
+        "id": "fresh2-octal",
+        "stub": "10 failed in 0.57s",
+        "example": "10 passed in 0.04s",
+        "ok": true
+      },
+      {
+        "id": "fresh2-robot-simulator",
+        "stub": "18 failed in 0.46s",
+        "example": "18 passed in 0.09s",
+        "ok": true
+      },
+      {
+        "id": "fresh2-diamond",
+        "stub": "5 failed in 0.71s",
+        "example": "5 passed in 0.16s",
+        "ok": true
+      },
+      {
+        "id": "fresh2-swift-scheduling",
+        "stub": "17 failed in 0.73s",
+        "example": "17 passed in 0.05s",
+        "ok": true
+      },
+      {
+        "id": "fresh2-atbash-cipher",
+        "stub": "14 failed in 0.41s",
+        "example": "14 passed in 0.03s",
+        "ok": true
+      }
+    ]
+  },
+  "reuse": "The 29 unchanged source/test/reference triples reuse their current-session checks; replacement checked separately."
+}

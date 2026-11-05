@@ -1,0 +1,2 @@
+- Add an explicit cache-only P5 reselection tool requiring compatible parent full checks and passing reference full and hidden checks, excluding previously audited tasks without using model outcomes.
+- Ensure Windows P5 units and validation actually materialize CRLF through Git's conversion into an empty export directory; retain actual EOL counts and respect explicit attributes without adding a non-Windows setting.

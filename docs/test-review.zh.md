@@ -3,13 +3,31 @@
 [English](test-review.md) · 中文
 
 用 `ccx config set review.mode tests` 开启。默认 `read` 保持原有只读审查的提示和触发规则。
+
+`review.tests_model` 也接受 `vendor:model[:effort]`，如 `claude:sonnet:medium` 或
+`codex:gpt-6.1-sol:medium`；空值继续沿用候选。指定厂商仍须满足跨厂商审查，
+不能绕过独立性检查。单独的 `review.tests_effort` 优先于 model 中的 effort。
+
+测试型审查会附上改动前的 Python 接口：普通运行从 undo snapshot 读取，回放明确读取
+已提交的原始 stub。保留签名、注解、继承、装饰器、字面量默认值和 docstring，
+不含函数实现或测试；优先放改动文件，上限 24,000 字符。缺 snapshot、解析失败和
+超限未展示部分标 Unknown，不把当前实现当作接口标准，也不补造返回值契约。
+审查员先写 `behaviors.json`，列原文引用、接口假设、返回类型/形状/单位、计划测试和
+未覆盖/Unknown，再读实现写测试。接口和清单保存在 `review-tests/interface.md`、
+`behaviors.json`；新增 `interface_path`、`behaviors_path` 指向证据。清单只辅助审查，
+不新增正确率或通过条件。Markdown 链接的显示文字可省略 URL，其他原文校验仍保留。
 旧配置 `auto/on/off` 继续有效，含义不变；`--review auto/on/off` 仍控制何时审查。
 没有删除命令或选项，没有改已有退出码。
 
 复用现有的跨厂商审查员选择。同厂商候选明确标 `independent=false` 和 Unknown，不运行。
 `review.tests_model`、`review.tests_effort` 仅覆盖测试审查候选的模型和 effort，默认均为空，
 沿用原候选。模型必须属于已选审查员厂商；不会开启测试模式，也不影响 read 审查。
-依据已记录的 `user_task`，没有才用原始 brief；修复轮也回到原任务。
+测试审查先传已保存的 `user-words.md` 原话，再传已记录的 `user_task`；没有
+`user_task` 才回退原始 brief，修复轮仍回到原任务。两份分别标明来源，内容相同
+也保留两份，不合并、不去重。原话标明采集来源和保留字符数，保留原有截断提示，
+不增加任务截断上限。写测试和失败确认两次调用均使用这些来源；续跑复用保存的
+原话快照，不重新读外部原话文件。引句必须在任一来源内匹配，不能跨来源拼接，
+来源标签和采集提示不作为任务要求。
 共享上下文和实现者自写测试的结果不作为任务标准。
 `ccx run --user-task-file original.txt` 可单独提供 UTF-8 原话，与实现者 brief 分开。
 不提供时，run 入口在附加角色模板和项目说明前保存输入任务。测试模式将它写入
@@ -96,3 +114,18 @@ r5 增加可选 `--arms ccx2rt`：主导和提示与 `ccx2` 相同，单元 hub 
 `review.mode="tests"` 后才启动。默认组不变。
 历史首轮为 4 Pass、25 Unknown、0 issues，见上文诊断。修复版目前只有假 CLI 工程检查，
 pg3b 抓错效果仍是 Unknown。
+
+## 第二轮诊断与新接线
+
+历史第二轮 `b7f9463`：确认抓错 0/15；8 张错收据 pass，7 张错收据 Unknown；
+正确收据 9 pass、5 Unknown。最好假设也只有 7/15，仍 Fail。
+[逐单诊断](research/2026-11-05-p2-r2-diagnostics.zh.md) 区分接口/覆盖缺口、错误测试和
+Markdown 链接引句误拒。本次修改只有工程检查；题目、判分、≥50%/≤20% 门槛、默认
+`read` 及现有 verdict/退出规则不变。两轮失败后，本次工作不授权付费开第三轮。
+
+`--review-model` 是 `--reviewer-model` 的兼容别名，可传带厂商的 model。
+例如 `--dry-run --review-model claude:sonnet --unit-cap claude:sonnet=0.40`：
+29 单启动预留为 $11.60，这是选定的预留上限，实际预期费用 Unknown。
+`--review-model codex:gpt-6.1-sol` 可解析并选择 Codex，但本回放不会付费调用：
+这批实现者均为 Codex，同厂商不算独立；脚本也没有 Codex 原生美元预算上限。
+产品审查可用 Codex 审 Claude 的实现，本次只通过假 CLI 验证接线。

@@ -1,0 +1,528 @@
+{
+  "checkout_policy": "native-git-checkout-v1",
+  "rule": "original parent full acceptance check must exit 0, then parent hidden fails/reference hidden passes; no model outcomes",
+  "checked": [
+    {
+      "repo": "more-itertools",
+      "commit": "6887a7bd5ac3787a8721eddca9c93dd4d3eda5f7",
+      "timestamp": 1754001843,
+      "subject": "Add running_median",
+      "size": 78,
+      "code_lines": 71,
+      "code": [
+        "more_itertools/recipes.py"
+      ],
+      "non_test_files": [
+        "README.rst",
+        "docs/api.rst",
+        "more_itertools/recipes.py",
+        "more_itertools/recipes.pyi"
+      ],
+      "tests": [
+        "tests/test_recipes.py"
+      ],
+      "parent": {
+        "rc": 1,
+        "summary": "2 failed, 135 passed, 1 skipped, 9827 subtests passed in 21.12s",
+        "errors": [
+          "E       AttributeError: module 'more_itertools' has no attribute 'running_median'",
+          "E       AttributeError: module 'more_itertools' has no attribute 'running_median'",
+          "FAILED tests/test_recipes.py::RunningMedianTests::test_error_cases - Attribut...",
+          "FAILED tests/test_recipes.py::RunningMedianTests::test_vs_statistics_median"
+        ],
+        "raw": {
+          "file": "6887a7bd5ac3787a8721eddca9c93dd4d3eda5f7-parent.txt",
+          "sha256": "ea99f1bfe225cbd0534c8bdd18c44b31c63222af1ed007ccb63b261867509b92"
+        }
+      },
+      "reference": {
+        "rc": 1,
+        "summary": "1 failed, 136 passed, 1 skipped, 9827 subtests passed in 18.61s",
+        "errors": [
+          "E           ZeroDivisionError: Fraction(216, 0)",
+          "FAILED tests/test_recipes.py::RunningMedianTests::test_vs_statistics_median"
+        ],
+        "raw": {
+          "file": "6887a7bd5ac3787a8721eddca9c93dd4d3eda5f7-reference.txt",
+          "sha256": "082f81e62a001b1dfe7668761c9b9b0eefa36d93550f7526ed44f9587e996567"
+        }
+      },
+      "valid": false,
+      "brief": "Implement the following library change, preserving existing public behavior outside this request. Update relevant exports, documentation and annotations if needed.\n\nAdd running_median",
+      "id": "p5-long-6887a7bd5ac3",
+      "baseline": {
+        "rc": 0,
+        "summary": "679 passed, 1 skipped, 8 warnings, 12078 subtests passed in 24.13s",
+        "errors": [],
+        "command": "PYTHON -m pytest -q -o addopts=",
+        "checkout": "native-git-checkout-v1",
+        "python": {
+          "python": "Python 3.11.9",
+          "pytest": "pytest 9.1.1",
+          "models_called": false
+        },
+        "cwd": "<unit.repo>",
+        "tmp": "<unit.repo>/.ccx-eval-tmp-baseline",
+        "raw": {
+          "file": "6887a7bd5ac3787a8721eddca9c93dd4d3eda5f7-baseline.txt",
+          "sha256": "2cffb267f85a50cc545c7c3b912a9f9798e38c6b742d2d5a01d433f200905fda"
+        }
+      },
+      "checkout": {
+        "policy": "native-git-checkout-v1",
+        "autocrlf": "true",
+        "attributes": "respected"
+      }
+    },
+    {
+      "repo": "more-itertools",
+      "commit": "bbe6c8f7f3f59555ab5035871aa919a6b9d9dbb7",
+      "timestamp": 1720456984,
+      "subject": "Issue 870: counts parameter for sample",
+      "size": 74,
+      "code_lines": 65,
+      "code": [
+        "more_itertools/more.py"
+      ],
+      "non_test_files": [
+        "more_itertools/more.py",
+        "more_itertools/more.pyi"
+      ],
+      "tests": [
+        "tests/test_more.py"
+      ],
+      "parent": {
+        "rc": 1,
+        "summary": "2 failed, 526 passed, 5 warnings, 2218 subtests passed in 3.24s",
+        "errors": [
+          "E       TypeError: sample() got an unexpected keyword argument 'counts'",
+          "E       TypeError: sample() got an unexpected keyword argument 'counts'",
+          "FAILED tests/test_more.py::SampleTests::test_counts - TypeError: sample() got...",
+          "FAILED tests/test_more.py::SampleTests::test_counts_all - TypeError: sample()..."
+        ],
+        "raw": {
+          "file": "bbe6c8f7f3f59555ab5035871aa919a6b9d9dbb7-parent.txt",
+          "sha256": "cc7a1a1596e86e8e07b7f83717051f1809fd84af6593de65eaef811ec75aa080"
+        }
+      },
+      "reference": {
+        "rc": 0,
+        "summary": "528 passed, 5 warnings, 2218 subtests passed in 3.01s",
+        "errors": [],
+        "raw": {
+          "file": "bbe6c8f7f3f59555ab5035871aa919a6b9d9dbb7-reference.txt",
+          "sha256": "fa543312da602372aeceef2b7b65372bd4e07fd6aac04b2c1bb87ba08c6b2f12"
+        }
+      },
+      "valid": true,
+      "brief": "Implement the following library change, preserving existing public behavior outside this request. Update relevant exports, documentation and annotations if needed.\n\nIssue 870: counts parameter for sample",
+      "id": "p5-long-bbe6c8f7f3f5",
+      "baseline": {
+        "rc": 0,
+        "summary": "652 passed, 1 skipped, 5 warnings, 2331 subtests passed in 3.70s",
+        "errors": [],
+        "command": "PYTHON -m pytest -q -o addopts=",
+        "checkout": "native-git-checkout-v1",
+        "python": {
+          "python": "Python 3.11.9",
+          "pytest": "pytest 9.1.1",
+          "models_called": false
+        },
+        "cwd": "<unit.repo>",
+        "tmp": "<unit.repo>/.ccx-eval-tmp-baseline",
+        "raw": {
+          "file": "bbe6c8f7f3f59555ab5035871aa919a6b9d9dbb7-baseline.txt",
+          "sha256": "ecc9399fc7a6cd5cbec5301dfeab10d0505e1e9af02e08c116ce22ea91c9cd88"
+        }
+      },
+      "checkout": {
+        "policy": "native-git-checkout-v1",
+        "autocrlf": "true",
+        "attributes": "respected"
+      }
+    },
+    {
+      "repo": "more-itertools",
+      "commit": "5252383356e6c867f1148471adbeb1aecbe8d13c",
+      "timestamp": 1717099098,
+      "subject": "Add dft and dft",
+      "size": 102,
+      "code_lines": 67,
+      "code": [
+        "more_itertools/more.py"
+      ],
+      "non_test_files": [
+        "docs/api.rst",
+        "more_itertools/more.py",
+        "more_itertools/more.pyi"
+      ],
+      "tests": [
+        "tests/test_more.py"
+      ],
+      "parent": {
+        "rc": 1,
+        "summary": "2 failed, 511 passed, 5 warnings, 2211 subtests passed in 2.85s",
+        "errors": [
+          "E       AttributeError: module 'more_itertools' has no attribute 'dft'",
+          "E           AttributeError: module 'more_itertools' has no attribute 'dft'",
+          "FAILED tests/test_more.py::DiscreteFourierTransformTests::test_basic - Attrib...",
+          "FAILED tests/test_more.py::DiscreteFourierTransformTests::test_roundtrip - At..."
+        ],
+        "raw": {
+          "file": "5252383356e6c867f1148471adbeb1aecbe8d13c-parent.txt",
+          "sha256": "3329ce8a5d6413cf10660d8ea45309fb677d4a2e26e25c57e0f71b5687e3b883"
+        }
+      },
+      "reference": {
+        "rc": 0,
+        "summary": "513 passed, 5 warnings, 2211 subtests passed in 2.92s",
+        "errors": [],
+        "raw": {
+          "file": "5252383356e6c867f1148471adbeb1aecbe8d13c-reference.txt",
+          "sha256": "1371320c625c7b8069226081225f90c0a043c94b3a9f97fb912be11afbe0f680"
+        }
+      },
+      "valid": true,
+      "brief": "Implement the following library change, preserving existing public behavior outside this request. Update relevant exports, documentation and annotations if needed.\n\nAdd dft and dft",
+      "id": "p5-long-5252383356e6",
+      "baseline": {
+        "rc": 0,
+        "summary": "634 passed, 1 skipped, 5 warnings, 2324 subtests passed in 2.97s",
+        "errors": [],
+        "command": "PYTHON -m pytest -q -o addopts=",
+        "checkout": "native-git-checkout-v1",
+        "python": {
+          "python": "Python 3.11.9",
+          "pytest": "pytest 9.1.1",
+          "models_called": false
+        },
+        "cwd": "<unit.repo>",
+        "tmp": "<unit.repo>/.ccx-eval-tmp-baseline",
+        "raw": {
+          "file": "5252383356e6c867f1148471adbeb1aecbe8d13c-baseline.txt",
+          "sha256": "f79ee114a83f96afaddb7580dfc00901dbda498b1f86879ed3680ef250c9ce3a"
+        }
+      },
+      "checkout": {
+        "policy": "native-git-checkout-v1",
+        "autocrlf": "true",
+        "attributes": "respected"
+      }
+    },
+    {
+      "repo": "more-itertools",
+      "commit": "02e753222ce27f199971032a4b18e9513c9b0a48",
+      "timestamp": 1646860504,
+      "subject": "Update to the latest grouper recipe",
+      "size": 146,
+      "code_lines": 126,
+      "code": [
+        "more_itertools/more.py",
+        "more_itertools/recipes.py"
+      ],
+      "non_test_files": [
+        "more_itertools/more.py",
+        "more_itertools/recipes.py",
+        "more_itertools/recipes.pyi"
+      ],
+      "tests": [
+        "tests/test_recipes.py"
+      ],
+      "parent": {
+        "rc": null,
+        "summary": "not run: original parent baseline failed"
+      },
+      "reference": {
+        "rc": null,
+        "summary": "not run: original parent baseline failed"
+      },
+      "valid": false,
+      "brief": "Implement the following library change, preserving existing public behavior outside this request. Update relevant exports, documentation and annotations if needed.\n\nUpdate to the latest grouper recipe",
+      "id": "p5-long-02e753222ce2",
+      "baseline": {
+        "rc": 1,
+        "summary": "1 failed, 531 passed, 10 warnings, 2131 subtests passed in 2.85s",
+        "errors": [
+          "E       AssertionError: Lists differ: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12,[426252 chars]2486] != []",
+          "E       ",
+          "E       First list contains 62487 additional elements.",
+          "E       First extra element 0:",
+          "E       0",
+          "E       ",
+          "E       Diff is 613765 characters long. Set self.maxDiff to None to see it.",
+          "FAILED tests/test_more.py::TimeLimitedTests::test_zero_limit - AssertionError..."
+        ],
+        "command": "PYTHON -m pytest -q -o addopts=",
+        "checkout": "native-git-checkout-v1",
+        "python": {
+          "python": "Python 3.11.9",
+          "pytest": "pytest 9.1.1",
+          "models_called": false
+        },
+        "cwd": "<unit.repo>",
+        "tmp": "<unit.repo>/.ccx-eval-tmp-baseline",
+        "raw": {
+          "file": "02e753222ce27f199971032a4b18e9513c9b0a48-baseline.txt",
+          "sha256": "4c9c3f8f165c2de6f6013ea9d57474a97d33baef6516687fd4cecdc37cf9e942"
+        }
+      },
+      "checkout": {
+        "policy": "native-git-checkout-v1",
+        "autocrlf": "true",
+        "attributes": "respected"
+      }
+    },
+    {
+      "repo": "boltons",
+      "commit": "c669103ccbaf76982c8042be2f5a013a92afe64e",
+      "timestamp": 1463982137,
+      "subject": "Added range2list() and list2range() functions to strutils.py - added applicable tests to test_strutils.py",
+      "size": 115,
+      "code_lines": 115,
+      "code": [
+        "boltons/strutils.py"
+      ],
+      "non_test_files": [
+        "boltons/strutils.py"
+      ],
+      "tests": [
+        "tests/test_strutils.py"
+      ],
+      "parent": {
+        "rc": null,
+        "summary": "not run: original parent baseline failed"
+      },
+      "reference": {
+        "rc": null,
+        "summary": "not run: original parent baseline failed"
+      },
+      "valid": false,
+      "brief": "Implement the following library change, preserving existing public behavior outside this request. Update relevant exports, documentation and annotations if needed.\n\nAdded range2list() and list2range() functions to strutils.py - added applicable tests to test_strutils.py",
+      "id": "p5-long-c669103ccbaf",
+      "baseline": {
+        "rc": 2,
+        "summary": "4 warnings, 4 errors in 2.36s",
+        "errors": [
+          "E   ImportError: cannot import name 'KeysView' from 'collections' (<private-path>)",
+          "E   ImportError: cannot import name 'KeysView' from 'collections' (<private-path>)",
+          "E   ImportError: cannot import name 'MutableSet' from 'collections' (<private-path>)",
+          "E   ImportError: cannot import name 'Sequence' from 'collections' (<private-path>)",
+          "ERROR tests/test_dictutils.py",
+          "ERROR tests/test_iterutils.py",
+          "ERROR tests/test_setutils.py",
+          "ERROR tests/test_tableutils.py"
+        ],
+        "command": "PYTHON -m pytest -q -o addopts=",
+        "checkout": "native-git-checkout-v1",
+        "python": {
+          "python": "Python 3.11.9",
+          "pytest": "pytest 9.1.1",
+          "models_called": false
+        },
+        "cwd": "<unit.repo>",
+        "tmp": "<unit.repo>/.ccx-eval-tmp-baseline",
+        "raw": {
+          "file": "c669103ccbaf76982c8042be2f5a013a92afe64e-baseline.txt",
+          "sha256": "25228d476d6f50b905565e37cd44832e03d22497c18b2322c8c1510cb3830e1f"
+        }
+      },
+      "checkout": {
+        "policy": "native-git-checkout-v1",
+        "autocrlf": "true",
+        "attributes": "respected"
+      }
+    },
+    {
+      "repo": "boltons",
+      "commit": "294344b84fbddbc7871358b0a12772b6da34ead1",
+      "timestamp": 1463815566,
+      "subject": "allow daterange to run backwards as well as forwards. greatly enhance daterange's docstring. make stop a required argument (though None will still work). user operator module instead of lambdas for clarity.",
+      "size": 69,
+      "code_lines": 69,
+      "code": [
+        "boltons/timeutils.py"
+      ],
+      "non_test_files": [
+        "boltons/timeutils.py"
+      ],
+      "tests": [
+        "tests/test_timeutils.py"
+      ],
+      "parent": {
+        "rc": null,
+        "summary": "not run: original parent baseline failed"
+      },
+      "reference": {
+        "rc": null,
+        "summary": "not run: original parent baseline failed"
+      },
+      "valid": false,
+      "brief": "Implement the following library change, preserving existing public behavior outside this request. Update relevant exports, documentation and annotations if needed.\n\nallow daterange to run backwards as well as forwards. greatly enhance daterange's docstring. make stop a required argument (though None will still work). user operator module instead of lambdas for clarity.",
+      "id": "p5-long-294344b84fbd",
+      "baseline": {
+        "rc": 2,
+        "summary": "4 warnings, 4 errors in 1.84s",
+        "errors": [
+          "E   ImportError: cannot import name 'KeysView' from 'collections' (<private-path>)",
+          "E   ImportError: cannot import name 'KeysView' from 'collections' (<private-path>)",
+          "E   ImportError: cannot import name 'MutableSet' from 'collections' (<private-path>)",
+          "E   ImportError: cannot import name 'Sequence' from 'collections' (<private-path>)",
+          "ERROR tests/test_dictutils.py",
+          "ERROR tests/test_iterutils.py",
+          "ERROR tests/test_setutils.py",
+          "ERROR tests/test_tableutils.py"
+        ],
+        "command": "PYTHON -m pytest -q -o addopts=",
+        "checkout": "native-git-checkout-v1",
+        "python": {
+          "python": "Python 3.11.9",
+          "pytest": "pytest 9.1.1",
+          "models_called": false
+        },
+        "cwd": "<unit.repo>",
+        "tmp": "<unit.repo>/.ccx-eval-tmp-baseline",
+        "raw": {
+          "file": "294344b84fbddbc7871358b0a12772b6da34ead1-baseline.txt",
+          "sha256": "ff0319ab9125396b6784c0f45c1969161800494213d2f535cd334a1993009bf0"
+        }
+      },
+      "checkout": {
+        "policy": "native-git-checkout-v1",
+        "autocrlf": "true",
+        "attributes": "respected"
+      }
+    },
+    {
+      "repo": "boltons",
+      "commit": "d14b5a793d18d3d109dbf7c8173f1d50e940ee06",
+      "timestamp": 1463470285,
+      "subject": "adding CachedMethod, complete with descriptor behavior and respective tests. Still need docs, but this fixes #70.",
+      "size": 61,
+      "code_lines": 61,
+      "code": [
+        "boltons/cacheutils.py"
+      ],
+      "non_test_files": [
+        "boltons/cacheutils.py"
+      ],
+      "tests": [
+        "tests/test_cacheutils.py"
+      ],
+      "parent": {
+        "rc": null,
+        "summary": "not run: original parent baseline failed"
+      },
+      "reference": {
+        "rc": null,
+        "summary": "not run: original parent baseline failed"
+      },
+      "valid": false,
+      "brief": "Implement the following library change, preserving existing public behavior outside this request. Update relevant exports, documentation and annotations if needed.\n\nadding CachedMethod, complete with descriptor behavior and respective tests. Still need docs, but this fixes #70.",
+      "id": "p5-long-d14b5a793d18",
+      "baseline": {
+        "rc": 2,
+        "summary": "4 warnings, 4 errors in 1.36s",
+        "errors": [
+          "E   ImportError: cannot import name 'KeysView' from 'collections' (<private-path>)",
+          "E   ImportError: cannot import name 'KeysView' from 'collections' (<private-path>)",
+          "E   ImportError: cannot import name 'MutableSet' from 'collections' (<private-path>)",
+          "E   ImportError: cannot import name 'Sequence' from 'collections' (<private-path>)",
+          "ERROR tests/test_dictutils.py",
+          "ERROR tests/test_iterutils.py",
+          "ERROR tests/test_setutils.py",
+          "ERROR tests/test_tableutils.py"
+        ],
+        "command": "PYTHON -m pytest -q -o addopts=",
+        "checkout": "native-git-checkout-v1",
+        "python": {
+          "python": "Python 3.11.9",
+          "pytest": "pytest 9.1.1",
+          "models_called": false
+        },
+        "cwd": "<unit.repo>",
+        "tmp": "<unit.repo>/.ccx-eval-tmp-baseline",
+        "raw": {
+          "file": "d14b5a793d18d3d109dbf7c8173f1d50e940ee06-baseline.txt",
+          "sha256": "5704a6f648bfa9fc04a160312c26e8c9a2b6cf597c81210d682e1ea93d7a1c2b"
+        }
+      },
+      "checkout": {
+        "policy": "native-git-checkout-v1",
+        "autocrlf": "true",
+        "attributes": "respected"
+      }
+    },
+    {
+      "repo": "boltons",
+      "commit": "6cea9343927b551f6a3267bf1cd03c2923f50480",
+      "timestamp": 1461820182,
+      "subject": "BufferedSocket is now threadsafe, no longer has a fileno, and there are ever more socketutils docs",
+      "size": 348,
+      "code_lines": 348,
+      "code": [
+        "boltons/socketutils.py"
+      ],
+      "non_test_files": [
+        "boltons/socketutils.py"
+      ],
+      "tests": [
+        "tests/test_socketutils.py"
+      ],
+      "parent": {
+        "rc": null,
+        "summary": "not run: original parent baseline failed"
+      },
+      "reference": {
+        "rc": null,
+        "summary": "not run: original parent baseline failed"
+      },
+      "valid": false,
+      "brief": "Implement the following library change, preserving existing public behavior outside this request. Update relevant exports, documentation and annotations if needed.\n\nBufferedSocket is now threadsafe, no longer has a fileno, and there are ever more socketutils docs",
+      "id": "p5-long-6cea9343927b",
+      "baseline": {
+        "rc": 2,
+        "summary": "4 warnings, 4 errors in 1.45s",
+        "errors": [
+          "E   ImportError: cannot import name 'KeysView' from 'collections' (<private-path>)",
+          "E   ImportError: cannot import name 'KeysView' from 'collections' (<private-path>)",
+          "E   ImportError: cannot import name 'MutableSet' from 'collections' (<private-path>)",
+          "E   ImportError: cannot import name 'Sequence' from 'collections' (<private-path>)",
+          "ERROR tests/test_dictutils.py",
+          "ERROR tests/test_iterutils.py",
+          "ERROR tests/test_setutils.py",
+          "ERROR tests/test_tableutils.py"
+        ],
+        "command": "PYTHON -m pytest -q -o addopts=",
+        "checkout": "native-git-checkout-v1",
+        "python": {
+          "python": "Python 3.11.9",
+          "pytest": "pytest 9.1.1",
+          "models_called": false
+        },
+        "cwd": "<unit.repo>",
+        "tmp": "<unit.repo>/.ccx-eval-tmp-baseline",
+        "raw": {
+          "file": "6cea9343927b551f6a3267bf1cd03c2923f50480-baseline.txt",
+          "sha256": "05e3d3cf0c4906ff7fec57c331b69212864046e8fb475de5ef1cf7a025d3fc46"
+        }
+      },
+      "checkout": {
+        "policy": "native-git-checkout-v1",
+        "autocrlf": "true",
+        "attributes": "respected"
+      }
+    }
+  ],
+  "eligible": [
+    "bbe6c8f7f3f59555ab5035871aa919a6b9d9dbb7",
+    "5252383356e6c867f1148471adbeb1aecbe8d13c"
+  ],
+  "excluded": [
+    "6887a7bd5ac3787a8721eddca9c93dd4d3eda5f7",
+    "02e753222ce27f199971032a4b18e9513c9b0a48",
+    "c669103ccbaf76982c8042be2f5a013a92afe64e",
+    "294344b84fbddbc7871358b0a12772b6da34ead1",
+    "d14b5a793d18d3d109dbf7c8173f1d50e940ee06",
+    "6cea9343927b551f6a3267bf1cd03c2923f50480"
+  ]
+}

@@ -28,6 +28,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from . import agents, context_share, learn, ledger, quota, recover, subagents
+from .check_baseline import BASELINE_FAILED, Checks, only_baseline
 from .config import DELEGATE_AGENTS, SUBAGENT_SWITCHES, Paths, load_config, provider_of, subagent_switches  # noqa: F401
 from .runners import BUILDERS, Outcome, execute, usage_dict, without_launcher_vars
 # split out by job (J11); re-exported so `from ccx.delegate import ...` keeps working
@@ -700,6 +701,8 @@ def run(req: Request, p: Paths) -> dict:
     record["codex_children"] = kids
     prompt, i, fell_back, swaps, policy_retried = first_prompt, 0, False, 0, False
     oc, early_check, bg_review = None, None, None
+    checks = Checks(cfg, cwd, run_dir, record, run_check,
+                    enabled=bool(req.check or str(req.label or "").startswith(("merge:", "eval-merge:"))))
     want_review = req.mode == "write" and req.review != "off" and not req.ephemeral
     stop_file = run_dir / "stop.request"         # written by `ccx stop <run_id>`
 
@@ -951,16 +954,15 @@ def run(req: Request, p: Paths) -> dict:
             # "done" but ccx's own run of the check fails: that is a failure too, so climb while a rung is left.
             # Before, only blocked/failed escalated, and a cheap model that wrongly said done stopped there
             # (needed once tradeoff = save picks cheap models first, 2026-10-25)
-            if want_review:                    # reviewed while the check runs; dropped if the check fails
+            if want_review and checks.start is None:  # baseline mode defers review until the check passes
                 bg_review = _start_review(req, p, cfg, record, cwd, run_dir, oc.result)
             # did this attempt change anything: told before the check runs, so files the check writes don't count
             left = _left_unchanged(p, record) if req.mode == "write" else None
             focused = focused_retry(cfg)
             chk = (_namecheck(req, p, cfg, record, cwd)         # mode fail + a hit: the command is not run
-                   or run_check(req.check, cwd, int(cfg["defaults"].get("check_timeout_sec", 900)),
-                                **({"tail_chars": CHECK_TAIL_CHARS} if focused else {})))
+                   or checks(req.check, **({"tail_chars": CHECK_TAIL_CHARS} if focused else {})))
             early_check = (len(record["attempts"]), chk, left)
-            if not chk["passed"] and not chk.get("broken"):   # a broken check is no reason to climb
+            if not chk["passed"] and not chk.get("broken") and not only_baseline(chk):
                 if bg_review is not None:
                     _finish_review(bg_review, record, p, keep=False)
                     bg_review = None
@@ -969,14 +971,15 @@ def run(req: Request, p: Paths) -> dict:
                 if chk.get("reason"):           # "namecheck": mode fail stood in for the command, which did not run
                     record["attempts"][-1]["check_reason"] = chk["reason"]
                 _write_record(run_dir, record)
-                summary = f"you said done, but `{chk['cmd']}` failed (exit {chk['exit']}):\n{chk['tail'][-400:]}"
+                retry_tail = chk.get("retry_tail", chk["tail"])
+                summary = f"you said done, but `{chk['cmd']}` failed (exit {chk['exit']}):\n{retry_tail[-400:]}"
                 nxt = plan[i + 1]
                 if nxt["agent"] == to and session and focused and agents.get(cli).can_resume:
                     # [defaults] focused_retry: the same session, told what failed (~2000 characters of the check's
                     # output) and to fix only that; the ladder itself is unchanged (still the next rung)
                     same = (nxt["model"], nxt["effort"]) == (spec["model"], spec["effort"])
                     prompt = CHECK_RETRY.format(run_id=run_id, cmd=chk["cmd"], exit=chk["exit"],
-                                                tail=str(chk.get("tail") or "")[-CHECK_TAIL_CHARS:],
+                                                tail=str(retry_tail or "")[-CHECK_TAIL_CHARS:],
                                                 model_line=CHECK_RETRY_SAME if same else CHECK_RETRY_STRONGER)
                     record["attempts"][-1]["retry"] = "focused"
                     _write_record(run_dir, record)
@@ -984,6 +987,8 @@ def run(req: Request, p: Paths) -> dict:
                     prompt = ESCALATE.format(run_id=run_id, status="check_failed", summary=summary)
                 else:
                     prompt, session = first_prompt, None
+                    if chk.get("new_failures"):
+                        prompt += "\n" + retry_tail
                 i += 1
                 continue
             if (chk["passed"] and req.mode == "write" and left is not True and on_self_checked(cfg) == "rung"
@@ -1041,22 +1046,21 @@ def run(req: Request, p: Paths) -> dict:
         record["check"], record["kind"], check_passed = nc_fail, "check_failed", False
     elif req.check and oc.ok and status in ("done", "partial"):
         reuse = early_check and early_check[0] == len(record["attempts"])    # already run on this very attempt
-        if not reuse and want_review and bg_review is None:
+        if not reuse and want_review and bg_review is None and checks.start is None:
             # the review runs while ccx runs the check (it needs only the command, not its result); it counts
             # only if the check passes, and is stopped otherwise
             bg_review = _start_review(req, p, cfg, record, cwd, run_dir, oc.result)
-        record["check"] = early_check[1] if reuse else run_check(req.check, cwd,
-                                                                 int(cfg["defaults"].get("check_timeout_sec", 900)))
+        record["check"] = early_check[1] if reuse else checks(req.check)
         check_passed = record["check"]["passed"]
         if record["check"].get("broken"):
             # the command tested nothing (pytest exit 4/5): no verdict on the work, the lead fixes the check
             record["kind"], check_passed = "check_broken", None
         elif not check_passed:
             # the sub-agent said it was done; the check says otherwise: that's a failure, and it is learned as one
-            record["kind"] = "check_failed"
+            record["kind"] = BASELINE_FAILED if only_baseline(record["check"]) else "check_failed"
     if bg_review is not None:
-        _finish_review(bg_review, record, p, keep=record.get("kind") not in ("check_failed", "check_broken"))
-    elif want_review and record.get("kind") not in ("check_failed", "check_broken"):
+        _finish_review(bg_review, record, p, keep=record.get("kind") not in ("check_failed", "check_broken", BASELINE_FAILED))
+    elif want_review and record.get("kind") not in ("check_failed", "check_broken", BASELINE_FAILED):
         try:
             _review(req, p, cfg, record, cwd, run_dir)
         except Exception as e:  # noqa: BLE001 — a review that can't run never fails the work itself
@@ -1093,7 +1097,7 @@ def run(req: Request, p: Paths) -> dict:
     # `ccx verify` (the lead's verdict) adds or corrects this later.
     verified = check_passed is not None or (oc.result or {}).get("verification", "not-run") not in ("", "not-run")
     if oc.kind not in ("quota", "auth", "timeout", "model", "needs_write", "split", "over_budget", "user_stopped",
-                       "max_usd", "review_issues", "review_failed", "env") and record.get("kind") not in ("check_broken", "no_changes", "no_answer") and (status in ("blocked", "failed") or not oc.ok
+                       "max_usd", "review_issues", "review_failed", "env") and record.get("kind") not in ("check_broken", BASELINE_FAILED, "no_changes", "no_answer") and (status in ("blocked", "failed") or not oc.ok
                                                         or (status == "done" and verified)):
         try:
             learn.record_outcomes(p, record, final_ok=oc.ok and status == "done" and check_passed is not False)
@@ -1449,6 +1453,9 @@ def compact(record: dict) -> dict:
             out["hint"] = (f"the sub-agent reported done, but the check failed (exit {record['check']['exit']}); "
                            f"see `ccx show {record['run_id']} --full`, or continue: ccx resume {record['run_id']} "
                            f"\"the check fails: fix it\"")
+        if record["kind"] == BASELINE_FAILED:
+            out["needs_lead"] = "check_baseline_failed: all identified failures also occur on the baseline"
+            out["hint"] = "baseline already fails; no check repair or escalation; fix the baseline before accepting"
         if record["kind"] == "check_broken":
             why = record["check"].get("broken") or "the check tested nothing"
             out["needs_lead"] = "check_broken: " + why.split(";")[0]
@@ -1519,11 +1526,17 @@ def compact(record: dict) -> dict:
         out["hint"] = REVIEW_FAILED_HINT.format(run_id=record["run_id"])
         first = ((record.get("review") or {}).get("issues") or ["(see review)"])[0]
         out["needs_lead"] = f"review_failed: {first}"[:300]
+    if "check_baseline" in record:
+        out["check_baseline"] = record["check_baseline"]
     if record.get("check"):
         c = record["check"]
         out["check"] = {"cmd": c["cmd"], "passed": c["passed"], "exit": c["exit"],
                         **({"weak": c["weak"], "note": c["note"]} if c.get("weak") else {}),
                         **({"status": "check_broken"} if c.get("broken") else {})}
+        for key in ("stdout_path", "stderr_path", "stdout_truncated", "stderr_truncated",
+                    "baseline_comparison", "new_failures"):
+            if key in c:
+                out["check"][key] = c[key]
         if c.get("covers"):                         # P1-10: what it ran, and whether the run changed its yardstick
             from .coverage import text
             out["check"]["covers"] = text(c["covers"])
@@ -1605,6 +1618,8 @@ def recap(record: dict, res: dict) -> str:
     receipt = {"ok": record.get("ok"), "kind": record.get("kind"), **res}
     if receipt.get("kind") == SELF_CHECKED:
         notes.append("check not independently verified (self-checked)")
+    if receipt.get("kind") == BASELINE_FAILED:
+        notes.append("baseline already fails; no check repair or escalation")
     return (f"ccx run {record['run_id']}: status={receipt_status(receipt)} {receipt_outcome(receipt)} "
             f"check={check} review={review}{lead} cost=~${usd:.4f}"
             + (f" ({len(cc['runs'])} runs + {cc.get('reviews', 0)} reviews)" if cc.get("ae_usd") is not None else "")
@@ -1645,7 +1660,7 @@ def human_summary(record: dict, res: dict) -> list[str]:
     said = said if len(said) <= 160 else said[:157] + "..."
     if not res.get("ok"):
         head = f"not done (status {status}" + (f", {res['kind']}" if res.get("kind") else "") + ")"
-    elif status in ("stopped", "partial") or res.get("kind") in ("check_failed", "check_broken"):
+    elif status in ("stopped", "partial") or res.get("kind") in ("check_failed", "check_broken", BASELINE_FAILED):
         head = f"{status} ({outcome})"
     else:
         head = "done"

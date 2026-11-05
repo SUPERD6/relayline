@@ -119,7 +119,7 @@ FRESH_HOMES = ("config-dir", "ccx-home")
 CCX_HOOK_EVENTS = ("SessionStart", "UserPromptSubmit")
 # arms whose units start Codex (ccx routes to it); r5's tier arms balanced / save may delegate through ccx and
 # cheapest runs ccx straight to Codex (r5.CHEAPEST; fast never delegates)
-CODEX_ARMS = ("ccx", "ccx2", "ccx2small", "ccx2cand", "ccx2rt", "ccx2nc", "ccx2uw", "ccx2-skill", "direct", "balanced", "save", "cheapest",
+CODEX_ARMS = ("ccx", "ccx2", "ccx2small", "ccx2cand", "ccx3cand", "ccx2rt", "ccx2nc", "ccx2uw", "ccx2-skill", "direct", "balanced", "save", "cheapest",
               # the daily-config arms (r5.DAILY_ARMS): their per-unit Codex home takes its login from the eval one
               "ccx2daily", "ccx2daily_nomem", "ccx2daily_clean", "ccx2daily_leantools")
 # arms whose lead hands the work to Claude Code's own Agent-tool worker (no Codex: no eval CODEX_HOME needed)

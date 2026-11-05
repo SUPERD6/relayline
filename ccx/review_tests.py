@@ -8,6 +8,7 @@ from __future__ import annotations
 import json
 import math
 import os
+import re
 from pathlib import Path
 import shutil
 import subprocess
@@ -34,32 +35,26 @@ def unknown(cause: str, **extra) -> dict:
 
 def normalized_quote(text: str) -> str:
     """Ignore whitespace/typographic punctuation, never paraphrase task words."""
+    # A rendered Markdown link's label is task wording; its destination is not
+    # spoken text. R2 rejected three genuine labels because link metadata interrupted them.
+    text = re.sub(r"\[([^\[\]]+)\]\[[^\[\]]+\]", r"\1", text)
+    text = re.sub(r"\[([^\[\]]+)\]\([^\s()]+(?:\([^()]*\)[^\s()]*)*\)", r"\1", text)
+    text = text.replace("/", " ")  # punctuation separating alternatives must not join their words
     return " ".join("".join(c for c in text if not unicodedata.category(c).startswith("P")
                             and c != "`").split())
 
 
-def task_quote(quote, task: str) -> bool:
-    return isinstance(quote, str) and bool(normalized_quote(quote)) and normalized_quote(quote) in normalized_quote(task)
+def task_quote(quote, task: str | tuple[str, ...]) -> bool:
+    if not isinstance(quote, str):
+        return False
+    normalized = normalized_quote(quote)
+    sources = (task,) if isinstance(task, str) else task
+    return bool(normalized) and any(normalized in normalized_quote(text) for text in sources)
 
 
 def task_text(p, req, record: dict) -> str:
-    from .review import task_for_review
-    # Additive raw-task fields used by callers; never substitute shared context.
-    for text in (record.get("user_task"), getattr(req, "user_task", None)):
-        if isinstance(text, str) and text.strip():
-            return text
-    rid = req.resume_run
-    seen = set()
-    while rid and rid not in seen:
-        seen.add(rid)
-        try:
-            prev = json.loads((p.runs / rid / "run.json").read_text(encoding="utf-8"))
-            if isinstance(prev.get("user_task"), str) and prev["user_task"].strip():
-                return prev["user_task"]
-            rid = prev.get("resumed_from")
-        except (OSError, ValueError):
-            break
-    return task_for_review(p, req)
+    from .review_task import assigned_task
+    return assigned_task(p, req, record)[0]
 
 
 def copy_source(cwd: Path, dest: Path) -> None:
@@ -82,15 +77,30 @@ def copy_source(cwd: Path, dest: Path) -> None:
 
 
 WRITE = """[ccx test review] Independently test this implementation against the task.
-## Task (the person's original words when available, otherwise the brief)
+## Task sources (saved original wording first, then assigned user_task or brief)
 {task}
+
+## Original interface constraints (before the implementation changed)
+{contract}
+
+Start with the task and these original interfaces, BEFORE reading the implementation.
+First write ./behaviors.json: a list of required behaviours, each with exact task_quote,
+interface assumptions, expected return type/shape/units, a planned test, and any Unknown
+or uncovered requirement. Then read source and write tests for that list. Do not copy
+the implementation's choices into expected values. Check every public operation and
+each stated error/message; include interactions and task boundary cases. Derive expected
+values independently. Do not convert return values to hide a type/shape mismatch.
+If the original material does not define an interface detail, record Unknown rather
+than inventing it or treating the implementation as the specification.
 
 This folder contains source only. Do not seek hidden tests or the implementer's tests.
 Do not change source. Write independent Python unittest tests in checks/test_*.py.
 Use only behaviours explicitly stated in the task. Do not invent robustness requirements.
 Write ./manifest.json at the workspace root (outside checks/) as
 {{"cases": [{{"file": "test_name.py", "task_quote": "exact task words"}}]}}.
-List each test file once. Copy task words; only whitespace and punctuation differences are accepted.
+List every test file. Copy task words; only whitespace and punctuation differences are accepted.
+Markdown link labels may be quoted without their URLs. A file can cover several behaviours;
+repeat it with different exact quotes if needed (ccx executes it once).
 Each listed file must contain unittest.TestCase tests. ccx will really execute each file.
 Do not run tests yourself or ask for execution approval: ccx executes them after you finish.
 If tests cannot be written or dependencies are unavailable, leave cases empty and put
@@ -101,6 +111,8 @@ only filenames and a short summary. Do not run the implementation's tests.
 CONFIRM = """[ccx test review] Check whether the observed assertion failures or runtime exceptions justify a fix.
 ## Task
 {task}
+## Original interface constraints
+{contract}
 ## Actual test execution
 {evidence}
 
@@ -149,7 +161,7 @@ def test_env() -> dict[str, str]:
     return {**{k: v for k, v in os.environ.items() if k.upper() in keep}, "PYTHONDONTWRITEBYTECODE": "1"}
 
 
-def execute(tree: Path, evidence: Path, task: str, timeout: float = 60) -> dict:
+def execute(tree: Path, evidence: Path, task: str | tuple[str, ...], timeout: float = 60) -> dict:
     out = unknown("no executable task-derived tests")
     evidence.mkdir(parents=True, exist_ok=True)
     # The original prompt left the manifest's directory ambiguous. Accept the
@@ -234,16 +246,20 @@ def run_review(req, p, cfg: dict, record: dict, cwd: Path, run_dir: Path,
     from .review import fix_rounds
     run_agent = run_agent or run
     record["review_test_mode"] = "tests"
-    task = task_text(p, req, record)
+    from .review_task import inputs
+    task_display, task = inputs(p, req, record, run_dir)
     out = unknown("no reviewer from another vendor installed", independent=False, usd=0.0, native_usd=0.0,
                   reviewer_calls=[], reason=why)
     record["review"] = out
     if not candidates:
         return
-    agent, model, effort = candidates[0]
     rc = cfg.get("review") or {}
-    model = rc.get("tests_model") or model
-    effort = rc.get("tests_effort") or effort
+    from .review_contract import before_change, reviewer
+    try:
+        agent, model, effort = reviewer(candidates, rc)
+    except ValueError as exc:
+        out["unknown_reasons"] = [str(exc)]
+        return
     out.update(by=f"{agent}:{model}:{effort}", independent=not same_vendor(agent, req.provider or req.to, cfg))
     if not out["independent"]:
         out["unknown_reasons"] = ["same vendor: review does not count as independent"]
@@ -253,6 +269,9 @@ def run_review(req, p, cfg: dict, record: dict, cwd: Path, run_dir: Path,
         return
     evidence = run_dir / "review-tests"
     evidence.mkdir(parents=True, exist_ok=True)
+    contract = before_change(p, record, cwd)
+    (evidence / "interface.md").write_text(contract, encoding="utf-8", newline="")
+    out["interface_path"] = str(evidence / "interface.md")
     with tempfile.TemporaryDirectory(prefix="ccx-test-review-") as tmp:
         tree = Path(tmp)
         try:
@@ -277,7 +296,7 @@ def run_review(req, p, cfg: dict, record: dict, cwd: Path, run_dir: Path,
                 out["run_id"] = rev.get("run_id")
                 return rev
 
-            rev = ask(WRITE.format(task=task), "write")
+            rev = ask(WRITE.format(task=task_display, contract=contract), "write")
             if not rev.get("ok"):
                 out["unknown_reasons"] = ["reviewer could not write tests"]
                 return
@@ -285,10 +304,13 @@ def run_review(req, p, cfg: dict, record: dict, cwd: Path, run_dir: Path,
                 out["unknown_reasons"] = ["reviewer modified implementation; test result unusable"]
                 return
             out.update(execute(tree, evidence, task))
+            if (tree / "behaviors.json").is_file():
+                shutil.copyfile(tree / "behaviors.json", evidence / "behaviors.json")
+                out["behaviors_path"] = str(evidence / "behaviors.json")
             if out["tests_failed"]:
                 ev = [{**e, "actual_output": Path(e["output"]).read_text(encoding="utf-8")[-12000:]}
                       for e in out["evidence"] if e["failed"]]
-                rev = ask(CONFIRM.format(task=task, evidence=json.dumps(ev)), "read")
+                rev = ask(CONFIRM.format(task=task_display, contract=contract, evidence=json.dumps(ev)), "read")
                 confirmed = []
                 if rev.get("ok"):
                     for item in (rev.get("result") or {}).get("open_questions") or []:

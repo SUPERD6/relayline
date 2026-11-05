@@ -1,0 +1,1 @@
+| 2026-11-05 | Put a display-only headline first in compact JSON receipts | 紧凑 JSON 收据首字段加入展示标签 | Preserve JSON parsing and execution-ok semantics while exposing failed checks; no default or verdict change / 保留 JSON 解析与执行 ok 含义，醒目标出检查失败，不改默认值与判定 | `ccx/leadview.py`, `scripts/eval/p4_receipt.py`, `docs/research/2026-11-05-receipt-audit.md` |

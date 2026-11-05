@@ -313,8 +313,9 @@ ROLE_DEFAULTS = {"mode": ("read", "write"), "review": ("auto", "on", "off"),
 
 
 SETTINGS = {   # key -> (type, help). Only these can be set with `ccx config set`.
+    "check.baseline": (str, "off (default) | on_fail: experimental clean-dispatch-tree failure comparison"),
     "review.mode": (str, "read (default) | tests (experimental task-derived tests); legacy auto/on/off remain valid"),
-    "review.tests_model": (str, "task-derived test reviewer model; empty keeps the selected cross-vendor candidate"),
+    "review.tests_model": (str, "test reviewer model or vendor:model[:effort]; empty keeps the cross-vendor candidate"),
     "review.tests_effort": (str, "task-derived test reviewer effort; empty keeps the selected candidate's effort"),
     "delegate.user_words": (bool, "experimental: attach the Claude lead's latest real user message (default false)"),
     "delegate.user_words_max_chars": (int, "maximum retained original-wording characters (default 8000)"),
@@ -373,6 +374,7 @@ SETTINGS = {   # key -> (type, help). Only these can be set with `ccx config set
     "lead.claude": (str, "model the Claude lead runs on (for savings estimates; with lead.model_by_task also the "
                            "strong lead's name, which passes no --model), e.g. opus"),
     "lead.codex": (str, "model the Codex lead runs on, e.g. gpt-6.1-sol"),
+    "lead.slim_small": (_bool, "experimental: do clearly small tasks without a routing call or brief (default false)"),
     "prompt.slim": (_bool, "true | false: a run given --mode write and no --check is not told what to do when the "
                            "task only asks for an answer (that sentence is left out); false = the text as before "
                            "(default true)"),
@@ -433,6 +435,8 @@ def set_setting(p: Paths, key: str, raw: str) -> dict:
     if key not in SETTINGS:
         raise ValueError(f"unknown setting {key!r}; known: {', '.join(SETTINGS)}")
     typ = SETTINGS[key][0]
+    if key == "check.baseline" and raw not in ("off", "on_fail"):
+        raise ValueError("check.baseline must be off or on_fail")
     if key == "billing.mode" and raw not in ("api", "subscription"):
         raise ValueError("billing.mode must be api or subscription")
     if key == "review.mode" and raw not in ("read", "tests", "auto", "on", "off"):

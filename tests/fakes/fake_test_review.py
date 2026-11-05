@@ -20,6 +20,8 @@ def answer(prompt):
         return out
     checks = Path.cwd() / "checks"
     checks.mkdir(exist_ok=True)
+    Path("behaviors.json").write_text(json.dumps([{"task_quote": "x to 2", "test": "test_value"}]),
+                                      encoding="utf-8", newline="")
     # Assert that neither the builder's tests nor hidden material survived the copy.
     files = [f.name for f in Path.cwd().rglob("*") if f.is_file()]
     if "test_builder.py" in files or "hidden-pytest.txt" in files or "secret_test.py" in files:

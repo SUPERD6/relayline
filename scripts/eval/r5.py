@@ -184,15 +184,17 @@ import evidence_streams as ES  # noqa: E402
 import tasks_holdout  # noqa: E402
 import tasks_polyglot  # noqa: E402
 import tasks_fresh  # noqa: E402
+import tasks_fresh2  # noqa: E402
 import candidate  # noqa: E402
 import fresh_summary  # noqa: E402
 import tasks_r5  # noqa: E402
 
 # r5: the 10 tasks the loop was tuned on; holdout (scripts/eval/tasks_holdout.py): 10 others never used for tuning,
 # for the final claims (backlog C1). r5 stays the default everywhere.
-TASKSETS = {"r5": tasks_r5, "holdout": tasks_holdout, "polyglot": tasks_polyglot, "fresh": tasks_fresh}
+TASKSETS = {"r5": tasks_r5, "holdout": tasks_holdout, "polyglot": tasks_polyglot, "fresh": tasks_fresh,
+            "fresh2": tasks_fresh2}
 # a task set's default arms when --arms is not given (r5 and holdout: ARMS)
-DEFAULT_ARMS = {"polyglot": tasks_polyglot.ARMS, "fresh": tasks_fresh.ARMS}
+DEFAULT_ARMS = {"polyglot": tasks_polyglot.ARMS, "fresh": tasks_fresh.ARMS, "fresh2": tasks_fresh2.ARMS}
 IDS = tasks_r5.IDS
 
 OUT = ROOT / ".ccx" / "eval" / "r5"
@@ -362,7 +364,7 @@ SKILL_ARMS = PF.SKILL_ARMS                       # the lead loads the agent-dele
 # namecheck arms (opt-in): ccx2 in a unit hub whose tiers.toml sets [defaults] namecheck to this mode
 NAMECHECK_ARMS = {"ccx2nc": "fail"}
 TEST_REVIEW_ARMS = ("ccx2rt",)  # opt-in: same lead/prompt as ccx2, task-derived test review
-USER_WORDS_ARMS = ("ccx2uw", "ccx2cand")  # opt-in unit overlays
+USER_WORDS_ARMS = ("ccx2uw", "ccx2cand", "ccx3cand")  # opt-in unit overlays
 # daily-config arms (opt-in, B3 item 2; scripts/eval/daily_home.py): ccx2's lead and wording, but its sub-agents
 # start with the person's everyday setup (Codex memories, AGENTS.md and skills copied into a per-unit Codex home whose
 # login is the eval home's; Claude with the user settings layer and skills), and each variant turns one experimental
@@ -787,6 +789,24 @@ def changed(repo: Path) -> dict:
 def lead_how(arm: str, label: str, lead: tuple[str, str] = DEFAULT_LEAD) -> str:
     """What the lead is told about how to do the work, per arm (`lead`: its own model and effort, which a tier arm's
     lead passes to ccx propose as --lead)."""
+    if arm == "ccx3cand":
+        from ccx.lead_slim import small_guidance
+        from ccx.config import DEFAULT_TIERS
+        import tomllib
+        # Shipped thresholds, not task/reference metadata; no pre-routing call.
+        cfg = tomllib.loads(DEFAULT_TIERS.read_text(encoding="utf-8"))
+        cfg["lead"] = {**cfg.get("lead", {}), "slim_small": True}
+        return small_guidance(cfg) + "\nFor tasks requiring delegation only:\n" + (
+            f"Run `{r3.CCX_CMD} run --bg --wait {WAIT_SECONDS} --tradeoff save --context auto "
+            f"--files <estimated number of implementation files> --mode write --new --no-ab --label {label} "
+            '--check "<a pytest command for the relevant test files>" "<brief>"`. '
+            f"Set Bash timeout={BASH_TIMEOUT_MS}. If still running, repeat `{r3.CCX_CMD} show <run_id> --wait`; "
+            "never resume a running run or pipe output through head/tail. "
+            "Copy the request verbatim into the brief plus known paths and acceptance command; no preparatory "
+            "code reading or worker commit. Accept a passed check with fitting files_changed/diffstat without "
+            "retesting or reading the full diff. For a failed/missing check or partial/blocked result, inspect "
+            f'and use `{r3.CCX_CMD} resume <run_id> "<what to fix>"`. Commit after acceptance. '
+            "If state=small_self, implement and check yourself; never retry with --force.")
     if arm == "ccx":
         return HOW_CCX.format(ccx=r3.CCX_CMD, label=label)
     if arm in ("ccx2small", "ccx2cand"):
@@ -909,7 +929,8 @@ def unit_how(u: dict, task: dict) -> str:
     if is_exercise(task):
         how = how.replace(tasks_polyglot.CHECK_PLACEHOLDER, tasks_polyglot.CHECK_EXERCISE)
         if "--check" in how:
-            how += " " + tasks_polyglot.BRIEF_FILE
+            how += " " + (("Only when delegating: " if u["arm"] == "ccx3cand" else "")
+                          + tasks_polyglot.BRIEF_FILE)
     return how
 
 
@@ -1608,12 +1629,18 @@ def bookkeeping(row: dict, arm: str, hub: Path, task: dict) -> None:
     error here is kept in the row (`bookkeeping_error`) and the unit is still scored: its lead and sub-agent are
     already paid for, so a failed read of metadata must not throw the hidden-test result away."""
     try:
-        if arm in ("ccx2small", "ccx2cand"):
+        if arm in ("ccx2small", "ccx2cand", "ccx3cand"):
             decisions = [r for r in hub_rows(hub) if r.get("type") == "small_self_run"]
             row["small_self_run"] = {"applied": bool(decisions), "decisions": decisions}
-        if arm == "ccx2cand":
+        if arm in ("ccx2cand", "ccx3cand"):
             row["candidate"] = {**(row.get("candidate") or {}),
                                 **candidate.collect(hub, hub_rows(hub), row.get("ccx_run_ids") or [], r2.record)}
+            if arm == "ccx3cand":
+                row["candidate"].update(
+                    prompt_changed="lead.slim_small plus compressed ccx2cand delegation instructions",
+                    actual_mode="delegated" if row["candidate"]["actual_tiers"] else "Unknown",
+                    small_self=None,  # no refusal event is not proof of a self decision
+                    lead_slim_small=True)
         if arm in TIER_ARMS:
             row.update(tier_fields(arm, hub, task))
         if row.get("ccx_run_ids"):
@@ -1660,6 +1687,8 @@ def unit_models(u: dict, row: dict) -> dict:
         out["namecheck"] = NAMECHECK_ARMS[u["arm"]]
     if u["arm"] in USER_WORDS_ARMS:
         out["user_words"] = True
+    if u["arm"] == "ccx3cand":
+        out["lead_slim_small"] = True
     if u["arm"] in DAILY_ARMS:                    # the daily home and the hub's [subagent] overlay
         out["daily"] = {"subagent": DAILY_ARMS[u["arm"]], "claude_setting_sources": DH.DAILY_CLAUDE_SOURCES,
                         "sha256": (row.get("daily") or {}).get("sha256")}    # the snapshot of the copied setup
@@ -1701,8 +1730,11 @@ def run_unit(u: dict, a, work: Path) -> dict:
         hinfo = r3.make_hub(hub)
         hinfo["memory_empty"] = PF.hub_memory_empty(hub)
         row["hub"] = hinfo
-        if u["arm"] in ("ccx2small", "ccx2cand"):
+        if u["arm"] in ("ccx2small", "ccx2cand", "ccx3cand"):
             hinfo["small_routing"] = set_small(hub)
+        if u["arm"] == "ccx3cand":
+            hub_user_words(hub, True)
+            candidate.set_slim(hub)  # before prepare renders a ccx-home managed block
         env = PF.prepare(iso)
         if u["arm"] in TIER_ARMS:                 # the person's choice the arm simulates, in the unit's own hub
             hinfo["picked"] = set_picked(hub, u["arm"], env)
@@ -1717,6 +1749,8 @@ def run_unit(u: dict, a, work: Path) -> dict:
         row["user_words_mode"] = hinfo["user_words"]
         if u["arm"] == "ccx2cand":
             row["candidate"] = {"switches": candidate.assert_config(hub)}
+        if u["arm"] == "ccx3cand":
+            row["candidate"] = {"switches": candidate.assert_config(hub, slim=True)}
         if u["arm"] in DAILY_ARMS:                # its own Codex home and HOME, and its [subagent] overlay
             row["daily"], env = set_daily(iso, hub, env, u["arm"], a)
         row.update(direct_unit(u, a, repo, hub, env, job) if not has_lead(u["arm"]) else
@@ -3061,6 +3095,9 @@ def summarize(rows: list[dict], include_unclean: bool = False) -> dict:
            "paired": paired_all(rows, None if include_unclean else every)}
     if fresh is not None:
         res["fresh"] = fresh
+    fresh2 = fresh_summary.summarize(rows, arm_of, taskset="fresh2", candidate="ccx3cand")
+    if fresh2 is not None:
+        res["fresh2"] = fresh2
     if ex_arm:
         res["excluded_by_arm"] = ex_arm
         res["excluded_by_tag"] = ex_tag
@@ -3188,7 +3225,8 @@ def parser() -> argparse.ArgumentParser:
     r.add_argument("--taskset", choices=sorted(TASKSETS), default="r5",
                    help="r5 (default: the tasks the loop was tuned on), holdout (unseen, for final claims) or "
                         "polyglot (30 aider exercises; arms self,ccx2,direct) or fresh "
-                        "(30 other pinned Exercism exercises; arms self,ccx2cand)")
+                        "(30 other pinned Exercism exercises; arms self,ccx2cand), or fresh2 "
+                        "(30 new pinned exercises; arms self,ccx3cand)")
     r.add_argument("--tasks", default="", help="comma-separated ids from the task set (default: all of it)")
     r.add_argument("--arms", default="")
     r.add_argument("--arm-order", choices=ARM_ORDERS, default="shuffle", help="shuffle (default, every earlier "

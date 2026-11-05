@@ -96,7 +96,7 @@ def receipt_status(res: dict) -> str | None:
 
 
 def receipt_outcome(res: dict) -> str:
-    if res.get("kind") in ("check_failed", "check_broken"):
+    if res.get("kind") in ("check_failed", "check_broken", "check_baseline_failed"):
         return f"outcome={res['kind']}"
     if not res.get("ok"):
         return "ok=false"
@@ -104,6 +104,27 @@ def receipt_outcome(res: dict) -> str:
             res.get("max_usd") or quota_reassigned(res) or review_not_run(res)):
         return "ok?"
     return "ok=true"
+
+
+def receipt_headline(res: dict) -> str:
+    """Display cue only: execution ok is not acceptance. Keep JSON values and gates intact."""
+    check = res.get("check") or {}
+    if res.get("kind") == "check_broken" or check.get("status") == "check_broken":
+        return "CHECK_BROKEN"
+    if res.get("kind") == "check_failed" or check.get("passed") is False:
+        return "CHECK_FAILED"
+    if (res.get("review") or {}).get("verdict") in ("issues", "fail"):
+        return "REVIEW_ISSUES"
+    status = receipt_status(res)
+    if status in ("partial", "blocked", "failed", "stopped", "running"):
+        return status.upper()
+    if not res.get("ok"):
+        return "FAILED"
+    if res.get("kind") == "ok_self_checked" or check.get("basis"):
+        return "SELF_CHECKED"
+    if status != "done" or check.get("passed") is not True:
+        return "UNVERIFIED"
+    return "DONE"
 
 
 def line(res: dict) -> dict:
@@ -145,5 +166,6 @@ def render(res: dict, cfg: dict) -> tuple[dict, bool]:
 
 def dumps(obj: dict, one_line: bool) -> str:
     if one_line:
+        obj = {"headline": receipt_headline(obj), **{k: v for k, v in obj.items() if k != "headline"}}
         return json.dumps(obj, ensure_ascii=False, separators=(",", ":"))
     return json.dumps(obj, ensure_ascii=False, indent=2)

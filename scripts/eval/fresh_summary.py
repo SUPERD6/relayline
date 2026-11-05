@@ -23,8 +23,8 @@ def metrics(rows: list[dict]) -> dict:
             "wall_missing": len(rows) - len(walls)}
 
 
-def summarize(rows: list[dict], arm_of) -> dict | None:
-    rows = [r for r in rows if r.get("taskset") == "fresh"]
+def summarize(rows: list[dict], arm_of, *, taskset="fresh", candidate="ccx2cand") -> dict | None:
+    rows = [r for r in rows if r.get("taskset") == taskset]
     if not rows:
         return None
 
@@ -33,7 +33,7 @@ def summarize(rows: list[dict], arm_of) -> dict | None:
         pairs = {}
         # Pair only equal lead suffixes, never across different models or settings.
         for base in [a for a in groups if a == "self" or a.startswith("self@")]:
-            cand = "ccx2cand" + base[len("self"):]
+            cand = candidate + base[len("self"):]
             if cand not in groups:
                 continue
             def index(arm):

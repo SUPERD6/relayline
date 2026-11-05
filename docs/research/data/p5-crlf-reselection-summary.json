@@ -1,0 +1,131 @@
+{
+  "policy": "native-git-checkout-v2",
+  "candidate_pool_matches_previous": true,
+  "candidate_counts": {
+    "more-itertools": 36,
+    "boltons": 49,
+    "pluggy": 32
+  },
+  "checked": 117,
+  "qualified": 1,
+  "accepted": 0,
+  "shortfall": 8,
+  "qualification_shortfall": 7,
+  "incomplete_episode_commits": [
+    "1216b467c10b852d08aa6895c80b6b9ec8f990d8"
+  ],
+  "status": "Unknown",
+  "exclusions": {
+    "reference_hidden_failed": 2,
+    "parent_hidden_did_not_fail": 9,
+    "baseline_full_failed": 105
+  },
+  "baseline_failure_reasons": {
+    "old_timing_assertion": 19,
+    "obsolete_collections_import": 13,
+    "other_baseline_failure": 31,
+    "missing_nose": 7,
+    "incompatible_pytest_hook": 35
+  },
+  "qualified_tasks": [
+    {
+      "repo": "boltons",
+      "commit": "1216b467c10b852d08aa6895c80b6b9ec8f990d8",
+      "subject": "Complete September PR sweep for 26.2.0 (#481)",
+      "code_lines": 44,
+      "code": [
+        "boltons/cacheutils.py",
+        "boltons/jsonutils.py",
+        "boltons/strutils.py",
+        "boltons/urlutils.py"
+      ],
+      "baseline": {
+        "rc": 0,
+        "summary": "512 passed in 3.45s",
+        "errors": [],
+        "command": "PYTHON -m pytest -q -o addopts=",
+        "checkout": "native-git-checkout-v2",
+        "python": {
+          "python": "Python 3.11.9",
+          "pytest": "pytest 9.1.1",
+          "models_called": false
+        },
+        "cwd": "<unit.repo>",
+        "tmp": "<unit.repo>/.ccx-eval-tmp-acceptance",
+        "checkout_evidence": {
+          "policy": "native-git-checkout-v2",
+          "autocrlf": "true",
+          "attributes": "respected",
+          "eol_counts": {
+            "i/lf w/crlf": 108,
+            "i/crlf w/crlf": 2,
+            "i/none w/none": 2
+          }
+        },
+        "raw": {
+          "file": "1216b467c10b852d08aa6895c80b6b9ec8f990d8-baseline.txt",
+          "sha256": "251394e2b0516bc775148baf7233ca2cc2b336590e20497f25e6221ff472487b"
+        }
+      },
+      "parent": {
+        "rc": 1,
+        "summary": "11 failed, 189 passed in 0.92s",
+        "errors": [
+          "E       assert [] == [(2, 10), (5, 1)]",
+          "E         ",
+          "E         Right contains 2 more items, first extra item: (2, 10)",
+          "E         Use -v to get more diff",
+          "E       AssertionError: assert {'a': 2, 'b': 1, 'zero': 1} == {'a': 4, 'b': 2}",
+          "E         ",
+          "E         Differing items:",
+          "E         {'b': 1} != {'b': 2}",
+          "E         {'a': 2} != {'a': 4}",
+          "E         Left contains 1 more item:",
+          "E         {'zero': 1}",
+          "E         Use -v to get more diff"
+        ],
+        "raw": {
+          "file": "1216b467c10b852d08aa6895c80b6b9ec8f990d8-parent.txt",
+          "sha256": "88df6a04aaf1d75798ab143e1ea97831e3b4770c0afa09ad6da7af9f1d70c210"
+        }
+      },
+      "reference": {
+        "rc": 0,
+        "summary": "200 passed in 0.54s",
+        "errors": [],
+        "raw": {
+          "file": "1216b467c10b852d08aa6895c80b6b9ec8f990d8-reference.txt",
+          "sha256": "b9777ba8f61ad039994146f0058f96cee258505293d05256627be2df2a3bcd97"
+        }
+      },
+      "reference_full": {
+        "rc": 0,
+        "summary": "519 passed in 3.47s",
+        "errors": [],
+        "command": "PYTHON -m pytest -q -o addopts=",
+        "checkout": "native-git-checkout-v2",
+        "python": {
+          "python": "Python 3.11.9",
+          "pytest": "pytest 9.1.1",
+          "models_called": false
+        },
+        "cwd": "<unit.repo>",
+        "tmp": "<unit.repo>/.ccx-eval-tmp-acceptance",
+        "checkout_evidence": {
+          "policy": "native-git-checkout-v2",
+          "autocrlf": "true",
+          "attributes": "respected",
+          "eol_counts": {
+            "i/lf w/crlf": 108,
+            "i/crlf w/crlf": 2,
+            "i/none w/none": 2
+          }
+        },
+        "raw": {
+          "file": "1216b467c10b852d08aa6895c80b6b9ec8f990d8-reference-full.txt",
+          "sha256": "1209e2d14b877d70b1f5827b9685a6f45bb426fb070d58385d8e0ae23f004fd3"
+        }
+      }
+    }
+  ]
+}

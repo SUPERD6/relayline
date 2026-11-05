@@ -265,7 +265,7 @@ def _tree_fields(rec: dict) -> tuple[dict, str | None]:
 def restored(old_run: str, rec: dict) -> str:
     """How an interrupted piece came back (OpenRig's taxonomy): resumed | fresh | decide | failed."""
     if rec.get("kind") in ("quota", "auth", "env", "needs_write", "over_budget", "user_stopped", "interrupted",
-                               "check_broken", "no_changes", "no_answer"):
+                               "check_broken", "check_baseline_failed", "no_changes", "no_answer"):
         return "decide"                 # something only the user or the lead can settle
     if not rec.get("ok") or rec.get("kind") in ("check_failed", "timeout", "error"):
         return "failed"
@@ -321,6 +321,8 @@ def _one(it: dict, root: Path, caller: str, p, cfg, warm: str | None = None, got
             return {"id": it["id"], "split_into": kids}
         if rec.get("kind") == "needs_write":
             fields["status"] = "needs_write"
+        elif rec.get("kind") == "check_baseline_failed":
+            fields["status"] = "blocked"
         elif rec.get("kind") in ("check_failed", "check_broken", "review_failed", "review_issues",
                                  "no_changes", "no_answer") or not rec["ok"] or status in ("failed",):
             fields["status"] = "failed"

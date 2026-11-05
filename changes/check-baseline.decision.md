@@ -1,0 +1,1 @@
+| 2026-11-05 | Keep baseline comparison opt-in and require complete failure lists | 基线比较默认关，仅完整失败列表可判定无新增失败 | Equal exits do not prove equal failures; dirty trees and cleanup errors stay Unknown / 相同退出码不证明同样失败，脏起点和清理错误保留 Unknown | `ccx/check_baseline.py`, `docs/check-baseline.md` |

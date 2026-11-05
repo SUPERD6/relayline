@@ -64,7 +64,7 @@ def soft_verdicts(p: Paths, min_age_h: float = SOFT_AFTER_H, now: float | None =
             continue
         if (p.runs / r["run_id"] / "undone.json").exists():       # undone: right or wrong is the person's call
             continue
-        if record.get("kind") in ("check_failed", "check_broken", "review_issues", "review_failed", "needs_write",
+        if record.get("kind") in ("check_failed", "check_baseline_failed", "check_broken", "review_issues", "review_failed", "needs_write",
                                  "split", "no_changes", "no_answer"):
             continue
         if record.get("kind") == "ok_self_checked" and not reviewed_ok(record):

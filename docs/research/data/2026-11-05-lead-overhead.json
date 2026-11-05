@@ -1,0 +1,438 @@
+{
+  "evidence": "measured historical streams; attribution estimates are not a causal A/B",
+  "groups": {
+    "self": {
+      "n": 30,
+      "lead_requests": {
+        "mean": 3.066666666666667,
+        "median": 3.0
+      },
+      "lead_tokens": {
+        "mean": 25637.233333333334,
+        "median": 25061.0
+      },
+      "usd": {
+        "mean": 0.0207074,
+        "median": 0.020523
+      },
+      "stream_tokens": 769117
+    },
+    "ccx2cand": {
+      "n": 30,
+      "lead_requests": {
+        "mean": 4.1,
+        "median": 4.0
+      },
+      "lead_tokens": {
+        "mean": 40345.03333333333,
+        "median": 39329.5
+      },
+      "usd": {
+        "mean": 0.0407025,
+        "median": 0.038685
+      },
+      "stream_tokens": 1210351
+    }
+  },
+  "small_pairs": 26,
+  "small_mean": {
+    "delta_tokens": 15352.692307692309,
+    "delta_requests": 1.1153846153846154,
+    "decision_request_tokens_measured": 8620.807692307691,
+    "first_request_context_delta_measured": 688.0769230769231,
+    "prompt_repeated_estimate": 2170.1923076923076,
+    "brief_command_chars": 1658.9615384615386,
+    "decision_reply_chars": 482.9230769230769,
+    "brief_and_reply_repeated_estimate": 1636.7307692307693,
+    "residual_tokens": 2924.9615384615386
+  },
+  "clean_small_pairs": 24,
+  "clean_small_mean": {
+    "delta_tokens": 14803.458333333334,
+    "delta_requests": 1.0833333333333333,
+    "decision_request_tokens_measured": 8599.125,
+    "first_request_context_delta_measured": 688.25,
+    "prompt_repeated_estimate": 2150.875,
+    "brief_command_chars": 1538.125,
+    "decision_reply_chars": 483.0833333333333,
+    "brief_and_reply_repeated_estimate": 1510.2083333333333,
+    "residual_tokens": 2543.25
+  },
+  "idealized_cost": {
+    "usd": 0.703572,
+    "ratio_to_self": 1.1325613065860511,
+    "assumption": "26 small tasks cost exactly their self pair; 4 delegations unchanged; no guidance cost or routing changes; not a bound or prediction"
+  },
+  "guidance_projection": {
+    "text": {
+      "self": {
+        "chars": 21,
+        "words": 4,
+        "chars_div_4": 5.25
+      },
+      "ccx2cand": {
+        "chars": 2031,
+        "words": 306,
+        "chars_div_4": 507.75
+      },
+      "ccx3cand": {
+        "chars": 1829,
+        "words": 243,
+        "chars_div_4": 457.25
+      }
+    },
+    "estimated_extra_context_per_self_request": 618.9269039418293,
+    "illustrative_cost_ratio_to_self": {
+      "5_minute_write": 1.2080281282438703,
+      "1_hour_write": 1.2468840432850816
+    },
+    "assumptions": "Scale observed first-context delta by guidance character-length ratio. Small tasks otherwise exactly match self; 4 delegations unchanged. Added input written once then cache-read at $0.20/M; writes $2.50/M or $4/M (r5 pricing assumptions). No implementation, cache-placement, routing or quality changes. Not measured savings."
+  },
+  "zero_components": {
+    "managed_blocks": "0: flags isolation disables managed CLAUDE.md",
+    "hook_output": "0: recorded isolation hooks=disabled",
+    "skill_list": "0"
+  },
+  "init_n": 60,
+  "pairs": [
+    {
+      "task": "fresh-yacht",
+      "clean": false,
+      "delta_tokens": 15171,
+      "delta_requests": 1,
+      "decision_request_tokens_measured": 8733,
+      "first_request_context_delta_measured": 684,
+      "prompt_repeated_estimate": 2052,
+      "brief_command_chars": 2999,
+      "decision_reply_chars": 481,
+      "brief_and_reply_repeated_estimate": 2610.0,
+      "residual_tokens": 1776.0
+    },
+    {
+      "task": "fresh-rational-numbers",
+      "clean": false,
+      "delta_tokens": 28716,
+      "delta_requests": 2,
+      "decision_request_tokens_measured": 9029,
+      "first_request_context_delta_measured": 688,
+      "prompt_repeated_estimate": 2752,
+      "brief_command_chars": 3219,
+      "decision_reply_chars": 481,
+      "brief_and_reply_repeated_estimate": 3700.0,
+      "residual_tokens": 13235.0
+    },
+    {
+      "task": "fresh-hexadecimal",
+      "clean": true,
+      "delta_tokens": 12596,
+      "delta_requests": 1,
+      "decision_request_tokens_measured": 7958,
+      "first_request_context_delta_measured": 687,
+      "prompt_repeated_estimate": 2061,
+      "brief_command_chars": 1148,
+      "decision_reply_chars": 481,
+      "brief_and_reply_repeated_estimate": 1221.75,
+      "residual_tokens": 1355.25
+    },
+    {
+      "task": "fresh-saddle-points",
+      "clean": true,
+      "delta_tokens": 14550,
+      "delta_requests": 1,
+      "decision_request_tokens_measured": 8634,
+      "first_request_context_delta_measured": 688,
+      "prompt_repeated_estimate": 2064,
+      "brief_command_chars": 2388,
+      "decision_reply_chars": 481,
+      "brief_and_reply_repeated_estimate": 2151.75,
+      "residual_tokens": 1700.25
+    },
+    {
+      "task": "fresh-nucleotide-count",
+      "clean": true,
+      "delta_tokens": 14672,
+      "delta_requests": 1,
+      "decision_request_tokens_measured": 8252,
+      "first_request_context_delta_measured": 690,
+      "prompt_repeated_estimate": 2070,
+      "brief_command_chars": 232,
+      "decision_reply_chars": 481,
+      "brief_and_reply_repeated_estimate": 534.75,
+      "residual_tokens": 3815.25
+    },
+    {
+      "task": "fresh-state-of-tic-tac-toe",
+      "clean": true,
+      "delta_tokens": 24507,
+      "delta_requests": 2,
+      "decision_request_tokens_measured": 9262,
+      "first_request_context_delta_measured": 694,
+      "prompt_repeated_estimate": 2776,
+      "brief_command_chars": 1643,
+      "decision_reply_chars": 481,
+      "brief_and_reply_repeated_estimate": 1593.0,
+      "residual_tokens": 10876.0
+    },
+    {
+      "task": "fresh-simple-cipher",
+      "clean": true,
+      "delta_tokens": 15566,
+      "delta_requests": 1,
+      "decision_request_tokens_measured": 9115,
+      "first_request_context_delta_measured": 691,
+      "prompt_repeated_estimate": 2073,
+      "brief_command_chars": 2762,
+      "decision_reply_chars": 481,
+      "brief_and_reply_repeated_estimate": 2432.25,
+      "residual_tokens": 1945.75
+    },
+    {
+      "task": "fresh-allergies",
+      "clean": true,
+      "delta_tokens": 14108,
+      "delta_requests": 1,
+      "decision_request_tokens_measured": 8150,
+      "first_request_context_delta_measured": 684,
+      "prompt_repeated_estimate": 2052,
+      "brief_command_chars": 225,
+      "decision_reply_chars": 481,
+      "brief_and_reply_repeated_estimate": 529.5,
+      "residual_tokens": 3376.5
+    },
+    {
+      "task": "fresh-custom-set",
+      "clean": true,
+      "delta_tokens": 20904,
+      "delta_requests": 2,
+      "decision_request_tokens_measured": 8201,
+      "first_request_context_delta_measured": 686,
+      "prompt_repeated_estimate": 2744,
+      "brief_command_chars": 226,
+      "decision_reply_chars": 481,
+      "brief_and_reply_repeated_estimate": 530.25,
+      "residual_tokens": 9428.75
+    },
+    {
+      "task": "fresh-rail-fence-cipher",
+      "clean": true,
+      "delta_tokens": 13840,
+      "delta_requests": 1,
+      "decision_request_tokens_measured": 8651,
+      "first_request_context_delta_measured": 692,
+      "prompt_repeated_estimate": 2076,
+      "brief_command_chars": 1616,
+      "decision_reply_chars": 481,
+      "brief_and_reply_repeated_estimate": 1572.75,
+      "residual_tokens": 1540.25
+    },
+    {
+      "task": "fresh-queen-attack",
+      "clean": true,
+      "delta_tokens": 14307,
+      "delta_requests": 1,
+      "decision_request_tokens_measured": 8756,
+      "first_request_context_delta_measured": 689,
+      "prompt_repeated_estimate": 2067,
+      "brief_command_chars": 2065,
+      "decision_reply_chars": 481,
+      "brief_and_reply_repeated_estimate": 1909.5,
+      "residual_tokens": 1574.5
+    },
+    {
+      "task": "fresh-matching-brackets",
+      "clean": true,
+      "delta_tokens": 12880,
+      "delta_requests": 1,
+      "decision_request_tokens_measured": 8148,
+      "first_request_context_delta_measured": 690,
+      "prompt_repeated_estimate": 2070,
+      "brief_command_chars": 1380,
+      "decision_reply_chars": 481,
+      "brief_and_reply_repeated_estimate": 1395.75,
+      "residual_tokens": 1266.25
+    },
+    {
+      "task": "fresh-minesweeper",
+      "clean": true,
+      "delta_tokens": 14102,
+      "delta_requests": 1,
+      "decision_request_tokens_measured": 8522,
+      "first_request_context_delta_measured": 685,
+      "prompt_repeated_estimate": 2055,
+      "brief_command_chars": 2016,
+      "decision_reply_chars": 481,
+      "brief_and_reply_repeated_estimate": 1872.75,
+      "residual_tokens": 1652.25
+    },
+    {
+      "task": "fresh-circular-buffer",
+      "clean": true,
+      "delta_tokens": 14377,
+      "delta_requests": 1,
+      "decision_request_tokens_measured": 9163,
+      "first_request_context_delta_measured": 688,
+      "prompt_repeated_estimate": 2064,
+      "brief_command_chars": 1943,
+      "decision_reply_chars": 481,
+      "brief_and_reply_repeated_estimate": 1818.0,
+      "residual_tokens": 1332.0
+    },
+    {
+      "task": "fresh-pascals-triangle",
+      "clean": true,
+      "delta_tokens": 15152,
+      "delta_requests": 1,
+      "decision_request_tokens_measured": 9633,
+      "first_request_context_delta_measured": 689,
+      "prompt_repeated_estimate": 2067,
+      "brief_command_chars": 1962,
+      "decision_reply_chars": 481,
+      "brief_and_reply_repeated_estimate": 1832.25,
+      "residual_tokens": 1619.75
+    },
+    {
+      "task": "fresh-sublist",
+      "clean": true,
+      "delta_tokens": 17240,
+      "delta_requests": 1,
+      "decision_request_tokens_measured": 8480,
+      "first_request_context_delta_measured": 686,
+      "prompt_repeated_estimate": 2744,
+      "brief_command_chars": 1776,
+      "decision_reply_chars": 481,
+      "brief_and_reply_repeated_estimate": 2257.0,
+      "residual_tokens": 3759.0
+    },
+    {
+      "task": "fresh-game-of-life",
+      "clean": true,
+      "delta_tokens": 13482,
+      "delta_requests": 1,
+      "decision_request_tokens_measured": 8142,
+      "first_request_context_delta_measured": 687,
+      "prompt_repeated_estimate": 2061,
+      "brief_command_chars": 1570,
+      "decision_reply_chars": 481,
+      "brief_and_reply_repeated_estimate": 1538.25,
+      "residual_tokens": 1740.75
+    },
+    {
+      "task": "fresh-trinary",
+      "clean": true,
+      "delta_tokens": 3561,
+      "delta_requests": 0,
+      "decision_request_tokens_measured": 8090,
+      "first_request_context_delta_measured": 686,
+      "prompt_repeated_estimate": 1372,
+      "brief_command_chars": 1204,
+      "decision_reply_chars": 531,
+      "brief_and_reply_repeated_estimate": 867.5,
+      "residual_tokens": -6768.5
+    },
+    {
+      "task": "fresh-luhn",
+      "clean": true,
+      "delta_tokens": 14433,
+      "delta_requests": 1,
+      "decision_request_tokens_measured": 8730,
+      "first_request_context_delta_measured": 686,
+      "prompt_repeated_estimate": 2058,
+      "brief_command_chars": 2155,
+      "decision_reply_chars": 481,
+      "brief_and_reply_repeated_estimate": 1977.0,
+      "residual_tokens": 1668.0
+    },
+    {
+      "task": "fresh-prime-factors",
+      "clean": true,
+      "delta_tokens": 12288,
+      "delta_requests": 1,
+      "decision_request_tokens_measured": 8323,
+      "first_request_context_delta_measured": 686,
+      "prompt_repeated_estimate": 2058,
+      "brief_command_chars": 1232,
+      "decision_reply_chars": 481,
+      "brief_and_reply_repeated_estimate": 856.5,
+      "residual_tokens": 1050.5
+    },
+    {
+      "task": "fresh-high-scores",
+      "clean": true,
+      "delta_tokens": 12572,
+      "delta_requests": 1,
+      "decision_request_tokens_measured": 8134,
+      "first_request_context_delta_measured": 686,
+      "prompt_repeated_estimate": 2058,
+      "brief_command_chars": 1065,
+      "decision_reply_chars": 481,
+      "brief_and_reply_repeated_estimate": 1159.5,
+      "residual_tokens": 1220.5
+    },
+    {
+      "task": "fresh-nth-prime",
+      "clean": true,
+      "delta_tokens": 13088,
+      "delta_requests": 1,
+      "decision_request_tokens_measured": 8306,
+      "first_request_context_delta_measured": 690,
+      "prompt_repeated_estimate": 2070,
+      "brief_command_chars": 1538,
+      "decision_reply_chars": 481,
+      "brief_and_reply_repeated_estimate": 1514.25,
+      "residual_tokens": 1197.75
+    },
+    {
+      "task": "fresh-kindergarten-garden",
+      "clean": true,
+      "delta_tokens": 15647,
+      "delta_requests": 1,
+      "decision_request_tokens_measured": 9520,
+      "first_request_context_delta_measured": 690,
+      "prompt_repeated_estimate": 2070,
+      "brief_command_chars": 1823,
+      "decision_reply_chars": 481,
+      "brief_and_reply_repeated_estimate": 1728.0,
+      "residual_tokens": 2329.0
+    },
+    {
+      "task": "fresh-flower-field",
+      "clean": true,
+      "delta_tokens": 24241,
+      "delta_requests": 2,
+      "decision_request_tokens_measured": 8610,
+      "first_request_context_delta_measured": 687,
+      "prompt_repeated_estimate": 2748,
+      "brief_command_chars": 1730,
+      "decision_reply_chars": 481,
+      "brief_and_reply_repeated_estimate": 2211.0,
+      "residual_tokens": 10672.0
+    },
+    {
+      "task": "fresh-roman-numerals",
+      "clean": true,
+      "delta_tokens": 14667,
+      "delta_requests": 1,
+      "decision_request_tokens_measured": 8714,
+      "first_request_context_delta_measured": 690,
+      "prompt_repeated_estimate": 2070,
+      "brief_command_chars": 2130,
+      "decision_reply_chars": 481,
+      "brief_and_reply_repeated_estimate": 1958.25,
+      "residual_tokens": 1924.75
+    },
+    {
+      "task": "fresh-pythagorean-triplet",
+      "clean": true,
+      "delta_tokens": 12503,
+      "delta_requests": 1,
+      "decision_request_tokens_measured": 8885,
+      "first_request_context_delta_measured": 691,
+      "prompt_repeated_estimate": 2073,
+      "brief_command_chars": 1086,
+      "decision_reply_chars": 481,
+      "brief_and_reply_repeated_estimate": 783.5,
+      "residual_tokens": 761.5
+    }
+  ],
+  "limits": "First-context delta includes prompt/framing differences; repeated prompt and chars/4 replay are estimates. Residual retains implementation, output and tokenization differences. Cache read/write mix affects dollars separately; token reduction is not a cost verdict."
+}
