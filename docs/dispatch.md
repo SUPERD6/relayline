@@ -10,20 +10,32 @@ configured T1 rung, then return to the ordinary starting rung if acceptance iden
 a new failure. No task-size, interface-risk or task-wording filter is added. Without
 `--check`, the existing path is unchanged. Explicit model pins, role model pins,
 resumes and `--no-escalate` retain their existing choices. No command or option is removed.
+Only recognized direct pytest/unittest commands qualify for cheap-first dispatch.
+Opaque scripts, pipelines and commands whose exit status may mask the check keep
+the ordinary route, even when their output resembles pytest.
 
 The caller must supply an independent acceptance command, rather than asking the
-worker to invent its own tests. Existing self-written-test detection blocks a retry
-when all tests used by the check were written or changed by this run. It does not
+worker to invent its own tests. A cheap attempt whose passing check covers tests
+written, edited or extended by this run is self-checked and climbs once, including
+mixed suites containing untouched tests. A failing self-written check retains the
+existing retry policy. It does not
 prove the independence or completeness of an arbitrary shell command.
+Missing snapshots, namechecks, unavailable/partial coverage and inspection errors
+also cannot establish independence: a passing cheap attempt climbs once in those
+cases. The ordinary dispatch path retains its existing treatment of unknown bases.
 
 The opt-in path uses [`check.baseline = "on_fail"`](check-baseline.md) for that run,
 even when the hub keeps baseline checking off. A baseline-only failure never
 escalates. A passing baseline permits the check's failure output; otherwise only
-identified new failing cases are sent to the stronger attempt. An unavailable or
-ambiguous baseline stays Unknown and does not trigger dispatch escalation. Existing
+identified new failing cases are sent to the stronger attempt when comparison is known.
+An unavailable or ambiguous baseline stays Unknown and permits the ordinary retry
+with the current failure output; it is not relabeled as a confirmed new failure. Existing
 check verdicts and exit codes retain their meanings. Environment failures do not
 trigger task escalation; existing quota fallback and model substitution remain available.
 Review selection and repair limits remain unchanged.
+CLI execution errors and timeouts may advance to the next authorized rung, even
+when no resumable session was produced. Authentication failures and stop/budget
+conditions retain their existing behavior.
 
 `run.json`, `ccx show` and the ledger gain a `dispatch` object. It records the actual
 first rung and originally selected rung, `attempted`, `escalated`, `escalation_rate`,

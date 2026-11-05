@@ -20,11 +20,11 @@ def test_default_off_and_strict_boolean():
     ({"passed": False, "baseline_comparison": "baseline_passed"}, True),
     ({"passed": False, "baseline_comparison": "new_failures"}, True),
     ({"passed": False, "baseline_comparison": "baseline_only"}, False),
-    ({"passed": False, "baseline_comparison": "Unknown"}, False),
+    ({"passed": False, "baseline_comparison": "Unknown"}, True),
     ({"passed": False, "broken": True, "baseline_comparison": "baseline_passed"}, False),
     ({"passed": True, "baseline_comparison": "baseline_passed"}, False),
 ])
-def test_only_independently_verified_new_failures_escalate(check, expected):
+def test_new_failures_or_unknown_baseline_allow_escalation(check, expected):
     assert dispatch.may_escalate(check) is expected
     assert not dispatch.may_escalate(check, self_checked=True)
 
@@ -41,15 +41,30 @@ class TestDispatchCommand(AdapterEnv):
     def setUp(self):
         super().setUp()
         repository(self.work)
+        # Direct pytest acceptance is eligible for cheap dispatch; opaque scripts are tested separately.
+        (self.work / "test_dispatch_acceptance.py").write_text(
+            "import os\nfrom pathlib import Path\n"
+            "def test_old():\n"
+            "    assert os.environ.get('CCX_TEST_DISPATCH_MODE') == 'passbase' and Path('state.txt').read_text() in ('base', 'fixed')\n"
+            "def test_new():\n"
+            "    assert Path('state.txt').read_text() != 'new'\n", encoding="utf-8", newline="")
+        git(self.work, "add", "test_dispatch_acceptance.py")
+        git(self.work, "commit", "-qm", "independent pytest acceptance")
 
     def enable(self):
         self.j("config", "set", "dispatch.cheap_first", "true")
 
     def checked(self, *options, extra="", env=None):
+        if extra == "opaque":
+            (self.work / "preexisting.txt").write_text("dirty dispatch baseline", encoding="utf-8")
         return self.j("run", "--from", "claude", "--to", "codex", "--tier", "T2", "--new",
                       "--mode", "write", "--review", "off", "--no-fallback", *options,
-                      "--check", f'"{sys.executable}" check_run.py {extra}', "fix state.txt",
-                      env=env or {"FAKE_WRITE": "state.txt=edited"})
+                      "--check", self.pytest_command(), "fix state.txt",
+                      env={"CCX_TEST_DISPATCH_MODE": extra, "PYTEST_DISABLE_PLUGIN_AUTOLOAD": "1",
+                           **(env or {"FAKE_WRITE": "state.txt=edited"})})
+
+    def pytest_command(self):
+        return f'"{sys.executable}" -m pytest -q -p no:cacheprovider test_dispatch_acceptance.py'
 
     def test_default_keeps_original_start(self):
         out = self.checked()
@@ -78,17 +93,24 @@ class TestDispatchCommand(AdapterEnv):
         assert "test_new" in prompt and "test_old" not in prompt
         assert rec["dispatch"]["escalation_usd"] == rec["attempts"][1]["ae_usd"]
 
-    def test_unknown_baseline_stops_without_escalation(self):
+    def test_unknown_baseline_escalates(self):
         self.enable()
         out = self.checked(extra="opaque")
         rec = self.rec(out["run_id"])
-        assert len(rec["attempts"]) == 1 and rec["kind"] == "check_failed"
+        assert [a["tier"] for a in rec["attempts"]] == ["T1", "T2"] and rec["kind"] == "check_failed"
         assert rec["checks"][0]["baseline_comparison"] == "Unknown"
 
     def test_baseline_pass_allows_escalation(self):
         self.enable()
         rec = self.rec(self.checked(extra="passbase")["run_id"])
         assert [a["tier"] for a in rec["attempts"]] == ["T1", "T2"]
+
+    def test_passing_pytest_check_finishes_at_cheap_rung(self):
+        self.enable()
+        out = self.checked(extra="passbase", env={"FAKE_WRITE": "state.txt=fixed"})
+        rec = self.rec(out["run_id"])
+        assert out["ok"] is True and [a["tier"] for a in rec["attempts"]] == ["T1"]
+        assert rec["dispatch"]["escalated"] == 0 and "check_baseline" not in rec
 
     def test_explicit_pin_and_no_escalate_are_preserved(self):
         self.enable()
@@ -120,7 +142,7 @@ class TestDispatchCommand(AdapterEnv):
     def test_environment_failure_does_not_escalate(self):
         self.enable()
         out = self.j("run", "--from", "claude", "--to", "codex", "--tier", "T2", "--new", "--review", "off",
-                     "--no-fallback", "--check", f'"{sys.executable}" check_run.py', "fix state.txt",
+                     "--no-fallback", "--check", self.pytest_command(), "fix state.txt",
                      env={"FAKE_STATUS": "env"})
         rec = self.rec(out["run_id"])
         assert rec["kind"] == "env" and len(rec["attempts"]) == 1
@@ -129,7 +151,7 @@ class TestDispatchCommand(AdapterEnv):
     def test_quota_fallback_is_recovery_not_task_escalation(self):
         self.enable()
         out = self.j("run", "--from", "claude", "--to", "codex", "--tier", "T2", "--new", "--review", "off",
-                     "--check", f'"{sys.executable}" check_run.py', "fix state.txt",
+                     "--check", self.pytest_command(), "fix state.txt",
                      env={"FAKE_STATUS_CODEX": "quota", "FAKE_WRITE": "state.txt=edited"})
         rec = self.rec(out["run_id"])
         assert [a["agent"] for a in rec["attempts"]] == ["codex", "claude"]
@@ -158,21 +180,31 @@ class TestDispatchCommand(AdapterEnv):
         git(self.work, "commit", "-qm", "acceptance command")
         return f'"{sys.executable}" check_pass.py'
 
-    def test_passing_cheap_attempt_finishes_without_stronger_model(self):
+    def test_passing_opaque_command_keeps_original_start(self):
         self.enable()
         command = self.passing_command()
         out = self.j("run", "--from", "claude", "--to", "codex", "--tier", "T2", "--new", "--review", "off",
                      "--no-fallback", "--check", command, "fix state.txt", env={"FAKE_WRITE": "state.txt=fixed"})
         rec = self.rec(out["run_id"])
-        assert out["ok"] is True and [a["tier"] for a in rec["attempts"]] == ["T1"]
-        assert rec["dispatch"]["escalated"] == 0 and "check_baseline" not in rec
+        assert out["ok"] is True and [a["tier"] for a in rec["attempts"]] == ["T2"]
+        assert "dispatch" not in rec and "check_baseline" not in rec
 
-    def test_failed_cheap_attempt_can_finish_successfully_after_escalation(self):
+    def test_failed_opaque_command_uses_original_escalation(self):
         self.enable()
         command = self.passing_command()
         out = self.j("run", "--from", "claude", "--to", "codex", "--tier", "T2", "--new", "--review", "off",
                      "--no-fallback", "--check", command, "fix state.txt",
                      env={"FAKE_WRITE": "state.txt=new", "FAKE_WRITE_RESUMED": "state.txt=fixed"})
         rec = self.rec(out["run_id"])
-        assert out["ok"] is True and [a["tier"] for a in rec["attempts"]] == ["T1", "T2"]
-        assert out["dispatch"]["escalated"] == 1 and out["check"]["passed"] is True
+        assert out["ok"] is True and [a["tier"] for a in rec["attempts"]] == ["T2", "T3"]
+        assert "dispatch" not in out and out["check"]["passed"] is True
+
+
+@pytest.mark.parametrize("command,expected", [
+    ("python -m pytest -q tests", True), ("python -X utf8 -m unittest discover", True),
+    ("pytest tests", True), ("python check_run.py", False), ("echo pytest", False),
+    ("python helper.py -m pytest", False), ("pytest tests | tail -5", False),
+    ("pytest tests/a.py | pytest tests/b.py", False),
+])
+def test_only_baseline_capable_commands_get_cheap_dispatch(command, expected):
+    assert dispatch.baseline_capable(command) is expected

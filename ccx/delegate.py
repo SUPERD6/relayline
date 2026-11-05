@@ -1004,9 +1004,10 @@ def run(req: Request, p: Paths) -> dict:
                 dispatch_phase = "escalation"
                 i += 1
                 continue
-            if (not cheap_dispatch and chk["passed"] and req.mode == "write" and left is not True and on_self_checked(cfg) == "rung"
+            if (chk["passed"] and req.mode == "write" and left is not True
+                    and (cheap_dispatch or on_self_checked(cfg) == "rung")
                     and not any(a.get("kind") == SELF_CHECKED for a in record["attempts"][:-1])
-                    and _self_checked_now(p, record, cwd, chk)):
+                    and _self_checked_now(p, record, cwd, chk, independent=cheap_dispatch)):
                 # P0-8, [escalate] on_self_checked = "rung": it passed only on tests this attempt wrote or changed,
                 # which is no evidence: one rung up, told to hold the code against the task text, not its own tests.
                 # Once per run: its tests stay in the chain's diff, so every later rung would match too
@@ -1019,17 +1020,22 @@ def run(req: Request, p: Paths) -> dict:
                     prompt = ESCALATE.format(run_id=run_id, status=SELF_CHECKED, summary=SELF_CHECKED_RETRY)
                 else:
                     prompt, session = first_prompt, None
+                dispatch_phase = "escalation"
                 i += 1
                 continue
-        stuck = not cheap_dispatch and ((not oc.ok and oc.kind == "error") or status in ("blocked", "failed"))
-        if stuck and i + 1 < len(plan) and plan[i + 1]["agent"] == to and session and not oc.auth_problem:
-            prompt = ESCALATE.format(run_id=run_id, status=status or "error",
+        stuck = (not cheap_dispatch and ((not oc.ok and oc.kind == "error") or status in ("blocked", "failed"))
+                 or cheap_dispatch and dispatch.retry_cli(oc.ok, oc.kind))
+        if stuck and i + 1 < len(plan) and plan[i + 1]["agent"] == to and (session or cheap_dispatch) and not oc.auth_problem:
+            prompt = (ESCALATE.format(run_id=run_id, status=status or "error",
                                      summary=((oc.result or {}).get("summary") or oc.error or "")[:400])
+                      if session else first_prompt)
+            dispatch_phase = "escalation"
             i += 1
             continue
         if stuck and i + 1 < len(plan) and plan[i + 1]["agent"] != to and not oc.auth_problem:
             # the ladder goes on on another agent (e.g. DeepSeek -> Claude): its own fresh session, the same brief
             prompt, session = first_prompt, None
+            dispatch_phase = "escalation"
             i += 1
             continue
         break
@@ -1393,21 +1399,23 @@ def _left_unchanged(p: Paths, record: dict) -> bool | None:
         return None
 
 
-def _self_checked_now(p: Paths, record: dict, cwd: Path, chk: dict) -> bool:
+def _self_checked_now(p: Paths, record: dict, cwd: Path, chk: dict, independent: bool = False) -> bool:
     """Whether every test file the check just ran is one this run wrote or changed (coverage.summarize, P0-8);
-    False when that cannot be told (no git, not pytest / unittest)."""
+    Unknown is conservative for cheap dispatch; the ordinary path retains its prior behavior."""
     try:
         from . import coverage
         from .review import changes, edited_tests
         snap = run_snapshot(p, record)
         if not snap or not chk.get("cmd") or chk.get("reason") == "namecheck":
-            return False
+            return independent
         diff = changes(cwd, snap)[1]
-        return coverage.self_checked(coverage.summarize(chk["cmd"], cwd, Path(snap.get("repo") or cwd),
+        covers = coverage.summarize(chk["cmd"], cwd, Path(snap.get("repo") or cwd),
                                                         edited_tests(diff), coverage.new_tests(diff),
-                                                        coverage.added_to_tests(diff), coverage.rewritten_tests(diff)))
-    except Exception:  # noqa: BLE001 — not known: no climb
-        return False
+                                                        coverage.added_to_tests(diff), coverage.rewritten_tests(diff))
+        return (bool(dispatch.tainted(covers) or covers.get("unknown") or covers.get("partial") or not covers.get("files"))
+                if independent else coverage.self_checked(covers))
+    except Exception:  # noqa: BLE001 — an unknown check basis cannot accept the cheap attempt
+        return independent
 
 
 def exit_ok(record: dict) -> bool:

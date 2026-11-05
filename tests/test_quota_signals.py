@@ -47,3 +47,25 @@ def test_probe_readings_are_not_refusals():
         for line in (DATA / name).read_text(encoding="utf-8").splitlines():
             if line and not line.startswith("#"):
                 assert identify(json.loads(line))["kind"] != "quota"
+
+
+@pytest.mark.parametrize("extra,expected", [
+    ({}, "rate_limit_unconfirmed"),
+    ({"error_details": "429 Too Many Requests"}, "rate_limit_unconfirmed"),
+    ({"error_details": "usage limit reached"}, "quota"),
+    ({"error_details": "You've hit your 5-hour limit · resets 1am (America/New_York)"}, "quota"),
+    ({"rate_limit_info": {"status": "rejected", "rateLimitType": "five_hour"}}, "quota"),
+    ({"rate_limit_info": {"status": "allowed", "rateLimitType": "five_hour"}}, "rate_limit_unconfirmed"),
+    ({"rate_limit_info": {"status": "rejected", "resetsAt": 1234}}, "rate_limit_unconfirmed"),
+    ({"rate_limit_info": {"rateLimitType": [], "unifiedWindows": 1}}, "rate_limit_unconfirmed"),
+    ({"error_details": {"code": "billing_error", "message": "usage limit reached"}}, "rate_limit_unconfirmed"),
+])
+def test_hook_quota_requires_usage_evidence(extra, expected):
+    # Hook samples are synthetic; the 5-hour wording matches the captured CLI fixture.
+    assert identify({"hook_event_name": "StopFailure", "error": "rate_limit", **extra})["kind"] == expected
+
+
+@pytest.mark.parametrize("info", [{"status": "rejected", "rateLimitType": "requests_per_minute"},
+                                  {"status": "rejected", "resetsAt": 1234}])
+def test_rate_limit_event_without_usage_window_remains_unconfirmed(info):
+    assert identify({"type": "rate_limit_event", "rate_limit_info": info})["kind"] == "rate_limit_unconfirmed"

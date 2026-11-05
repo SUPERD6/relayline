@@ -14,6 +14,7 @@ import tempfile
 
 from .review_pipeline import LIMIT, SOURCES, canonical, validate
 from .runners import bin_argv
+from .semantic_cli import direct_argv
 
 SCHEMA = {"type": "object", "additionalProperties": False, "properties": {
     "behaviors": {"type": "array", "items": {"type": "object", "additionalProperties": False,
@@ -51,6 +52,7 @@ def generate_semantic(sources: dict, *, budget: float, model: str = "haiku", cli
     cost, reason, raw, rc = None, None, {}, None
     with tempfile.TemporaryDirectory(prefix="ccx-semantic-") as folder:
         try:
+            argv = direct_argv(argv)
             result = subprocess.run(argv, input=canonical(clean), cwd=folder, env=env, capture_output=True,
                                     text=True, encoding="utf-8", errors="replace", timeout=timeout)
             rc = result.returncode

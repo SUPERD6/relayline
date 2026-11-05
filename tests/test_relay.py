@@ -63,12 +63,93 @@ class TestRelay(Env):
         notice = json.loads(r.stdout)
         packet = json.loads((self.work / ".ccx" / "relay" / (notice["relay"]["packet"] + ".json")).read_text(encoding="utf-8"))
         self.assertEqual(packet["goal"], "finish parser")
-        self.assertEqual(packet["quota_signal"]["source"], "StopFailure")
+        self.assertEqual(packet["quota_signal"], {"kind": "rate_limit_unconfirmed", "source": "StopFailure"})
+        self.assertEqual(packet["state"], "rate_limit_unconfirmed")
+        self.assertIn("可能只是限速，可以等一下或手动接续", notice["relay"]["message"])
+        self.assertNotIn("stop", notice["relay"]["message"].lower())
         self.assertIn("terminalSequence", notice)
         self.assertTrue((self.work / ".ccx" / "relay" / (packet["id"] + ".notification.json")).exists())
         before = settings.read_bytes()
         sync_hooks(Paths(self.hub), Plan(apply=True))
         self.assertEqual(settings.read_bytes(), before)
+
+    def test_unconfirmed_packet_requires_explicit_force_to_launch(self):
+        self.enable()
+        self.capture()  # saved goal for the hook's session
+        event = {"hook_event_name": "StopFailure", "error": "rate_limit", "session_id": "session-1",
+                 "cwd": str(self.work)}
+        result = self.ccx("relay", "capture", "--hook", stdin=json.dumps(event))
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        packet = json.loads(result.stdout)["relay"]["packet"]
+        args = ("relay", "continue", packet, "--to", "codex", "--budget-seconds", "30")
+        prepared = self.ccx(*args)
+        self.assertEqual(prepared.returncode, 0, prepared.stdout + prepared.stderr)
+        self.assertFalse((self.work / "relay-fake-call.json").exists())
+        rejected = self.ccx(*args, "--old-stopped", "--launch")
+        self.assertEqual(rejected.returncode, 3)
+        self.assertIn("--force-unconfirmed", rejected.stdout)
+        self.assertFalse((self.work / "relay-fake-call.json").exists())
+        launched = self.ccx(*args, "--old-stopped", "--launch", "--force-unconfirmed")
+        self.assertEqual(launched.returncode, 0, launched.stdout + launched.stderr)
+        self.assertTrue(json.loads(launched.stdout)["unconfirmed_override"])
+        self.assertTrue((self.work / "relay-fake-call.json").exists())
+
+    def test_confirmed_usage_hook_is_quota_stopped(self):
+        self.enable()
+        self.capture()
+        event = {"hook_event_name": "StopFailure", "error": "rate_limit", "cwd": str(self.work),
+                 "session_id": "session-1", "error_details": "usage limit reached"}
+        captured = self.ccx("relay", "capture", "--hook", stdin=json.dumps(event, ensure_ascii=False))
+        self.assertEqual(captured.returncode, 0, captured.stdout + captured.stderr)
+        notice = json.loads(captured.stdout)["relay"]
+        self.assertEqual(notice["state"], "quota_stopped")
+        self.assertIn("stop the old session", notice["message"])
+        path = self.work / ".ccx/relay" / (notice["packet"] + ".json")
+        self.assertEqual(json.loads(path.read_text(encoding="utf-8"))["quota_signal"]["kind"], "quota")
+        launched = self.ccx("relay", "continue", notice["packet"], "--to", "codex", "--budget-seconds", "30",
+                            "--old-stopped", "--launch")
+        self.assertEqual(launched.returncode, 0, launched.stdout + launched.stderr)
+        self.assertFalse(json.loads(launched.stdout)["unconfirmed_override"])
+
+    def test_legacy_unmarked_hook_and_event_packets_require_force(self):
+        self.enable()
+        packet_id = self.capture()
+        path = self.work / ".ccx/relay" / (packet_id + ".json")
+        packet = json.loads(path.read_text(encoding="utf-8"))
+        for source in ("StopFailure", "rate_limit_event"):
+            with self.subTest(source=source):
+                packet["quota_signal"] = {"kind": "quota", "source": source}
+                packet.pop("state", None)  # old packets did not have the new state or confirmation marker
+                path.write_text(json.dumps(packet), encoding="utf-8")
+                rejected = self.ccx("relay", "continue", packet_id, "--to", "codex", "--budget-seconds", "30",
+                                    "--old-stopped", "--launch")
+                self.assertEqual(rejected.returncode, 3)
+                self.assertIn("--force-unconfirmed", rejected.stdout)
+                self.assertFalse((self.work / "relay-fake-call.json").exists())
+
+    def test_unconfirmed_unicode_hook_is_safe_with_ascii_stdout(self):
+        self.enable()
+        event = {"hook_event_name": "StopFailure", "error": "rate_limit", "cwd": str(self.work),
+                 "session_id": "中文会话"}
+        captured = self.ccx("relay", "capture", "--hook", stdin=json.dumps(event, ensure_ascii=False),
+                            env={"PYTHONIOENCODING": "ascii"})
+        self.assertEqual(captured.returncode, 0, captured.stdout + captured.stderr)
+        notice = json.loads(captured.stdout)["relay"]
+        self.assertEqual(notice["state"], "rate_limit_unconfirmed")
+        self.assertIn("可能只是限速", notice["message"])
+
+    def test_unconfirmed_signal_from_new_lead_is_not_quota_stopped(self):
+        self.enable()
+        packet = self.capture()
+        launched = self.ccx("relay", "continue", packet, "--to", "codex", "--budget-seconds", "30",
+                            "--old-stopped", "--launch", env={"FAKE_RELAY_UNCONFIRMED": "1"})
+        self.assertEqual(launched.returncode, 2, launched.stdout + launched.stderr)
+        result = json.loads(launched.stdout)
+        self.assertEqual(result["state"], "rate_limit_unconfirmed")
+        path = self.work / ".ccx/relay" / (result["handoff_packet"] + ".notification.json")
+        notice = json.loads(path.read_text(encoding="utf-8"))
+        self.assertEqual(notice["state"], "rate_limit_unconfirmed")
+        self.assertNotIn("stop", notice["message"].lower())
 
     def test_continue_budget_stop_attestation_and_dirty_work(self):
         self.enable()

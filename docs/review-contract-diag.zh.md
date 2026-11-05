@@ -34,7 +34,7 @@
 | `unverified` | 没有上述执行证据 |
 
 普通只读审查通过不能升级“只自检”。这些等级描述已运行检查，不代表全部行为或整单正确。
-行为与实际执行测试尚未建立映射，所以 `covered_ids` 保持空。测试基础有改动、部分缺失或不明时，
+行为与实际执行测试尚未建立映射，所以 `covered_ids` 保持空。测试基础有改动、部分缺失、筛选（如 `-k`）或不明时，
 不能建立独立验证结论。原有判定规则不变。
 
 ## 历史离线诊断
@@ -70,6 +70,10 @@ python /path/to/relayline/scripts/eval/review_contract_diag.py --evidence /path/
 stdin 只传三段来源文字，不传实现、隐藏失败或人工判定表。`--bare` 要求环境中显式 API 认证；
 适配器不寻找、复制客户端凭据或 home。这限制模型工具，不是可信 CLI 二进制的操作系统沙箱。
 其他 CLI 版本尚未验证。
+Windows 的 `.cmd`/`.bat` 入口会解析为同目录原生可执行文件，或标准 npm
+`node_modules/@anthropic-ai/claude-code/cli.js` 加 Node。未知布局不启动，返回 Unknown。
+这样避开 `cmd.exe` 对 JSON 和空参数的有损转发，原生/Node argv 保留空 `--tools` 与
+`--setting-sources` 参数。假 CLI 检查覆盖解析与保守停止；没有运行已安装的 npm shim。
 
 每次调用的 `--max-budget-usd` 等于单元预留。串行执行，花费缺失时保留全部预留并停止后续调用；
 已知超支也停止。失败调用仍入账，未知花费为 null，另报 `known_spent_usd` 和 `charged_usd`。

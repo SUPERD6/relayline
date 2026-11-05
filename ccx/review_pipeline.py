@@ -160,7 +160,7 @@ def evidence(record: dict) -> dict:
         if covers.get("self_authored"):
             level, scope = "self_checked", covers.get("files") or []
         elif (covers.get("files") and not any(covers.get(k) for k in
-              ("unknown", "partial", "basis_changed", "added_to", "written", "edited"))):
+              ("unknown", "partial", "filtered", "basis_changed", "added_to", "written", "edited"))):
             level, scope = "independent_verified", covers["files"]
     if (review.get("review_mode") == "tests" and review.get("independent") is True
             and review.get("verdict") in ("pass", "issues") and review.get("tests_run", 0) > 0

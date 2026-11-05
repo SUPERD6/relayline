@@ -48,7 +48,7 @@ overwritten. Reuse verifies the hash and exact sources. The compact receipt adds
 
 A read-review pass does not upgrade self-checks. These labels describe executed
 checks, not every behavior or the whole task. `covered_ids` stays empty until
-behavior-to-executed-test mapping exists. A changed/partial/unknown test basis
+behavior-to-executed-test mapping exists. A changed/partial/filtered/unknown test basis
 does not establish independent verification. Existing verdict rules are unchanged.
 
 ## Historical offline diagnostic
@@ -88,6 +88,12 @@ The semantic adapter uses an empty cwd, `--bare`, empty `--tools`, no MCP,
 no slash commands, no setting sources and no session persistence. Flags were
 checked against Claude Code **2.1.316 --help** on 2026-11-05. Only the three text
 fields cross stdin; no implementation, hidden failures or oracle is supplied.
+On Windows, a `.cmd`/`.bat` entry is resolved to a sibling native executable or
+the standard npm `node_modules/@anthropic-ai/claude-code/cli.js` entry with Node.
+Unknown shim layouts return Unknown without launching. This avoids `cmd.exe`
+forwarding empty isolation arguments and quoted JSON; direct native/Node argv
+retains the empty `--tools`/`--setting-sources` values. Fake-CLI checks cover
+resolution and fail-closed behavior; an installed npm shim has not been run.
 `--bare` requires explicit API authentication in the environment; the adapter
 does not discover/copy client credentials or homes. This restricts model tools,
 not the OS privileges of the trusted CLI. Other CLI versions remain unverified.

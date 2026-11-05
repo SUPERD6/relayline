@@ -16,4 +16,7 @@ if os.environ.get("FAKE_RELAY_QUOTA") == "1":
     # Synthetic Codex event; intentionally exits zero, as a refusal may do.
     print(json.dumps({"type": "turn.failed", "error": {"code": "usage_limit_reached"}}))
     sys.exit(0)
+if os.environ.get("FAKE_RELAY_UNCONFIRMED") == "1":
+    print(json.dumps({"hook_event_name": "StopFailure", "error": "rate_limit"}))
+    sys.exit(0)
 print(json.dumps({"type": "turn.completed"}))
