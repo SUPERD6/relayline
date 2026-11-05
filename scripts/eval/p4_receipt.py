@@ -1,8 +1,8 @@
-"""P4-only receipt boundary: successful ccx output is exactly one compact line.
+"""P4-only receipt boundary: execution-ok output is exactly one compact line.
 
 ccx's existing leadview only compacts *clean* results. Attention-worthy successes
 can otherwise print details before the lead decides whether to read them. Keep
-the original run records; show details only on an unsuccessful receipt.
+the original run records; execution ok does not mean the check passed.
 """
 from __future__ import annotations
 import json
@@ -27,12 +27,20 @@ def bounded_args(args: list[str], env: dict, spent: float | None = None) -> list
     remaining = float(env["CCX_P4_CHILD_LIMIT"]) - max(0, spent - float(env.get("CCX_P4_CHILD_START", 0)))
     if remaining <= 0:
         raise ValueError("P4 task child allowance exhausted; no new attempt or repair started")
+    pinned = {flag: env[key] for flag, key in (("--check", "CCX_P4_CHECK_COMMAND"),
+              ("--model", "CCX_P4_CHILD_MODEL"), ("--effort", "CCX_P4_CHILD_EFFORT")) if env.get(key)}
     out, index = [], 0
     while index < len(args):
         item = args[index]
         if item == "--":
             out.extend(args[index:])
             break
+        if item in pinned:
+            index += 2
+            continue
+        if any(item.startswith(flag+"=") for flag in pinned):
+            index += 1
+            continue
         if item == "--max-usd":
             requested = float(args[index + 1])
             remaining = min(remaining, requested) if requested > 0 else remaining
@@ -44,7 +52,8 @@ def bounded_args(args: list[str], env: dict, spent: float | None = None) -> list
         else:
             out.append(item)
             index += 1
-    return [out[0], "--max-usd", str(remaining), *out[1:]]
+    enforced = [item for flag, value in pinned.items() for item in (flag, value)]
+    return [out[0], "--max-usd", str(remaining), *enforced, *out[1:]]
 
 
 def render(result: dict) -> str:
@@ -55,6 +64,8 @@ def render(result: dict) -> str:
             receipt = {k: result[k] for k in ("run_id", "ok", "status") if k in result}
         # No diff, review prose, or full-result fields. Details stay in ccx show.
         receipt["summary"] = str(result.get("summary") or "")[:300]
+        if result.get("status"):
+            receipt = {"headline": leadview.receipt_headline(result), **receipt}
         return json.dumps(receipt, ensure_ascii=False, separators=(",", ":"))
     return json.dumps(result, ensure_ascii=False, indent=2)
 

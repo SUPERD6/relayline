@@ -3,7 +3,7 @@
 [中文](2026-11-04-p4-long-session.zh.md)
 
 Evidence: **engineering check** for the harness and offline task checks. Paid model evaluation: **not run**.
-Cost, correctness and wall-clock decision: **Unknown**. No shipped product default, product JSON field,
+Cost, correctness and wall-clock decision: **Unknown**. No shipped product default, existing product JSON field meaning,
 command, option, exit code or verdict has changed. `r5.py` is unchanged.
 
 ## Budget and explicit execution
@@ -43,6 +43,11 @@ expand into full output. The P4-only `p4_receipt.py` wrapper reuses `leadview.li
 ensures successful receipts expose one compact line without diff/full review prose. Unsuccessful receipts can
 show details and request repair. The prompt prohibits reading code/diff or rerunning checks after `ok=true`.
 Real protocol adherence is not proven by this prompt or by fake CLI tests.
+
+Historical protocol caveat: `ok=true` is execution success and can coexist with a failed check. The
+[eight-receipt audit](2026-11-05-receipt-audit.md) records `DONE:` responses that also disclosed failure and
+the prompt's accept-on-ok rule. Compact receipts now start with a display-only `headline` such as
+`CHECK_FAILED`; the historical prompt, scoring, results and acceptance rules remain unchanged.
 
 Before every task, rebuild the **same workspace path** from that task's reference parent in a fresh one-commit
 repository, without upstream remotes/history. Keep the conversation and hub. This removes dependencies between

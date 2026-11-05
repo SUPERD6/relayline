@@ -198,6 +198,15 @@ I1 的白名单、同源检查、限长和一次性确认仍然有效，确认�
    没有新字段的旧记录仍可读取。
    预算停止写 `stopped: budget $X reached, review not run`（审查已跑则写修复轮未跑），审查错误写
    `review not run (<原因>)`，这些摘要使用 `stopped` / `partial` 和 `ok?`，保留原有 `ok_self_checked` 措辞及命令退出码。
+   序列化的一行 JSON 新增首字段 `headline`，例如 `{"headline":"DONE",...}`。
+   `CHECK_FAILED` / `CHECK_BROKEN` 优先于完成状态；其他提示包括 `REVIEW_ISSUES`、`PARTIAL`、
+   `STOPPED`、`SELF_CHECKED`、`UNVERIFIED`。标签只概括已有证据，不新增判定；原生 line 模式仍把需关注的结果展开为完整 JSON。
+   `ok` 保持执行层面的含义：`ccx/delegate.py` 的 `compact()` 根据 `exit_ok(record)` 计算，
+   再排除子智能体的 blocked/failed 状态和环境失败。`exit_ok()` 排除审查问题、审查失败、检查无法执行、
+   没有改动和没有回答，却不排除 `check_failed`。所以 `ok=true`、检查失败和退出码 0 可以同时出现。
+   `status` 是子智能体报告加已有收据调整，也不代表独立正确性判定。验收须看 `check`、`kind`、审查和未完成事项，
+   不能仅凭 `ok=true` 接受。P4 专用包装器也在执行成功的任务收据最前加入标签，见
+   [8 单收据核查](research/2026-11-05-receipt-audit.zh.md)。
    角色收据、`route` 和 `ccx show` 紧凑输出保留 `effort=auto → xhigh: <依据>`，列出难度分数与触发的 rubric 项或关键词依据。
    已失败的运行即使带提示也保留原状态和 `ok=false`；只有本来成功报 done 的运行才因预算变为 `stopped`，
    或因配额改派、审查不可用变为 `partial ok?`（也包括没有 error 字段的 `verdict=not-run`）。
