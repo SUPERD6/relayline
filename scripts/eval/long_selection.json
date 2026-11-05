@@ -1,0 +1,4032 @@
+{
+  "selection": "implementation .py only, outside tests/test/testing/docs/doc; exclude .pyi and holdout commits; code_lines >= 60 OR code_files >= 3",
+  "old_rule": {
+    "rule": "non-test lines >= 80 OR non-test files >= 3, including docs and .pyi",
+    "status": "void",
+    "reason": "Admitted small implementation changes through documentation/type-stub file counts; replaced by lead decision before any model evaluation."
+  },
+  "repository_order": [
+    "more-itertools",
+    "boltons",
+    "pluggy",
+    "humanize",
+    "itsdangerous"
+  ],
+  "ordering": "within repository: commit timestamp descending, full SHA ascending; first passing full groups of four",
+  "history_scope": "all locally available single-parent commits, no date limit, no network fetch",
+  "candidate_counts": {
+    "more-itertools": 44,
+    "boltons": 61,
+    "pluggy": 32,
+    "humanize": 19,
+    "itsdangerous": 7
+  },
+  "runtime": {
+    "python": "Python 3.11.9",
+    "pytest": "pytest 9.1.1",
+    "models_called": false
+  },
+  "accepted": [
+    {
+      "repo": "more-itertools",
+      "commit": "18c57c720fc5a7672439ea45a5393a8c1ff40d1e",
+      "timestamp": 1774987477,
+      "subject": "Issue #1134: Add running_statistics (#1135)",
+      "size": 240,
+      "code_lines": 179,
+      "code": [
+        "more_itertools/more.py",
+        "more_itertools/recipes.py"
+      ],
+      "non_test_files": [
+        "README.rst",
+        "docs/api.rst",
+        "more_itertools/more.py",
+        "more_itertools/more.pyi",
+        "more_itertools/recipes.py",
+        "more_itertools/recipes.pyi"
+      ],
+      "tests": [
+        "tests/test_more.py",
+        "tests/test_recipes.py"
+      ],
+      "parent": {
+        "rc": 1,
+        "summary": "19 failed, 707 passed, 19873 subtests passed in 12.87s",
+        "errors": [
+          "E               AttributeError: module 'more_itertools' has no attribute 'running_min'",
+          "E               AttributeError: module 'more_itertools' has no attribute 'running_min'",
+          "E               AttributeError: module 'more_itertools' has no attribute 'running_min'",
+          "E               AttributeError: module 'more_itertools' has no attribute 'running_min'",
+          "E               AttributeError: module 'more_itertools' has no attribute 'running_min'",
+          "E               AttributeError: module 'more_itertools' has no attribute 'running_min'",
+          "E           AttributeError: module 'more_itertools' has no attribute 'running_min'",
+          "E               AttributeError: module 'more_itertools' has no attribute 'running_max'"
+        ],
+        "raw": {
+          "file": "18c57c720fc5a7672439ea45a5393a8c1ff40d1e-parent.txt",
+          "bytes": 18670,
+          "sha256": "0f2a78f1fc61319dae9451223d8d31f325a7ea32595ce48e90a74bc4e8b6cc8a"
+        }
+      },
+      "reference": {
+        "rc": 0,
+        "summary": "714 passed, 19897 subtests passed in 11.54s",
+        "errors": [],
+        "raw": {
+          "file": "18c57c720fc5a7672439ea45a5393a8c1ff40d1e-reference.txt",
+          "bytes": 899,
+          "sha256": "ab0e1de0364c7d65db5143a0d449159ec91d6a2a3cdf7a4a64ae68d065e03aba"
+        }
+      },
+      "valid": true
+    },
+    {
+      "repo": "more-itertools",
+      "commit": "21d3d88359437146a6d8882328df4bd73edd685c",
+      "timestamp": 1755802520,
+      "subject": "Issue 1003: Multidimensional reshape() (#1062)",
+      "size": 73,
+      "code_lines": 68,
+      "code": [
+        "more_itertools/recipes.py"
+      ],
+      "non_test_files": [
+        "more_itertools/recipes.py",
+        "more_itertools/recipes.pyi"
+      ],
+      "tests": [
+        "tests/test_recipes.py"
+      ],
+      "parent": {
+        "rc": 1,
+        "summary": "7 failed, 138 passed, 1 skipped, 9833 subtests passed in 7.02s",
+        "errors": [
+          "E       TypeError: '<' not supported between instances of 'tuple' and 'int'",
+          "E       TypeError: '<' not supported between instances of 'tuple' and 'int'",
+          "E       TypeError: '<' not supported between instances of 'tuple' and 'int'",
+          "E       TypeError: '<' not supported between instances of 'tuple' and 'int'",
+          "E       TypeError: '<' not supported between instances of 'tuple' and 'int'",
+          "E       TypeError: '<' not supported between instances of 'tuple' and 'int'",
+          "E       TypeError: '<' not supported between instances of 'list' and 'int'",
+          "FAILED tests/test_recipes.py::ReshapeTests::test_multidimensional - TypeError..."
+        ],
+        "raw": {
+          "file": "21d3d88359437146a6d8882328df4bd73edd685c-parent.txt",
+          "bytes": 14536,
+          "sha256": "37d3775b2dc392f5fe1648615e820a01419a1c818c9c0ae876e70dc018d4ef86"
+        }
+      },
+      "reference": {
+        "rc": 0,
+        "summary": "139 passed, 1 skipped, 9839 subtests passed in 6.75s",
+        "errors": [],
+        "raw": {
+          "file": "21d3d88359437146a6d8882328df4bd73edd685c-reference.txt",
+          "bytes": 246,
+          "sha256": "3c1caa554c098f2e85a04e057bee0159959b1bcf321f19cc6af1bd5c65dc0149"
+        }
+      },
+      "valid": true
+    },
+    {
+      "repo": "more-itertools",
+      "commit": "5c8336c5f3a7cbc07fd1d1d4a85cd1d833218bfd",
+      "timestamp": 1754075594,
+      "subject": "Draft of running_median() with windowed data",
+      "size": 110,
+      "code_lines": 106,
+      "code": [
+        "more_itertools/recipes.py"
+      ],
+      "non_test_files": [
+        "more_itertools/recipes.py",
+        "more_itertools/recipes.pyi"
+      ],
+      "tests": [
+        "tests/test_recipes.py"
+      ],
+      "parent": {
+        "rc": 1,
+        "summary": "4 failed, 137 passed, 1 skipped, 9830 subtests passed in 6.76s",
+        "errors": [
+          "E       AssertionError: TypeError not raised",
+          "E               TypeError: _running_median_minheap_only() got an unexpected keyword argument 'window'",
+          "E               TypeError: _running_median_minheap_only() got an unexpected keyword argument 'window'",
+          "E               TypeError: _running_median_minheap_only() got an unexpected keyword argument 'window'",
+          "FAILED tests/test_recipes.py::RunningMedianTests::test_error_cases - Assertio..."
+        ],
+        "raw": {
+          "file": "5c8336c5f3a7cbc07fd1d1d4a85cd1d833218bfd-parent.txt",
+          "bytes": 4798,
+          "sha256": "d9b1bd9c44eff95e356be08c2feb20e837250d5cd4e6fe6958ec04adca215874"
+        }
+      },
+      "reference": {
+        "rc": 0,
+        "summary": "138 passed, 1 skipped, 9833 subtests passed in 6.65s",
+        "errors": [],
+        "raw": {
+          "file": "5c8336c5f3a7cbc07fd1d1d4a85cd1d833218bfd-reference.txt",
+          "bytes": 244,
+          "sha256": "3b50a1b53af2335c6618d3406de236a5f458e3f85fae428d34a417ca43bd58fd"
+        }
+      },
+      "valid": true
+    },
+    {
+      "repo": "more-itertools",
+      "commit": "a7236314cdb977d154d90a27cd7d5ddc3f86c851",
+      "timestamp": 1733172378,
+      "subject": "Issue 920: Add is_prime recipe",
+      "size": 70,
+      "code_lines": 69,
+      "code": [
+        "more_itertools/recipes.py"
+      ],
+      "non_test_files": [
+        "more_itertools/recipes.py",
+        "more_itertools/recipes.pyi"
+      ],
+      "tests": [
+        "tests/test_recipes.py"
+      ],
+      "parent": {
+        "rc": 1,
+        "summary": "20 failed, 132 passed, 1 skipped, 113 subtests passed in 1.03s",
+        "errors": [
+          "E               AttributeError: module 'more_itertools' has no attribute 'is_prime'",
+          "E               AttributeError: module 'more_itertools' has no attribute 'is_prime'",
+          "E               AttributeError: module 'more_itertools' has no attribute 'is_prime'",
+          "E               AttributeError: module 'more_itertools' has no attribute 'is_prime'",
+          "E               AttributeError: module 'more_itertools' has no attribute 'is_prime'",
+          "E               AttributeError: module 'more_itertools' has no attribute 'is_prime'",
+          "E               AttributeError: module 'more_itertools' has no attribute 'is_prime'",
+          "E               AttributeError: module 'more_itertools' has no attribute 'is_prime'"
+        ],
+        "raw": {
+          "file": "a7236314cdb977d154d90a27cd7d5ddc3f86c851-parent.txt",
+          "bytes": 14104,
+          "sha256": "345c7a40a238f4e0e6aaa33cd8b7d65852b1dbf6c5b65265f7f5ca8777bc6189"
+        }
+      },
+      "reference": {
+        "rc": 0,
+        "summary": "132 passed, 1 skipped, 133 subtests passed in 0.69s",
+        "errors": [],
+        "raw": {
+          "file": "a7236314cdb977d154d90a27cd7d5ddc3f86c851-reference.txt",
+          "bytes": 223,
+          "sha256": "5f91e6a3250719b1e8fed80d755ebe2ad1abfeb7ad0adeba8990a343f5641c8b"
+        }
+      },
+      "valid": true
+    },
+    {
+      "repo": "boltons",
+      "commit": "6270b5e35ed902859df6188970eec5bee5ab73d1",
+      "timestamp": 1792969697,
+      "subject": "iterutils: fix remap namedtuples, chunk_ranges edges, iterator bucketize, falsey keys, key-once untyped_sorted, negative maxsplit, fractional backoff; add chunked_filter (#585, #569, #563, #554, #552, #502, #496, #491)",
+      "size": 74,
+      "code_lines": 73,
+      "code": [
+        "boltons/iterutils.py"
+      ],
+      "non_test_files": [
+        "boltons/iterutils.py",
+        "docs/iterutils.rst"
+      ],
+      "tests": [
+        "tests/test_iterutils.py"
+      ],
+      "parent": {
+        "rc": 1,
+        "summary": "9 failed, 49 passed in 0.49s",
+        "errors": [
+          "E       assert [[1, None, 2, None, 3]] == [[1], [2], [3]]",
+          "E         ",
+          "E         At index 0 diff: [1, None, 2, None, 3] != [1]",
+          "E         Right contains 2 more items, first extra item: [2]",
+          "E         Use -v to get more diff",
+          "E           TypeError: Point.__new__() missing 2 required positional arguments: 'x' and 'y'",
+          "E           TypeError: range expected at least 1 argument, got 0",
+          "E       assert [0.0] == [0.0, 0.5]"
+        ],
+        "raw": {
+          "file": "6270b5e35ed902859df6188970eec5bee5ab73d1-parent.txt",
+          "bytes": 8796,
+          "sha256": "d7bd5c7f062adce6cbdeb0a7b8e80fc5239c6065cc8846c035f381aec51cfad0"
+        }
+      },
+      "reference": {
+        "rc": 0,
+        "summary": "58 passed in 0.27s",
+        "errors": [],
+        "raw": {
+          "file": "6270b5e35ed902859df6188970eec5bee5ab73d1-reference.txt",
+          "bytes": 99,
+          "sha256": "155ccac0272446afd9d61150551710e20373d2433b0dd97e0b04213866ce6414"
+        }
+      },
+      "valid": true
+    },
+    {
+      "repo": "boltons",
+      "commit": "922e7b2bfae226efa569b4441abbe7a0fb3d47de",
+      "timestamp": 1792969697,
+      "subject": "fileutils, pathutils, namedutils: fix FilePerms bits, find depth, AtomicSaver cleanup, root-home shrinkuser, non-identifier names; include docs in sdist (#484, #518, #485, #539, #504, #573, #557)",
+      "size": 70,
+      "code_lines": 66,
+      "code": [
+        "boltons/fileutils.py",
+        "boltons/namedutils.py",
+        "boltons/pathutils.py"
+      ],
+      "non_test_files": [
+        "boltons/fileutils.py",
+        "boltons/namedutils.py",
+        "boltons/pathutils.py",
+        "pyproject.toml"
+      ],
+      "tests": [
+        "tests/test_fileutils.py",
+        "tests/test_namedutils.py",
+        "tests/test_pathutils.py"
+      ],
+      "parent": {
+        "rc": 1,
+        "summary": "6 failed, 21 passed, 1 skipped in 0.53s",
+        "errors": [
+          "E       AssertionError: assert 448 == 7",
+          "E        +  where 448 = int(FilePerms(user='rwx', group='', other=''))",
+          "E        +    where FilePerms(user='rwx', group='', other='') = from_int(7)",
+          "E        +      where from_int = FilePerms.from_int",
+          "E       AssertionError: assert 388 == 384",
+          "E        +  where 388 = int(FilePerms(user='rw', group='', other=''))",
+          "E       assert False",
+          "E        +  where False = <_io.BufferedRandom name=11>.closed"
+        ],
+        "raw": {
+          "file": "922e7b2bfae226efa569b4441abbe7a0fb3d47de-parent.txt",
+          "bytes": 26286,
+          "sha256": "de55f63e180b6609cdbf6e9fdd523b7ab98de76ef07672f464e90934a41a36a4"
+        }
+      },
+      "reference": {
+        "rc": 0,
+        "summary": "27 passed, 1 skipped in 0.18s",
+        "errors": [],
+        "raw": {
+          "file": "922e7b2bfae226efa569b4441abbe7a0fb3d47de-reference.txt",
+          "bytes": 110,
+          "sha256": "4abb7b76fb1c06a46df602bb0877a5273ccd4a6b46604a3d61af606605cbd51c"
+        }
+      },
+      "valid": true
+    },
+    {
+      "repo": "boltons",
+      "commit": "f898d8f81aa85a3a7c3b187b5d45b329bc471a72",
+      "timestamp": 1792969697,
+      "subject": "gcutils, typeutils, debugutils: find subtype instances, restore GC state, support metaclasses, fix suppressed raise (#560, #559, #505, #584)",
+      "size": 41,
+      "code_lines": 41,
+      "code": [
+        "boltons/debugutils.py",
+        "boltons/gcutils.py",
+        "boltons/typeutils.py"
+      ],
+      "non_test_files": [
+        "boltons/debugutils.py",
+        "boltons/gcutils.py",
+        "boltons/typeutils.py"
+      ],
+      "tests": [
+        "tests/test_debugutils_trace.py",
+        "tests/test_gcutils.py",
+        "tests/test_typeutils.py"
+      ],
+      "parent": {
+        "rc": 1,
+        "summary": "4 failed, 11 passed in 0.28s",
+        "errors": [
+          "E       UnboundLocalError: cannot access local variable 'ret' where it is not associated with a value",
+          "E       assert [] == [<tests.test_...01900EED9BD0>]",
+          "E         ",
+          "E         Right contains one more item: <tests.test_gcutils.test_get_all_subtypes.<locals>.Sub object at <address>>",
+          "E         Use -v to get more diff",
+          "E           assert not True",
+          "E            +  where True = <built-in function isenabled>()",
+          "E            +    where <built-in function isenabled> = gc.isenabled"
+        ],
+        "raw": {
+          "file": "f898d8f81aa85a3a7c3b187b5d45b329bc471a72-parent.txt",
+          "bytes": 5281,
+          "sha256": "1200efc10b8d5967b8fc67d3293e48921ccde9788debd8ce2526168c98742aea"
+        }
+      },
+      "reference": {
+        "rc": 0,
+        "summary": "15 passed in 0.16s",
+        "errors": [],
+        "raw": {
+          "file": "f898d8f81aa85a3a7c3b187b5d45b329bc471a72-reference.txt",
+          "bytes": 99,
+          "sha256": "3505b1c4057954c7b899990d26c3bcdf5c6a1192ff677524c8c1d21a2047d4f7"
+        }
+      },
+      "valid": true
+    },
+    {
+      "repo": "boltons",
+      "commit": "40fffc5ba0a84315c79813daa47db35157d64556",
+      "timestamp": 1792969316,
+      "subject": "setutils: fix IndexedSet tail culling, pop index, multi-arg and iterator set ops, complement & and ^ (#577, #535, #494, #503, #516, #487)",
+      "size": 62,
+      "code_lines": 62,
+      "code": [
+        "boltons/setutils.py"
+      ],
+      "non_test_files": [
+        "boltons/setutils.py"
+      ],
+      "tests": [
+        "tests/test_setutils.py"
+      ],
+      "parent": {
+        "rc": 1,
+        "summary": "8 failed, 20 passed in 0.23s",
+        "errors": [
+          "E       assert 34 == 35",
+          "E        +  where 34 = index(39)",
+          "E        +    where index = IndexedSet([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 39]).index",
+          "E       Failed: DID NOT RAISE TypeError",
+          "E       assert [1, 3, 4] == [4]",
+          "E         ",
+          "E         At index 0 diff: 1 != 4",
+          "E         Left contains 2 more items, first extra item: 3"
+        ],
+        "raw": {
+          "file": "40fffc5ba0a84315c79813daa47db35157d64556-parent.txt",
+          "bytes": 8423,
+          "sha256": "79d5156ba436538f33429924507417f65cb46a4fcd4e1e9ab5c84832c753db9e"
+        }
+      },
+      "reference": {
+        "rc": 0,
+        "summary": "28 passed in 0.09s",
+        "errors": [],
+        "raw": {
+          "file": "40fffc5ba0a84315c79813daa47db35157d64556-reference.txt",
+          "bytes": 99,
+          "sha256": "c0a990de1055355825db98d6b4719664334d43654fbed47ff93fe0f2b348c3e1"
+        }
+      },
+      "valid": true
+    },
+    {
+      "repo": "boltons",
+      "commit": "bbadc7ae1dcfbb0e71ec3a852e8bca3a6f75199b",
+      "timestamp": 1792969316,
+      "subject": "dictutils: fix OMD eq/update, OneToOne update and |=, ManyToMany add/update/replace (#599, #531, #523, #537, #601, #526, #528)",
+      "size": 62,
+      "code_lines": 62,
+      "code": [
+        "boltons/dictutils.py",
+        "boltons/urlutils.py"
+      ],
+      "non_test_files": [
+        "boltons/dictutils.py",
+        "boltons/urlutils.py"
+      ],
+      "tests": [
+        "tests/test_dictutils.py"
+      ],
+      "parent": {
+        "rc": 1,
+        "summary": "8 failed, 30 passed in 0.25s",
+        "errors": [
+          "E       assert OrderedMultiDict([(None, None)]) != OrderedMultiDict([(None, None), (None, None)])",
+          "E        +  where OrderedMultiDict([(None, None)]) = OMD([(None, None)])",
+          "E        +  and   OrderedMultiDict([(None, None), (None, None)]) = OMD([(None, None), (None, None)])",
+          "E       assert [3] == [1, 3]",
+          "E         ",
+          "E         At index 0 diff: 3 != 1",
+          "E         Right contains one more item: 3",
+          "E         Use -v to get more diff"
+        ],
+        "raw": {
+          "file": "bbadc7ae1dcfbb0e71ec3a852e8bca3a6f75199b-parent.txt",
+          "bytes": 4992,
+          "sha256": "80535221881b178eed3db3e9825e73de3ecc7ca218ced5e85a9077a8d7566bd3"
+        }
+      },
+      "reference": {
+        "rc": 0,
+        "summary": "38 passed in 0.11s",
+        "errors": [],
+        "raw": {
+          "file": "bbadc7ae1dcfbb0e71ec3a852e8bca3a6f75199b-reference.txt",
+          "bytes": 99,
+          "sha256": "5820660ec3010de64a702de867f5df2cf30c67130e042248a991f9440cddf42b"
+        }
+      },
+      "valid": true
+    },
+    {
+      "repo": "boltons",
+      "commit": "3fe7b949a2307002c3e4dbecb858372f77f6bb78",
+      "timestamp": 1792969315,
+      "subject": "listutils: fix BarrelList list-compat methods; add sort(key, reverse) and index(start, stop) (#596, #544, #540, #538, #532, #530, #517, #575, #549, #514, #550, #592)",
+      "size": 128,
+      "code_lines": 128,
+      "code": [
+        "boltons/listutils.py"
+      ],
+      "non_test_files": [
+        "boltons/listutils.py"
+      ],
+      "tests": [
+        "tests/test_listutils.py"
+      ],
+      "parent": {
+        "rc": 1,
+        "summary": "2 failed, 11 passed in 0.26s",
+        "errors": [
+          "E           assert (BarrelList([5..., 6, 0, 4, 3]) == [5, 3, 8, 1, 9, 3, ...]",
+          "E             ",
+          "E             Use -v to get more diff)",
+          "E           IndexError",
+          "FAILED tests/test_listutils.py::test_barrel_list_list_compat_matches_list - a...",
+          "FAILED tests/test_listutils.py::test_barrel_list_del_stepped_slice_matches_list"
+        ],
+        "raw": {
+          "file": "3fe7b949a2307002c3e4dbecb858372f77f6bb78-parent.txt",
+          "bytes": 2782,
+          "sha256": "68ef8f3e1a54bea2a1a6cb1c90853ccc2a23c2704f26529b595e0e8700c9e376"
+        }
+      },
+      "reference": {
+        "rc": 0,
+        "summary": "13 passed in 0.16s",
+        "errors": [],
+        "raw": {
+          "file": "3fe7b949a2307002c3e4dbecb858372f77f6bb78-reference.txt",
+          "bytes": 99,
+          "sha256": "e9a40502bbab4cd186bd34f41859604522147a6b66ee852c24ddbc945d7e0a5a"
+        }
+      },
+      "valid": true
+    },
+    {
+      "repo": "boltons",
+      "commit": "673e010d0afabc2f530e8d1f67f0a47c37afa7f4",
+      "timestamp": 1786982296,
+      "subject": "strutils: add ellipsize for word-boundary-aware truncation",
+      "size": 66,
+      "code_lines": 64,
+      "code": [
+        "boltons/strutils.py"
+      ],
+      "non_test_files": [
+        "CHANGELOG.md",
+        "boltons/strutils.py"
+      ],
+      "tests": [
+        "tests/test_strutils.py"
+      ],
+      "parent": {
+        "rc": 1,
+        "summary": "1 failed, 20 passed in 0.17s",
+        "errors": [
+          "E       AttributeError: module 'boltons.strutils' has no attribute 'ellipsize'",
+          "FAILED tests/test_strutils.py::test_ellipsize - AttributeError: module 'bolto..."
+        ],
+        "raw": {
+          "file": "673e010d0afabc2f530e8d1f67f0a47c37afa7f4-parent.txt",
+          "bytes": 658,
+          "sha256": "71532bc9eb46ade05e1a5975ebe22161bc2cdfd50cfeb080a7a8b71181978b66"
+        }
+      },
+      "reference": {
+        "rc": 0,
+        "summary": "21 passed in 0.07s",
+        "errors": [],
+        "raw": {
+          "file": "673e010d0afabc2f530e8d1f67f0a47c37afa7f4-reference.txt",
+          "bytes": 99,
+          "sha256": "f6c3428a72259cde0f5f3829b656f4ac62e77102cc8c0127acfed6e353f210ee"
+        }
+      },
+      "valid": true
+    },
+    {
+      "repo": "boltons",
+      "commit": "99dec84c99d02d8259093c0d520769b28d4d2aaf",
+      "timestamp": 1785676009,
+      "subject": "Fix US timezone fold handling",
+      "size": 67,
+      "code_lines": 67,
+      "code": [
+        "boltons/timeutils.py"
+      ],
+      "non_test_files": [
+        "boltons/timeutils.py"
+      ],
+      "tests": [
+        "tests/test_timeutils.py"
+      ],
+      "parent": {
+        "rc": 1,
+        "summary": "2 failed, 4 passed in 0.13s",
+        "errors": [
+          "E       assert datetime.timedelta(days=-1, seconds=68400) == (-4 * datetime.timedelta(seconds=3600))",
+          "E        +  where datetime.timedelta(days=-1, seconds=68400) = <built-in method utcoffset of datetime.datetime object at <address>>()",
+          "E        +    where <built-in method utcoffset of datetime.datetime object at <address>> = datetime.datetime(2011, 11, 6, 1, 30, tzinfo=Eastern).utcoffset",
+          "E        +  and   datetime.timedelta(seconds=3600) = timedelta(hours=1)",
+          "E       AssertionError: assert 'EST' == 'EDT'",
+          "E         ",
+          "E         - EDT",
+          "E         + EST"
+        ],
+        "raw": {
+          "file": "99dec84c99d02d8259093c0d520769b28d4d2aaf-parent.txt",
+          "bytes": 1846,
+          "sha256": "d8d3873fc4801205f2abe502e151cc79119be341a7ee1b60db026322cc881a67"
+        }
+      },
+      "reference": {
+        "rc": 0,
+        "summary": "6 passed in 0.03s",
+        "errors": [],
+        "raw": {
+          "file": "99dec84c99d02d8259093c0d520769b28d4d2aaf-reference.txt",
+          "bytes": 98,
+          "sha256": "a4ce3c4d2d126cf54794b588fe0568dcf174b80e68913316f73e0da7b9f1c64b"
+        }
+      },
+      "valid": true
+    }
+  ],
+  "qualified": [
+    {
+      "repo": "more-itertools",
+      "commit": "18c57c720fc5a7672439ea45a5393a8c1ff40d1e",
+      "timestamp": 1774987477,
+      "subject": "Issue #1134: Add running_statistics (#1135)",
+      "size": 240,
+      "code_lines": 179,
+      "code": [
+        "more_itertools/more.py",
+        "more_itertools/recipes.py"
+      ],
+      "non_test_files": [
+        "README.rst",
+        "docs/api.rst",
+        "more_itertools/more.py",
+        "more_itertools/more.pyi",
+        "more_itertools/recipes.py",
+        "more_itertools/recipes.pyi"
+      ],
+      "tests": [
+        "tests/test_more.py",
+        "tests/test_recipes.py"
+      ],
+      "parent": {
+        "rc": 1,
+        "summary": "19 failed, 707 passed, 19873 subtests passed in 12.87s",
+        "errors": [
+          "E               AttributeError: module 'more_itertools' has no attribute 'running_min'",
+          "E               AttributeError: module 'more_itertools' has no attribute 'running_min'",
+          "E               AttributeError: module 'more_itertools' has no attribute 'running_min'",
+          "E               AttributeError: module 'more_itertools' has no attribute 'running_min'",
+          "E               AttributeError: module 'more_itertools' has no attribute 'running_min'",
+          "E               AttributeError: module 'more_itertools' has no attribute 'running_min'",
+          "E           AttributeError: module 'more_itertools' has no attribute 'running_min'",
+          "E               AttributeError: module 'more_itertools' has no attribute 'running_max'"
+        ],
+        "raw": {
+          "file": "18c57c720fc5a7672439ea45a5393a8c1ff40d1e-parent.txt",
+          "bytes": 18670,
+          "sha256": "0f2a78f1fc61319dae9451223d8d31f325a7ea32595ce48e90a74bc4e8b6cc8a"
+        }
+      },
+      "reference": {
+        "rc": 0,
+        "summary": "714 passed, 19897 subtests passed in 11.54s",
+        "errors": [],
+        "raw": {
+          "file": "18c57c720fc5a7672439ea45a5393a8c1ff40d1e-reference.txt",
+          "bytes": 899,
+          "sha256": "ab0e1de0364c7d65db5143a0d449159ec91d6a2a3cdf7a4a64ae68d065e03aba"
+        }
+      },
+      "valid": true
+    },
+    {
+      "repo": "more-itertools",
+      "commit": "21d3d88359437146a6d8882328df4bd73edd685c",
+      "timestamp": 1755802520,
+      "subject": "Issue 1003: Multidimensional reshape() (#1062)",
+      "size": 73,
+      "code_lines": 68,
+      "code": [
+        "more_itertools/recipes.py"
+      ],
+      "non_test_files": [
+        "more_itertools/recipes.py",
+        "more_itertools/recipes.pyi"
+      ],
+      "tests": [
+        "tests/test_recipes.py"
+      ],
+      "parent": {
+        "rc": 1,
+        "summary": "7 failed, 138 passed, 1 skipped, 9833 subtests passed in 7.02s",
+        "errors": [
+          "E       TypeError: '<' not supported between instances of 'tuple' and 'int'",
+          "E       TypeError: '<' not supported between instances of 'tuple' and 'int'",
+          "E       TypeError: '<' not supported between instances of 'tuple' and 'int'",
+          "E       TypeError: '<' not supported between instances of 'tuple' and 'int'",
+          "E       TypeError: '<' not supported between instances of 'tuple' and 'int'",
+          "E       TypeError: '<' not supported between instances of 'tuple' and 'int'",
+          "E       TypeError: '<' not supported between instances of 'list' and 'int'",
+          "FAILED tests/test_recipes.py::ReshapeTests::test_multidimensional - TypeError..."
+        ],
+        "raw": {
+          "file": "21d3d88359437146a6d8882328df4bd73edd685c-parent.txt",
+          "bytes": 14536,
+          "sha256": "37d3775b2dc392f5fe1648615e820a01419a1c818c9c0ae876e70dc018d4ef86"
+        }
+      },
+      "reference": {
+        "rc": 0,
+        "summary": "139 passed, 1 skipped, 9839 subtests passed in 6.75s",
+        "errors": [],
+        "raw": {
+          "file": "21d3d88359437146a6d8882328df4bd73edd685c-reference.txt",
+          "bytes": 246,
+          "sha256": "3c1caa554c098f2e85a04e057bee0159959b1bcf321f19cc6af1bd5c65dc0149"
+        }
+      },
+      "valid": true
+    },
+    {
+      "repo": "more-itertools",
+      "commit": "5c8336c5f3a7cbc07fd1d1d4a85cd1d833218bfd",
+      "timestamp": 1754075594,
+      "subject": "Draft of running_median() with windowed data",
+      "size": 110,
+      "code_lines": 106,
+      "code": [
+        "more_itertools/recipes.py"
+      ],
+      "non_test_files": [
+        "more_itertools/recipes.py",
+        "more_itertools/recipes.pyi"
+      ],
+      "tests": [
+        "tests/test_recipes.py"
+      ],
+      "parent": {
+        "rc": 1,
+        "summary": "4 failed, 137 passed, 1 skipped, 9830 subtests passed in 6.76s",
+        "errors": [
+          "E       AssertionError: TypeError not raised",
+          "E               TypeError: _running_median_minheap_only() got an unexpected keyword argument 'window'",
+          "E               TypeError: _running_median_minheap_only() got an unexpected keyword argument 'window'",
+          "E               TypeError: _running_median_minheap_only() got an unexpected keyword argument 'window'",
+          "FAILED tests/test_recipes.py::RunningMedianTests::test_error_cases - Assertio..."
+        ],
+        "raw": {
+          "file": "5c8336c5f3a7cbc07fd1d1d4a85cd1d833218bfd-parent.txt",
+          "bytes": 4798,
+          "sha256": "d9b1bd9c44eff95e356be08c2feb20e837250d5cd4e6fe6958ec04adca215874"
+        }
+      },
+      "reference": {
+        "rc": 0,
+        "summary": "138 passed, 1 skipped, 9833 subtests passed in 6.65s",
+        "errors": [],
+        "raw": {
+          "file": "5c8336c5f3a7cbc07fd1d1d4a85cd1d833218bfd-reference.txt",
+          "bytes": 244,
+          "sha256": "3b50a1b53af2335c6618d3406de236a5f458e3f85fae428d34a417ca43bd58fd"
+        }
+      },
+      "valid": true
+    },
+    {
+      "repo": "more-itertools",
+      "commit": "a7236314cdb977d154d90a27cd7d5ddc3f86c851",
+      "timestamp": 1733172378,
+      "subject": "Issue 920: Add is_prime recipe",
+      "size": 70,
+      "code_lines": 69,
+      "code": [
+        "more_itertools/recipes.py"
+      ],
+      "non_test_files": [
+        "more_itertools/recipes.py",
+        "more_itertools/recipes.pyi"
+      ],
+      "tests": [
+        "tests/test_recipes.py"
+      ],
+      "parent": {
+        "rc": 1,
+        "summary": "20 failed, 132 passed, 1 skipped, 113 subtests passed in 1.03s",
+        "errors": [
+          "E               AttributeError: module 'more_itertools' has no attribute 'is_prime'",
+          "E               AttributeError: module 'more_itertools' has no attribute 'is_prime'",
+          "E               AttributeError: module 'more_itertools' has no attribute 'is_prime'",
+          "E               AttributeError: module 'more_itertools' has no attribute 'is_prime'",
+          "E               AttributeError: module 'more_itertools' has no attribute 'is_prime'",
+          "E               AttributeError: module 'more_itertools' has no attribute 'is_prime'",
+          "E               AttributeError: module 'more_itertools' has no attribute 'is_prime'",
+          "E               AttributeError: module 'more_itertools' has no attribute 'is_prime'"
+        ],
+        "raw": {
+          "file": "a7236314cdb977d154d90a27cd7d5ddc3f86c851-parent.txt",
+          "bytes": 14104,
+          "sha256": "345c7a40a238f4e0e6aaa33cd8b7d65852b1dbf6c5b65265f7f5ca8777bc6189"
+        }
+      },
+      "reference": {
+        "rc": 0,
+        "summary": "132 passed, 1 skipped, 133 subtests passed in 0.69s",
+        "errors": [],
+        "raw": {
+          "file": "a7236314cdb977d154d90a27cd7d5ddc3f86c851-reference.txt",
+          "bytes": 223,
+          "sha256": "5f91e6a3250719b1e8fed80d755ebe2ad1abfeb7ad0adeba8990a343f5641c8b"
+        }
+      },
+      "valid": true
+    },
+    {
+      "repo": "more-itertools",
+      "commit": "bbe6c8f7f3f59555ab5035871aa919a6b9d9dbb7",
+      "timestamp": 1720456984,
+      "subject": "Issue 870: counts parameter for sample",
+      "size": 74,
+      "code_lines": 65,
+      "code": [
+        "more_itertools/more.py"
+      ],
+      "non_test_files": [
+        "more_itertools/more.py",
+        "more_itertools/more.pyi"
+      ],
+      "tests": [
+        "tests/test_more.py"
+      ],
+      "parent": {
+        "rc": 1,
+        "summary": "2 failed, 526 passed, 5 warnings, 2218 subtests passed in 1.56s",
+        "errors": [
+          "E       TypeError: sample() got an unexpected keyword argument 'counts'",
+          "E       TypeError: sample() got an unexpected keyword argument 'counts'",
+          "FAILED tests/test_more.py::SampleTests::test_counts - TypeError: sample() got...",
+          "FAILED tests/test_more.py::SampleTests::test_counts_all - TypeError: sample()..."
+        ],
+        "raw": {
+          "file": "bbe6c8f7f3f59555ab5035871aa919a6b9d9dbb7-parent.txt",
+          "bytes": 2599,
+          "sha256": "a68dab5e7e05e61de7ea345b9cc8ee5298472c3cbee8c668abfeab4af041a872"
+        }
+      },
+      "reference": {
+        "rc": 0,
+        "summary": "528 passed, 5 warnings, 2218 subtests passed in 1.39s",
+        "errors": [],
+        "raw": {
+          "file": "bbe6c8f7f3f59555ab5035871aa919a6b9d9dbb7-reference.txt",
+          "bytes": 1315,
+          "sha256": "3c1619605967172942e51399e04692418f53fb8686fbcc5df5383faaa62ff0f4"
+        }
+      },
+      "valid": true
+    },
+    {
+      "repo": "more-itertools",
+      "commit": "5252383356e6c867f1148471adbeb1aecbe8d13c",
+      "timestamp": 1717099098,
+      "subject": "Add dft and dft",
+      "size": 102,
+      "code_lines": 67,
+      "code": [
+        "more_itertools/more.py"
+      ],
+      "non_test_files": [
+        "docs/api.rst",
+        "more_itertools/more.py",
+        "more_itertools/more.pyi"
+      ],
+      "tests": [
+        "tests/test_more.py"
+      ],
+      "parent": {
+        "rc": 1,
+        "summary": "2 failed, 511 passed, 5 warnings, 2211 subtests passed in 1.20s",
+        "errors": [
+          "E       AttributeError: module 'more_itertools' has no attribute 'dft'",
+          "E           AttributeError: module 'more_itertools' has no attribute 'dft'",
+          "FAILED tests/test_more.py::DiscreteFourierTransformTests::test_basic - Attrib...",
+          "FAILED tests/test_more.py::DiscreteFourierTransformTests::test_roundtrip - At..."
+        ],
+        "raw": {
+          "file": "5252383356e6c867f1148471adbeb1aecbe8d13c-parent.txt",
+          "bytes": 2562,
+          "sha256": "79d60d036cb5acb62bc0b1d7cc6634298a3334e0c2f606185fcfbc820ed3bb34"
+        }
+      },
+      "reference": {
+        "rc": 0,
+        "summary": "513 passed, 5 warnings, 2211 subtests passed in 1.30s",
+        "errors": [],
+        "raw": {
+          "file": "5252383356e6c867f1148471adbeb1aecbe8d13c-reference.txt",
+          "bytes": 1234,
+          "sha256": "17165cbad30e4a83b04cb6c4fae7ac3a585f5b9d61498c19318d5851f4dc2819"
+        }
+      },
+      "valid": true
+    },
+    {
+      "repo": "more-itertools",
+      "commit": "02e753222ce27f199971032a4b18e9513c9b0a48",
+      "timestamp": 1646860504,
+      "subject": "Update to the latest grouper recipe",
+      "size": 146,
+      "code_lines": 126,
+      "code": [
+        "more_itertools/more.py",
+        "more_itertools/recipes.py"
+      ],
+      "non_test_files": [
+        "more_itertools/more.py",
+        "more_itertools/recipes.py",
+        "more_itertools/recipes.pyi"
+      ],
+      "tests": [
+        "tests/test_recipes.py"
+      ],
+      "parent": {
+        "rc": 1,
+        "summary": "22 failed, 93 passed, 21 subtests passed in 0.36s",
+        "errors": [
+          "E               TypeError: grouper() got an unexpected keyword argument 'incomplete'",
+          "E               TypeError: grouper() got an unexpected keyword argument 'incomplete'",
+          "E               TypeError: grouper() got an unexpected keyword argument 'incomplete'",
+          "E               TypeError: grouper() got an unexpected keyword argument 'incomplete'",
+          "E               TypeError: grouper() got an unexpected keyword argument 'incomplete'",
+          "E               TypeError: grouper() got an unexpected keyword argument 'incomplete'",
+          "E               TypeError: grouper() got an unexpected keyword argument 'incomplete'",
+          "E               TypeError: grouper() got an unexpected keyword argument 'incomplete'"
+        ],
+        "raw": {
+          "file": "02e753222ce27f199971032a4b18e9513c9b0a48-parent.txt",
+          "bytes": 17873,
+          "sha256": "24c7fba0befd5a6f0104a41375c4e87aa0b0568395704f10207ab18474ff3f73"
+        }
+      },
+      "reference": {
+        "rc": 0,
+        "summary": "94 passed, 42 subtests passed in 0.11s",
+        "errors": [],
+        "raw": {
+          "file": "02e753222ce27f199971032a4b18e9513c9b0a48-reference.txt",
+          "bytes": 157,
+          "sha256": "6b1ab4d2f8f8f78d3e60676fa0ce76c70be048e28fcf387a999626ba210036a8"
+        }
+      },
+      "valid": true
+    },
+    {
+      "repo": "boltons",
+      "commit": "6270b5e35ed902859df6188970eec5bee5ab73d1",
+      "timestamp": 1792969697,
+      "subject": "iterutils: fix remap namedtuples, chunk_ranges edges, iterator bucketize, falsey keys, key-once untyped_sorted, negative maxsplit, fractional backoff; add chunked_filter (#585, #569, #563, #554, #552, #502, #496, #491)",
+      "size": 74,
+      "code_lines": 73,
+      "code": [
+        "boltons/iterutils.py"
+      ],
+      "non_test_files": [
+        "boltons/iterutils.py",
+        "docs/iterutils.rst"
+      ],
+      "tests": [
+        "tests/test_iterutils.py"
+      ],
+      "parent": {
+        "rc": 1,
+        "summary": "9 failed, 49 passed in 0.49s",
+        "errors": [
+          "E       assert [[1, None, 2, None, 3]] == [[1], [2], [3]]",
+          "E         ",
+          "E         At index 0 diff: [1, None, 2, None, 3] != [1]",
+          "E         Right contains 2 more items, first extra item: [2]",
+          "E         Use -v to get more diff",
+          "E           TypeError: Point.__new__() missing 2 required positional arguments: 'x' and 'y'",
+          "E           TypeError: range expected at least 1 argument, got 0",
+          "E       assert [0.0] == [0.0, 0.5]"
+        ],
+        "raw": {
+          "file": "6270b5e35ed902859df6188970eec5bee5ab73d1-parent.txt",
+          "bytes": 8796,
+          "sha256": "d7bd5c7f062adce6cbdeb0a7b8e80fc5239c6065cc8846c035f381aec51cfad0"
+        }
+      },
+      "reference": {
+        "rc": 0,
+        "summary": "58 passed in 0.27s",
+        "errors": [],
+        "raw": {
+          "file": "6270b5e35ed902859df6188970eec5bee5ab73d1-reference.txt",
+          "bytes": 99,
+          "sha256": "155ccac0272446afd9d61150551710e20373d2433b0dd97e0b04213866ce6414"
+        }
+      },
+      "valid": true
+    },
+    {
+      "repo": "boltons",
+      "commit": "922e7b2bfae226efa569b4441abbe7a0fb3d47de",
+      "timestamp": 1792969697,
+      "subject": "fileutils, pathutils, namedutils: fix FilePerms bits, find depth, AtomicSaver cleanup, root-home shrinkuser, non-identifier names; include docs in sdist (#484, #518, #485, #539, #504, #573, #557)",
+      "size": 70,
+      "code_lines": 66,
+      "code": [
+        "boltons/fileutils.py",
+        "boltons/namedutils.py",
+        "boltons/pathutils.py"
+      ],
+      "non_test_files": [
+        "boltons/fileutils.py",
+        "boltons/namedutils.py",
+        "boltons/pathutils.py",
+        "pyproject.toml"
+      ],
+      "tests": [
+        "tests/test_fileutils.py",
+        "tests/test_namedutils.py",
+        "tests/test_pathutils.py"
+      ],
+      "parent": {
+        "rc": 1,
+        "summary": "6 failed, 21 passed, 1 skipped in 0.53s",
+        "errors": [
+          "E       AssertionError: assert 448 == 7",
+          "E        +  where 448 = int(FilePerms(user='rwx', group='', other=''))",
+          "E        +    where FilePerms(user='rwx', group='', other='') = from_int(7)",
+          "E        +      where from_int = FilePerms.from_int",
+          "E       AssertionError: assert 388 == 384",
+          "E        +  where 388 = int(FilePerms(user='rw', group='', other=''))",
+          "E       assert False",
+          "E        +  where False = <_io.BufferedRandom name=11>.closed"
+        ],
+        "raw": {
+          "file": "922e7b2bfae226efa569b4441abbe7a0fb3d47de-parent.txt",
+          "bytes": 26286,
+          "sha256": "de55f63e180b6609cdbf6e9fdd523b7ab98de76ef07672f464e90934a41a36a4"
+        }
+      },
+      "reference": {
+        "rc": 0,
+        "summary": "27 passed, 1 skipped in 0.18s",
+        "errors": [],
+        "raw": {
+          "file": "922e7b2bfae226efa569b4441abbe7a0fb3d47de-reference.txt",
+          "bytes": 110,
+          "sha256": "4abb7b76fb1c06a46df602bb0877a5273ccd4a6b46604a3d61af606605cbd51c"
+        }
+      },
+      "valid": true
+    },
+    {
+      "repo": "boltons",
+      "commit": "f898d8f81aa85a3a7c3b187b5d45b329bc471a72",
+      "timestamp": 1792969697,
+      "subject": "gcutils, typeutils, debugutils: find subtype instances, restore GC state, support metaclasses, fix suppressed raise (#560, #559, #505, #584)",
+      "size": 41,
+      "code_lines": 41,
+      "code": [
+        "boltons/debugutils.py",
+        "boltons/gcutils.py",
+        "boltons/typeutils.py"
+      ],
+      "non_test_files": [
+        "boltons/debugutils.py",
+        "boltons/gcutils.py",
+        "boltons/typeutils.py"
+      ],
+      "tests": [
+        "tests/test_debugutils_trace.py",
+        "tests/test_gcutils.py",
+        "tests/test_typeutils.py"
+      ],
+      "parent": {
+        "rc": 1,
+        "summary": "4 failed, 11 passed in 0.28s",
+        "errors": [
+          "E       UnboundLocalError: cannot access local variable 'ret' where it is not associated with a value",
+          "E       assert [] == [<tests.test_...01900EED9BD0>]",
+          "E         ",
+          "E         Right contains one more item: <tests.test_gcutils.test_get_all_subtypes.<locals>.Sub object at <address>>",
+          "E         Use -v to get more diff",
+          "E           assert not True",
+          "E            +  where True = <built-in function isenabled>()",
+          "E            +    where <built-in function isenabled> = gc.isenabled"
+        ],
+        "raw": {
+          "file": "f898d8f81aa85a3a7c3b187b5d45b329bc471a72-parent.txt",
+          "bytes": 5281,
+          "sha256": "1200efc10b8d5967b8fc67d3293e48921ccde9788debd8ce2526168c98742aea"
+        }
+      },
+      "reference": {
+        "rc": 0,
+        "summary": "15 passed in 0.16s",
+        "errors": [],
+        "raw": {
+          "file": "f898d8f81aa85a3a7c3b187b5d45b329bc471a72-reference.txt",
+          "bytes": 99,
+          "sha256": "3505b1c4057954c7b899990d26c3bcdf5c6a1192ff677524c8c1d21a2047d4f7"
+        }
+      },
+      "valid": true
+    },
+    {
+      "repo": "boltons",
+      "commit": "40fffc5ba0a84315c79813daa47db35157d64556",
+      "timestamp": 1792969316,
+      "subject": "setutils: fix IndexedSet tail culling, pop index, multi-arg and iterator set ops, complement & and ^ (#577, #535, #494, #503, #516, #487)",
+      "size": 62,
+      "code_lines": 62,
+      "code": [
+        "boltons/setutils.py"
+      ],
+      "non_test_files": [
+        "boltons/setutils.py"
+      ],
+      "tests": [
+        "tests/test_setutils.py"
+      ],
+      "parent": {
+        "rc": 1,
+        "summary": "8 failed, 20 passed in 0.23s",
+        "errors": [
+          "E       assert 34 == 35",
+          "E        +  where 34 = index(39)",
+          "E        +    where index = IndexedSet([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 39]).index",
+          "E       Failed: DID NOT RAISE TypeError",
+          "E       assert [1, 3, 4] == [4]",
+          "E         ",
+          "E         At index 0 diff: 1 != 4",
+          "E         Left contains 2 more items, first extra item: 3"
+        ],
+        "raw": {
+          "file": "40fffc5ba0a84315c79813daa47db35157d64556-parent.txt",
+          "bytes": 8423,
+          "sha256": "79d5156ba436538f33429924507417f65cb46a4fcd4e1e9ab5c84832c753db9e"
+        }
+      },
+      "reference": {
+        "rc": 0,
+        "summary": "28 passed in 0.09s",
+        "errors": [],
+        "raw": {
+          "file": "40fffc5ba0a84315c79813daa47db35157d64556-reference.txt",
+          "bytes": 99,
+          "sha256": "c0a990de1055355825db98d6b4719664334d43654fbed47ff93fe0f2b348c3e1"
+        }
+      },
+      "valid": true
+    },
+    {
+      "repo": "boltons",
+      "commit": "bbadc7ae1dcfbb0e71ec3a852e8bca3a6f75199b",
+      "timestamp": 1792969316,
+      "subject": "dictutils: fix OMD eq/update, OneToOne update and |=, ManyToMany add/update/replace (#599, #531, #523, #537, #601, #526, #528)",
+      "size": 62,
+      "code_lines": 62,
+      "code": [
+        "boltons/dictutils.py",
+        "boltons/urlutils.py"
+      ],
+      "non_test_files": [
+        "boltons/dictutils.py",
+        "boltons/urlutils.py"
+      ],
+      "tests": [
+        "tests/test_dictutils.py"
+      ],
+      "parent": {
+        "rc": 1,
+        "summary": "8 failed, 30 passed in 0.25s",
+        "errors": [
+          "E       assert OrderedMultiDict([(None, None)]) != OrderedMultiDict([(None, None), (None, None)])",
+          "E        +  where OrderedMultiDict([(None, None)]) = OMD([(None, None)])",
+          "E        +  and   OrderedMultiDict([(None, None), (None, None)]) = OMD([(None, None), (None, None)])",
+          "E       assert [3] == [1, 3]",
+          "E         ",
+          "E         At index 0 diff: 3 != 1",
+          "E         Right contains one more item: 3",
+          "E         Use -v to get more diff"
+        ],
+        "raw": {
+          "file": "bbadc7ae1dcfbb0e71ec3a852e8bca3a6f75199b-parent.txt",
+          "bytes": 4992,
+          "sha256": "80535221881b178eed3db3e9825e73de3ecc7ca218ced5e85a9077a8d7566bd3"
+        }
+      },
+      "reference": {
+        "rc": 0,
+        "summary": "38 passed in 0.11s",
+        "errors": [],
+        "raw": {
+          "file": "bbadc7ae1dcfbb0e71ec3a852e8bca3a6f75199b-reference.txt",
+          "bytes": 99,
+          "sha256": "5820660ec3010de64a702de867f5df2cf30c67130e042248a991f9440cddf42b"
+        }
+      },
+      "valid": true
+    },
+    {
+      "repo": "boltons",
+      "commit": "3fe7b949a2307002c3e4dbecb858372f77f6bb78",
+      "timestamp": 1792969315,
+      "subject": "listutils: fix BarrelList list-compat methods; add sort(key, reverse) and index(start, stop) (#596, #544, #540, #538, #532, #530, #517, #575, #549, #514, #550, #592)",
+      "size": 128,
+      "code_lines": 128,
+      "code": [
+        "boltons/listutils.py"
+      ],
+      "non_test_files": [
+        "boltons/listutils.py"
+      ],
+      "tests": [
+        "tests/test_listutils.py"
+      ],
+      "parent": {
+        "rc": 1,
+        "summary": "2 failed, 11 passed in 0.26s",
+        "errors": [
+          "E           assert (BarrelList([5..., 6, 0, 4, 3]) == [5, 3, 8, 1, 9, 3, ...]",
+          "E             ",
+          "E             Use -v to get more diff)",
+          "E           IndexError",
+          "FAILED tests/test_listutils.py::test_barrel_list_list_compat_matches_list - a...",
+          "FAILED tests/test_listutils.py::test_barrel_list_del_stepped_slice_matches_list"
+        ],
+        "raw": {
+          "file": "3fe7b949a2307002c3e4dbecb858372f77f6bb78-parent.txt",
+          "bytes": 2782,
+          "sha256": "68ef8f3e1a54bea2a1a6cb1c90853ccc2a23c2704f26529b595e0e8700c9e376"
+        }
+      },
+      "reference": {
+        "rc": 0,
+        "summary": "13 passed in 0.16s",
+        "errors": [],
+        "raw": {
+          "file": "3fe7b949a2307002c3e4dbecb858372f77f6bb78-reference.txt",
+          "bytes": 99,
+          "sha256": "e9a40502bbab4cd186bd34f41859604522147a6b66ee852c24ddbc945d7e0a5a"
+        }
+      },
+      "valid": true
+    },
+    {
+      "repo": "boltons",
+      "commit": "673e010d0afabc2f530e8d1f67f0a47c37afa7f4",
+      "timestamp": 1786982296,
+      "subject": "strutils: add ellipsize for word-boundary-aware truncation",
+      "size": 66,
+      "code_lines": 64,
+      "code": [
+        "boltons/strutils.py"
+      ],
+      "non_test_files": [
+        "CHANGELOG.md",
+        "boltons/strutils.py"
+      ],
+      "tests": [
+        "tests/test_strutils.py"
+      ],
+      "parent": {
+        "rc": 1,
+        "summary": "1 failed, 20 passed in 0.17s",
+        "errors": [
+          "E       AttributeError: module 'boltons.strutils' has no attribute 'ellipsize'",
+          "FAILED tests/test_strutils.py::test_ellipsize - AttributeError: module 'bolto..."
+        ],
+        "raw": {
+          "file": "673e010d0afabc2f530e8d1f67f0a47c37afa7f4-parent.txt",
+          "bytes": 658,
+          "sha256": "71532bc9eb46ade05e1a5975ebe22161bc2cdfd50cfeb080a7a8b71181978b66"
+        }
+      },
+      "reference": {
+        "rc": 0,
+        "summary": "21 passed in 0.07s",
+        "errors": [],
+        "raw": {
+          "file": "673e010d0afabc2f530e8d1f67f0a47c37afa7f4-reference.txt",
+          "bytes": 99,
+          "sha256": "f6c3428a72259cde0f5f3829b656f4ac62e77102cc8c0127acfed6e353f210ee"
+        }
+      },
+      "valid": true
+    },
+    {
+      "repo": "boltons",
+      "commit": "99dec84c99d02d8259093c0d520769b28d4d2aaf",
+      "timestamp": 1785676009,
+      "subject": "Fix US timezone fold handling",
+      "size": 67,
+      "code_lines": 67,
+      "code": [
+        "boltons/timeutils.py"
+      ],
+      "non_test_files": [
+        "boltons/timeutils.py"
+      ],
+      "tests": [
+        "tests/test_timeutils.py"
+      ],
+      "parent": {
+        "rc": 1,
+        "summary": "2 failed, 4 passed in 0.13s",
+        "errors": [
+          "E       assert datetime.timedelta(days=-1, seconds=68400) == (-4 * datetime.timedelta(seconds=3600))",
+          "E        +  where datetime.timedelta(days=-1, seconds=68400) = <built-in method utcoffset of datetime.datetime object at <address>>()",
+          "E        +    where <built-in method utcoffset of datetime.datetime object at <address>> = datetime.datetime(2011, 11, 6, 1, 30, tzinfo=Eastern).utcoffset",
+          "E        +  and   datetime.timedelta(seconds=3600) = timedelta(hours=1)",
+          "E       AssertionError: assert 'EST' == 'EDT'",
+          "E         ",
+          "E         - EDT",
+          "E         + EST"
+        ],
+        "raw": {
+          "file": "99dec84c99d02d8259093c0d520769b28d4d2aaf-parent.txt",
+          "bytes": 1846,
+          "sha256": "d8d3873fc4801205f2abe502e151cc79119be341a7ee1b60db026322cc881a67"
+        }
+      },
+      "reference": {
+        "rc": 0,
+        "summary": "6 passed in 0.03s",
+        "errors": [],
+        "raw": {
+          "file": "99dec84c99d02d8259093c0d520769b28d4d2aaf-reference.txt",
+          "bytes": 98,
+          "sha256": "a4ce3c4d2d126cf54794b588fe0568dcf174b80e68913316f73e0da7b9f1c64b"
+        }
+      },
+      "valid": true
+    }
+  ],
+  "checked": [
+    {
+      "repo": "more-itertools",
+      "commit": "b8fe92096c4693ed0b134be7de88e00efed131f7",
+      "timestamp": 1788722832,
+      "subject": "Add random ordered combinatoric functions",
+      "size": 113,
+      "code_lines": 82,
+      "code": [
+        "more_itertools/more.py"
+      ],
+      "non_test_files": [
+        "README.rst",
+        "docs/api.rst",
+        "more_itertools/more.py",
+        "more_itertools/more.pyi"
+      ],
+      "tests": [
+        "tests/test_more.py"
+      ],
+      "parent": {
+        "rc": 2,
+        "summary": "1 error in 0.25s",
+        "errors": [
+          "E     File \"<tree>\\tests\\test_more.py\", line 7302",
+          "E       >>>>>>> e5b442a (Add random ordered combinatoric functions)",
+          "E       ^^",
+          "E   SyntaxError: invalid syntax"
+        ],
+        "raw": {
+          "file": "b8fe92096c4693ed0b134be7de88e00efed131f7-parent.txt",
+          "bytes": 2095,
+          "sha256": "c3730f921cbee6df3ecaaf9e11f3ddfa375a958259f2c77bab6ff835f5a49c37"
+        }
+      },
+      "reference": {
+        "rc": 2,
+        "summary": "1 error in 0.24s",
+        "errors": [
+          "E     File \"<tree>\\tests\\test_more.py\", line 7302",
+          "E       >>>>>>> e5b442a (Add random ordered combinatoric functions)",
+          "E       ^^",
+          "E   SyntaxError: invalid syntax"
+        ],
+        "raw": {
+          "file": "b8fe92096c4693ed0b134be7de88e00efed131f7-reference.txt",
+          "bytes": 2095,
+          "sha256": "4593aa1966f7d6810de471d50084c4863f4d5a4bc394d00fd12343068b3aff6f"
+        }
+      },
+      "valid": false
+    },
+    {
+      "repo": "more-itertools",
+      "commit": "18c57c720fc5a7672439ea45a5393a8c1ff40d1e",
+      "timestamp": 1774987477,
+      "subject": "Issue #1134: Add running_statistics (#1135)",
+      "size": 240,
+      "code_lines": 179,
+      "code": [
+        "more_itertools/more.py",
+        "more_itertools/recipes.py"
+      ],
+      "non_test_files": [
+        "README.rst",
+        "docs/api.rst",
+        "more_itertools/more.py",
+        "more_itertools/more.pyi",
+        "more_itertools/recipes.py",
+        "more_itertools/recipes.pyi"
+      ],
+      "tests": [
+        "tests/test_more.py",
+        "tests/test_recipes.py"
+      ],
+      "parent": {
+        "rc": 1,
+        "summary": "19 failed, 707 passed, 19873 subtests passed in 12.87s",
+        "errors": [
+          "E               AttributeError: module 'more_itertools' has no attribute 'running_min'",
+          "E               AttributeError: module 'more_itertools' has no attribute 'running_min'",
+          "E               AttributeError: module 'more_itertools' has no attribute 'running_min'",
+          "E               AttributeError: module 'more_itertools' has no attribute 'running_min'",
+          "E               AttributeError: module 'more_itertools' has no attribute 'running_min'",
+          "E               AttributeError: module 'more_itertools' has no attribute 'running_min'",
+          "E           AttributeError: module 'more_itertools' has no attribute 'running_min'",
+          "E               AttributeError: module 'more_itertools' has no attribute 'running_max'"
+        ],
+        "raw": {
+          "file": "18c57c720fc5a7672439ea45a5393a8c1ff40d1e-parent.txt",
+          "bytes": 18670,
+          "sha256": "0f2a78f1fc61319dae9451223d8d31f325a7ea32595ce48e90a74bc4e8b6cc8a"
+        }
+      },
+      "reference": {
+        "rc": 0,
+        "summary": "714 passed, 19897 subtests passed in 11.54s",
+        "errors": [],
+        "raw": {
+          "file": "18c57c720fc5a7672439ea45a5393a8c1ff40d1e-reference.txt",
+          "bytes": 899,
+          "sha256": "ab0e1de0364c7d65db5143a0d449159ec91d6a2a3cdf7a4a64ae68d065e03aba"
+        }
+      },
+      "valid": true
+    },
+    {
+      "repo": "more-itertools",
+      "commit": "21d3d88359437146a6d8882328df4bd73edd685c",
+      "timestamp": 1755802520,
+      "subject": "Issue 1003: Multidimensional reshape() (#1062)",
+      "size": 73,
+      "code_lines": 68,
+      "code": [
+        "more_itertools/recipes.py"
+      ],
+      "non_test_files": [
+        "more_itertools/recipes.py",
+        "more_itertools/recipes.pyi"
+      ],
+      "tests": [
+        "tests/test_recipes.py"
+      ],
+      "parent": {
+        "rc": 1,
+        "summary": "7 failed, 138 passed, 1 skipped, 9833 subtests passed in 7.02s",
+        "errors": [
+          "E       TypeError: '<' not supported between instances of 'tuple' and 'int'",
+          "E       TypeError: '<' not supported between instances of 'tuple' and 'int'",
+          "E       TypeError: '<' not supported between instances of 'tuple' and 'int'",
+          "E       TypeError: '<' not supported between instances of 'tuple' and 'int'",
+          "E       TypeError: '<' not supported between instances of 'tuple' and 'int'",
+          "E       TypeError: '<' not supported between instances of 'tuple' and 'int'",
+          "E       TypeError: '<' not supported between instances of 'list' and 'int'",
+          "FAILED tests/test_recipes.py::ReshapeTests::test_multidimensional - TypeError..."
+        ],
+        "raw": {
+          "file": "21d3d88359437146a6d8882328df4bd73edd685c-parent.txt",
+          "bytes": 14536,
+          "sha256": "37d3775b2dc392f5fe1648615e820a01419a1c818c9c0ae876e70dc018d4ef86"
+        }
+      },
+      "reference": {
+        "rc": 0,
+        "summary": "139 passed, 1 skipped, 9839 subtests passed in 6.75s",
+        "errors": [],
+        "raw": {
+          "file": "21d3d88359437146a6d8882328df4bd73edd685c-reference.txt",
+          "bytes": 246,
+          "sha256": "3c1caa554c098f2e85a04e057bee0159959b1bcf321f19cc6af1bd5c65dc0149"
+        }
+      },
+      "valid": true
+    },
+    {
+      "repo": "more-itertools",
+      "commit": "361b92567361f377489ce608d5e6280e4f6f986b",
+      "timestamp": 1755271195,
+      "subject": "Set minimum version to Py3.10. Remove deprecated zip_equal. Remove _zip_strict.",
+      "size": 153,
+      "code_lines": 107,
+      "code": [
+        "more_itertools/more.py",
+        "more_itertools/recipes.py"
+      ],
+      "non_test_files": [
+        "README.rst",
+        "docs/api.rst",
+        "more_itertools/more.py",
+        "more_itertools/more.pyi",
+        "more_itertools/recipes.py",
+        "tox.ini"
+      ],
+      "tests": [
+        "tests/test_more.py"
+      ],
+      "parent": {
+        "rc": 0,
+        "summary": "547 passed, 3 warnings, 10027 subtests passed in 2.43s",
+        "errors": [],
+        "raw": {
+          "file": "361b92567361f377489ce608d5e6280e4f6f986b-parent.txt",
+          "bytes": 1184,
+          "sha256": "1b8a68c2c35ff6d71fb4bcd6058934f34bf85a10bf0f6da1f281f9a901bb4f3d"
+        }
+      },
+      "reference": {
+        "rc": 0,
+        "summary": "547 passed, 10027 subtests passed in 2.36s",
+        "errors": [],
+        "raw": {
+          "file": "361b92567361f377489ce608d5e6280e4f6f986b-reference.txt",
+          "bytes": 672,
+          "sha256": "656d9c03bbf656178d1d3a7c04135f23e8dd0cfa3208d19f79935b275472e433"
+        }
+      },
+      "valid": false
+    },
+    {
+      "repo": "more-itertools",
+      "commit": "5c8336c5f3a7cbc07fd1d1d4a85cd1d833218bfd",
+      "timestamp": 1754075594,
+      "subject": "Draft of running_median() with windowed data",
+      "size": 110,
+      "code_lines": 106,
+      "code": [
+        "more_itertools/recipes.py"
+      ],
+      "non_test_files": [
+        "more_itertools/recipes.py",
+        "more_itertools/recipes.pyi"
+      ],
+      "tests": [
+        "tests/test_recipes.py"
+      ],
+      "parent": {
+        "rc": 1,
+        "summary": "4 failed, 137 passed, 1 skipped, 9830 subtests passed in 6.76s",
+        "errors": [
+          "E       AssertionError: TypeError not raised",
+          "E               TypeError: _running_median_minheap_only() got an unexpected keyword argument 'window'",
+          "E               TypeError: _running_median_minheap_only() got an unexpected keyword argument 'window'",
+          "E               TypeError: _running_median_minheap_only() got an unexpected keyword argument 'window'",
+          "FAILED tests/test_recipes.py::RunningMedianTests::test_error_cases - Assertio..."
+        ],
+        "raw": {
+          "file": "5c8336c5f3a7cbc07fd1d1d4a85cd1d833218bfd-parent.txt",
+          "bytes": 4798,
+          "sha256": "d9b1bd9c44eff95e356be08c2feb20e837250d5cd4e6fe6958ec04adca215874"
+        }
+      },
+      "reference": {
+        "rc": 0,
+        "summary": "138 passed, 1 skipped, 9833 subtests passed in 6.65s",
+        "errors": [],
+        "raw": {
+          "file": "5c8336c5f3a7cbc07fd1d1d4a85cd1d833218bfd-reference.txt",
+          "bytes": 244,
+          "sha256": "3b50a1b53af2335c6618d3406de236a5f458e3f85fae428d34a417ca43bd58fd"
+        }
+      },
+      "valid": true
+    },
+    {
+      "repo": "more-itertools",
+      "commit": "6887a7bd5ac3787a8721eddca9c93dd4d3eda5f7",
+      "timestamp": 1754001843,
+      "subject": "Add running_median",
+      "size": 78,
+      "code_lines": 71,
+      "code": [
+        "more_itertools/recipes.py"
+      ],
+      "non_test_files": [
+        "README.rst",
+        "docs/api.rst",
+        "more_itertools/recipes.py",
+        "more_itertools/recipes.pyi"
+      ],
+      "tests": [
+        "tests/test_recipes.py"
+      ],
+      "parent": {
+        "rc": 1,
+        "summary": "2 failed, 135 passed, 1 skipped, 9827 subtests passed in 6.57s",
+        "errors": [
+          "E       AttributeError: module 'more_itertools' has no attribute 'running_median'",
+          "E       AttributeError: module 'more_itertools' has no attribute 'running_median'",
+          "FAILED tests/test_recipes.py::RunningMedianTests::test_error_cases - Attribut...",
+          "FAILED tests/test_recipes.py::RunningMedianTests::test_vs_statistics_median"
+        ],
+        "raw": {
+          "file": "6887a7bd5ac3787a8721eddca9c93dd4d3eda5f7-parent.txt",
+          "bytes": 1397,
+          "sha256": "36072ac05df3f1379173d54830c4062a6a3985208d6b3e99ebc509fbda28b63c"
+        }
+      },
+      "reference": {
+        "rc": 1,
+        "summary": "1 failed, 136 passed, 1 skipped, 9827 subtests passed in 6.62s",
+        "errors": [
+          "E           ZeroDivisionError: Fraction(-319, 0)",
+          "FAILED tests/test_recipes.py::RunningMedianTests::test_vs_statistics_median"
+        ],
+        "raw": {
+          "file": "6887a7bd5ac3787a8721eddca9c93dd4d3eda5f7-reference.txt",
+          "bytes": 5270,
+          "sha256": "dd75d059e5e4d83bb4979e6011a9fe9c695c39505cefb00fbc3071c42112c528"
+        }
+      },
+      "valid": false
+    },
+    {
+      "repo": "more-itertools",
+      "commit": "45b6bf81e12613bdefb23c2ab888c4dd0deb6212",
+      "timestamp": 1746132876,
+      "subject": "Include derangements function",
+      "size": 114,
+      "code_lines": 102,
+      "code": [
+        "more_itertools/more.py"
+      ],
+      "non_test_files": [
+        "more_itertools/more.py",
+        "more_itertools/more.pyi"
+      ],
+      "tests": [
+        "tests/test_more.py"
+      ],
+      "parent": {
+        "rc": 0,
+        "summary": "546 passed, 8 warnings, 2225 subtests passed in 2.42s",
+        "errors": [],
+        "raw": {
+          "file": "45b6bf81e12613bdefb23c2ab888c4dd0deb6212-parent.txt",
+          "bytes": 1458,
+          "sha256": "4de44f1640b4f3a5a9fce2cc3900de5f91b9b104be2f0d6dba27a7fe2fdc554c"
+        }
+      },
+      "reference": {
+        "rc": 0,
+        "summary": "546 passed, 8 warnings, 2225 subtests passed in 2.40s",
+        "errors": [],
+        "raw": {
+          "file": "45b6bf81e12613bdefb23c2ab888c4dd0deb6212-reference.txt",
+          "bytes": 1458,
+          "sha256": "444ae98c8a45fb9867a01acecf4265d7fed7af0ea3b9bc583fb74e0767805561"
+        }
+      },
+      "valid": false
+    },
+    {
+      "repo": "more-itertools",
+      "commit": "28f5e8f142d191626280e98ebc4ce3773c0db9cd",
+      "timestamp": 1736546308,
+      "subject": "Changes for release 10.6.0",
+      "size": 284,
+      "code_lines": 92,
+      "code": [
+        "more_itertools/more.py",
+        "more_itertools/recipes.py"
+      ],
+      "non_test_files": [
+        "README.rst",
+        "docs/versions.rst",
+        "more_itertools/more.py",
+        "more_itertools/more.pyi",
+        "more_itertools/recipes.py",
+        "more_itertools/recipes.pyi"
+      ],
+      "tests": [
+        "tests/test_more.py"
+      ],
+      "parent": {
+        "rc": 0,
+        "summary": "534 passed, 8 warnings, 2212 subtests passed in 1.42s",
+        "errors": [],
+        "raw": {
+          "file": "28f5e8f142d191626280e98ebc4ce3773c0db9cd-parent.txt",
+          "bytes": 1471,
+          "sha256": "90f9366bed35257b8da8553724296a9fea57e5cdc45721e852cfb67f569084bb"
+        }
+      },
+      "reference": {
+        "rc": 0,
+        "summary": "534 passed, 8 warnings, 2212 subtests passed in 1.40s",
+        "errors": [],
+        "raw": {
+          "file": "28f5e8f142d191626280e98ebc4ce3773c0db9cd-reference.txt",
+          "bytes": 1471,
+          "sha256": "9db33f25be67b23a20a435fc99aea29cfe77c8dc4b0150c9e8a9177bb9cf70df"
+        }
+      },
+      "valid": false
+    },
+    {
+      "repo": "more-itertools",
+      "commit": "a7236314cdb977d154d90a27cd7d5ddc3f86c851",
+      "timestamp": 1733172378,
+      "subject": "Issue 920: Add is_prime recipe",
+      "size": 70,
+      "code_lines": 69,
+      "code": [
+        "more_itertools/recipes.py"
+      ],
+      "non_test_files": [
+        "more_itertools/recipes.py",
+        "more_itertools/recipes.pyi"
+      ],
+      "tests": [
+        "tests/test_recipes.py"
+      ],
+      "parent": {
+        "rc": 1,
+        "summary": "20 failed, 132 passed, 1 skipped, 113 subtests passed in 1.03s",
+        "errors": [
+          "E               AttributeError: module 'more_itertools' has no attribute 'is_prime'",
+          "E               AttributeError: module 'more_itertools' has no attribute 'is_prime'",
+          "E               AttributeError: module 'more_itertools' has no attribute 'is_prime'",
+          "E               AttributeError: module 'more_itertools' has no attribute 'is_prime'",
+          "E               AttributeError: module 'more_itertools' has no attribute 'is_prime'",
+          "E               AttributeError: module 'more_itertools' has no attribute 'is_prime'",
+          "E               AttributeError: module 'more_itertools' has no attribute 'is_prime'",
+          "E               AttributeError: module 'more_itertools' has no attribute 'is_prime'"
+        ],
+        "raw": {
+          "file": "a7236314cdb977d154d90a27cd7d5ddc3f86c851-parent.txt",
+          "bytes": 14104,
+          "sha256": "345c7a40a238f4e0e6aaa33cd8b7d65852b1dbf6c5b65265f7f5ca8777bc6189"
+        }
+      },
+      "reference": {
+        "rc": 0,
+        "summary": "132 passed, 1 skipped, 133 subtests passed in 0.69s",
+        "errors": [],
+        "raw": {
+          "file": "a7236314cdb977d154d90a27cd7d5ddc3f86c851-reference.txt",
+          "bytes": 223,
+          "sha256": "5f91e6a3250719b1e8fed80d755ebe2ad1abfeb7ad0adeba8990a343f5641c8b"
+        }
+      },
+      "valid": true
+    },
+    {
+      "repo": "more-itertools",
+      "commit": "bbe6c8f7f3f59555ab5035871aa919a6b9d9dbb7",
+      "timestamp": 1720456984,
+      "subject": "Issue 870: counts parameter for sample",
+      "size": 74,
+      "code_lines": 65,
+      "code": [
+        "more_itertools/more.py"
+      ],
+      "non_test_files": [
+        "more_itertools/more.py",
+        "more_itertools/more.pyi"
+      ],
+      "tests": [
+        "tests/test_more.py"
+      ],
+      "parent": {
+        "rc": 1,
+        "summary": "2 failed, 526 passed, 5 warnings, 2218 subtests passed in 1.56s",
+        "errors": [
+          "E       TypeError: sample() got an unexpected keyword argument 'counts'",
+          "E       TypeError: sample() got an unexpected keyword argument 'counts'",
+          "FAILED tests/test_more.py::SampleTests::test_counts - TypeError: sample() got...",
+          "FAILED tests/test_more.py::SampleTests::test_counts_all - TypeError: sample()..."
+        ],
+        "raw": {
+          "file": "bbe6c8f7f3f59555ab5035871aa919a6b9d9dbb7-parent.txt",
+          "bytes": 2599,
+          "sha256": "a68dab5e7e05e61de7ea345b9cc8ee5298472c3cbee8c668abfeab4af041a872"
+        }
+      },
+      "reference": {
+        "rc": 0,
+        "summary": "528 passed, 5 warnings, 2218 subtests passed in 1.39s",
+        "errors": [],
+        "raw": {
+          "file": "bbe6c8f7f3f59555ab5035871aa919a6b9d9dbb7-reference.txt",
+          "bytes": 1315,
+          "sha256": "3c1619605967172942e51399e04692418f53fb8686fbcc5df5383faaa62ff0f4"
+        }
+      },
+      "valid": true
+    },
+    {
+      "repo": "more-itertools",
+      "commit": "5252383356e6c867f1148471adbeb1aecbe8d13c",
+      "timestamp": 1717099098,
+      "subject": "Add dft and dft",
+      "size": 102,
+      "code_lines": 67,
+      "code": [
+        "more_itertools/more.py"
+      ],
+      "non_test_files": [
+        "docs/api.rst",
+        "more_itertools/more.py",
+        "more_itertools/more.pyi"
+      ],
+      "tests": [
+        "tests/test_more.py"
+      ],
+      "parent": {
+        "rc": 1,
+        "summary": "2 failed, 511 passed, 5 warnings, 2211 subtests passed in 1.20s",
+        "errors": [
+          "E       AttributeError: module 'more_itertools' has no attribute 'dft'",
+          "E           AttributeError: module 'more_itertools' has no attribute 'dft'",
+          "FAILED tests/test_more.py::DiscreteFourierTransformTests::test_basic - Attrib...",
+          "FAILED tests/test_more.py::DiscreteFourierTransformTests::test_roundtrip - At..."
+        ],
+        "raw": {
+          "file": "5252383356e6c867f1148471adbeb1aecbe8d13c-parent.txt",
+          "bytes": 2562,
+          "sha256": "79d60d036cb5acb62bc0b1d7cc6634298a3334e0c2f606185fcfbc820ed3bb34"
+        }
+      },
+      "reference": {
+        "rc": 0,
+        "summary": "513 passed, 5 warnings, 2211 subtests passed in 1.30s",
+        "errors": [],
+        "raw": {
+          "file": "5252383356e6c867f1148471adbeb1aecbe8d13c-reference.txt",
+          "bytes": 1234,
+          "sha256": "17165cbad30e4a83b04cb6c4fae7ac3a585f5b9d61498c19318d5851f4dc2819"
+        }
+      },
+      "valid": true
+    },
+    {
+      "repo": "more-itertools",
+      "commit": "02e753222ce27f199971032a4b18e9513c9b0a48",
+      "timestamp": 1646860504,
+      "subject": "Update to the latest grouper recipe",
+      "size": 146,
+      "code_lines": 126,
+      "code": [
+        "more_itertools/more.py",
+        "more_itertools/recipes.py"
+      ],
+      "non_test_files": [
+        "more_itertools/more.py",
+        "more_itertools/recipes.py",
+        "more_itertools/recipes.pyi"
+      ],
+      "tests": [
+        "tests/test_recipes.py"
+      ],
+      "parent": {
+        "rc": 1,
+        "summary": "22 failed, 93 passed, 21 subtests passed in 0.36s",
+        "errors": [
+          "E               TypeError: grouper() got an unexpected keyword argument 'incomplete'",
+          "E               TypeError: grouper() got an unexpected keyword argument 'incomplete'",
+          "E               TypeError: grouper() got an unexpected keyword argument 'incomplete'",
+          "E               TypeError: grouper() got an unexpected keyword argument 'incomplete'",
+          "E               TypeError: grouper() got an unexpected keyword argument 'incomplete'",
+          "E               TypeError: grouper() got an unexpected keyword argument 'incomplete'",
+          "E               TypeError: grouper() got an unexpected keyword argument 'incomplete'",
+          "E               TypeError: grouper() got an unexpected keyword argument 'incomplete'"
+        ],
+        "raw": {
+          "file": "02e753222ce27f199971032a4b18e9513c9b0a48-parent.txt",
+          "bytes": 17873,
+          "sha256": "24c7fba0befd5a6f0104a41375c4e87aa0b0568395704f10207ab18474ff3f73"
+        }
+      },
+      "reference": {
+        "rc": 0,
+        "summary": "94 passed, 42 subtests passed in 0.11s",
+        "errors": [],
+        "raw": {
+          "file": "02e753222ce27f199971032a4b18e9513c9b0a48-reference.txt",
+          "bytes": 157,
+          "sha256": "6b1ab4d2f8f8f78d3e60676fa0ce76c70be048e28fcf387a999626ba210036a8"
+        }
+      },
+      "valid": true
+    },
+    {
+      "repo": "more-itertools",
+      "commit": "086c54045678590da373ab327ff375e1e9c7ba07",
+      "timestamp": 1634693584,
+      "subject": "Make strictly_n lazy",
+      "size": 69,
+      "code_lines": 69,
+      "code": [
+        "more_itertools/more.py"
+      ],
+      "non_test_files": [
+        "more_itertools/more.py"
+      ],
+      "tests": [
+        "tests/test_more.py"
+      ],
+      "parent": {
+        "rc": 1,
+        "summary": "5 failed, 430 passed, 10 warnings, 2108 subtests passed in 1.47s",
+        "errors": [
+          "E       AssertionError: Lists differ: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12,[1116019 chars]3396] != []",
+          "E       ",
+          "E       First list contains 153397 additional elements.",
+          "E       First extra element 0:",
+          "E       0",
+          "E       ",
+          "E       Diff is 1576262 characters long. Set self.maxDiff to None to see it.",
+          "E           TypeError: StrictlyNTests.test_too_long_custom.<locals>.<lambda>() takes 0 positional arguments but 1 was given"
+        ],
+        "raw": {
+          "file": "086c54045678590da373ab327ff375e1e9c7ba07-parent.txt",
+          "bytes": 13630,
+          "sha256": "7141aa1276935b669fc4e0da9865320c79a0841b6afd58224b6a3ecb2f9903d5"
+        }
+      },
+      "reference": {
+        "rc": 1,
+        "summary": "1 failed, 434 passed, 10 warnings, 2108 subtests passed in 1.10s",
+        "errors": [
+          "E       AssertionError: Lists differ: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12,[59599 chars]0107] != []",
+          "E       ",
+          "E       First list contains 10108 additional elements.",
+          "E       First extra element 0:",
+          "E       0",
+          "E       ",
+          "E       Diff is 89975 characters long. Set self.maxDiff to None to see it.",
+          "FAILED tests/test_more.py::TimeLimitedTests::test_zero_limit - AssertionError..."
+        ],
+        "raw": {
+          "file": "086c54045678590da373ab327ff375e1e9c7ba07-reference.txt",
+          "bytes": 2469,
+          "sha256": "4247d1d099e7fa587b08f1feeb62fb1d8c44f1bb1d51d835cd8569dfdaeaf17e"
+        }
+      },
+      "valid": false
+    },
+    {
+      "repo": "more-itertools",
+      "commit": "330f40b11cd2a49b91ab36099438d5338ef4ce8d",
+      "timestamp": 1634606797,
+      "subject": "Add function `minmax`",
+      "size": 90,
+      "code_lines": 90,
+      "code": [
+        "more_itertools/more.py"
+      ],
+      "non_test_files": [
+        "more_itertools/more.py"
+      ],
+      "tests": [
+        "tests/test_more.py"
+      ],
+      "parent": {
+        "rc": 1,
+        "summary": "12 failed, 435 passed, 10 warnings, 2108 subtests passed in 1.71s",
+        "errors": [
+          "E               AttributeError: module 'more_itertools' has no attribute 'minmax'",
+          "E               AttributeError: module 'more_itertools' has no attribute 'minmax'",
+          "E               AttributeError: module 'more_itertools' has no attribute 'minmax'",
+          "E               AttributeError: module 'more_itertools' has no attribute 'minmax'",
+          "E               AttributeError: module 'more_itertools' has no attribute 'minmax'",
+          "E               AttributeError: module 'more_itertools' has no attribute 'minmax'",
+          "E               AttributeError: module 'more_itertools' has no attribute 'minmax'",
+          "E           AttributeError: module 'more_itertools' has no attribute 'minmax'"
+        ],
+        "raw": {
+          "file": "330f40b11cd2a49b91ab36099438d5338ef4ce8d-parent.txt",
+          "bytes": 12590,
+          "sha256": "0733dfe660324f853c29a804e76e9532fe2a2a67fcfc64bd30bd319022fc436e"
+        }
+      },
+      "reference": {
+        "rc": 1,
+        "summary": "1 failed, 439 passed, 10 warnings, 2115 subtests passed in 1.32s",
+        "errors": [
+          "E       AssertionError: Lists differ: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12,[1512851 chars]3000] != []",
+          "E       ",
+          "E       First list contains 203001 additional elements.",
+          "E       First extra element 0:",
+          "E       0",
+          "E       ",
+          "E       Diff is 2121906 characters long. Set self.maxDiff to None to see it.",
+          "FAILED tests/test_more.py::TimeLimitedTests::test_zero_limit - AssertionError..."
+        ],
+        "raw": {
+          "file": "330f40b11cd2a49b91ab36099438d5338ef4ce8d-reference.txt",
+          "bytes": 2459,
+          "sha256": "2667bd5e0dde598d99d51c5995964ef55fb24d931116fc8f1c407f2052d522b7"
+        }
+      },
+      "valid": false
+    },
+    {
+      "repo": "more-itertools",
+      "commit": "ba5240aa7864eaf1d4e7ecd15818aea66ba1925c",
+      "timestamp": 1633272601,
+      "subject": "Incorporate strictly_n",
+      "size": 82,
+      "code_lines": 72,
+      "code": [
+        "more_itertools/more.py"
+      ],
+      "non_test_files": [
+        "docs/api.rst",
+        "more_itertools/more.py",
+        "more_itertools/more.pyi"
+      ],
+      "tests": [
+        "tests/test_more.py"
+      ],
+      "parent": {
+        "rc": 1,
+        "summary": "6 failed, 416 passed, 10 warnings, 2056 subtests passed in 1.52s",
+        "errors": [
+          "E       AssertionError: Lists differ: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12,[1433875 chars]3128] != []",
+          "E       ",
+          "E       First list contains 193129 additional elements.",
+          "E       First extra element 0:",
+          "E       0",
+          "E       ",
+          "E       Diff is 2013314 characters long. Set self.maxDiff to None to see it.",
+          "E       AttributeError: module 'more_itertools' has no attribute 'strictly_n'"
+        ],
+        "raw": {
+          "file": "ba5240aa7864eaf1d4e7ecd15818aea66ba1925c-parent.txt",
+          "bytes": 5288,
+          "sha256": "da87271aff86d560d64c0e7c868bbc371e70164a267c1c9874c54e63dc966a43"
+        }
+      },
+      "reference": {
+        "rc": 1,
+        "summary": "1 failed, 421 passed, 10 warnings, 2056 subtests passed in 1.31s",
+        "errors": [
+          "E       AssertionError: Lists differ: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12,[1429811 chars]2620] != []",
+          "E       ",
+          "E       First list contains 192621 additional elements.",
+          "E       First extra element 0:",
+          "E       0",
+          "E       ",
+          "E       Diff is 2007726 characters long. Set self.maxDiff to None to see it.",
+          "FAILED tests/test_more.py::TimeLimitedTests::test_zero_limit - AssertionError..."
+        ],
+        "raw": {
+          "file": "ba5240aa7864eaf1d4e7ecd15818aea66ba1925c-reference.txt",
+          "bytes": 2446,
+          "sha256": "f94832987d3d1686cea715d963628a1ab70f8da3491673162fc5ae68056bfb67"
+        }
+      },
+      "valid": false
+    },
+    {
+      "repo": "more-itertools",
+      "commit": "3f4e2911871c47f96e1f4f2c4e7c14d9ed426ede",
+      "timestamp": 1631988982,
+      "subject": "Add unique_in_window",
+      "size": 78,
+      "code_lines": 74,
+      "code": [
+        "more_itertools/more.py"
+      ],
+      "non_test_files": [
+        "docs/api.rst",
+        "more_itertools/more.py",
+        "more_itertools/more.pyi"
+      ],
+      "tests": [
+        "tests/test_more.py"
+      ],
+      "parent": {
+        "rc": 1,
+        "summary": "10 failed, 414 passed, 10 warnings, 2049 subtests passed in 1.74s",
+        "errors": [
+          "E       AssertionError: Lists differ: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12,[980875 chars]6503] != []",
+          "E       ",
+          "E       First list contains 136504 additional elements.",
+          "E       First extra element 0:",
+          "E       0",
+          "E       ",
+          "E       Diff is 1390439 characters long. Set self.maxDiff to None to see it.",
+          "E               AttributeError: module 'more_itertools' has no attribute 'unique_in_window'"
+        ],
+        "raw": {
+          "file": "3f4e2911871c47f96e1f4f2c4e7c14d9ed426ede-parent.txt",
+          "bytes": 10227,
+          "sha256": "69500bf9d764056ccdb3edfc6aac85f2ffe9314d0d0d00a1949c2eb034638e4a"
+        }
+      },
+      "reference": {
+        "rc": 1,
+        "summary": "1 failed, 416 passed, 10 warnings, 2056 subtests passed in 1.37s",
+        "errors": [
+          "E       AssertionError: Lists differ: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12,[352332 chars]1926] != []",
+          "E       ",
+          "E       First list contains 51927 additional elements.",
+          "E       First extra element 0:",
+          "E       0",
+          "E       ",
+          "E       Diff is 508165 characters long. Set self.maxDiff to None to see it.",
+          "FAILED tests/test_more.py::TimeLimitedTests::test_zero_limit - AssertionError..."
+        ],
+        "raw": {
+          "file": "3f4e2911871c47f96e1f4f2c4e7c14d9ed426ede-reference.txt",
+          "bytes": 2443,
+          "sha256": "5bbfba8426c2176ec28a7806c70af89d25211c2847da148f53cb20c4b829d72e"
+        }
+      },
+      "valid": false
+    },
+    {
+      "repo": "more-itertools",
+      "commit": "c0780fbbba9655d36de09b872981ffd4a90eb120",
+      "timestamp": 1627775320,
+      "subject": "Add chunked_even",
+      "size": 72,
+      "code_lines": 71,
+      "code": [
+        "more_itertools/more.py"
+      ],
+      "non_test_files": [
+        "docs/api.rst",
+        "more_itertools/more.py"
+      ],
+      "tests": [
+        "tests/test_more.py"
+      ],
+      "parent": {
+        "rc": 1,
+        "summary": "9 failed, 396 passed, 10 warnings, 2044 subtests passed in 1.49s",
+        "errors": [
+          "E       AssertionError: Lists differ: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12,[138594 chars]1392] != []",
+          "E       ",
+          "E       First list contains 21393 additional elements.",
+          "E       First extra element 0:",
+          "E       0",
+          "E       ",
+          "E       Diff is 202825 characters long. Set self.maxDiff to None to see it.",
+          "E       AttributeError: module 'more_itertools' has no attribute 'chunked_even'"
+        ],
+        "raw": {
+          "file": "c0780fbbba9655d36de09b872981ffd4a90eb120-parent.txt",
+          "bytes": 8867,
+          "sha256": "cc1510d1804695356bf84d5d8e9f6da679356e34615fdc61c64683422dfcb983"
+        }
+      },
+      "reference": {
+        "rc": 1,
+        "summary": "1 failed, 404 passed, 10 warnings, 2044 subtests passed in 12.85s",
+        "errors": [
+          "E       AssertionError: Lists differ: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12,[122529 chars]9097] != []",
+          "E       ",
+          "E       First list contains 19098 additional elements.",
+          "E       First extra element 0:",
+          "E       0",
+          "E       ",
+          "E       Diff is 179875 characters long. Set self.maxDiff to None to see it.",
+          "FAILED tests/test_more.py::TimeLimitedTests::test_zero_limit - AssertionError..."
+        ],
+        "raw": {
+          "file": "c0780fbbba9655d36de09b872981ffd4a90eb120-reference.txt",
+          "bytes": 2464,
+          "sha256": "525739640dab90a5da8cfd8a474169de43df214c5eccd39cf11889f8710a5e59"
+        }
+      },
+      "valid": false
+    },
+    {
+      "repo": "more-itertools",
+      "commit": "85b3b3d8dde866cf445a250c632329e28dbab548",
+      "timestamp": 1608945844,
+      "subject": "add product/combinations/permutations _index functions",
+      "size": 84,
+      "code_lines": 77,
+      "code": [
+        "more_itertools/more.py"
+      ],
+      "non_test_files": [
+        "more_itertools/more.py",
+        "more_itertools/more.pyi"
+      ],
+      "tests": [
+        "tests/test_more.py"
+      ],
+      "parent": {
+        "rc": 1,
+        "summary": "23 failed, 354 passed, 5 warnings, 2044 subtests passed in 2.10s",
+        "errors": [
+          "E       AssertionError: Lists differ: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12,[1370483 chars]5204] != []",
+          "E       ",
+          "E       First list contains 185205 additional elements.",
+          "E       First extra element 0:",
+          "E       0",
+          "E       ",
+          "E       Diff is 1926150 characters long. Set self.maxDiff to None to see it.",
+          "E           AttributeError: module 'more_itertools' has no attribute 'product_index'"
+        ],
+        "raw": {
+          "file": "85b3b3d8dde866cf445a250c632329e28dbab548-parent.txt",
+          "bytes": 14227,
+          "sha256": "085ad8c1f02263b453a4d1522dcba906a70367e98cc83cfa45c1938472541ebb"
+        }
+      },
+      "reference": {
+        "rc": 1,
+        "summary": "1 failed, 376 passed, 5 warnings, 2044 subtests passed in 1.17s",
+        "errors": [
+          "E       AssertionError: Lists differ: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12,[744179 chars]6916] != []",
+          "E       ",
+          "E       First list contains 106917 additional elements.",
+          "E       First extra element 0:",
+          "E       0",
+          "E       ",
+          "E       Diff is 1064982 characters long. Set self.maxDiff to None to see it.",
+          "FAILED tests/test_more.py::TimeLimitedTests::test_zero_limit - AssertionError..."
+        ],
+        "raw": {
+          "file": "85b3b3d8dde866cf445a250c632329e28dbab548-reference.txt",
+          "bytes": 1929,
+          "sha256": "1ab6d483a24a51814c4bcd454031d88c61fc3c9ba20200007f7c1ce071bcabc9"
+        }
+      },
+      "valid": false
+    },
+    {
+      "repo": "more-itertools",
+      "commit": "2cf89aba886365c20eee635c13a3e20e1aeb7d50",
+      "timestamp": 1603665926,
+      "subject": "removed combinatoric functions",
+      "size": 137,
+      "code_lines": 131,
+      "code": [
+        "more_itertools/recipes.py"
+      ],
+      "non_test_files": [
+        "more_itertools/recipes.py",
+        "more_itertools/recipes.pyi"
+      ],
+      "tests": [
+        "tests/test_recipes.py"
+      ],
+      "parent": {
+        "rc": 0,
+        "summary": "80 passed in 0.10s",
+        "errors": [],
+        "raw": {
+          "file": "2cf89aba886365c20eee635c13a3e20e1aeb7d50-parent.txt",
+          "bytes": 179,
+          "sha256": "2bc16af59f498cbef3f9b1d0678ba04968c3ce0dddf6848757976ce9355799a7"
+        }
+      },
+      "reference": {
+        "rc": 0,
+        "summary": "80 passed in 0.10s",
+        "errors": [],
+        "raw": {
+          "file": "2cf89aba886365c20eee635c13a3e20e1aeb7d50-reference.txt",
+          "bytes": 179,
+          "sha256": "2bc16af59f498cbef3f9b1d0678ba04968c3ce0dddf6848757976ce9355799a7"
+        }
+      },
+      "valid": false
+    },
+    {
+      "repo": "more-itertools",
+      "commit": "d0fbaf373f0f4814ce6423c68e99bc9072c299f6",
+      "timestamp": 1603588815,
+      "subject": "Add combinatoric caclulations and nth_permutation",
+      "size": 194,
+      "code_lines": 185,
+      "code": [
+        "more_itertools/recipes.py"
+      ],
+      "non_test_files": [
+        "more_itertools/recipes.py",
+        "more_itertools/recipes.pyi"
+      ],
+      "tests": [
+        "tests/test_recipes.py"
+      ],
+      "parent": {
+        "rc": 2,
+        "summary": "1 error in 0.19s",
+        "errors": [
+          "E     File \"<tree>\\tests\\test_recipes.py\", line 3",
+          "E       <<<<<<< HEAD",
+          "E       ^^",
+          "E   SyntaxError: invalid syntax"
+        ],
+        "raw": {
+          "file": "d0fbaf373f0f4814ce6423c68e99bc9072c299f6-parent.txt",
+          "bytes": 2051,
+          "sha256": "0f62919e309f6fff03177b740439ed002b6126907ab5827f79f80d8fa693f68a"
+        }
+      },
+      "reference": {
+        "rc": 2,
+        "summary": "1 error in 0.19s",
+        "errors": [
+          "E     File \"<tree>\\tests\\test_recipes.py\", line 3",
+          "E       <<<<<<< HEAD",
+          "E       ^^",
+          "E   SyntaxError: invalid syntax"
+        ],
+        "raw": {
+          "file": "d0fbaf373f0f4814ce6423c68e99bc9072c299f6-reference.txt",
+          "bytes": 2051,
+          "sha256": "0f62919e309f6fff03177b740439ed002b6126907ab5827f79f80d8fa693f68a"
+        }
+      },
+      "valid": false
+    },
+    {
+      "repo": "more-itertools",
+      "commit": "afdd017255b88e9f839f61bd9f30239634dbcd19",
+      "timestamp": 1597966514,
+      "subject": "Changed implementation and name",
+      "size": 89,
+      "code_lines": 87,
+      "code": [
+        "more_itertools/more.py"
+      ],
+      "non_test_files": [
+        "docs/api.rst",
+        "more_itertools/more.py"
+      ],
+      "tests": [
+        "tests/test_more.py"
+      ],
+      "parent": {
+        "rc": 1,
+        "summary": "8 failed, 328 passed, 5 warnings, 2035 subtests passed in 1.57s",
+        "errors": [
+          "E       AssertionError: Lists differ: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12,[1944307 chars]6932] != []",
+          "E       ",
+          "E       First list contains 256933 additional elements.",
+          "E       First extra element 0:",
+          "E       0",
+          "E       ",
+          "E       Diff is 2715158 characters long. Set self.maxDiff to None to see it.",
+          "E       AttributeError: module 'more_itertools' has no attribute 'windowed_complete'"
+        ],
+        "raw": {
+          "file": "afdd017255b88e9f839f61bd9f30239634dbcd19-parent.txt",
+          "bytes": 6907,
+          "sha256": "5bfe5dbebfad1b3eaa049fe4a6182ec1838f9d92440552f47c325a3e9c70929d"
+        }
+      },
+      "reference": {
+        "rc": 1,
+        "summary": "1 failed, 331 passed, 5 warnings, 2039 subtests passed in 1.29s",
+        "errors": [
+          "E       AssertionError: Lists differ: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12,[1973443 chars]0574] != []",
+          "E       ",
+          "E       First list contains 260575 additional elements.",
+          "E       First extra element 0:",
+          "E       0",
+          "E       ",
+          "E       Diff is 2755220 characters long. Set self.maxDiff to None to see it.",
+          "FAILED tests/test_more.py::TimeLimitedTests::test_zero_limit - AssertionError..."
+        ],
+        "raw": {
+          "file": "afdd017255b88e9f839f61bd9f30239634dbcd19-reference.txt",
+          "bytes": 1855,
+          "sha256": "642f3026b9876cba906e82736cce674cbc7703e2acc499c7659b7b9d2c6c264d"
+        }
+      },
+      "valid": false
+    },
+    {
+      "repo": "more-itertools",
+      "commit": "99052c352767057ac969dfee8742cf6871585116",
+      "timestamp": 1597609789,
+      "subject": "Added pitchfork partitioning",
+      "size": 65,
+      "code_lines": 64,
+      "code": [
+        "more_itertools/more.py"
+      ],
+      "non_test_files": [
+        "docs/api.rst",
+        "more_itertools/more.py"
+      ],
+      "tests": [
+        "tests/test_more.py"
+      ],
+      "parent": {
+        "rc": 1,
+        "summary": "8 failed, 328 passed, 5 warnings, 2035 subtests passed in 1.57s",
+        "errors": [
+          "E       AssertionError: Lists differ: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12,[1858395 chars]6193] != []",
+          "E       ",
+          "E       First list contains 246194 additional elements.",
+          "E       First extra element 0:",
+          "E       0",
+          "E       ",
+          "E       Diff is 2597029 characters long. Set self.maxDiff to None to see it.",
+          "E       AttributeError: module 'more_itertools' has no attribute 'pitchforked'"
+        ],
+        "raw": {
+          "file": "99052c352767057ac969dfee8742cf6871585116-parent.txt",
+          "bytes": 6760,
+          "sha256": "650ff408f7dc29edc6cd1a98555fca8d1bbc1e6e1a798c331bad6b4404121b59"
+        }
+      },
+      "reference": {
+        "rc": 1,
+        "summary": "1 failed, 331 passed, 5 warnings, 2039 subtests passed in 1.13s",
+        "errors": [
+          "E       AssertionError: Lists differ: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12,[611766 chars]8988] != []",
+          "E       ",
+          "E       First list contains 88989 additional elements.",
+          "E       First extra element 0:",
+          "E       0",
+          "E       ",
+          "E       Diff is 878785 characters long. Set self.maxDiff to None to see it.",
+          "FAILED tests/test_more.py::TimeLimitedTests::test_zero_limit - AssertionError..."
+        ],
+        "raw": {
+          "file": "99052c352767057ac969dfee8742cf6871585116-reference.txt",
+          "bytes": 1852,
+          "sha256": "8dffc19089d1a790c5a9bfed3caada8e5ddb6707b53f03cb60a0215e912b907a"
+        }
+      },
+      "valid": false
+    },
+    {
+      "repo": "more-itertools",
+      "commit": "29288c851dfc90c3e773e3607ccc39abbc43a19d",
+      "timestamp": 1593653473,
+      "subject": "Add callback_iter wrapper (#444)",
+      "size": 162,
+      "code_lines": 133,
+      "code": [
+        "more_itertools/more.py"
+      ],
+      "non_test_files": [
+        "docs/api.rst",
+        "more_itertools/more.py",
+        "more_itertools/more.pyi"
+      ],
+      "tests": [
+        "tests/test_more.py"
+      ],
+      "parent": {
+        "rc": 1,
+        "summary": "7 failed, 322 passed, 5 warnings, 2009 subtests passed in 1.11s",
+        "errors": [
+          "E       AssertionError: Lists differ: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12,[966035 chars]4648] != []",
+          "E       ",
+          "E       First list contains 134649 additional elements.",
+          "E       First extra element 0:",
+          "E       0",
+          "E       ",
+          "E       Diff is 1370034 characters long. Set self.maxDiff to None to see it.",
+          "E       AttributeError: module 'more_itertools' has no attribute 'callback_iter'"
+        ],
+        "raw": {
+          "file": "29288c851dfc90c3e773e3607ccc39abbc43a19d-parent.txt",
+          "bytes": 5042,
+          "sha256": "3da6cf9bfcdec3196e276ac14dcb8b4c9c2e35b02c26fc0a8c92de429cd04827"
+        }
+      },
+      "reference": {
+        "rc": 1,
+        "summary": "1 failed, 328 passed, 5 warnings, 2009 subtests passed in 1.23s",
+        "errors": [
+          "E       AssertionError: Lists differ: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12,[1332371 chars]0440] != []",
+          "E       ",
+          "E       First list contains 180441 additional elements.",
+          "E       First extra element 0:",
+          "E       0",
+          "E       ",
+          "E       Diff is 1873746 characters long. Set self.maxDiff to None to see it.",
+          "FAILED tests/test_more.py::TimeLimitedTests::test_zero_limit - AssertionError..."
+        ],
+        "raw": {
+          "file": "29288c851dfc90c3e773e3607ccc39abbc43a19d-reference.txt",
+          "bytes": 1893,
+          "sha256": "f3f3bf160e0af4e964954e18dbe6c302f39335383b2052ca6ec943e09ceeca48"
+        }
+      },
+      "valid": false
+    },
+    {
+      "repo": "more-itertools",
+      "commit": "3c1e75e02fbfdf9d860d16a52739ce81c39260ca",
+      "timestamp": 1590804028,
+      "subject": "Formatting with black (#431)",
+      "size": 199,
+      "code_lines": 73,
+      "code": [
+        "more_itertools/more.py",
+        "setup.py"
+      ],
+      "non_test_files": [
+        ".travis.yml",
+        "docs/conf.py",
+        "more_itertools/more.py",
+        "more_itertools/more.pyi",
+        "pyproject.toml",
+        "setup.py"
+      ],
+      "tests": [
+        "tests/test_more.py",
+        "tests/test_recipes.py"
+      ],
+      "parent": {
+        "rc": 1,
+        "summary": "1 failed, 401 passed, 5 warnings, 1977 subtests passed in 0.97s",
+        "errors": [
+          "E       AssertionError: Lists differ: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12,[1175099 chars]0781] != []",
+          "E       ",
+          "E       First list contains 160782 additional elements.",
+          "E       First extra element 0:",
+          "E       0",
+          "E       ",
+          "E       Diff is 1657497 characters long. Set self.maxDiff to None to see it.",
+          "FAILED tests/test_more.py::TimeLimitedTests::test_zero_limit - AssertionError..."
+        ],
+        "raw": {
+          "file": "3c1e75e02fbfdf9d860d16a52739ce81c39260ca-parent.txt",
+          "bytes": 2013,
+          "sha256": "1d3df91971d93917a492c22b7138a6187667e6b002e9ece4f4f223f6005fdbad"
+        }
+      },
+      "reference": {
+        "rc": 1,
+        "summary": "1 failed, 401 passed, 5 warnings, 1977 subtests passed in 1.03s",
+        "errors": [
+          "E       AssertionError: Lists differ: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12,[1526587 chars]4717] != []",
+          "E       ",
+          "E       First list contains 204718 additional elements.",
+          "E       First extra element 0:",
+          "E       0",
+          "E       ",
+          "E       Diff is 2140793 characters long. Set self.maxDiff to None to see it.",
+          "FAILED tests/test_more.py::TimeLimitedTests::test_zero_limit - AssertionError..."
+        ],
+        "raw": {
+          "file": "3c1e75e02fbfdf9d860d16a52739ce81c39260ca-reference.txt",
+          "bytes": 2013,
+          "sha256": "4910cdeab21e1889e7398373d04d91cffac15b368b7ceb5a1f80ff3708d894de"
+        }
+      },
+      "valid": false
+    },
+    {
+      "repo": "more-itertools",
+      "commit": "3649b878610372b4cfb6074d21a4bb43b1c1b849",
+      "timestamp": 1583204694,
+      "subject": "Add r to distinct_permutations",
+      "size": 70,
+      "code_lines": 70,
+      "code": [
+        "more_itertools/more.py"
+      ],
+      "non_test_files": [
+        "more_itertools/more.py"
+      ],
+      "tests": [
+        "tests/test_more.py"
+      ],
+      "parent": {
+        "rc": 1,
+        "summary": "10 failed, 318 passed, 5 warnings, 15 subtests passed in 1.02s",
+        "errors": [
+          "E               TypeError: distinct_permutations() takes 1 positional argument but 2 were given",
+          "E               TypeError: distinct_permutations() takes 1 positional argument but 2 were given",
+          "E               TypeError: distinct_permutations() takes 1 positional argument but 2 were given",
+          "E               TypeError: distinct_permutations() takes 1 positional argument but 2 were given",
+          "E               TypeError: distinct_permutations() takes 1 positional argument but 2 were given",
+          "E               TypeError: distinct_permutations() takes 1 positional argument but 2 were given",
+          "E               TypeError: distinct_permutations() takes 1 positional argument but 2 were given",
+          "E               TypeError: distinct_permutations() takes 1 positional argument but 2 were given"
+        ],
+        "raw": {
+          "file": "3649b878610372b4cfb6074d21a4bb43b1c1b849-parent.txt",
+          "bytes": 10799,
+          "sha256": "5aec81490dbd65853c8790f0f11161310017fd44bb157284099b807e77e0a824"
+        }
+      },
+      "reference": {
+        "rc": 1,
+        "summary": "1 failed, 318 passed, 5 warnings, 24 subtests passed in 0.73s",
+        "errors": [
+          "E       AssertionError: Lists differ: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12,[486851 chars]1143] != []",
+          "E       ",
+          "E       First list contains 71144 additional elements.",
+          "E       First extra element 0:",
+          "E       0",
+          "E       ",
+          "E       Diff is 700335 characters long. Set self.maxDiff to None to see it.",
+          "FAILED tests/test_more.py::TimeLimitedTests::test_zero_limit - AssertionError..."
+        ],
+        "raw": {
+          "file": "3649b878610372b4cfb6074d21a4bb43b1c1b849-reference.txt",
+          "bytes": 1857,
+          "sha256": "793c79d1e84b7e7d0c322a4033a5f8a285f7cabbed1cf785fed0f65ca9fef017"
+        }
+      },
+      "valid": false
+    },
+    {
+      "repo": "more-itertools",
+      "commit": "e08fff0833f6d692da9aa806cec6966bc35e6355",
+      "timestamp": 1578769381,
+      "subject": "Make numeric_range an iterable (#363)",
+      "size": 182,
+      "code_lines": 182,
+      "code": [
+        "more_itertools/more.py"
+      ],
+      "non_test_files": [
+        "more_itertools/more.py"
+      ],
+      "tests": [
+        "tests/test_more.py"
+      ],
+      "parent": {
+        "rc": 1,
+        "summary": "18 failed, 292 passed, 5 warnings, 15 subtests passed in 1.18s",
+        "errors": [
+          "E           AssertionError: \"numeric_range expected at least 1 argument, got 0\" does not match \"numeric_range takes at most 3 arguments, got 0\"",
+          "E           AssertionError: \"numeric range indices must be integers or slices, not str\" does not match \"'itertools.takewhile' object is not subscriptable\"",
+          "E           AssertionError: False is not true",
+          "E           AssertionError: False != True",
+          "E               AssertionError: True is not false",
+          "E           AttributeError: 'itertools.takewhile' object has no attribute 'count'",
+          "E           AssertionError: <itertools.takewhile object at <address>> != <itertools.takewhile object at <address>>",
+          "E           TypeError: 'itertools.takewhile' object is not subscriptable"
+        ],
+        "raw": {
+          "file": "e08fff0833f6d692da9aa806cec6966bc35e6355-parent.txt",
+          "bytes": 21752,
+          "sha256": "919e8b6505afb70f96e5dc6bc02007098feea79ce61fc15b4d73d6cb48aad935"
+        }
+      },
+      "reference": {
+        "rc": 1,
+        "summary": "1 failed, 309 passed, 5 warnings, 15 subtests passed in 0.72s",
+        "errors": [
+          "E       AssertionError: Lists differ: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12,[901363 chars]6564] != []",
+          "E       ",
+          "E       First list contains 126565 additional elements.",
+          "E       First extra element 0:",
+          "E       0",
+          "E       ",
+          "E       Diff is 1281110 characters long. Set self.maxDiff to None to see it.",
+          "FAILED tests/test_more.py::TimeLimitedTests::test_zero_limit - AssertionError..."
+        ],
+        "raw": {
+          "file": "e08fff0833f6d692da9aa806cec6966bc35e6355-reference.txt",
+          "bytes": 1868,
+          "sha256": "032fabcdfe2a8ed46ecdb812f0132a36d72ae45ae581312f0ea7b99619e68eee"
+        }
+      },
+      "valid": false
+    },
+    {
+      "repo": "more-itertools",
+      "commit": "c11195abbc3ca7408d77ac051712162b455b2306",
+      "timestamp": 1577846951,
+      "subject": "Add sample",
+      "size": 105,
+      "code_lines": 98,
+      "code": [
+        "more_itertools/more.py"
+      ],
+      "non_test_files": [
+        "README.rst",
+        "docs/api.rst",
+        "more_itertools/more.py",
+        "more_itertools/more.pyi"
+      ],
+      "tests": [
+        "tests/test_more.py"
+      ],
+      "parent": {
+        "rc": 1,
+        "summary": "7 failed, 285 passed, 5 warnings, 15 subtests passed in 1.05s",
+        "errors": [
+          "E       AssertionError: Lists differ: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12,[1944307 chars]6932] != []",
+          "E       ",
+          "E       First list contains 256933 additional elements.",
+          "E       First extra element 0:",
+          "E       0",
+          "E       ",
+          "E       Diff is 2715158 characters long. Set self.maxDiff to None to see it.",
+          "E   AttributeError: module 'more_itertools' has no attribute 'sample'"
+        ],
+        "raw": {
+          "file": "c11195abbc3ca7408d77ac051712162b455b2306-parent.txt",
+          "bytes": 6940,
+          "sha256": "fed3cfa29b560eff6eb5e2739bc9c8bb1e85957c1e4fdec165dc272f80d2d384"
+        }
+      },
+      "reference": {
+        "rc": 1,
+        "summary": "1 failed, 291 passed, 5 warnings, 15 subtests passed in 0.74s",
+        "errors": [
+          "E       AssertionError: Lists differ: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12,[1257427 chars]1072] != []",
+          "E       ",
+          "E       First list contains 171073 additional elements.",
+          "E       First extra element 0:",
+          "E       0",
+          "E       ",
+          "E       Diff is 1770698 characters long. Set self.maxDiff to None to see it.",
+          "FAILED tests/test_more.py::TimeLimitedTests::test_zero_limit - AssertionError..."
+        ],
+        "raw": {
+          "file": "c11195abbc3ca7408d77ac051712162b455b2306-reference.txt",
+          "bytes": 1861,
+          "sha256": "b04417017d2225bcb37ec813b687b23704e7066b83be1f0c80ff7f563ea6df86"
+        }
+      },
+      "valid": false
+    },
+    {
+      "repo": "more-itertools",
+      "commit": "ea776a9b8b58e7340fc853680e92c73a4a94b17c",
+      "timestamp": 1570774227,
+      "subject": "Use stub files",
+      "size": 1457,
+      "code_lines": 998,
+      "code": [
+        "more_itertools/more.py",
+        "more_itertools/recipes.py"
+      ],
+      "non_test_files": [
+        "more_itertools/more.py",
+        "more_itertools/more.pyi",
+        "more_itertools/recipes.py",
+        "more_itertools/recipes.pyi",
+        "setup.cfg"
+      ],
+      "tests": [
+        "more_itertools/tests/test_more.py"
+      ],
+      "parent": {
+        "rc": 1,
+        "summary": "1 failed, 282 passed, 5 warnings, 15 subtests passed in 0.84s",
+        "errors": [
+          "E       AssertionError: Lists differ: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12,[1889907 chars]0132] != []",
+          "E       ",
+          "E       First list contains 250133 additional elements.",
+          "E       First extra element 0:",
+          "E       0",
+          "E       ",
+          "E       Diff is 2640358 characters long. Set self.maxDiff to None to see it.",
+          "FAILED more_itertools/tests/test_more.py::TimeLimitedTests::test_zero_limit"
+        ],
+        "raw": {
+          "file": "ea776a9b8b58e7340fc853680e92c73a4a94b17c-parent.txt",
+          "bytes": 1969,
+          "sha256": "954a5d240a6d749d5eff9b8a0c2b764526c8548e80c407437571bfc5dbfbaa73"
+        }
+      },
+      "reference": {
+        "rc": 1,
+        "summary": "1 failed, 282 passed, 5 warnings, 15 subtests passed in 0.61s",
+        "errors": [
+          "E       AssertionError: Lists differ: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12,[381809 chars]6137] != []",
+          "E       ",
+          "E       First list contains 56138 additional elements.",
+          "E       First extra element 0:",
+          "E       0",
+          "E       ",
+          "E       Diff is 550275 characters long. Set self.maxDiff to None to see it.",
+          "FAILED more_itertools/tests/test_more.py::TimeLimitedTests::test_zero_limit"
+        ],
+        "raw": {
+          "file": "ea776a9b8b58e7340fc853680e92c73a4a94b17c-reference.txt",
+          "bytes": 1966,
+          "sha256": "287deb22167821a824efe424a5864bd035298206b8a003f3c9d8df3af8491ffe"
+        }
+      },
+      "valid": false
+    },
+    {
+      "repo": "more-itertools",
+      "commit": "683cd592af762e6b63454476ec0951f4402bd4ae",
+      "timestamp": 1570767824,
+      "subject": "Fix compatibility with old versions of Python",
+      "size": 134,
+      "code_lines": 134,
+      "code": [
+        "more_itertools/more.py",
+        "more_itertools/recipes.py"
+      ],
+      "non_test_files": [
+        "more_itertools/more.py",
+        "more_itertools/recipes.py"
+      ],
+      "tests": [
+        "more_itertools/tests/test_more.py"
+      ],
+      "parent": {
+        "rc": 1,
+        "summary": "1 failed, 282 passed, 7 warnings, 15 subtests passed in 0.61s",
+        "errors": [
+          "E       AssertionError: Lists differ: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12,[266435 chars]9655] != []",
+          "E       ",
+          "E       First list contains 39656 additional elements.",
+          "E       First extra element 0:",
+          "E       0",
+          "E       ",
+          "E       Diff is 385455 characters long. Set self.maxDiff to None to see it.",
+          "FAILED more_itertools/tests/test_more.py::TimeLimitedTests::test_zero_limit"
+        ],
+        "raw": {
+          "file": "683cd592af762e6b63454476ec0951f4402bd4ae-parent.txt",
+          "bytes": 2503,
+          "sha256": "47b9fdd41c90b0638c61eacaa455ccb0b56abdfd25655102ac16beaf91152f00"
+        }
+      },
+      "reference": {
+        "rc": 1,
+        "summary": "1 failed, 282 passed, 7 warnings, 15 subtests passed in 0.85s",
+        "errors": [
+          "E       AssertionError: Lists differ: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12,[1933395 chars]5568] != []",
+          "E       ",
+          "E       First list contains 255569 additional elements.",
+          "E       First extra element 0:",
+          "E       0",
+          "E       ",
+          "E       Diff is 2700154 characters long. Set self.maxDiff to None to see it.",
+          "FAILED more_itertools/tests/test_more.py::TimeLimitedTests::test_zero_limit"
+        ],
+        "raw": {
+          "file": "683cd592af762e6b63454476ec0951f4402bd4ae-reference.txt",
+          "bytes": 2506,
+          "sha256": "bdf2a81ae724666ee7e86d1a0cbba1d746ab5f2166bd48b657907f0fe402b3be"
+        }
+      },
+      "valid": false
+    },
+    {
+      "repo": "more-itertools",
+      "commit": "cfff50fab637e3bd255bca64ac947dc7e38eb6dd",
+      "timestamp": 1565460098,
+      "subject": "Version 8 cleanup (#306)",
+      "size": 67,
+      "code_lines": 62,
+      "code": [
+        "more_itertools/more.py",
+        "more_itertools/recipes.py"
+      ],
+      "non_test_files": [
+        ".travis.yml",
+        "more_itertools/more.py",
+        "more_itertools/recipes.py",
+        "setup.cfg"
+      ],
+      "tests": [
+        "more_itertools/tests/test_more.py",
+        "more_itertools/tests/test_recipes.py"
+      ],
+      "parent": {
+        "rc": 1,
+        "summary": "1 failed, 353 passed, 5 warnings, 15 subtests passed in 0.83s",
+        "errors": [
+          "E       AssertionError: Lists differ: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12,[1460699 chars]6481] != []",
+          "E       ",
+          "E       First list contains 196482 additional elements.",
+          "E       First extra element 0:",
+          "E       0",
+          "E       ",
+          "E       Diff is 2050197 characters long. Set self.maxDiff to None to see it.",
+          "FAILED more_itertools/tests/test_more.py::TimeLimitedTests::test_zero_limit"
+        ],
+        "raw": {
+          "file": "cfff50fab637e3bd255bca64ac947dc7e38eb6dd-parent.txt",
+          "bytes": 2049,
+          "sha256": "4d997360df741ae8658eb7d095e8c14bea9567b621e59e2e2fcd7b811fc537c7"
+        }
+      },
+      "reference": {
+        "rc": 1,
+        "summary": "1 failed, 353 passed, 5 warnings, 15 subtests passed in 0.88s",
+        "errors": [
+          "E       AssertionError: Lists differ: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12,[1892259 chars]0426] != []",
+          "E       ",
+          "E       First list contains 250427 additional elements.",
+          "E       First extra element 0:",
+          "E       0",
+          "E       ",
+          "E       Diff is 2643592 characters long. Set self.maxDiff to None to see it.",
+          "FAILED more_itertools/tests/test_more.py::TimeLimitedTests::test_zero_limit"
+        ],
+        "raw": {
+          "file": "cfff50fab637e3bd255bca64ac947dc7e38eb6dd-reference.txt",
+          "bytes": 2049,
+          "sha256": "3ab9089a5ebb728dcfc8f8c920c55b810f2425fbb362278aadc0909a79483267"
+        }
+      },
+      "valid": false
+    },
+    {
+      "repo": "more-itertools",
+      "commit": "13b53e78b790520dfb3bd843eba40eb106bab6d5",
+      "timestamp": 1563043851,
+      "subject": "Update partitions() and set_partitions()",
+      "size": 78,
+      "code_lines": 77,
+      "code": [
+        "more_itertools/more.py"
+      ],
+      "non_test_files": [
+        "docs/api.rst",
+        "more_itertools/more.py"
+      ],
+      "tests": [
+        "more_itertools/tests/test_more.py"
+      ],
+      "parent": {
+        "rc": 1,
+        "summary": "1 failed, 259 passed, 15 subtests passed in 0.66s",
+        "errors": [
+          "E       AssertionError: Lists differ: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12,[852547 chars]0462] != []",
+          "E       ",
+          "E       First list contains 120463 additional elements.",
+          "E       First extra element 0:",
+          "E       0",
+          "E       ",
+          "E       Diff is 1213988 characters long. Set self.maxDiff to None to see it.",
+          "FAILED more_itertools/tests/test_more.py::TimeLimitedTests::test_zero_limit"
+        ],
+        "raw": {
+          "file": "13b53e78b790520dfb3bd843eba40eb106bab6d5-parent.txt",
+          "bytes": 1286,
+          "sha256": "6cb35eaa4d2376c53521dabfc8369f340c75fad7341e013da273d8d16ed8e5db"
+        }
+      },
+      "reference": {
+        "rc": 1,
+        "summary": "1 failed, 259 passed, 15 subtests passed in 0.55s",
+        "errors": [
+          "E       AssertionError: Lists differ: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12,[29233 chars]5064] != []",
+          "E       ",
+          "E       First list contains 5065 additional elements.",
+          "E       First extra element 0:",
+          "E       0",
+          "E       ",
+          "E       Diff is 44480 characters long. Set self.maxDiff to None to see it.",
+          "FAILED more_itertools/tests/test_more.py::TimeLimitedTests::test_zero_limit"
+        ],
+        "raw": {
+          "file": "13b53e78b790520dfb3bd843eba40eb106bab6d5-reference.txt",
+          "bytes": 1281,
+          "sha256": "424080b8b71caec14443476e71765edc06d7a421145db1bab265200b491cc78e"
+        }
+      },
+      "valid": false
+    },
+    {
+      "repo": "more-itertools",
+      "commit": "11f92b00c2f09d4c6d9378e6f9a3588f7bef5942",
+      "timestamp": 1548206269,
+      "subject": "Remove six from imports and setup.py",
+      "size": 31,
+      "code_lines": 31,
+      "code": [
+        "more_itertools/more.py",
+        "more_itertools/recipes.py",
+        "setup.py"
+      ],
+      "non_test_files": [
+        "more_itertools/more.py",
+        "more_itertools/recipes.py",
+        "setup.py"
+      ],
+      "tests": [
+        "more_itertools/tests/test_more.py",
+        "more_itertools/tests/test_recipes.py"
+      ],
+      "parent": {
+        "rc": 0,
+        "summary": "305 passed in 0.26s",
+        "errors": [],
+        "raw": {
+          "file": "11f92b00c2f09d4c6d9378e6f9a3588f7bef5942-parent.txt",
+          "bytes": 420,
+          "sha256": "93f2d276ed68236dc0295ef0e1ead965ebafae752ff75794cf841cdb5b22f436"
+        }
+      },
+      "reference": {
+        "rc": 0,
+        "summary": "305 passed in 0.25s",
+        "errors": [],
+        "raw": {
+          "file": "11f92b00c2f09d4c6d9378e6f9a3588f7bef5942-reference.txt",
+          "bytes": 420,
+          "sha256": "0fc02e0d81d8242aa893c9c8df502e843765b57ba739180e70ef4f1b2007417e"
+        }
+      },
+      "valid": false
+    },
+    {
+      "repo": "more-itertools",
+      "commit": "edfb4704efe9bdb2dc6022fb4b665c62a1525a2c",
+      "timestamp": 1519128295,
+      "subject": "Add map_reduce function (#196)",
+      "size": 69,
+      "code_lines": 68,
+      "code": [
+        "more_itertools/more.py"
+      ],
+      "non_test_files": [
+        "docs/api.rst",
+        "more_itertools/more.py"
+      ],
+      "tests": [
+        "more_itertools/tests/test_more.py"
+      ],
+      "parent": {
+        "rc": 2,
+        "summary": "1 error in 0.16s",
+        "errors": [
+          "E   ImportError: cannot import name 'Sequence' from 'collections' (<private-path>)"
+        ],
+        "raw": {
+          "file": "edfb4704efe9bdb2dc6022fb4b665c62a1525a2c-parent.txt",
+          "bytes": 1065,
+          "sha256": "2e9cb3b6adb53dbbc6b9a6c13de27d21ce163bb340128b22b65ea982e3a31bc2"
+        }
+      },
+      "reference": {
+        "rc": 2,
+        "summary": "1 error in 0.15s",
+        "errors": [
+          "E   ImportError: cannot import name 'Sequence' from 'collections' (<private-path>)"
+        ],
+        "raw": {
+          "file": "edfb4704efe9bdb2dc6022fb4b665c62a1525a2c-reference.txt",
+          "bytes": 1065,
+          "sha256": "31487aca4676972ead3650a19dae51d57f2db28700c188851d37127cde2be0d9"
+        }
+      },
+      "valid": false
+    },
+    {
+      "repo": "more-itertools",
+      "commit": "c3c706d4d7c12127d27f184871f0d53f24a8571f",
+      "timestamp": 1508021632,
+      "subject": "Re-spin the base_type=None idea",
+      "size": 62,
+      "code_lines": 62,
+      "code": [
+        "more_itertools/more.py"
+      ],
+      "non_test_files": [
+        "more_itertools/more.py"
+      ],
+      "tests": [
+        "more_itertools/tests/test_more.py"
+      ],
+      "parent": {
+        "rc": 1,
+        "summary": "3 failed, 126 passed in 0.28s",
+        "errors": [
+          "E                   StopIteration",
+          "E       RuntimeError: generator raised StopIteration",
+          "E                   StopIteration",
+          "E           RuntimeError: generator raised StopIteration",
+          "E       TypeError: isinstance() arg 2 must be a type, a tuple of types, or a union",
+          "FAILED more_itertools/tests/test_more.py::BucketTests::test_basic - RuntimeEr...",
+          "FAILED more_itertools/tests/test_more.py::BucketTests::test_in - RuntimeError...",
+          "FAILED more_itertools/tests/test_more.py::TestAlwaysIterable::test_base_type"
+        ],
+        "raw": {
+          "file": "c3c706d4d7c12127d27f184871f0d53f24a8571f-parent.txt",
+          "bytes": 6529,
+          "sha256": "d52e0f1c01af183a5fe87ee9ea8d373e80aed96a37692754172cfc5e6241af8a"
+        }
+      },
+      "reference": {
+        "rc": 1,
+        "summary": "2 failed, 127 passed in 0.26s",
+        "errors": [
+          "E                   StopIteration",
+          "E       RuntimeError: generator raised StopIteration",
+          "E                   StopIteration",
+          "E           RuntimeError: generator raised StopIteration",
+          "FAILED more_itertools/tests/test_more.py::BucketTests::test_basic - RuntimeEr...",
+          "FAILED more_itertools/tests/test_more.py::BucketTests::test_in - RuntimeError..."
+        ],
+        "raw": {
+          "file": "c3c706d4d7c12127d27f184871f0d53f24a8571f-reference.txt",
+          "bytes": 3733,
+          "sha256": "a9c516a298b37bf7c0ff492a12cb85d4843d918b96052bb75e091cbb2fdc8348"
+        }
+      },
+      "valid": false
+    },
+    {
+      "repo": "more-itertools",
+      "commit": "97276ff14a4460e349b58d6e67fcc5dcb27d1a18",
+      "timestamp": 1505617240,
+      "subject": "Let's pass flake8 tests",
+      "size": 13,
+      "code_lines": 10,
+      "code": [
+        "more_itertools/__init__.py",
+        "more_itertools/more.py",
+        "more_itertools/recipes.py",
+        "setup.py"
+      ],
+      "non_test_files": [
+        "more_itertools/__init__.py",
+        "more_itertools/more.py",
+        "more_itertools/recipes.py",
+        "setup.cfg",
+        "setup.py"
+      ],
+      "tests": [
+        "more_itertools/tests/test_more.py",
+        "more_itertools/tests/test_recipes.py"
+      ],
+      "parent": {
+        "rc": 1,
+        "summary": "2 failed, 196 passed in 0.31s",
+        "errors": [
+          "E                   StopIteration",
+          "E       RuntimeError: generator raised StopIteration",
+          "E                   StopIteration",
+          "E           RuntimeError: generator raised StopIteration",
+          "FAILED more_itertools/tests/test_more.py::BucketTests::test_basic - RuntimeEr...",
+          "FAILED more_itertools/tests/test_more.py::BucketTests::test_in - RuntimeError..."
+        ],
+        "raw": {
+          "file": "97276ff14a4460e349b58d6e67fcc5dcb27d1a18-parent.txt",
+          "bytes": 3813,
+          "sha256": "1f2cd4a1066c48d8ff10833ed009e4f402229cd6a2b8af2e1646e366b54e4029"
+        }
+      },
+      "reference": {
+        "rc": 1,
+        "summary": "2 failed, 196 passed in 0.30s",
+        "errors": [
+          "E                   StopIteration",
+          "E       RuntimeError: generator raised StopIteration",
+          "E                   StopIteration",
+          "E           RuntimeError: generator raised StopIteration",
+          "FAILED more_itertools/tests/test_more.py::BucketTests::test_basic - RuntimeEr...",
+          "FAILED more_itertools/tests/test_more.py::BucketTests::test_in - RuntimeError..."
+        ],
+        "raw": {
+          "file": "97276ff14a4460e349b58d6e67fcc5dcb27d1a18-reference.txt",
+          "bytes": 3813,
+          "sha256": "ca6f8de8f5b543185120036ea348cef96554dbbc1bbf769479a762e0eb16f63e"
+        }
+      },
+      "valid": false
+    },
+    {
+      "repo": "more-itertools",
+      "commit": "6c488b14b59d64a130667394fa3625ceeab2559e",
+      "timestamp": 1497275308,
+      "subject": "islice_extended function (#146)",
+      "size": 155,
+      "code_lines": 154,
+      "code": [
+        "more_itertools/more.py",
+        "more_itertools/recipes.py"
+      ],
+      "non_test_files": [
+        "docs/api.rst",
+        "more_itertools/more.py",
+        "more_itertools/recipes.py"
+      ],
+      "tests": [
+        "more_itertools/tests/test_more.py"
+      ],
+      "parent": {
+        "rc": 2,
+        "summary": "1 error in 0.19s",
+        "errors": [
+          "E   ModuleNotFoundError: No module named 'nose'"
+        ],
+        "raw": {
+          "file": "6c488b14b59d64a130667394fa3625ceeab2559e-parent.txt",
+          "bytes": 896,
+          "sha256": "5d0229fd7eae37a2e1aa619cf76fd16e200d6ebddf2e472ed26e5960875f382b"
+        }
+      },
+      "reference": {
+        "rc": 2,
+        "summary": "1 error in 0.19s",
+        "errors": [
+          "E   ModuleNotFoundError: No module named 'nose'"
+        ],
+        "raw": {
+          "file": "6c488b14b59d64a130667394fa3625ceeab2559e-reference.txt",
+          "bytes": 896,
+          "sha256": "5d0229fd7eae37a2e1aa619cf76fd16e200d6ebddf2e472ed26e5960875f382b"
+        }
+      },
+      "valid": false
+    },
+    {
+      "repo": "more-itertools",
+      "commit": "df02b4f5b1428bed87634b8eb3c025feca3126c0",
+      "timestamp": 1496518300,
+      "subject": "lstrip, rstrip, and strip functions",
+      "size": 81,
+      "code_lines": 73,
+      "code": [
+        "more_itertools/more.py"
+      ],
+      "non_test_files": [
+        "docs/api.rst",
+        "more_itertools/more.py"
+      ],
+      "tests": [
+        "more_itertools/tests/test_more.py"
+      ],
+      "parent": {
+        "rc": 2,
+        "summary": "1 error in 0.19s",
+        "errors": [
+          "E   ModuleNotFoundError: No module named 'nose'"
+        ],
+        "raw": {
+          "file": "df02b4f5b1428bed87634b8eb3c025feca3126c0-parent.txt",
+          "bytes": 896,
+          "sha256": "5d0229fd7eae37a2e1aa619cf76fd16e200d6ebddf2e472ed26e5960875f382b"
+        }
+      },
+      "reference": {
+        "rc": 2,
+        "summary": "1 error in 0.19s",
+        "errors": [
+          "E   ModuleNotFoundError: No module named 'nose'"
+        ],
+        "raw": {
+          "file": "df02b4f5b1428bed87634b8eb3c025feca3126c0-reference.txt",
+          "bytes": 896,
+          "sha256": "5d0229fd7eae37a2e1aa619cf76fd16e200d6ebddf2e472ed26e5960875f382b"
+        }
+      },
+      "valid": false
+    },
+    {
+      "repo": "more-itertools",
+      "commit": "e85eacda1f81a64b1c6945089935866339f750dc",
+      "timestamp": 1492831955,
+      "subject": "Add arithmetic_sequence()",
+      "size": 64,
+      "code_lines": 63,
+      "code": [
+        "more_itertools/more.py"
+      ],
+      "non_test_files": [
+        "docs/api.rst",
+        "more_itertools/more.py"
+      ],
+      "tests": [
+        "more_itertools/tests/test_more.py"
+      ],
+      "parent": {
+        "rc": 2,
+        "summary": "1 error in 0.18s",
+        "errors": [
+          "E   ModuleNotFoundError: No module named 'nose'"
+        ],
+        "raw": {
+          "file": "e85eacda1f81a64b1c6945089935866339f750dc-parent.txt",
+          "bytes": 896,
+          "sha256": "347d0510b84f15cf49cc1d69a8d06ded9cf2dbd96353cd3b4cfa41c269533e0e"
+        }
+      },
+      "reference": {
+        "rc": 2,
+        "summary": "1 error in 0.19s",
+        "errors": [
+          "E   ModuleNotFoundError: No module named 'nose'"
+        ],
+        "raw": {
+          "file": "e85eacda1f81a64b1c6945089935866339f750dc-reference.txt",
+          "bytes": 896,
+          "sha256": "5d0229fd7eae37a2e1aa619cf76fd16e200d6ebddf2e472ed26e5960875f382b"
+        }
+      },
+      "valid": false
+    },
+    {
+      "repo": "more-itertools",
+      "commit": "c6652c0a1113517ed99b640d793655e49929866f",
+      "timestamp": 1486536184,
+      "subject": "Implement adjacent() and groupby_transform() with tests",
+      "size": 84,
+      "code_lines": 82,
+      "code": [
+        "more_itertools/more.py"
+      ],
+      "non_test_files": [
+        "docs/api.rst",
+        "more_itertools/more.py"
+      ],
+      "tests": [
+        "more_itertools/tests/test_more.py"
+      ],
+      "parent": {
+        "rc": 2,
+        "summary": "1 error in 0.18s",
+        "errors": [
+          "E   ModuleNotFoundError: No module named 'nose'"
+        ],
+        "raw": {
+          "file": "c6652c0a1113517ed99b640d793655e49929866f-parent.txt",
+          "bytes": 895,
+          "sha256": "87f55a9fee21c5163559b9c86013d4b04085b053058fa834924faa118dcbf3e1"
+        }
+      },
+      "reference": {
+        "rc": 2,
+        "summary": "1 error in 0.18s",
+        "errors": [
+          "E   ModuleNotFoundError: No module named 'nose'"
+        ],
+        "raw": {
+          "file": "c6652c0a1113517ed99b640d793655e49929866f-reference.txt",
+          "bytes": 895,
+          "sha256": "87f55a9fee21c5163559b9c86013d4b04085b053058fa834924faa118dcbf3e1"
+        }
+      },
+      "valid": false
+    },
+    {
+      "repo": "more-itertools",
+      "commit": "0e73df9b867bd1fe6f1cd0138775b97f866c6862",
+      "timestamp": 1484790124,
+      "subject": "Update always_iterable",
+      "size": 64,
+      "code_lines": 64,
+      "code": [
+        "more_itertools/more.py"
+      ],
+      "non_test_files": [
+        "more_itertools/more.py"
+      ],
+      "tests": [
+        "more_itertools/tests/test_more.py"
+      ],
+      "parent": {
+        "rc": 2,
+        "summary": "1 error in 0.18s",
+        "errors": [
+          "E   ModuleNotFoundError: No module named 'nose'"
+        ],
+        "raw": {
+          "file": "0e73df9b867bd1fe6f1cd0138775b97f866c6862-parent.txt",
+          "bytes": 895,
+          "sha256": "87f55a9fee21c5163559b9c86013d4b04085b053058fa834924faa118dcbf3e1"
+        }
+      },
+      "reference": {
+        "rc": 2,
+        "summary": "1 error in 0.19s",
+        "errors": [
+          "E   ModuleNotFoundError: No module named 'nose'"
+        ],
+        "raw": {
+          "file": "0e73df9b867bd1fe6f1cd0138775b97f866c6862-reference.txt",
+          "bytes": 895,
+          "sha256": "ac341f54fd14b0e0c6d5914c62e2bdaea0008e2e3d47f99a75e0428bd2be95a3"
+        }
+      },
+      "valid": false
+    },
+    {
+      "repo": "more-itertools",
+      "commit": "d87f1bb595e32aebb40c1d8fd04eb49c3757338b",
+      "timestamp": 1478919456,
+      "subject": "Class-ify separate",
+      "size": 86,
+      "code_lines": 86,
+      "code": [
+        "more_itertools/more.py"
+      ],
+      "non_test_files": [
+        "more_itertools/more.py"
+      ],
+      "tests": [
+        "more_itertools/tests/test_more.py"
+      ],
+      "parent": {
+        "rc": 2,
+        "summary": "1 error in 0.17s",
+        "errors": [
+          "E   ModuleNotFoundError: No module named 'nose'"
+        ],
+        "raw": {
+          "file": "d87f1bb595e32aebb40c1d8fd04eb49c3757338b-parent.txt",
+          "bytes": 895,
+          "sha256": "be8ac1d7a70095cbf9c0c0a64315bd89cde5ab31e2da475abe1f794aeeeb23a3"
+        }
+      },
+      "reference": {
+        "rc": 2,
+        "summary": "1 error in 0.17s",
+        "errors": [
+          "E   ModuleNotFoundError: No module named 'nose'"
+        ],
+        "raw": {
+          "file": "d87f1bb595e32aebb40c1d8fd04eb49c3757338b-reference.txt",
+          "bytes": 895,
+          "sha256": "be8ac1d7a70095cbf9c0c0a64315bd89cde5ab31e2da475abe1f794aeeeb23a3"
+        }
+      },
+      "valid": false
+    },
+    {
+      "repo": "more-itertools",
+      "commit": "10bd2ea099dc3b078965ec3e3cb9568b8fa0da38",
+      "timestamp": 1478832345,
+      "subject": "Add the new recipes from Python 3 docs",
+      "size": 81,
+      "code_lines": 77,
+      "code": [
+        "more_itertools/recipes.py"
+      ],
+      "non_test_files": [
+        "docs/api.rst",
+        "more_itertools/recipes.py"
+      ],
+      "tests": [
+        "more_itertools/tests/test_recipes.py"
+      ],
+      "parent": {
+        "rc": 2,
+        "summary": "1 error in 0.16s",
+        "errors": [
+          "E   ModuleNotFoundError: No module named 'nose'"
+        ],
+        "raw": {
+          "file": "10bd2ea099dc3b078965ec3e3cb9568b8fa0da38-parent.txt",
+          "bytes": 909,
+          "sha256": "ce0316ff8cadc5227c12ae7b3bc15f2f63c2fc1995fbbc0adf49802ea0e94a18"
+        }
+      },
+      "reference": {
+        "rc": 2,
+        "summary": "1 error in 0.17s",
+        "errors": [
+          "E   ModuleNotFoundError: No module named 'nose'"
+        ],
+        "raw": {
+          "file": "10bd2ea099dc3b078965ec3e3cb9568b8fa0da38-reference.txt",
+          "bytes": 909,
+          "sha256": "69a094926e3dbb89980b96c8e24a7b345323d5b71f2c12afdeb8267766f19725"
+        }
+      },
+      "valid": false
+    },
+    {
+      "repo": "more-itertools",
+      "commit": "c7600dc83164c1f6c55240a6734ec902d4ec02b1",
+      "timestamp": 1354186588,
+      "subject": "Add append/prepend, interleave/interleave_longest, collapse.",
+      "size": 75,
+      "code_lines": 75,
+      "code": [
+        "more_itertools/more.py"
+      ],
+      "non_test_files": [
+        "more_itertools/more.py"
+      ],
+      "tests": [
+        "more_itertools/tests/test_more.py"
+      ],
+      "parent": {
+        "rc": 2,
+        "summary": "1 error in 0.16s",
+        "errors": [
+          "E     File \"<tree>\\more_itertools\\more.py\", line 161",
+          "E       min_or_max = partial(max if reverse else min, key=lambda (a, b): a)",
+          "E                                                                ^^^^^^",
+          "E   SyntaxError: Lambda expression parameters cannot be parenthesized"
+        ],
+        "raw": {
+          "file": "c7600dc83164c1f6c55240a6734ec902d4ec02b1-parent.txt",
+          "bytes": 2284,
+          "sha256": "47c1f38bea88943e9e19979bdacb1393929dfec6919a7ac52046507f86a3e037"
+        }
+      },
+      "reference": {
+        "rc": 2,
+        "summary": "1 error in 0.16s",
+        "errors": [
+          "E     File \"<tree>\\more_itertools\\more.py\", line 162",
+          "E       min_or_max = partial(max if reverse else min, key=lambda (a, b): a)",
+          "E                                                                ^^^^^^",
+          "E   SyntaxError: Lambda expression parameters cannot be parenthesized"
+        ],
+        "raw": {
+          "file": "c7600dc83164c1f6c55240a6734ec902d4ec02b1-reference.txt",
+          "bytes": 2284,
+          "sha256": "a738e2769dbd1267216ca448de8387ec62c74a4d5e664baed253a281970dde9a"
+        }
+      },
+      "valid": false
+    },
+    {
+      "repo": "more-itertools",
+      "commit": "e3ecc136a7dac872d75daec35b070920ce2d6e1b",
+      "timestamp": 1345144738,
+      "subject": "docstring cleanup",
+      "size": 203,
+      "code_lines": 203,
+      "code": [
+        "more_itertools/recipes.py"
+      ],
+      "non_test_files": [
+        "more_itertools/recipes.py"
+      ],
+      "tests": [
+        "more_itertools/tests/test_recipes.py",
+        "more_itertools/tests/tests.py"
+      ],
+      "parent": {
+        "rc": 2,
+        "summary": "2 errors in 0.18s",
+        "errors": [
+          "E     File \"<tree>\\more_itertools\\__init__.py\", line 164",
+          "E       min_or_max = partial(max if reverse else min, key=lambda (a, b): a)",
+          "E                                                                ^^^^^^",
+          "E   SyntaxError: Lambda expression parameters cannot be parenthesized",
+          "E     File \"<tree>\\more_itertools\\__init__.py\", line 164",
+          "E       min_or_max = partial(max if reverse else min, key=lambda (a, b): a)",
+          "E                                                                ^^^^^^",
+          "E   SyntaxError: Lambda expression parameters cannot be parenthesized"
+        ],
+        "raw": {
+          "file": "e3ecc136a7dac872d75daec35b070920ce2d6e1b-parent.txt",
+          "bytes": 4430,
+          "sha256": "2fdf084a0ae613601b282b4fbfa7f2f349631a631a5daf91a55935a6007ce662"
+        }
+      },
+      "reference": {
+        "rc": 2,
+        "summary": "2 errors in 0.18s",
+        "errors": [
+          "E     File \"<tree>\\more_itertools\\__init__.py\", line 164",
+          "E       min_or_max = partial(max if reverse else min, key=lambda (a, b): a)",
+          "E                                                                ^^^^^^",
+          "E   SyntaxError: Lambda expression parameters cannot be parenthesized",
+          "E     File \"<tree>\\more_itertools\\__init__.py\", line 164",
+          "E       min_or_max = partial(max if reverse else min, key=lambda (a, b): a)",
+          "E                                                                ^^^^^^",
+          "E   SyntaxError: Lambda expression parameters cannot be parenthesized"
+        ],
+        "raw": {
+          "file": "e3ecc136a7dac872d75daec35b070920ce2d6e1b-reference.txt",
+          "bytes": 4430,
+          "sha256": "2fdf084a0ae613601b282b4fbfa7f2f349631a631a5daf91a55935a6007ce662"
+        }
+      },
+      "valid": false
+    },
+    {
+      "repo": "boltons",
+      "commit": "6270b5e35ed902859df6188970eec5bee5ab73d1",
+      "timestamp": 1792969697,
+      "subject": "iterutils: fix remap namedtuples, chunk_ranges edges, iterator bucketize, falsey keys, key-once untyped_sorted, negative maxsplit, fractional backoff; add chunked_filter (#585, #569, #563, #554, #552, #502, #496, #491)",
+      "size": 74,
+      "code_lines": 73,
+      "code": [
+        "boltons/iterutils.py"
+      ],
+      "non_test_files": [
+        "boltons/iterutils.py",
+        "docs/iterutils.rst"
+      ],
+      "tests": [
+        "tests/test_iterutils.py"
+      ],
+      "parent": {
+        "rc": 1,
+        "summary": "9 failed, 49 passed in 0.49s",
+        "errors": [
+          "E       assert [[1, None, 2, None, 3]] == [[1], [2], [3]]",
+          "E         ",
+          "E         At index 0 diff: [1, None, 2, None, 3] != [1]",
+          "E         Right contains 2 more items, first extra item: [2]",
+          "E         Use -v to get more diff",
+          "E           TypeError: Point.__new__() missing 2 required positional arguments: 'x' and 'y'",
+          "E           TypeError: range expected at least 1 argument, got 0",
+          "E       assert [0.0] == [0.0, 0.5]"
+        ],
+        "raw": {
+          "file": "6270b5e35ed902859df6188970eec5bee5ab73d1-parent.txt",
+          "bytes": 8796,
+          "sha256": "d7bd5c7f062adce6cbdeb0a7b8e80fc5239c6065cc8846c035f381aec51cfad0"
+        }
+      },
+      "reference": {
+        "rc": 0,
+        "summary": "58 passed in 0.27s",
+        "errors": [],
+        "raw": {
+          "file": "6270b5e35ed902859df6188970eec5bee5ab73d1-reference.txt",
+          "bytes": 99,
+          "sha256": "155ccac0272446afd9d61150551710e20373d2433b0dd97e0b04213866ce6414"
+        }
+      },
+      "valid": true
+    },
+    {
+      "repo": "boltons",
+      "commit": "922e7b2bfae226efa569b4441abbe7a0fb3d47de",
+      "timestamp": 1792969697,
+      "subject": "fileutils, pathutils, namedutils: fix FilePerms bits, find depth, AtomicSaver cleanup, root-home shrinkuser, non-identifier names; include docs in sdist (#484, #518, #485, #539, #504, #573, #557)",
+      "size": 70,
+      "code_lines": 66,
+      "code": [
+        "boltons/fileutils.py",
+        "boltons/namedutils.py",
+        "boltons/pathutils.py"
+      ],
+      "non_test_files": [
+        "boltons/fileutils.py",
+        "boltons/namedutils.py",
+        "boltons/pathutils.py",
+        "pyproject.toml"
+      ],
+      "tests": [
+        "tests/test_fileutils.py",
+        "tests/test_namedutils.py",
+        "tests/test_pathutils.py"
+      ],
+      "parent": {
+        "rc": 1,
+        "summary": "6 failed, 21 passed, 1 skipped in 0.53s",
+        "errors": [
+          "E       AssertionError: assert 448 == 7",
+          "E        +  where 448 = int(FilePerms(user='rwx', group='', other=''))",
+          "E        +    where FilePerms(user='rwx', group='', other='') = from_int(7)",
+          "E        +      where from_int = FilePerms.from_int",
+          "E       AssertionError: assert 388 == 384",
+          "E        +  where 388 = int(FilePerms(user='rw', group='', other=''))",
+          "E       assert False",
+          "E        +  where False = <_io.BufferedRandom name=11>.closed"
+        ],
+        "raw": {
+          "file": "922e7b2bfae226efa569b4441abbe7a0fb3d47de-parent.txt",
+          "bytes": 26286,
+          "sha256": "de55f63e180b6609cdbf6e9fdd523b7ab98de76ef07672f464e90934a41a36a4"
+        }
+      },
+      "reference": {
+        "rc": 0,
+        "summary": "27 passed, 1 skipped in 0.18s",
+        "errors": [],
+        "raw": {
+          "file": "922e7b2bfae226efa569b4441abbe7a0fb3d47de-reference.txt",
+          "bytes": 110,
+          "sha256": "4abb7b76fb1c06a46df602bb0877a5273ccd4a6b46604a3d61af606605cbd51c"
+        }
+      },
+      "valid": true
+    },
+    {
+      "repo": "boltons",
+      "commit": "f898d8f81aa85a3a7c3b187b5d45b329bc471a72",
+      "timestamp": 1792969697,
+      "subject": "gcutils, typeutils, debugutils: find subtype instances, restore GC state, support metaclasses, fix suppressed raise (#560, #559, #505, #584)",
+      "size": 41,
+      "code_lines": 41,
+      "code": [
+        "boltons/debugutils.py",
+        "boltons/gcutils.py",
+        "boltons/typeutils.py"
+      ],
+      "non_test_files": [
+        "boltons/debugutils.py",
+        "boltons/gcutils.py",
+        "boltons/typeutils.py"
+      ],
+      "tests": [
+        "tests/test_debugutils_trace.py",
+        "tests/test_gcutils.py",
+        "tests/test_typeutils.py"
+      ],
+      "parent": {
+        "rc": 1,
+        "summary": "4 failed, 11 passed in 0.28s",
+        "errors": [
+          "E       UnboundLocalError: cannot access local variable 'ret' where it is not associated with a value",
+          "E       assert [] == [<tests.test_...01900EED9BD0>]",
+          "E         ",
+          "E         Right contains one more item: <tests.test_gcutils.test_get_all_subtypes.<locals>.Sub object at <address>>",
+          "E         Use -v to get more diff",
+          "E           assert not True",
+          "E            +  where True = <built-in function isenabled>()",
+          "E            +    where <built-in function isenabled> = gc.isenabled"
+        ],
+        "raw": {
+          "file": "f898d8f81aa85a3a7c3b187b5d45b329bc471a72-parent.txt",
+          "bytes": 5281,
+          "sha256": "1200efc10b8d5967b8fc67d3293e48921ccde9788debd8ce2526168c98742aea"
+        }
+      },
+      "reference": {
+        "rc": 0,
+        "summary": "15 passed in 0.16s",
+        "errors": [],
+        "raw": {
+          "file": "f898d8f81aa85a3a7c3b187b5d45b329bc471a72-reference.txt",
+          "bytes": 99,
+          "sha256": "3505b1c4057954c7b899990d26c3bcdf5c6a1192ff677524c8c1d21a2047d4f7"
+        }
+      },
+      "valid": true
+    },
+    {
+      "repo": "boltons",
+      "commit": "40fffc5ba0a84315c79813daa47db35157d64556",
+      "timestamp": 1792969316,
+      "subject": "setutils: fix IndexedSet tail culling, pop index, multi-arg and iterator set ops, complement & and ^ (#577, #535, #494, #503, #516, #487)",
+      "size": 62,
+      "code_lines": 62,
+      "code": [
+        "boltons/setutils.py"
+      ],
+      "non_test_files": [
+        "boltons/setutils.py"
+      ],
+      "tests": [
+        "tests/test_setutils.py"
+      ],
+      "parent": {
+        "rc": 1,
+        "summary": "8 failed, 20 passed in 0.23s",
+        "errors": [
+          "E       assert 34 == 35",
+          "E        +  where 34 = index(39)",
+          "E        +    where index = IndexedSet([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 39]).index",
+          "E       Failed: DID NOT RAISE TypeError",
+          "E       assert [1, 3, 4] == [4]",
+          "E         ",
+          "E         At index 0 diff: 1 != 4",
+          "E         Left contains 2 more items, first extra item: 3"
+        ],
+        "raw": {
+          "file": "40fffc5ba0a84315c79813daa47db35157d64556-parent.txt",
+          "bytes": 8423,
+          "sha256": "79d5156ba436538f33429924507417f65cb46a4fcd4e1e9ab5c84832c753db9e"
+        }
+      },
+      "reference": {
+        "rc": 0,
+        "summary": "28 passed in 0.09s",
+        "errors": [],
+        "raw": {
+          "file": "40fffc5ba0a84315c79813daa47db35157d64556-reference.txt",
+          "bytes": 99,
+          "sha256": "c0a990de1055355825db98d6b4719664334d43654fbed47ff93fe0f2b348c3e1"
+        }
+      },
+      "valid": true
+    },
+    {
+      "repo": "boltons",
+      "commit": "bbadc7ae1dcfbb0e71ec3a852e8bca3a6f75199b",
+      "timestamp": 1792969316,
+      "subject": "dictutils: fix OMD eq/update, OneToOne update and |=, ManyToMany add/update/replace (#599, #531, #523, #537, #601, #526, #528)",
+      "size": 62,
+      "code_lines": 62,
+      "code": [
+        "boltons/dictutils.py",
+        "boltons/urlutils.py"
+      ],
+      "non_test_files": [
+        "boltons/dictutils.py",
+        "boltons/urlutils.py"
+      ],
+      "tests": [
+        "tests/test_dictutils.py"
+      ],
+      "parent": {
+        "rc": 1,
+        "summary": "8 failed, 30 passed in 0.25s",
+        "errors": [
+          "E       assert OrderedMultiDict([(None, None)]) != OrderedMultiDict([(None, None), (None, None)])",
+          "E        +  where OrderedMultiDict([(None, None)]) = OMD([(None, None)])",
+          "E        +  and   OrderedMultiDict([(None, None), (None, None)]) = OMD([(None, None), (None, None)])",
+          "E       assert [3] == [1, 3]",
+          "E         ",
+          "E         At index 0 diff: 3 != 1",
+          "E         Right contains one more item: 3",
+          "E         Use -v to get more diff"
+        ],
+        "raw": {
+          "file": "bbadc7ae1dcfbb0e71ec3a852e8bca3a6f75199b-parent.txt",
+          "bytes": 4992,
+          "sha256": "80535221881b178eed3db3e9825e73de3ecc7ca218ced5e85a9077a8d7566bd3"
+        }
+      },
+      "reference": {
+        "rc": 0,
+        "summary": "38 passed in 0.11s",
+        "errors": [],
+        "raw": {
+          "file": "bbadc7ae1dcfbb0e71ec3a852e8bca3a6f75199b-reference.txt",
+          "bytes": 99,
+          "sha256": "5820660ec3010de64a702de867f5df2cf30c67130e042248a991f9440cddf42b"
+        }
+      },
+      "valid": true
+    },
+    {
+      "repo": "boltons",
+      "commit": "3fe7b949a2307002c3e4dbecb858372f77f6bb78",
+      "timestamp": 1792969315,
+      "subject": "listutils: fix BarrelList list-compat methods; add sort(key, reverse) and index(start, stop) (#596, #544, #540, #538, #532, #530, #517, #575, #549, #514, #550, #592)",
+      "size": 128,
+      "code_lines": 128,
+      "code": [
+        "boltons/listutils.py"
+      ],
+      "non_test_files": [
+        "boltons/listutils.py"
+      ],
+      "tests": [
+        "tests/test_listutils.py"
+      ],
+      "parent": {
+        "rc": 1,
+        "summary": "2 failed, 11 passed in 0.26s",
+        "errors": [
+          "E           assert (BarrelList([5..., 6, 0, 4, 3]) == [5, 3, 8, 1, 9, 3, ...]",
+          "E             ",
+          "E             Use -v to get more diff)",
+          "E           IndexError",
+          "FAILED tests/test_listutils.py::test_barrel_list_list_compat_matches_list - a...",
+          "FAILED tests/test_listutils.py::test_barrel_list_del_stepped_slice_matches_list"
+        ],
+        "raw": {
+          "file": "3fe7b949a2307002c3e4dbecb858372f77f6bb78-parent.txt",
+          "bytes": 2782,
+          "sha256": "68ef8f3e1a54bea2a1a6cb1c90853ccc2a23c2704f26529b595e0e8700c9e376"
+        }
+      },
+      "reference": {
+        "rc": 0,
+        "summary": "13 passed in 0.16s",
+        "errors": [],
+        "raw": {
+          "file": "3fe7b949a2307002c3e4dbecb858372f77f6bb78-reference.txt",
+          "bytes": 99,
+          "sha256": "e9a40502bbab4cd186bd34f41859604522147a6b66ee852c24ddbc945d7e0a5a"
+        }
+      },
+      "valid": true
+    },
+    {
+      "repo": "boltons",
+      "commit": "1216b467c10b852d08aa6895c80b6b9ec8f990d8",
+      "timestamp": 1788777430,
+      "subject": "Complete September PR sweep for 26.2.0 (#481)",
+      "size": 98,
+      "code_lines": 44,
+      "code": [
+        "boltons/cacheutils.py",
+        "boltons/jsonutils.py",
+        "boltons/strutils.py",
+        "boltons/urlutils.py"
+      ],
+      "non_test_files": [
+        "CHANGELOG.md",
+        "boltons/cacheutils.py",
+        "boltons/jsonutils.py",
+        "boltons/strutils.py",
+        "boltons/urlutils.py"
+      ],
+      "tests": [
+        "tests/test_cacheutils.py",
+        "tests/test_jsonutils.py",
+        "tests/test_namedutils.py",
+        "tests/test_statsutils.py",
+        "tests/test_strutils.py",
+        "tests/test_urlutils.py"
+      ],
+      "parent": {
+        "rc": 1,
+        "summary": "12 failed, 188 passed in 0.54s",
+        "errors": [
+          "E       assert [] == [(2, 10), (5, 1)]",
+          "E         ",
+          "E         Right contains 2 more items, first extra item: (2, 10)",
+          "E         Use -v to get more diff",
+          "E       AssertionError: assert {'a': 2, 'b': 1, 'zero': 1} == {'a': 4, 'b': 2}",
+          "E         ",
+          "E         Differing items:",
+          "E         {'a': 2} != {'a': 4}"
+        ],
+        "raw": {
+          "file": "1216b467c10b852d08aa6895c80b6b9ec8f990d8-parent.txt",
+          "bytes": 15544,
+          "sha256": "44a31e86996ed29bb831d5cd029505cd6075a9a0970f9144fe0cd6cb1ba7ce5b"
+        }
+      },
+      "reference": {
+        "rc": 1,
+        "summary": "1 failed, 199 passed in 0.46s",
+        "errors": [
+          "E       AssertionError: assert b'a\\r\\nb\\r\\nc...v\\r\\nwxyz\\r\\n' == b'a\\nb\\nc\\nd\\...rstuv\\nwxyz\\n'",
+          "E         ",
+          "E         At index 1 diff: b'\\r' != b'\\n'",
+          "E         Use -v to get more diff",
+          "FAILED tests/test_jsonutils.py::test_reverse_iter_lines - AssertionError: ass..."
+        ],
+        "raw": {
+          "file": "1216b467c10b852d08aa6895c80b6b9ec8f990d8-reference.txt",
+          "bytes": 1505,
+          "sha256": "fc7e02bb10406f9bd639fbdea84fa4635ed1d0af980efb95eeb0c387eec705d5"
+        }
+      },
+      "valid": false
+    },
+    {
+      "repo": "boltons",
+      "commit": "673e010d0afabc2f530e8d1f67f0a47c37afa7f4",
+      "timestamp": 1786982296,
+      "subject": "strutils: add ellipsize for word-boundary-aware truncation",
+      "size": 66,
+      "code_lines": 64,
+      "code": [
+        "boltons/strutils.py"
+      ],
+      "non_test_files": [
+        "CHANGELOG.md",
+        "boltons/strutils.py"
+      ],
+      "tests": [
+        "tests/test_strutils.py"
+      ],
+      "parent": {
+        "rc": 1,
+        "summary": "1 failed, 20 passed in 0.17s",
+        "errors": [
+          "E       AttributeError: module 'boltons.strutils' has no attribute 'ellipsize'",
+          "FAILED tests/test_strutils.py::test_ellipsize - AttributeError: module 'bolto..."
+        ],
+        "raw": {
+          "file": "673e010d0afabc2f530e8d1f67f0a47c37afa7f4-parent.txt",
+          "bytes": 658,
+          "sha256": "71532bc9eb46ade05e1a5975ebe22161bc2cdfd50cfeb080a7a8b71181978b66"
+        }
+      },
+      "reference": {
+        "rc": 0,
+        "summary": "21 passed in 0.07s",
+        "errors": [],
+        "raw": {
+          "file": "673e010d0afabc2f530e8d1f67f0a47c37afa7f4-reference.txt",
+          "bytes": 99,
+          "sha256": "f6c3428a72259cde0f5f3829b656f4ac62e77102cc8c0127acfed6e353f210ee"
+        }
+      },
+      "valid": true
+    },
+    {
+      "repo": "boltons",
+      "commit": "99dec84c99d02d8259093c0d520769b28d4d2aaf",
+      "timestamp": 1785676009,
+      "subject": "Fix US timezone fold handling",
+      "size": 67,
+      "code_lines": 67,
+      "code": [
+        "boltons/timeutils.py"
+      ],
+      "non_test_files": [
+        "boltons/timeutils.py"
+      ],
+      "tests": [
+        "tests/test_timeutils.py"
+      ],
+      "parent": {
+        "rc": 1,
+        "summary": "2 failed, 4 passed in 0.13s",
+        "errors": [
+          "E       assert datetime.timedelta(days=-1, seconds=68400) == (-4 * datetime.timedelta(seconds=3600))",
+          "E        +  where datetime.timedelta(days=-1, seconds=68400) = <built-in method utcoffset of datetime.datetime object at <address>>()",
+          "E        +    where <built-in method utcoffset of datetime.datetime object at <address>> = datetime.datetime(2011, 11, 6, 1, 30, tzinfo=Eastern).utcoffset",
+          "E        +  and   datetime.timedelta(seconds=3600) = timedelta(hours=1)",
+          "E       AssertionError: assert 'EST' == 'EDT'",
+          "E         ",
+          "E         - EDT",
+          "E         + EST"
+        ],
+        "raw": {
+          "file": "99dec84c99d02d8259093c0d520769b28d4d2aaf-parent.txt",
+          "bytes": 1846,
+          "sha256": "d8d3873fc4801205f2abe502e151cc79119be341a7ee1b60db026322cc881a67"
+        }
+      },
+      "reference": {
+        "rc": 0,
+        "summary": "6 passed in 0.03s",
+        "errors": [],
+        "raw": {
+          "file": "99dec84c99d02d8259093c0d520769b28d4d2aaf-reference.txt",
+          "bytes": 98,
+          "sha256": "a4ce3c4d2d126cf54794b588fe0568dcf174b80e68913316f73e0da7b9f1c64b"
+        }
+      },
+      "valid": true
+    }
+  ],
+  "raw_directory": ".ccx/eval/p4-local/code-only-raw",
+  "target_count": 12,
+  "complete": true,
+  "incomplete_episode_commits": [
+    "bbe6c8f7f3f59555ab5035871aa919a6b9d9dbb7",
+    "5252383356e6c867f1148471adbeb1aecbe8d13c",
+    "02e753222ce27f199971032a4b18e9513c9b0a48"
+  ]
+}

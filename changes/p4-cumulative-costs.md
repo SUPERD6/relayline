@@ -1,0 +1,1 @@
+- Fix experimental P4 resumed-session cost accounting to charge validated cumulative deltas, fail closed on missing or inconsistent receipts, and add read-only result replay with explicit resume-budget uncertainty.
