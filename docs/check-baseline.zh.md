@@ -13,7 +13,9 @@ baseline = "off"  # 默认；可选 "on_fail"
 ```
 
 开启：`ccx config set check.baseline on_fail`；恢复：`ccx config set check.baseline off`。
-默认保留已有检查判定、重试阶梯和退出码。两种模式都只新增检查日志字段。
+默认保留已有检查判定、重试阶梯和退出码。新增默认行为：每次保存 stdout/stderr 日志（合计最多 2 × 256 KiB），
+并新增 `stdout_path`、`stderr_path`、`stdout_truncated`、`stderr_truncated` 和 `failed_cases`；紧凑收据默认新增
+`headline` 展示字段。这些字段和日志保存行为在 `baseline = "off"` 时也生效。
 
 `on_fail` 在派活前记录干净 Git HEAD 和工作子目录，并将已跟踪文件的实际字节保存到 `check-baseline-start.zip`。
 Git 显示干净仍可能有归一化后的 LF/CRLF 差别；只有开启功能时才增加这份本地磁盘和 I/O 开销。
@@ -32,10 +34,17 @@ Git 显示干净仍可能有归一化后的 LF/CRLF 差别；只有开启功能�
 | 失败列表完整，有新增用例 | 按原阶梯修复；修复提示只列新增失败用例名，原始输出保存在日志 |
 | 无法比较 | `baseline_comparison=Unknown`；保留退出码，继续原失败与重试流程 |
 
+`check_baseline_failed` 和 `check_failed` 一样返回 `ok=true`、CLI 退出码 **0**，表示执行完成，但验收失败。
+脚本必须检查 `kind`、`check.passed` 和 `check.baseline_comparison`，不能仅凭进程退出码或 `ok` 接受结果。
+
 当前只解析 pytest 完整短摘要中的 `FAILED` / `ERROR` 用例标识，支持参数化用例；数量必须与末尾失败、错误总数
 一致。输出中断、收集失败、非结构化输出或数量不符都为 Unknown；仅凭相同非零退出码不判断“全是旧失败”。
+参数标识按方括号配对截取，保留其中的 ` - `；括号不配对时为 Unknown。
 起点不干净、非 Git 仓库、含子模块或符号链接、提交不可用、检出失败或清理失败也为 Unknown。命令含源仓库绝对路径时，
-不会把修改后的源目录当作基线运行。被忽略的依赖和其他外部状态不会复制；这里比较干净 Git 基线，不复现整台机器。
+不会把修改后的源目录当作基线运行。基线环境会移除 `PYTHONPATH` 中指向源树的条目，并用启动探针记录实际 Python
+模块路径到 `check_baseline.import_origins`（`check_baselines` 各项也保存），包含 editable 安装实际导入的路径。
+失败检查仍从源树导入，或无法收集导入证据（例如非 Python 命令、`-I`/`-S`、突然退出）时，基线为 Unknown，
+不能判为 `baseline_only`。被忽略的依赖和其他外部状态不会复制；这里比较干净 Git 基线，不复现整台机器。
 每次明确派活或 resume 都记录自己的起点，只在同一运行内复用基线。合并批任务的逐项检查也使用整组派活起点，
 每个不同命令只跑一次基线；只有旧失败的项不进入检查修复或另派单项。基线失败不能证明本单改动正确。
 

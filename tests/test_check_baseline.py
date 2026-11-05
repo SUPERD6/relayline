@@ -62,6 +62,74 @@ def test_default_off():
     assert load_config(Paths(Path("unused-hub")))["check"]["baseline"] == "off"
 
 
+@pytest.mark.parametrize("node", ["test_x[a - b]", "test_x[a - c]", "test_x[nested[a - b]]"])
+def test_parameter_separator_is_part_of_case_name(node):
+    case = "tests/a.py::" + node
+    assert baseline.failed_cases(f"FAILED {case} - AssertionError\n1 failed in 0.1s", 1) == [case]
+
+
+@pytest.mark.parametrize("node", ["test_x[a - b", "test_x[a - b]]", "test_x[a[b]"])
+def test_unbalanced_parameter_is_unknown(node):
+    assert baseline.failed_cases(f"FAILED tests/a.py::{node} - assert\n1 failed in 0.1s", 1) is None
+
+
+def test_parameterized_new_failure_is_not_baseline_only(tmp_path, monkeypatch):
+    before = baseline.failed_cases("FAILED tests/a.py::test_x[a - b] - assert\n1 failed", 1)
+    after = baseline.failed_cases("FAILED tests/a.py::test_x[a - c] - assert\n1 failed", 1)
+    monkeypatch.setattr(baseline, "run_baseline", lambda *a: {
+        "status": "Fail", "seconds": 0, "check": {"failed_cases": before}})
+    checks = baseline.Checks({"defaults": {}, "check": {"baseline": "on_fail"}}, tmp_path, tmp_path, {},
+                             lambda *a, **k: {"passed": False, "failed_cases": after}, True, start={})
+    assert checks("check")["baseline_comparison"] == "new_failures"
+
+
+def test_baseline_removes_source_pythonpath_and_records_actual_imports(tmp_path, monkeypatch):
+    root = repository(tmp_path / "repo")
+    external = tmp_path / "external"
+    external.mkdir()
+    monkeypatch.setenv("PYTHONPATH", os.pathsep.join([str(root), str(root / "src"), str(external)]))
+    logs = tmp_path / "logs"
+    logs.mkdir()
+    def inspect(cmd, cwd, timeout, **kwargs):
+        entries = kwargs["env"]["PYTHONPATH"].split(os.pathsep)
+        assert str(root) not in entries and str(root / "src") not in entries
+        assert str(external) in entries
+        return run_check(cmd, cwd, timeout, **kwargs)
+    out = baseline.run_baseline(baseline.capture(root), f'"{sys.executable}" check_run.py', logs, 30, inspect)
+    assert out["status"] == "Fail"
+    assert any(p.endswith("check_run.py") for p in out["import_origins"])
+    assert not any(Path(p).is_relative_to(root) for p in out["import_origins"])
+
+
+def test_editable_import_from_source_cannot_mask_new_failure(tmp_path, monkeypatch):
+    root = repository(tmp_path / "repo")
+    (root / "editable_target.py").write_text("value = 1\n", encoding="utf-8")
+    # Emulate a PEP 660 editable finder without installing anything in the host environment.
+    script = root / "check_run.py"
+    script.write_text("import importlib.util\nimport sys\n"
+                      "spec = importlib.util.spec_from_file_location('editable_target', sys.argv[1])\n"
+                      "module = importlib.util.module_from_spec(spec)\n"
+                      "sys.modules['editable_target'] = module\nspec.loader.exec_module(module)\n"
+                      "print('FAILED tests/a.py::test_a - assert')\nprint('1 failed in 0.1s')\nsys.exit(1)\n",
+                      encoding="utf-8", newline="")
+    git(root, "add", ".")
+    git(root, "commit", "-qm", "editable fixture")
+    monkeypatch.setenv("EDITABLE_SOURCE", str(root / "editable_target.py"))
+    # Expansion happens in the shell, so the command itself has no absolute source reference.
+    argument = '"%EDITABLE_SOURCE%"' if os.name == "nt" else '"$EDITABLE_SOURCE"'
+    out = baseline.run_baseline(baseline.capture(root), f'"{sys.executable}" check_run.py {argument}',
+                                tmp_path, 30, run_check)
+    assert out["status"] == "Unknown"
+    assert str(root / "editable_target.py") in out["import_origins"]
+
+
+def test_unobservable_baseline_imports_are_unknown(tmp_path):
+    root = repository(tmp_path / "repo")
+    out = baseline.run_baseline(baseline.capture(root), f'"{sys.executable}" -S check_run.py',
+                                tmp_path, 30, run_check)
+    assert out["status"] == "Unknown" and out["import_origins"] == []
+
+
 def test_baseline_stop_is_not_a_clean_piece_or_ability_failure():
     from ccx import lanes, merge, ui
     assert baseline.BASELINE_FAILED in lanes.BAD_KINDS

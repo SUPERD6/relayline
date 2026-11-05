@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import os
+import json
 import re
 import shutil
 import stat
@@ -30,9 +31,22 @@ def failed_cases(output: str, code: int) -> list[str] | None:
     cases = []
     counts = None
     for line in output.splitlines():
-        match = re.match(r"^(FAILED|ERROR) (.+?)(?: - .*)?$", line)
+        match = re.match(r"^(FAILED|ERROR) (.+)$", line)
         if match and "::" in match[2]:
-            cases.append(match[2].replace("\\", "/"))
+            text, depth, end = match[2], 0, len(match[2])
+            for i, char in enumerate(text):
+                if depth == 0 and text[i:i + 3] == " - ":
+                    end = i
+                    break
+                if char == "[":
+                    depth += 1
+                elif char == "]":
+                    depth -= 1
+                    if depth < 0:
+                        return None
+            if depth:
+                return None
+            cases.append(text[:end].replace("\\", "/"))
         # pytest's terminal totals (including -q), not assertion messages in the traceback.
         if re.match(r"^[= ]*\d+ (?:failed|passed|error|skipped|xfailed|xpassed|deselected)", line):
             found = re.findall(r"(\d+) (failed|errors?)\b", line)
@@ -102,6 +116,39 @@ def _remove_tree(path: Path) -> None:
     shutil.rmtree(path, onerror=writable)
 
 
+# Run inside the actual check interpreter, including editable-install import finders.
+# Missing evidence (non-Python checks, -I/-S, abrupt exit) deliberately stays Unknown.
+_IMPORT_PROBE = '''import atexit, json, os, sys
+def _ccx_import_origins():
+    paths = set()
+    for module in list(sys.modules.values()):
+        filename = getattr(module, '__file__', None)
+        if filename:
+            paths.add(os.path.realpath(filename))
+        for directory in getattr(module, '__path__', ()):
+            paths.add(os.path.realpath(directory))
+    target = os.environ['CCX_BASELINE_IMPORTS'] + '.' + str(os.getpid()) + '.json'
+    with open(target, 'w', encoding='utf-8') as saved:
+        json.dump(sorted(paths), saved)
+atexit.register(_ccx_import_origins)
+'''
+
+
+def _baseline_environment(source: Path, cwd: Path, probe: Path, evidence: Path) -> dict:
+    env = dict(os.environ)
+    kept = []
+    for entry in env.get("PYTHONPATH", "").split(os.pathsep):
+        if not entry:
+            continue
+        path = Path(entry)
+        resolved = (path if path.is_absolute() else cwd / path).resolve()
+        if not resolved.is_relative_to(source.resolve()):
+            kept.append(entry)
+    env["PYTHONPATH"] = os.pathsep.join([str(probe), *kept])
+    env["CCX_BASELINE_IMPORTS"] = str(evidence)
+    return env
+
+
 def run_baseline(start: dict, cmd: str, run_dir: Path, timeout: int, runner, name: str = "check.baseline") -> dict:
     """An independent local clone: no source worktree registration, index, branch or checkout is changed."""
     began = time.monotonic()
@@ -141,8 +188,19 @@ def run_baseline(start: dict, cmd: str, run_dir: Path, timeout: int, runner, nam
                         target.chmod((entry.external_attr >> 16) & 0o777)
         else:
             _git(tree, "checkout", "--detach", start["head"])
-        check = runner(cmd, tree / start["relative_cwd"], timeout, log_dir=run_dir, log_name=name)
+        probe = temporary / "import-probe"
+        probe.mkdir()
+        (probe / "sitecustomize.py").write_text(_IMPORT_PROBE, encoding="utf-8", newline="")
+        evidence = temporary / "import-origins"
+        env = _baseline_environment(Path(start["repo"]), tree / start["relative_cwd"], probe, evidence)
+        check = runner(cmd, tree / start["relative_cwd"], timeout, log_dir=run_dir, log_name=name, env=env)
         out = {"status": "Pass" if check["passed"] else "Fail", "head": start["head"], "check": check}
+        origins = sorted({origin for path in temporary.glob("import-origins.*.json")
+                          for origin in json.loads(path.read_text(encoding="utf-8"))})
+        out["import_origins"] = origins
+        if not check["passed"] and (not origins or any(
+                Path(p).resolve().is_relative_to(Path(start["repo"]).resolve()) for p in origins)):
+            out.update(status="Unknown", reason="baseline import origins unavailable or reference source tree")
     except (OSError, ValueError, subprocess.TimeoutExpired, zipfile.BadZipFile):
         out = {"status": "Unknown", "reason": "baseline checkout or command could not run"}
     finally:

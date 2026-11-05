@@ -65,8 +65,8 @@ def reviewer(candidates: list, rc: dict) -> tuple[str, str, str]:
     """An optional vendor:model[:effort] pin; unqualified legacy models still work."""
     agent, model, effort = candidates[0]
     pin = rc.get("tests_model") or ""
-    if ":" in pin:
-        from .agents import NAMES
+    from .agents import NAMES
+    if ":" in pin and pin.split(":", 1)[0] in NAMES:
         fields = pin.split(":")
         if len(fields) not in (2, 3) or fields[0] not in NAMES or not all(fields):
             raise ValueError("test reviewer must be vendor:model[:effort]")

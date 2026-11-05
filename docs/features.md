@@ -295,10 +295,13 @@ In Claude Code you say: "make `loader.py` accept a custom delimiter and add test
    note, L2 merge or project answer, weak or unknown-coverage check, ...), the lead is handed one JSON line (summary,
    files, diffstat, check, recap; `"view": "line"`) instead of the whole result, which it re-reads on every later
    turn; `ccx show <run_id>` gives the whole one, and `ccx config set output.lead full` restores it everywhere.
-   Serialized one-line JSON starts with an additive `headline` field, for example
+   By default, serialized one-line JSON starts with the new additive `headline` field, for example
    `{"headline":"DONE",...}`. `CHECK_FAILED` / `CHECK_BROKEN` take precedence over completion; other cues
    include `REVIEW_ISSUES`, `PARTIAL`, `STOPPED`, `SELF_CHECKED` and `UNVERIFIED`. They summarize existing
    evidence, not a new verdict. Native line mode still expands attention-worthy results into full JSON.
+   Check output retention is also a default addition: `stdout_path`, `stderr_path`, `stdout_truncated`,
+   `stderr_truncated`, and `failed_cases`, with at most 2 × 256 KiB of stdout/stderr per check, even with
+   baseline comparison off. The existing `tail` is unchanged; see [check records](check-baseline.md).
    `ok` retains its execution meaning: `compact()` in `ccx/delegate.py` derives it from `exit_ok(record)`,
    excluding worker statuses `blocked` / `failed` and environment failures. `exit_ok()` rejects review issues,
    failed reviews, broken checks, no changes and no answer, but does **not** reject `check_failed`.

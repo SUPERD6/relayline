@@ -198,9 +198,12 @@ I1 的白名单、同源检查、限长和一次性确认仍然有效，确认�
    没有新字段的旧记录仍可读取。
    预算停止写 `stopped: budget $X reached, review not run`（审查已跑则写修复轮未跑），审查错误写
    `review not run (<原因>)`，这些摘要使用 `stopped` / `partial` 和 `ok?`，保留原有 `ok_self_checked` 措辞及命令退出码。
-   序列化的一行 JSON 新增首字段 `headline`，例如 `{"headline":"DONE",...}`。
+   序列化的一行 JSON 默认新增首字段 `headline`，例如 `{"headline":"DONE",...}`。
    `CHECK_FAILED` / `CHECK_BROKEN` 优先于完成状态；其他提示包括 `REVIEW_ISSUES`、`PARTIAL`、
    `STOPPED`、`SELF_CHECKED`、`UNVERIFIED`。标签只概括已有证据，不新增判定；原生 line 模式仍把需关注的结果展开为完整 JSON。
+   默认还会新增日志保存行为与字段 `stdout_path`、`stderr_path`、`stdout_truncated`、`stderr_truncated`、
+   `failed_cases`：每次检查的 stdout/stderr 合计最多 2 × 256 KiB，基线比较关闭时也生效。
+   已有 `tail` 含义不变，详见[检查记录](check-baseline.zh.md)。
    `ok` 保持执行层面的含义：`ccx/delegate.py` 的 `compact()` 根据 `exit_ok(record)` 计算，
    再排除子智能体的 blocked/failed 状态和环境失败。`exit_ok()` 排除审查问题、审查失败、检查无法执行、
    没有改动和没有回答，却不排除 `check_failed`。所以 `ok=true`、检查失败和退出码 0 可以同时出现。
