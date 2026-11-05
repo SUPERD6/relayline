@@ -101,6 +101,29 @@ def test_baseline_removes_source_pythonpath_and_records_actual_imports(tmp_path,
     assert not any(Path(p).is_relative_to(root) for p in out["import_origins"])
 
 
+@pytest.mark.parametrize("source_entry", [False, True])
+def test_entrypoint_origin_survives_main_file_cleanup(tmp_path, monkeypatch, source_entry):
+    root = repository(tmp_path / "repo")
+    script = root / "check_run.py"
+    # Simulate CPython 3.13 removing this attribute before atexit on older Pythons.
+    script.write_text("del __file__\n" + script.read_text(encoding="utf-8"), encoding="utf-8", newline="")
+    git(root, "add", "check_run.py")
+    git(root, "commit", "-qm", "main cleanup fixture")
+    argument = "check_run.py"
+    if source_entry:
+        monkeypatch.setenv("BASELINE_ENTRY", str(script))
+        argument = '"%BASELINE_ENTRY%"' if os.name == "nt" else '"$BASELINE_ENTRY"'
+    out = baseline.run_baseline(baseline.capture(root), f'"{sys.executable}" {argument}',
+                                tmp_path, 30, run_check)
+    assert any(p.endswith("check_run.py") for p in out["import_origins"])
+    if source_entry:
+        assert out["status"] == "Unknown"
+        assert str(script.resolve()) in out["import_origins"]
+    else:
+        assert out["status"] == "Fail"
+        assert not any(Path(p).is_relative_to(root) for p in out["import_origins"])
+
+
 def test_editable_import_from_source_cannot_mask_new_failure(tmp_path, monkeypatch):
     root = repository(tmp_path / "repo")
     (root / "editable_target.py").write_text("value = 1\n", encoding="utf-8")

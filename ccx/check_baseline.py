@@ -123,6 +123,10 @@ def _ccx_import_origins():
     paths = set()
     for module in list(sys.modules.values()):
         filename = getattr(module, '__file__', None)
+        # CPython 3.13 clears __main__.__file__ before atexit, but retains
+        # the file loader used to execute it (Python/pythonrun.c).
+        if not filename and module is sys.modules.get('__main__'):
+            filename = getattr(getattr(module, '__loader__', None), 'path', None)
         if filename:
             paths.add(os.path.realpath(filename))
         for directory in getattr(module, '__path__', ()):

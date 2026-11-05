@@ -78,7 +78,7 @@
     "minesweeper"
   ],
   "eligibility_source": "fresh_selection.json eligible_ranked at the same source pin",
-  "eligibility_sha256": "99794882733a3c08e058e404d80fe20c7a70a0d9bd5a295ac67a10b1a25d824f",
+  "eligibility_sha256": "57c65b6eac9b94a33f80621f8458dbd0b4787868c50e08d5dfdb22dad949c718",
   "rule": {
     "practice_only": true,
     "implementation_files": 1,

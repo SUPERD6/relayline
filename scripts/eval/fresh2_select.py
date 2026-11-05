@@ -49,7 +49,8 @@ def select(read) -> dict:
             "source": base["source"], "exclusion_source": base["exclusion_source"],
             "previous_split_excluded": [t["slug"] for t in base["tasks"]],
             "eligibility_source": "fresh_selection.json eligible_ranked at the same source pin",
-            "eligibility_sha256": hashlib.sha256(BASE_FILE.read_bytes()).hexdigest(),
+            # Hash UTF-8 text with LF endings, independent of Git checkout conversion.
+            "eligibility_sha256": hashlib.sha256(BASE_FILE.read_text(encoding="utf-8").encode("utf-8")).hexdigest(),
             "rule": {**base["rule"], "salt": SALT}, "eligible_count": len(ranked()),
             "eligible_ranked": ranked(),
             "grading_rejections": base["grading_rejections"] + [

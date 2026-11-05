@@ -89,6 +89,29 @@ def test_selector_cli_outside_repo_reads_only_fixed_source(tmp_path):
     assert json.loads(out.read_text(encoding="utf-8")) == tasks_fresh2.SELECTION
 
 
+@pytest.mark.parametrize("ending", ["\n", "\r\n"])
+def test_eligibility_hash_ignores_checkout_endings_but_detects_content(tmp_path, monkeypatch, ending):
+    text = fresh2_select.BASE_FILE.read_text(encoding="utf-8")
+    copy = tmp_path / "fresh_selection.json"
+    copy.write_bytes(text.replace("\n", ending).encode("utf-8"))
+    monkeypatch.setattr(fresh2_select, "BASE_FILE", copy)
+    def read(rel):
+        if rel == "config.json":
+            return json.dumps({"exercises": {"practice": [
+                {"slug": s, "difficulty": 3} for s in fresh2_select.ranked()]}})
+        if rel.endswith(".meta/config.json"):
+            return json.dumps({"files": {"solution": ["solution.py"], "test": ["test.py"]}})
+        return "def test_example():\n    pass\n"
+    selected = fresh2_select.select(read)
+    expected = hashlib.sha256(text.encode("utf-8")).hexdigest()
+    assert selected["eligibility_sha256"] == expected == tasks_fresh2.SELECTION["eligibility_sha256"]
+    # Preserve JSON byte order/format sensitivity: normalize only line endings.
+    copy.write_bytes((text + " ").replace("\n", ending).encode("utf-8"))
+    changed = fresh2_select.select(read)
+    assert changed["eligibility_sha256"] != expected
+    assert changed["tasks"] == selected["tasks"]
+
+
 def test_second_split_summary_stays_separate_and_unknown():
     rows = [{"taskset": "fresh2", "arm": arm, "tag": "p3r2", "round": 1, "task": "x", "ok": True,
              "env_clean": True, "usd": usd, "wall_s": 1} for arm, usd in (("self", 1), ("ccx3cand", 2))]
