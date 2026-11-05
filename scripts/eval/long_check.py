@@ -86,9 +86,18 @@ def frozen_check(cache: Path, python: str, raw_dir: Path | None = None) -> dict:
     return {"runtime": runtime(python), "checked": rows, "valid": all(r["valid"] for r in rows)}
 
 
-def validate(cache: Path, python: str, count=12, repos=REPOS, limit=0, commit="", raw_dir=None) -> dict:
+def validate(cache: Path, python: str, count=12, repos=REPOS, limit=0, commit="", raw_dir=None, exclude=(), validator=None) -> dict:
     accepted, checked, qualified = [], [], []
-    catalog = {repo: candidates(cache, repo) for repo in repos}
+    catalog = {}
+    missing = []
+    for repo in repos:
+        try:
+            catalog[repo] = [r for r in candidates(cache, repo) if r["commit"] not in exclude]
+        except FileNotFoundError:
+            if not exclude:  # keep the original P4 missing-cache behavior
+                raise
+            catalog[repo] = []
+            missing.append(repo)
     report = {"selection": RULE, "old_rule": OLD_RULE, "repository_order": list(repos),
               "ordering": "within repository: commit timestamp descending, full SHA ascending; first passing full groups of four",
               "history_scope": "all locally available single-parent commits, no date limit, no network fetch",
@@ -96,21 +105,27 @@ def validate(cache: Path, python: str, count=12, repos=REPOS, limit=0, commit=""
               "runtime": runtime(python), "accepted": accepted, "qualified": qualified, "checked": checked,
               "raw_directory": str(raw_dir.as_posix()) if raw_dir else None,
               "target_count": count, "complete": False}
+    if exclude:
+        report.update(excluded_commits=sorted(exclude), missing_cached_repositories=missing)
     # Repository priority and chronological order are fixed before any model run.
     for repo in repos:
         repo_qualified = []
         for t in (catalog[repo][:limit] if limit else catalog[repo]):
             if commit and not t["commit"].startswith(commit):
                 continue
-            m = material(cache, t)
-            with tempfile.TemporaryDirectory(prefix="p4-check-") as tmp:
-                root = Path(tmp)
-                parent = check_tree(m["tar"], m["tests"], t["tests"], python, root / "parent",
-                                    raw_dir / (t["commit"] + "-parent.txt") if raw_dir else None)
-                reference = check_tree(m["reference"], m["tests"], t["tests"], python, root / "reference",
-                                       raw_dir / (t["commit"] + "-reference.txt") if raw_dir else None)
-            valid = parent["rc"] in (1, 2) and reference["rc"] == 0
-            row = {**t, "parent": parent, "reference": reference, "valid": valid}
+            if validator:
+                row = {**t, **validator(cache, python, t, raw_dir)}
+                parent, reference, valid = row["parent"], row["reference"], row["valid"]
+            else:
+                m = material(cache, t)
+                with tempfile.TemporaryDirectory(prefix="p4-check-") as tmp:
+                    root = Path(tmp)
+                    parent = check_tree(m["tar"], m["tests"], t["tests"], python, root / "parent",
+                                        raw_dir / (t["commit"] + "-parent.txt") if raw_dir else None)
+                    reference = check_tree(m["reference"], m["tests"], t["tests"], python, root / "reference",
+                                           raw_dir / (t["commit"] + "-reference.txt") if raw_dir else None)
+                valid = parent["rc"] in (1, 2) and reference["rc"] == 0
+                row = {**t, "parent": parent, "reference": reference, "valid": valid}
             checked.append(row)
             print(f"{repo} {t['commit'][:10]} code={t['code_lines']}/{len(t['code'])} parent={parent['rc']} reference={reference['rc']} valid={valid}", flush=True)
             if valid:

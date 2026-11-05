@@ -1,0 +1,394 @@
+{
+  "evidence": "engineering check",
+  "rows": [
+    {
+      "task": "long-boltons-iterutils",
+      "run_id": "20261104-190247-3319",
+      "first_turn_usage": [
+        {
+          "input_tokens": 268945,
+          "cached_input_tokens": 233600,
+          "cache_write_input_tokens": 0,
+          "output_tokens": 3981,
+          "reasoning_output_tokens": 819
+        }
+      ],
+      "tool_calls": 7,
+      "observed_content": {
+        "file_reads": {
+          "characters": 37699,
+          "tokens_proxy": 9425,
+          "range": [
+            6283,
+            18850
+          ]
+        },
+        "command_outputs": {
+          "characters": 6697,
+          "tokens_proxy": 1674,
+          "range": [
+            1116,
+            3348
+          ]
+        },
+        "agents_md_mixed": {
+          "characters": 0,
+          "tokens_proxy": 0,
+          "range": [
+            0,
+            0
+          ]
+        }
+      },
+      "first_request_system_tools_tokens": "Unknown",
+      "first_request_file_reads_tokens": 0,
+      "first_request_command_outputs_tokens": 0,
+      "inherited_context_file_command_tokens": "Unknown",
+      "automatic_AGENTS_tokens": "Unknown",
+      "basis": "first native invocation events.0.log only; turn usage sums all requests; this session's tool returns occur after first request; inherited/shared file and command context Unknown; unique output characters/4 (range /6../2), no repeated-context attribution",
+      "repository_AGENTS_files": [],
+      "repository_AGENTS_tokens": 0
+    },
+    {
+      "task": "long-boltons-file-path-names",
+      "run_id": "20261104-190703-c776",
+      "first_turn_usage": [
+        {
+          "input_tokens": 273891,
+          "cached_input_tokens": 238592,
+          "cache_write_input_tokens": 0,
+          "output_tokens": 1839,
+          "reasoning_output_tokens": 0
+        }
+      ],
+      "tool_calls": 6,
+      "observed_content": {
+        "file_reads": {
+          "characters": 36796,
+          "tokens_proxy": 9199,
+          "range": [
+            6133,
+            18398
+          ]
+        },
+        "command_outputs": {
+          "characters": 33617,
+          "tokens_proxy": 8404,
+          "range": [
+            5603,
+            16808
+          ]
+        },
+        "agents_md_mixed": {
+          "characters": 0,
+          "tokens_proxy": 0,
+          "range": [
+            0,
+            0
+          ]
+        }
+      },
+      "first_request_system_tools_tokens": "Unknown",
+      "first_request_file_reads_tokens": 0,
+      "first_request_command_outputs_tokens": 0,
+      "inherited_context_file_command_tokens": "Unknown",
+      "automatic_AGENTS_tokens": "Unknown",
+      "basis": "first native invocation events.0.log only; turn usage sums all requests; this session's tool returns occur after first request; inherited/shared file and command context Unknown; unique output characters/4 (range /6../2), no repeated-context attribution",
+      "repository_AGENTS_files": [],
+      "repository_AGENTS_tokens": 0
+    },
+    {
+      "task": "long-boltons-gc-types-trace",
+      "run_id": "20261104-191333-a50d",
+      "first_turn_usage": [
+        {
+          "input_tokens": 170832,
+          "cached_input_tokens": 143232,
+          "cache_write_input_tokens": 0,
+          "output_tokens": 2533,
+          "reasoning_output_tokens": 615
+        }
+      ],
+      "tool_calls": 6,
+      "observed_content": {
+        "file_reads": {
+          "characters": 21184,
+          "tokens_proxy": 5296,
+          "range": [
+            3531,
+            10592
+          ]
+        },
+        "command_outputs": {
+          "characters": 1434,
+          "tokens_proxy": 358,
+          "range": [
+            239,
+            717
+          ]
+        },
+        "agents_md_mixed": {
+          "characters": 1535,
+          "tokens_proxy": 384,
+          "range": [
+            256,
+            768
+          ]
+        }
+      },
+      "first_request_system_tools_tokens": "Unknown",
+      "first_request_file_reads_tokens": 0,
+      "first_request_command_outputs_tokens": 0,
+      "inherited_context_file_command_tokens": "Unknown",
+      "automatic_AGENTS_tokens": "Unknown",
+      "basis": "first native invocation events.0.log only; turn usage sums all requests; this session's tool returns occur after first request; inherited/shared file and command context Unknown; unique output characters/4 (range /6../2), no repeated-context attribution",
+      "repository_AGENTS_files": [],
+      "repository_AGENTS_tokens": 0
+    },
+    {
+      "task": "long-boltons-indexed-set",
+      "run_id": "20261104-191641-6116",
+      "first_turn_usage": [
+        {
+          "input_tokens": 381326,
+          "cached_input_tokens": 339328,
+          "cache_write_input_tokens": 0,
+          "output_tokens": 5849,
+          "reasoning_output_tokens": 1897
+        }
+      ],
+      "tool_calls": 9,
+      "observed_content": {
+        "file_reads": {
+          "characters": 69083,
+          "tokens_proxy": 17271,
+          "range": [
+            11514,
+            34542
+          ]
+        },
+        "command_outputs": {
+          "characters": 9259,
+          "tokens_proxy": 2315,
+          "range": [
+            1543,
+            4630
+          ]
+        },
+        "agents_md_mixed": {
+          "characters": 0,
+          "tokens_proxy": 0,
+          "range": [
+            0,
+            0
+          ]
+        }
+      },
+      "first_request_system_tools_tokens": "Unknown",
+      "first_request_file_reads_tokens": 0,
+      "first_request_command_outputs_tokens": 0,
+      "inherited_context_file_command_tokens": "Unknown",
+      "automatic_AGENTS_tokens": "Unknown",
+      "basis": "first native invocation events.0.log only; turn usage sums all requests; this session's tool returns occur after first request; inherited/shared file and command context Unknown; unique output characters/4 (range /6../2), no repeated-context attribution",
+      "repository_AGENTS_files": [],
+      "repository_AGENTS_tokens": 0
+    },
+    {
+      "task": "long-boltons-mapping-updates",
+      "run_id": "20261104-192309-6a4a",
+      "first_turn_usage": [
+        {
+          "input_tokens": 196293,
+          "cached_input_tokens": 162304,
+          "cache_write_input_tokens": 0,
+          "output_tokens": 3202,
+          "reasoning_output_tokens": 235
+        }
+      ],
+      "tool_calls": 6,
+      "observed_content": {
+        "file_reads": {
+          "characters": 40928,
+          "tokens_proxy": 10232,
+          "range": [
+            6821,
+            20464
+          ]
+        },
+        "command_outputs": {
+          "characters": 1616,
+          "tokens_proxy": 404,
+          "range": [
+            269,
+            808
+          ]
+        },
+        "agents_md_mixed": {
+          "characters": 0,
+          "tokens_proxy": 0,
+          "range": [
+            0,
+            0
+          ]
+        }
+      },
+      "first_request_system_tools_tokens": "Unknown",
+      "first_request_file_reads_tokens": 0,
+      "first_request_command_outputs_tokens": 0,
+      "inherited_context_file_command_tokens": "Unknown",
+      "automatic_AGENTS_tokens": "Unknown",
+      "basis": "first native invocation events.0.log only; turn usage sums all requests; this session's tool returns occur after first request; inherited/shared file and command context Unknown; unique output characters/4 (range /6../2), no repeated-context attribution",
+      "repository_AGENTS_files": [],
+      "repository_AGENTS_tokens": 0
+    },
+    {
+      "task": "long-boltons-barrel-list",
+      "run_id": "20261104-192745-6853",
+      "first_turn_usage": [
+        {
+          "input_tokens": 154448,
+          "cached_input_tokens": 126720,
+          "cache_write_input_tokens": 0,
+          "output_tokens": 4601,
+          "reasoning_output_tokens": 1025
+        }
+      ],
+      "tool_calls": 5,
+      "observed_content": {
+        "file_reads": {
+          "characters": 22582,
+          "tokens_proxy": 5646,
+          "range": [
+            3764,
+            11291
+          ]
+        },
+        "command_outputs": {
+          "characters": 810,
+          "tokens_proxy": 202,
+          "range": [
+            135,
+            405
+          ]
+        },
+        "agents_md_mixed": {
+          "characters": 0,
+          "tokens_proxy": 0,
+          "range": [
+            0,
+            0
+          ]
+        }
+      },
+      "first_request_system_tools_tokens": "Unknown",
+      "first_request_file_reads_tokens": 0,
+      "first_request_command_outputs_tokens": 0,
+      "inherited_context_file_command_tokens": "Unknown",
+      "automatic_AGENTS_tokens": "Unknown",
+      "basis": "first native invocation events.0.log only; turn usage sums all requests; this session's tool returns occur after first request; inherited/shared file and command context Unknown; unique output characters/4 (range /6../2), no repeated-context attribution",
+      "repository_AGENTS_files": [],
+      "repository_AGENTS_tokens": 0
+    },
+    {
+      "task": "long-boltons-ellipsize",
+      "run_id": "20261104-193237-772a",
+      "first_turn_usage": [
+        {
+          "input_tokens": 112527,
+          "cached_input_tokens": 88192,
+          "cache_write_input_tokens": 0,
+          "output_tokens": 2305,
+          "reasoning_output_tokens": 487
+        }
+      ],
+      "tool_calls": 5,
+      "observed_content": {
+        "file_reads": {
+          "characters": 11604,
+          "tokens_proxy": 2901,
+          "range": [
+            1934,
+            5802
+          ]
+        },
+        "command_outputs": {
+          "characters": 638,
+          "tokens_proxy": 160,
+          "range": [
+            106,
+            319
+          ]
+        },
+        "agents_md_mixed": {
+          "characters": 0,
+          "tokens_proxy": 0,
+          "range": [
+            0,
+            0
+          ]
+        }
+      },
+      "first_request_system_tools_tokens": "Unknown",
+      "first_request_file_reads_tokens": 0,
+      "first_request_command_outputs_tokens": 0,
+      "inherited_context_file_command_tokens": "Unknown",
+      "automatic_AGENTS_tokens": "Unknown",
+      "basis": "first native invocation events.0.log only; turn usage sums all requests; this session's tool returns occur after first request; inherited/shared file and command context Unknown; unique output characters/4 (range /6../2), no repeated-context attribution",
+      "repository_AGENTS_files": [],
+      "repository_AGENTS_tokens": 0
+    },
+    {
+      "task": "long-boltons-timezone-fold",
+      "run_id": "20261104-193606-4929",
+      "first_turn_usage": [
+        {
+          "input_tokens": 133437,
+          "cached_input_tokens": 90624,
+          "cache_write_input_tokens": 0,
+          "output_tokens": 2931,
+          "reasoning_output_tokens": 362
+        }
+      ],
+      "tool_calls": 5,
+      "observed_content": {
+        "file_reads": {
+          "characters": 9547,
+          "tokens_proxy": 2387,
+          "range": [
+            1591,
+            4774
+          ]
+        },
+        "command_outputs": {
+          "characters": 801,
+          "tokens_proxy": 200,
+          "range": [
+            134,
+            400
+          ]
+        },
+        "agents_md_mixed": {
+          "characters": 0,
+          "tokens_proxy": 0,
+          "range": [
+            0,
+            0
+          ]
+        }
+      },
+      "first_request_system_tools_tokens": "Unknown",
+      "first_request_file_reads_tokens": 0,
+      "first_request_command_outputs_tokens": 0,
+      "inherited_context_file_command_tokens": "Unknown",
+      "automatic_AGENTS_tokens": "Unknown",
+      "basis": "first native invocation events.0.log only; turn usage sums all requests; this session's tool returns occur after first request; inherited/shared file and command context Unknown; unique output characters/4 (range /6../2), no repeated-context attribution",
+      "repository_AGENTS_files": [],
+      "repository_AGENTS_tokens": 0
+    }
+  ],
+  "limitations": [
+    "No system/developer/tool-schema request dump or per-request usage in native events.",
+    "No reads of user/evaluation Codex homes. Automatic global/ancestor AGENTS and shared context remain Unknown.",
+    "Read-command output may mix filenames, file contents and diagnostics; estimates are content proxies, not billed token fractions."
+  ]
+}

@@ -121,3 +121,34 @@ def keep(dest: Path, unit, lead: Path, env: dict | None = None) -> dict | None:
     if not kept:
         return None
     return {"dir": Path(dest).parent.name, "path": "streams", "files": kept, "redacted": True}
+
+
+def keep_checks(dest: Path, source: Path, unit, env=None):
+    """Full check text, not just tails. Keep actual local execution paths in metadata."""
+    if not source.is_dir() or source.is_symlink():
+        return {"status": "not-run", "files": []}
+    redactor = Redactor(unit, env)
+    files = []
+    for folder in sorted(source.glob("check-*")):
+        if folder.is_symlink() or not folder.resolve().is_relative_to(source.resolve()):
+            continue
+        for name in ("stdout.log", "stderr.log", "execution.json"):
+            path = folder/name
+            if not path.is_file() or path.is_symlink():
+                continue
+            text = path.read_text(encoding="utf-8", errors="replace")
+            safe = redactor.text(text)
+            if name == "execution.json":
+                data = json.loads(text)
+                # These exact local paths are explicitly requested for diagnosis. No auth/config copied.
+                cleaned = redactor.value(data)
+                for key in ("cwd", "resolved_program", "interpreter_probe", "tmp"):
+                    cleaned[key] = data.get(key)
+                safe = json.dumps(cleaned, indent=2)+"\n"
+            target = dest/folder.name/name
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_text(safe, encoding="utf-8", newline="")
+            files.append({"file": f"{folder.name}/{name}", "bytes": len(safe.encode()),
+                          "sha256": hashlib.sha256(safe.encode()).hexdigest()})
+    return {"status": "saved" if files else "Unknown", "path": "checks", "files": files,
+            "redacted": "full text redacted; execution metadata keeps actual local paths"}

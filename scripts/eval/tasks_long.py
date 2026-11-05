@@ -101,6 +101,14 @@ for index, row in enumerate(SELECTION["accepted"]):
               "id": "long-" + name, "brief": brief, "split": "dev" if index < 4 else "final"})
 IDS = [t["id"] for t in T]
 
+# Separate opt-in split: T / IDS and the legacy all schedule retain their meanings.
+P5_SELECTION_FILE = Path(__file__).with_name("p5_long_selection.json")
+P5_SELECTION = json.loads(P5_SELECTION_FILE.read_text(encoding="utf-8")) if P5_SELECTION_FILE.exists() else {}
+P5_T = [{**row, "id": "p5-long-" + row["commit"][:12], "split": "p5",
+         "brief": row["brief"]} for row in P5_SELECTION.get("accepted", [])]
+P5_AUDITED_T = [{**row, "id": "p5-long-" + row["commit"][:12], "split": "p5"}
+                for row in P5_SELECTION.get("audited_tasks", [])]
+
 
 def by_id(task_id):
-    return next(t for t in T if t["id"] == task_id)
+    return next(t for t in T + P5_T + P5_AUDITED_T if t["id"] == task_id)
