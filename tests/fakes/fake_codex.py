@@ -189,6 +189,8 @@ res = {"status": status, "summary": os.environ.get("FAKE_SUMMARY") or f"fake cod
        "open_questions": [] if status == "done" else ["need X"], "next_step": ""}
 from fake_discuss import answer as _discuss  # noqa: E402
 res = _discuss(prompt, "codex", log) or res
+from fake_test_review import answer as _test_review  # noqa: E402
+res = _test_review(prompt) or res
 print(json.dumps({"type": "item.completed", "item": {"id": "i1", "type": "agent_message", "text": json.dumps(res)}}))
 usage = {"input_tokens": 1200, "cached_input_tokens": 800, "output_tokens": 150}
 if log:   # like codex-cli 0.164: turn.completed after `exec resume` carries the session's running total

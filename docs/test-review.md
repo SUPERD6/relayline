@@ -12,8 +12,18 @@ candidate is explicitly marked `independent=false` and Unknown, without running 
 `review.tests_model` and `review.tests_effort` optionally override the selected candidate
 for test review only; both default to empty (keep the existing candidate). Use a model
 supported by that candidate's vendor. These keys do not enable test review or change read review.
-The input is `user_task` if recorded, otherwise the original brief (including on a fix
-round). Shared context and the implementer's test results are not an oracle.
+`tests_model` also accepts `vendor:model[:effort]`, for example `claude:sonnet:medium`
+or `codex:gpt-6.1-sol:medium`. A vendor pin still has to differ from the implementer's
+vendor; it cannot bypass independence. An explicit `tests_effort` takes precedence.
+Test review supplies the saved `user-words.md` block first, if present, followed by
+the assigned `user_task` (or original brief fallback, including on a fix round).
+Each has a separate source label; equal content is retained twice, without merging
+or deduplication. The original-wording source and retained character count are labelled,
+and its existing truncation notice is preserved. No extra task cap is introduced.
+Both generation and failure confirmation use these sources, reusing the saved capture
+on resume without rereading the external original-wording file. Quotes must match
+within either source separately; labels and capture notices are not task requirements.
+Shared context and the implementer's test results are not an oracle.
 `ccx run --user-task-file original.txt` supplies UTF-8 original wording separately from
 the worker brief. Otherwise the run entry captures the supplied task before role/project
 wrapping. Test-mode runs save it as `run.json.user_task`; fix rounds and resumes retain it.
@@ -28,6 +38,8 @@ root-level `manifest.json` containing filenames and task quotes. The legacy ambi
 Quotes must be task substrings after collapsing whitespace and removing punctuation
 (including Markdown backticks); paraphrases, changed words/numbers and punctuation-only
 quotes are rejected. Every quote is validated, including repeated entries for a file;
+Rendered Markdown link labels may omit their URL destinations; the words still must
+match the task, and paraphrases remain invalid.
 each file runs once and may carry several valid quotes. ccx executes these tests
 in a separate Python process. Assertion failures and exceptions raised inside test methods
 are checked by the reviewer against the task and for errors in the test itself. Only
@@ -55,6 +67,18 @@ also retains the manifest, rejection diagnostics, and confirmation-call errors. 
 `native_usd` sums CLI-reported costs, or is null when any call's cost is unavailable.
 The existing `usd` field remains the configured API-equivalent estimate; it may differ
 from native cost when the CLI actually uses a different model.
+
+Test review now supplies the pre-change Python interface from the run's undo snapshot
+(replay explicitly uses its committed original stubs). Signatures, annotations, bases,
+decorators, literal defaults and docstrings are preserved, without function bodies or
+tests. Changed files come first within a 24,000-character budget. Missing snapshots,
+unparseable files and omitted interfaces are explicitly Unknown; current implementation
+choices are not a substitute for a specification. No missing return contract is invented.
+Before reading implementation code, the reviewer is asked to write `behaviors.json`
+listing task quotes, interface assumptions, expected types/shapes/units, planned tests
+and uncovered/Unknown requirements. `review-tests/interface.md` and any generated
+`behaviors.json` are saved, with additive `interface_path` and `behaviors_path` fields.
+The checklist is supporting evidence, not a new correctness score or pass criterion.
 
 ## pg3b replay
 
@@ -108,6 +132,13 @@ to empty. Keep numeric `--unit-cap 0.10`, or repeat model overrides, for example
 so the reservation cannot silently use the wrong model's allowance. Each output row,
 including a skipped or Unknown unit, records the requested overrides and effective unit cap;
 `by` and `reviewer_calls` record the selected reviewer when it runs.
+`--review-model` is an alias, accepting qualified pins too. For example, dry-run with
+`--review-model claude:sonnet --unit-cap claude:sonnet=0.40` reserves at most $11.60
+for 29 units. This is a chosen admission reservation, not a measured expected bill.
+`--review-model codex:gpt-6.1-sol` parses and selects Codex, but the paid replay remains
+Unknown without launching it: these receipts have Codex implementers (same vendor),
+and this replay has no native Codex USD budget enforcement. Product test review can
+use Codex on Claude work; only fake-CLI wiring has been checked here.
 Replay confirmation uses `dontAsk` with Read/Grep/Glob rather than `plan`: round-one
 native telemetry showed Sonnet execution despite a Haiku request in all four plan-mode
 confirmation calls. The new flags are fake-CLI checked; runtime model fidelity still
@@ -127,3 +158,10 @@ r5 adds opt-in `--arms ccx2rt`: the same lead and prompt as `ccx2`, with the uni
 The historical first replay produced four pass and 25 Unknown outcomes, with no issues;
 see the diagnosis above. The repaired version has only fake-CLI engineering checks,
 and the pg3b efficacy gate remains Unknown.
+
+The historical second replay at `b7f9463` found 0 confirmed catches, 8 wrong passes,
+7 wrong Unknowns, 9 correct passes and 5 correct Unknowns. The gate failed even under
+the optimistic 7/15 catch interpretation. The [R2 diagnosis](research/2026-11-05-p2-r2-diagnostics.md)
+inspects all misses/Unknowns; current changes are engineering checks only. The task set,
+scores, thresholds (catch ≥50%, false block ≤20%), default `read` mode and existing
+verdict/exit rules are unchanged. Two failed rounds do not authorize another paid run.
