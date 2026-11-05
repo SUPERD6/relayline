@@ -1,0 +1,580 @@
+{
+  "about": "Second fresh split; fixed salt and frozen eligibility, no model outcomes used.",
+  "source": {
+    "repo": "https://github.com/exercism/python",
+    "commit": "6105f6d9d3ef66ce3d5c8f529d2882af3d76b706",
+    "license": "MIT"
+  },
+  "exclusion_source": {
+    "repo": "https://github.com/Aider-AI/polyglot-benchmark",
+    "commit": "7e0611e77b54e2dea774cdc0aa00cf9f7ed6144f",
+    "slugs": [
+      "affine-cipher",
+      "beer-song",
+      "book-store",
+      "bottle-song",
+      "bowling",
+      "connect",
+      "dominoes",
+      "dot-dsl",
+      "food-chain",
+      "forth",
+      "go-counting",
+      "grade-school",
+      "grep",
+      "hangman",
+      "list-ops",
+      "paasio",
+      "phone-number",
+      "pig-latin",
+      "poker",
+      "pov",
+      "proverb",
+      "react",
+      "rest-api",
+      "robot-name",
+      "scale-generator",
+      "sgf-parsing",
+      "simple-linked-list",
+      "transpose",
+      "tree-building",
+      "two-bucket",
+      "variable-length-quantity",
+      "wordy",
+      "zebra-puzzle",
+      "zipper"
+    ]
+  },
+  "previous_split_excluded": [
+    "pythagorean-triplet",
+    "circular-buffer",
+    "simple-cipher",
+    "prime-factors",
+    "rational-numbers",
+    "high-scores",
+    "meetup",
+    "queen-attack",
+    "matrix",
+    "trinary",
+    "allergies",
+    "say",
+    "kindergarten-garden",
+    "roman-numerals",
+    "custom-set",
+    "matching-brackets",
+    "rail-fence-cipher",
+    "sublist",
+    "state-of-tic-tac-toe",
+    "game-of-life",
+    "flower-field",
+    "nucleotide-count",
+    "luhn",
+    "pascals-triangle",
+    "saddle-points",
+    "linked-list",
+    "hexadecimal",
+    "nth-prime",
+    "yacht",
+    "minesweeper"
+  ],
+  "eligibility_source": "fresh_selection.json eligible_ranked at the same source pin",
+  "eligibility_sha256": "99794882733a3c08e058e404d80fe20c7a70a0d9bd5a295ac67a10b1a25d824f",
+  "rule": {
+    "practice_only": true,
+    "implementation_files": 1,
+    "third_party_dependencies": false,
+    "example_or_exemplar_required": true,
+    "difficulty_min": 2,
+    "difficulty_max": 9,
+    "difficulty_basis": "inclusive min/max of the 30 pg1 exercises; not a matched histogram",
+    "order": "ascending sha256(UTF-8(slug + salt)), slug tie-break",
+    "salt": "p3r2-2026-11-05-slim-small",
+    "take": 30,
+    "grading_failure": "reject only if stub passes or example/exemplar fails; advance in this order, record reason"
+  },
+  "eligible_count": 42,
+  "eligible_ranked": [
+    "rectangles",
+    "all-your-base",
+    "word-count",
+    "crypto-square",
+    "strain",
+    "satellite",
+    "word-search",
+    "knapsack",
+    "bank-account",
+    "twelve-days",
+    "ocr-numbers",
+    "binary",
+    "camicia",
+    "change",
+    "series",
+    "spiral-matrix",
+    "accumulate",
+    "point-mutations",
+    "eliuds-eggs",
+    "sieve",
+    "parallel-letter-frequency",
+    "palindrome-products",
+    "scrabble-score",
+    "binary-search-tree",
+    "acronym",
+    "octal",
+    "robot-simulator",
+    "diamond",
+    "alphametics",
+    "swift-scheduling",
+    "atbash-cipher",
+    "diffie-hellman",
+    "square-root",
+    "complex-numbers",
+    "clock",
+    "largest-series-product",
+    "relative-distance",
+    "run-length-encoding",
+    "killer-sudoku-helper",
+    "dnd-character",
+    "protein-translation",
+    "tournament"
+  ],
+  "grading_rejections": [
+    {
+      "slug": "ledger",
+      "reason": "stub already passes all 11 hidden tests"
+    },
+    {
+      "slug": "markdown",
+      "reason": "stub already passes all 17 hidden tests"
+    },
+    {
+      "slug": "alphametics",
+      "reason": "official example: 9 passed, 1 skipped; existing grader rejects skipped tests"
+    }
+  ],
+  "limitations": [
+    "Fresh means excluded from the 34 polyglot Python exercises, not unseen in model training.",
+    "Exercism ratings do not establish difficulty equivalence for current models."
+  ],
+  "tasks": [
+    {
+      "id": "fresh2-rectangles",
+      "slug": "rectangles",
+      "language": "python",
+      "exercism_difficulty": 3,
+      "tests": 14,
+      "solution": [
+        "rectangles.py"
+      ],
+      "test": [
+        "rectangles_test.py"
+      ],
+      "sha256": "0ab2f267aaf85f82d2557ce7fc1878efe5f5d9cd91ac01b481591d0379146f08"
+    },
+    {
+      "id": "fresh2-all-your-base",
+      "slug": "all-your-base",
+      "language": "python",
+      "exercism_difficulty": 4,
+      "tests": 21,
+      "solution": [
+        "all_your_base.py"
+      ],
+      "test": [
+        "all_your_base_test.py"
+      ],
+      "sha256": "11907904be3d1a59ac4420eed6fa9571def59f3a69fb2c8d33865906015350e7"
+    },
+    {
+      "id": "fresh2-word-count",
+      "slug": "word-count",
+      "language": "python",
+      "exercism_difficulty": 2,
+      "tests": 17,
+      "solution": [
+        "word_count.py"
+      ],
+      "test": [
+        "word_count_test.py"
+      ],
+      "sha256": "1ae93f99c677a7da8c1b118a0a2b0520e65baaafdc3dd04e6b3db60f70853d84"
+    },
+    {
+      "id": "fresh2-crypto-square",
+      "slug": "crypto-square",
+      "language": "python",
+      "exercism_difficulty": 3,
+      "tests": 8,
+      "solution": [
+        "crypto_square.py"
+      ],
+      "test": [
+        "crypto_square_test.py"
+      ],
+      "sha256": "1c8945786e99afae47d5194b017ddb4eb3a5f15dd18a20018e44c88ebf93022e"
+    },
+    {
+      "id": "fresh2-strain",
+      "slug": "strain",
+      "language": "python",
+      "exercism_difficulty": 3,
+      "tests": 8,
+      "solution": [
+        "strain.py"
+      ],
+      "test": [
+        "strain_test.py"
+      ],
+      "sha256": "2aa3827f74c0d892ee71779cc2be379d296675da7d94792d19fb7b5564c339e2"
+    },
+    {
+      "id": "fresh2-satellite",
+      "slug": "satellite",
+      "language": "python",
+      "exercism_difficulty": 7,
+      "tests": 9,
+      "solution": [
+        "satellite.py"
+      ],
+      "test": [
+        "satellite_test.py"
+      ],
+      "sha256": "30e923b3261589c082f87e74efb302c7d3504ec36427ba9fc8f009a2a302f284"
+    },
+    {
+      "id": "fresh2-word-search",
+      "slug": "word-search",
+      "language": "python",
+      "exercism_difficulty": 6,
+      "tests": 24,
+      "solution": [
+        "word_search.py"
+      ],
+      "test": [
+        "word_search_test.py"
+      ],
+      "sha256": "39ac9ca6b68066292e119076d1c0e92a7d736f74541572106a136cb915cde8d8"
+    },
+    {
+      "id": "fresh2-knapsack",
+      "slug": "knapsack",
+      "language": "python",
+      "exercism_difficulty": 5,
+      "tests": 7,
+      "solution": [
+        "knapsack.py"
+      ],
+      "test": [
+        "knapsack_test.py"
+      ],
+      "sha256": "43da8bae355aef59f558df4aedfad0b9554093ffde2e8def833dab8307d8940d"
+    },
+    {
+      "id": "fresh2-bank-account",
+      "slug": "bank-account",
+      "language": "python",
+      "exercism_difficulty": 6,
+      "tests": 16,
+      "solution": [
+        "bank_account.py"
+      ],
+      "test": [
+        "bank_account_test.py"
+      ],
+      "sha256": "455b4d0052f6147c42fda29dd6efba9c6a8d7f3d5fd192f6a8b6c82b260b0dc6"
+    },
+    {
+      "id": "fresh2-twelve-days",
+      "slug": "twelve-days",
+      "language": "python",
+      "exercism_difficulty": 2,
+      "tests": 15,
+      "solution": [
+        "twelve_days.py"
+      ],
+      "test": [
+        "twelve_days_test.py"
+      ],
+      "sha256": "52c21e9df95cc2610af4b7ff0197ee43ee5cdc2ccd065bb91e1a217cf5ff5384"
+    },
+    {
+      "id": "fresh2-ocr-numbers",
+      "slug": "ocr-numbers",
+      "language": "python",
+      "exercism_difficulty": 3,
+      "tests": 17,
+      "solution": [
+        "ocr_numbers.py"
+      ],
+      "test": [
+        "ocr_numbers_test.py"
+      ],
+      "sha256": "5f33a82340ed362f219973b94238fa8d826f12afab75ec7f2b3fff0ae35309bd"
+    },
+    {
+      "id": "fresh2-binary",
+      "slug": "binary",
+      "language": "python",
+      "exercism_difficulty": 3,
+      "tests": 11,
+      "solution": [
+        "binary.py"
+      ],
+      "test": [
+        "binary_test.py"
+      ],
+      "sha256": "6745d13253ba973cd4ca7b8e23887b05413492b19272c6e2e104acf6f1d908af"
+    },
+    {
+      "id": "fresh2-camicia",
+      "slug": "camicia",
+      "language": "python",
+      "exercism_difficulty": 5,
+      "tests": 28,
+      "solution": [
+        "camicia.py"
+      ],
+      "test": [
+        "camicia_test.py"
+      ],
+      "sha256": "687c01bf1e2fab25d32b9c8405067e977ea33998d02dd9f63482f139f82b45cc"
+    },
+    {
+      "id": "fresh2-change",
+      "slug": "change",
+      "language": "python",
+      "exercism_difficulty": 4,
+      "tests": 13,
+      "solution": [
+        "change.py"
+      ],
+      "test": [
+        "change_test.py"
+      ],
+      "sha256": "6bfbd6fe90a4bfca2606bcbf69b29d7149dd02ef107980eb06bd5391db33c489"
+    },
+    {
+      "id": "fresh2-series",
+      "slug": "series",
+      "language": "python",
+      "exercism_difficulty": 2,
+      "tests": 11,
+      "solution": [
+        "series.py"
+      ],
+      "test": [
+        "series_test.py"
+      ],
+      "sha256": "6c9bf5d667f3a9f992f27f66803025281247c4e9e271f29f6a6f1d22bb213ddf"
+    },
+    {
+      "id": "fresh2-spiral-matrix",
+      "slug": "spiral-matrix",
+      "language": "python",
+      "exercism_difficulty": 4,
+      "tests": 6,
+      "solution": [
+        "spiral_matrix.py"
+      ],
+      "test": [
+        "spiral_matrix_test.py"
+      ],
+      "sha256": "732d9903a122f699c7c53f1f422af1223fca7ee8d229ba914d6e556465c04291"
+    },
+    {
+      "id": "fresh2-accumulate",
+      "slug": "accumulate",
+      "language": "python",
+      "exercism_difficulty": 2,
+      "tests": 6,
+      "solution": [
+        "accumulate.py"
+      ],
+      "test": [
+        "accumulate_test.py"
+      ],
+      "sha256": "777ff8a50a434e99e0de5e3e38c2c75a746a35e7cd258f0056a5dd3f3549522a"
+    },
+    {
+      "id": "fresh2-point-mutations",
+      "slug": "point-mutations",
+      "language": "python",
+      "exercism_difficulty": 3,
+      "tests": 8,
+      "solution": [
+        "point_mutations.py"
+      ],
+      "test": [
+        "point_mutations_test.py"
+      ],
+      "sha256": "7cdd1d765f74b6a89b831648073974bdf9ef92ffb275fa3e36824583ccc22b59"
+    },
+    {
+      "id": "fresh2-eliuds-eggs",
+      "slug": "eliuds-eggs",
+      "language": "python",
+      "exercism_difficulty": 2,
+      "tests": 4,
+      "solution": [
+        "eliuds_eggs.py"
+      ],
+      "test": [
+        "eliuds_eggs_test.py"
+      ],
+      "sha256": "81cf6bd2642ecf886ce795bd0658ba5161783a0271a47f8cf9ed51de5625549f"
+    },
+    {
+      "id": "fresh2-sieve",
+      "slug": "sieve",
+      "language": "python",
+      "exercism_difficulty": 3,
+      "tests": 5,
+      "solution": [
+        "sieve.py"
+      ],
+      "test": [
+        "sieve_test.py"
+      ],
+      "sha256": "8364498442eb56614af35a569da79a7881601fce568d5f9ec315177a7e5c0264"
+    },
+    {
+      "id": "fresh2-parallel-letter-frequency",
+      "slug": "parallel-letter-frequency",
+      "language": "python",
+      "exercism_difficulty": 3,
+      "tests": 7,
+      "solution": [
+        "parallel_letter_frequency.py"
+      ],
+      "test": [
+        "parallel_letter_frequency_test.py"
+      ],
+      "sha256": "890f926cae960161598d0493c7cd02ce014671aacf30dd29cb589f87490f8439"
+    },
+    {
+      "id": "fresh2-palindrome-products",
+      "slug": "palindrome-products",
+      "language": "python",
+      "exercism_difficulty": 4,
+      "tests": 13,
+      "solution": [
+        "palindrome_products.py"
+      ],
+      "test": [
+        "palindrome_products_test.py"
+      ],
+      "sha256": "89f8ef74442c61cfb4eeeb1e5825e071e78dd4dcd8a3ad4d1592f7dcfe08f9dd"
+    },
+    {
+      "id": "fresh2-scrabble-score",
+      "slug": "scrabble-score",
+      "language": "python",
+      "exercism_difficulty": 2,
+      "tests": 11,
+      "solution": [
+        "scrabble_score.py"
+      ],
+      "test": [
+        "scrabble_score_test.py"
+      ],
+      "sha256": "90cfb2ce91fbeb85f99e1e48ca2ed4b82bed1297f9b9d5fa22b449dbabaaa8c1"
+    },
+    {
+      "id": "fresh2-binary-search-tree",
+      "slug": "binary-search-tree",
+      "language": "python",
+      "exercism_difficulty": 5,
+      "tests": 10,
+      "solution": [
+        "binary_search_tree.py"
+      ],
+      "test": [
+        "binary_search_tree_test.py"
+      ],
+      "sha256": "94da55b451fd3fda4cca684c7a08d7a11c26c6a5b67ed92b57fe01dd689bb9be"
+    },
+    {
+      "id": "fresh2-acronym",
+      "slug": "acronym",
+      "language": "python",
+      "exercism_difficulty": 2,
+      "tests": 9,
+      "solution": [
+        "acronym.py"
+      ],
+      "test": [
+        "acronym_test.py"
+      ],
+      "sha256": "9854a73ed9627f7ae927cb5690e79fee6521cd85b22e446a29f9f283af1ac9f7"
+    },
+    {
+      "id": "fresh2-octal",
+      "slug": "octal",
+      "language": "python",
+      "exercism_difficulty": 3,
+      "tests": 10,
+      "solution": [
+        "octal.py"
+      ],
+      "test": [
+        "octal_test.py"
+      ],
+      "sha256": "9c7a8419ac701b26cb7f5eee6629e146c347dd17634e9ad2549c15159813ccc1"
+    },
+    {
+      "id": "fresh2-robot-simulator",
+      "slug": "robot-simulator",
+      "language": "python",
+      "exercism_difficulty": 3,
+      "tests": 18,
+      "solution": [
+        "robot_simulator.py"
+      ],
+      "test": [
+        "robot_simulator_test.py"
+      ],
+      "sha256": "a523015bff831b628f7c1e94f92abb94407dfeedfa5c44c7cb87c6d45f66f4e6"
+    },
+    {
+      "id": "fresh2-diamond",
+      "slug": "diamond",
+      "language": "python",
+      "exercism_difficulty": 2,
+      "tests": 5,
+      "solution": [
+        "diamond.py"
+      ],
+      "test": [
+        "diamond_test.py"
+      ],
+      "sha256": "a628191463c2fe70680d10c35a54b4f405cba498307e0515047f3dc965f5e19b"
+    },
+    {
+      "id": "fresh2-swift-scheduling",
+      "slug": "swift-scheduling",
+      "language": "python",
+      "exercism_difficulty": 4,
+      "tests": 17,
+      "solution": [
+        "swift_scheduling.py"
+      ],
+      "test": [
+        "swift_scheduling_test.py"
+      ],
+      "sha256": "ac03bc7b643c011b90313c6e06329f9a0137e5d55b367acbec4f1f407e9aec4a"
+    },
+    {
+      "id": "fresh2-atbash-cipher",
+      "slug": "atbash-cipher",
+      "language": "python",
+      "exercism_difficulty": 2,
+      "tests": 14,
+      "solution": [
+        "atbash_cipher.py"
+      ],
+      "test": [
+        "atbash_cipher_test.py"
+      ],
+      "sha256": "c45cf6ce233d5b01236aaa5da129fd04f39fc8127a131a2774ba7d2b4eddd531"
+    }
+  ]
+}

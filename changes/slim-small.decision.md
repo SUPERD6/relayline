@@ -1,0 +1,1 @@
+| 2026-11-05 | Keep small-task lead slimming opt-in | 短任务主导精简保持默认关闭 | Skip the refusal round-trip without changing acceptance thresholds; prompt compliance and savings remain unmeasured / 跳过拒绝往返但不改验收门槛，指令遵守与省钱效果尚未实测 | `docs/lead-slim.md`, `scripts/eval/r5.py` |

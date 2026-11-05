@@ -53,7 +53,7 @@ def check(task: dict, work: Path, cache: Path, source: str | None) -> dict:
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--tasks", default="", help="comma-separated ids (default: all 30)")
-    ap.add_argument("--taskset", choices=("polyglot", "fresh"), default="polyglot")
+    ap.add_argument("--taskset", choices=("polyglot", "fresh", "fresh2"), default="polyglot")
     ap.add_argument("--ext-cache", default="", help="a folder with polyglot[.git] or, for fresh, exercism-python[.git]")
     a = ap.parse_args(argv)
     taskset = r5.TASKSETS[a.taskset]

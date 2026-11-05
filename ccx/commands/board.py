@@ -228,6 +228,10 @@ def turn_output(agent: str, data: dict, threshold: int) -> str:
     parts = []
     lead = not int(os.environ.get("CCX_DEPTH", "0") or 0)       # a ccx sub-agent's turn is not the lead's
     if lead:
+        from ..lead_slim import guidance_for
+        if os.environ.get("CCX_ROLE") != "subagent":
+            parts.append(guidance_for(paths()))
+            hints(parts, agent)
         cwd = Path(data.get("cwd") or Path.cwd())
         root = project.find_root(cwd) or learn.cp_root(cwd)
         if (root / ".ccx").is_dir():                             # never creates .ccx in a project without one
