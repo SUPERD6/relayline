@@ -260,9 +260,9 @@ def _finish(w: Wizard, agents: list[str], logged_out: list[str]) -> None:
         w.say("\nBefore your first delegation:")
         for i, t in enumerate(todo, 1):
             w.say(f"  {i}. {t}")
-    w.say("\nYour first delegation (from inside Claude Code or Codex, or a terminal):")
+    w.say("\nYour first delegation (from a project folder containing README.md, inside Claude Code or Codex, or a terminal):")
     w.say("  " + first_command("codex" if "codex" in agents else "claude"))
-    w.say("Then check it and record your verdict: ccx verify <run_id> --ok 1")
+    w.say("Inspect it with ccx show <run_id>, then record your verdict: ccx verify <run_id> --ok 1 (correct) or --ok 0 (wrong)")
 
 
 def _replaces(where: Path) -> str | None:

@@ -1,0 +1,2 @@
+- Add an offline, credential-free newcomer walkthrough with isolated homes, fake CLIs, retained logs and explicit installation-failure reporting; exercise setup, doctor, demo/UI exports and the README first delegation.
+- Clarify setup's README working-directory requirement and show inspection plus both acceptance and rejection verdict commands. Existing commands, options, defaults, JSON meanings and exit codes are unchanged.
