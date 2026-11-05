@@ -7,7 +7,7 @@ Hidden scoring happens in a separate directory and is never sent to the lead.
 from __future__ import annotations
 
 import argparse
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import json
 import math
 import os
@@ -32,6 +32,59 @@ from common import ROOT, append_jsonl, read_jsonl
 ARMS = ("self", "ccxlong")
 N = 4
 LIMITATION = "Delegation and one-line acceptance change together; their effects are not separated."
+USAGE_COUNTERS = {"input_tokens": "inputTokens", "output_tokens": "outputTokens",
+                  "cache_read_input_tokens": "cacheReadInputTokens",
+                  "cache_creation_input_tokens": "cacheCreationInputTokens"}
+COST_BASIS = "CLI session cumulative total_cost_usd minus previous validated cumulative; modelUsage counters checked against summed per-invocation result.usage"
+
+
+def finite_cost(value):
+    return (float(value) if isinstance(value, (int, float)) and not isinstance(value, bool)
+            and math.isfinite(value) and value >= 0 else None)
+
+
+@dataclass
+class LeadCost:
+    """Fail closed for the rest of a session after a missing/inconsistent receipt."""
+    cumulative: float = 0.0
+    usage: dict = field(default_factory=lambda: dict.fromkeys(USAGE_COUNTERS, 0))
+    failed: bool = False
+
+    def observe(self, result: dict, session_match: bool = True) -> dict:
+        cumulative = finite_cost(result.get("total_cost_usd"))
+        invocation = result.get("usage")
+        models = result.get("modelUsage")
+        totals = None
+        if (isinstance(invocation, dict) and isinstance(models, dict) and models
+                and all(isinstance(m, dict) for m in models.values())):
+            values = [invocation.get(k) for k in USAGE_COUNTERS]
+            values += [m.get(k) for m in models.values() for k in USAGE_COUNTERS.values()]
+            if all(type(v) is int and v >= 0 for v in values):
+                totals = {k: sum(m[v] for m in models.values()) for k, v in USAGE_COUNTERS.items()}
+        expected = ({k: self.usage[k] + invocation[k] for k in USAGE_COUNTERS}
+                    if totals is not None else None)
+        check = not self.failed and totals is not None and totals == expected
+        errors = []
+        if self.failed:
+            errors.append("previous receipt untrusted; session accounting stopped")
+        if cumulative is None:
+            errors.append("missing or invalid cumulative cost")
+        elif cumulative < self.cumulative:
+            errors.append("cumulative cost decreased")
+        if not check:
+            errors.append("modelUsage counters missing/invalid or differ from summed result.usage")
+        if not session_match:
+            errors.append("session_id mismatch")
+        row = {"lead_cumulative_usd": cumulative, "lead_previous_cumulative_usd": self.cumulative,
+               "lead_reported_usd": result.get("total_cost_usd"), "cost_basis": COST_BASIS,
+               "lead_result_usage": invocation, "lead_model_usage": totals,
+               "cost_cumulative_check": check, "cost_errors": errors,
+               "lead_usd": None if errors else cumulative - self.cumulative}
+        if errors:
+            self.failed = True
+        else:
+            self.cumulative, self.usage = cumulative, expected
+        return row
 
 
 def pin_matches(requested: str, actual: str) -> bool:
@@ -208,6 +261,7 @@ class Episode:
         self.before, self.job = PF.snapshot(), PF.Job()
         self.wall = 0.0
         self.lead_total = 0.0
+        self.lead_cost = LeadCost()
         self.child_total = 0.0
         self.review_total = 0.0
         self.run_ids = set()
@@ -236,6 +290,9 @@ class Episode:
                "evidence": getattr(a, "evidence", "not run"),
                "claude_isolation": self.iso.claude,
                "lead_model": "sonnet", "lead_effort": "medium", "tmp_policy": "codex-workspace-private"}
+        row["lead_previous_cumulative_usd"] = self.lead_cost.cumulative
+        row.update({"lead_cumulative_usd": None, "lead_usd": None,
+                    "cost_cumulative_check": False, "cost_basis": COST_BASIS})
         self.rows.append(row)
         lead_cap, child_cap = task_caps(a, u["arm"])
         self.env["CCX_P4_CHILD_LIMIT"] = str(child_cap)
@@ -255,14 +312,10 @@ class Episode:
         stream.with_suffix(".stderr").write_text(err, encoding="utf-8", newline="")
         self.streams.append((stream, row))
         fin = r5.r3.last_result(out)
-        # Keep per-invocation usage and raw CLI cost; real resumed cost semantics
-        # are unverified; retain this evidence limit with explicit budgeted runs.
         row.update(telemetry(out))
         row["session_match"] = fin.get("session_id") == self.sid
-        total = fin.get("total_cost_usd")
-        row["lead_reported_usd"] = total
-        lead = float(total) if total is not None else None
-        row["cost_basis"] = "CLI result per invocation; real resume scope unverified"
+        row.update(self.lead_cost.observe(fin, row["session_match"]))
+        lead = row["lead_usd"]
         child = r5.r2.hub_cost(self.iso.hub)
         row.update({"rc": rc, "subtype": fin.get("subtype"), "lead_usd": lead,
                     "ccx_usd": round(child["usd"] - self.child_total, 6),
@@ -275,7 +328,7 @@ class Episode:
         if lead is not None:
             row["usd"] = round(lead + row["ccx_usd"], 6)
             row["cost_complete"] = True
-            self.lead_total += lead
+            self.lead_total = self.lead_cost.cumulative
         if not row["session_match"]:
             row.update({"cost_complete": False, "usd": None, "environment_error": True})
         row["episode_usd"] = round(self.lead_total + self.child_total, 6) if row["cost_complete"] else None
@@ -362,12 +415,51 @@ def summary(rows: list[dict], expected: int, limits: dict | None = None) -> dict
     return result
 
 
+def recompute_rows(rows: list[dict], artifacts: Path | None = None) -> list[dict]:
+    """Read-only replay; legacy receipts require an explicit artifact run directory."""
+    states, turns, totals, corrected = {}, {}, {}, []
+    for original in rows:
+        row = dict(original)
+        key = tuple(row.get(k) for k in ("tag", "round", "episode", "arm", "session_id"))
+        state = states.setdefault(key, LeadCost())
+        if row.get("turn") != turns.get(key, 0) + 1:
+            state.failed = True
+        turns[key] = row.get("turn")
+        fin = {}
+        if artifacts is not None:
+            root = artifacts.resolve()
+            stream = (root / row.get("streams", {}).get("dir", "") / "streams" / "lead.jsonl").resolve()
+            if stream.is_relative_to(root) and stream.is_file():
+                fin = r5.r3.last_result(stream.read_text(encoding="utf-8"))
+        elif "lead_cumulative_usd" in row:
+            # New rows contain all four normalized counters, so replay needs no streams.
+            usage = row.get("lead_model_usage") or {}
+            fin = {"total_cost_usd": row.get("lead_cumulative_usd"),
+                   "usage": row.get("lead_result_usage"), "session_id": row.get("session_id"),
+                   "modelUsage": {"all": {v: usage.get(k) for k, v in USAGE_COUNTERS.items()}}}
+        row.update(state.observe(fin, bool(row.get("session_id")) and fin.get("session_id") == row.get("session_id")))
+        child = finite_cost(row.get("ccx_usd"))
+        lead = row["lead_usd"]
+        # Preserve an original interrupted/error receipt's accounting uncertainty.
+        row["cost_complete"] = lead is not None and child is not None and original.get("cost_complete") is True
+        row["known_usd"] = (lead or 0) + (child or 0)
+        row["usd"] = round(row["known_usd"], 6) if row["cost_complete"] else None
+        totals[key] = totals.get(key, 0) + row["known_usd"]
+        row["episode_usd"] = round(totals[key], 6) if row["cost_complete"] else None
+        if not row["cost_complete"]:
+            state.failed = True
+        corrected.append(row)
+    return corrected
+
+
 def parser():
     p = argparse.ArgumentParser(description=__doc__)
     action = p.add_mutually_exclusive_group()
     action.add_argument("--run", action="store_true")
     action.add_argument("--dry-run", action="store_true")
     action.add_argument("--summary", action="store_true")
+    action.add_argument("--recompute", type=Path, help="read-only cost correction of an existing results.jsonl; no model calls")
+    p.add_argument("--artifacts-root", type=Path, help="explicit artifact run directory for legacy --recompute receipts")
     p.add_argument("--split", choices=("dev", "final", "all"), default="all")
     p.add_argument("--rounds", type=int, default=1)
     p.add_argument("--budget", type=float, default=None, help="must be explicit with --run; dry-run defaults to $12")
@@ -389,6 +481,12 @@ def parser():
 
 def main(argv=None) -> int:
     a = parser().parse_args(argv)
+    if a.recompute:
+        rows = recompute_rows(read_jsonl(a.recompute), a.artifacts_root)
+        selected = [r for r in rows if r.get("tag") == a.tag and
+                    (a.split == "all" or r.get("task") in {t["id"] for t in TASKS.T if t["split"] == a.split})]
+        print(json.dumps({"rows": selected, "summary": summary(selected, expected_count(a))}, indent=2))
+        return 0
     explicit_budget = a.budget is not None
     a.budget = 12.0 if a.budget is None else a.budget
     if a.run and not explicit_budget:
@@ -417,9 +515,9 @@ def main(argv=None) -> int:
             "pinned_commit": head, "tasks_sha256": PF.sha256_file(Path(TASKS.__file__)),
             "selection_sha256": PF.sha256_file(TASKS.SELECTION_FILE),
             "claude_isolation": a.claude_isolation,
-            "cli_checked": "Claude Code 2.1.316 --help (2026-11-04): --session-id, --resume, -p; live resume not run",
+            "cli_checked": "Claude Code 2.1.316 --help (2026-11-04): --session-id, --resume, -p; cumulative result cost observed in retained development streams; --max-budget-usd resume scope Unknown",
             "limitation": LIMITATION, "run": a.run,
-            "budget_semantics": "before a task: spent + lead allowance + child allowance <= budget; unknown accounting stops; operational overrun envelope is not an absolute provider hard cap"}
+            "budget_semantics": "before a task: spent + lead allowance + child allowance <= budget; unknown accounting stops; operational overrun envelope is not an absolute provider hard cap; Claude Code 2.1.316 --help: --max-budget-usd resume scope (invocation vs session) Unknown"}
     print(json.dumps(plan, indent=2), flush=True)
     if not a.run:
         return 0
@@ -508,7 +606,7 @@ def run_experiment(a, tasks: list[dict], units: list[dict]) -> int:
             append_jsonl(a.out.with_suffix(".pending.jsonl"), row)
             between = PF.between_units(rep, True, ours=[str(a.work)], seen=watcher.take())
             if stopped or between or budget.unknown or budget.spent >= a.budget:
-                stopped = stopped or ("environment" if between else "budget")
+                stopped = stopped or ("environment" if between else "budget_unknown" if budget.unknown else "budget")
                 break
     finally:
         watcher.close()

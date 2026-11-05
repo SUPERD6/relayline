@@ -20,8 +20,15 @@ with log.open("a", encoding="utf-8", newline="") as f:
     f.write(json.dumps({"session": sid, "flag": sid_flag, "turn": turn, "prompt": prompt,
                         "parent": (repo / "source.py").read_text(encoding="utf-8")}) + "\n")
 (repo / "left-by-fake.txt").write_text("changed", encoding="utf-8")
-print(json.dumps({"type": "assistant", "message": {"id": f"{sid}-{turn}", "usage": {
+usage = {
     "input_tokens": 10, "cache_read_input_tokens": turn * 100, "cache_creation_input_tokens": 5,
-    "output_tokens": 8}}}))
-print(json.dumps({"type": "result", "session_id": sid, "subtype": "success", "total_cost_usd": .1,
+    "output_tokens": 8}
+cumulative_cost = round(.1 * turn, 6)
+model_usage = {"fake": {"inputTokens": turn * 10, "outputTokens": turn * 8,
+                         "cacheReadInputTokens": 100 * turn * (turn + 1) // 2,
+                         "cacheCreationInputTokens": turn * 5, "costUSD": cumulative_cost}}
+print(json.dumps({"type": "assistant", "message": {"id": f"{sid}-{turn}", "usage": usage}}))
+# Native resumed results accumulate cost/modelUsage, while usage covers this call.
+print(json.dumps({"type": "result", "session_id": sid, "subtype": "success",
+                  "total_cost_usd": cumulative_cost, "modelUsage": model_usage, "usage": usage,
                   "result": "DONE: fake"}))

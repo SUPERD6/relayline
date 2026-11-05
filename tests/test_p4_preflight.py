@@ -78,6 +78,7 @@ def test_isolation_reaches_options_unit_row_and_real_fingerprint(fake_engine, mo
 
 
 def test_flags_argv_keeps_sessions_and_uses_isolated_settings(tmp_path, monkeypatch):
+    monkeypatch.setenv("CCX_CLAUDE_BIN", str(Path(__file__).parent / "fakes" / "fake_claude.py"))
     monkeypatch.setattr(P.PF, "lead_flags", REAL_LEAD_FLAGS)
     u = P.PF.Unit("fake", tmp_path, tmp_path / "repo", tmp_path / "hub", claude="flags", real={})
     first = P.lead_argv(u, "session-id", 1, 1.5)

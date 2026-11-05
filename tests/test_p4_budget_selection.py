@@ -41,6 +41,7 @@ def test_explicit_run_budget_routes_to_engine_without_calling_a_model(monkeypatc
 
 
 def test_real_lead_argv_has_per_invocation_cap_without_starting_cli(monkeypatch):
+    monkeypatch.setenv("CCX_CLAUDE_BIN", str(Path(__file__).parent / "fakes" / "fake_claude.py"))
     monkeypatch.setattr(P.PF, "lead_flags", lambda _: [])
     argv = P.lead_argv(SimpleNamespace(), "fake-uuid", 2, 1.5)
     assert argv[argv.index("--max-budget-usd") + 1] == "1.5"
