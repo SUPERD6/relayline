@@ -94,6 +94,36 @@ class TestRelay(Env):
         self.assertTrue(json.loads(launched.stdout)["unconfirmed_override"])
         self.assertTrue((self.work / "relay-fake-call.json").exists())
 
+    def test_hook_outside_git_writes_unknown_packet_and_notice(self):
+        self.enable()
+        non_git = self.work.parent / "non-git"
+        non_git.mkdir()
+        self._assert_unknown_git_hook(non_git, {}, "ValueError")
+
+    def test_hook_without_git_writes_unknown_packet_and_notice(self):
+        self.enable()
+        self._assert_unknown_git_hook(self.work, {"PATH": ""}, "FileNotFoundError")
+
+    def _assert_unknown_git_hook(self, cwd, env, reason):
+        event = {"hook_event_name": "StopFailure", "error": "rate_limit",
+                 "cwd": str(cwd), "session_id": "git-failure"}
+        # Run the CLI in a separate process outside the source repository.
+        result = self.ccx("relay", "capture", "--hook", stdin=json.dumps(event), env=env)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        notice = json.loads(result.stdout)
+        self.assertEqual(notice["terminalSequence"], "\a")
+        packet_id = notice["relay"]["packet"]
+        folder = cwd / ".ccx" / "relay"
+        packet = json.loads((folder / (packet_id + ".json")).read_text(encoding="utf-8"))
+        self.assertEqual(Path(packet["workspace"]), cwd.resolve())
+        self.assertEqual(packet["git"]["head"], "Unknown")
+        self.assertEqual(packet["git"]["snapshot_status"], "Unknown")
+        self.assertIn(reason, packet["git"]["snapshot_reason"])
+        self.assertEqual(packet["verification"], "not-run")
+        saved_notice = json.loads((folder / (packet_id + ".notification.json")).read_text(encoding="utf-8"))
+        self.assertEqual(saved_notice, notice["relay"])
+        self.assertFalse((self.work / "relay-fake-call.json").exists())
+
     def test_confirmed_usage_hook_is_quota_stopped(self):
         self.enable()
         self.capture()

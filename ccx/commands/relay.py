@@ -32,7 +32,9 @@ def command(a) -> int:
         relay.validate_git_timeout(git_timeout)
         try:
             cwd = state.root(requested_cwd, timeout=git_timeout)
-        except subprocess.TimeoutExpired:
+        except (OSError, ValueError, subprocess.SubprocessError) as exc:
+            if not a.hook and not isinstance(exc, subprocess.TimeoutExpired):
+                raise
             cwd = requested_cwd  # capture a minimal Unknown snapshot before emitting the notice
         session = str(event.get("session_id") or a.session_id or "Unknown")
         context_file = state.context_path(cwd, session)
