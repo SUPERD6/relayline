@@ -35,10 +35,11 @@ task: whatever you read is re-read on every later turn. Keep STATUS one page (EN
 - Problems go to GitHub issues first, then get fixed one per PR (`Fixes #N` in the body). A new problem found while
   fixing, reviewing, in CI or in an evaluation gets its own issue instead of growing the current PR (unless the
   current change caused it). Cutting something back means a switch, a default-off option or a "not recommended"
-  note in the docs, not deleting the feature; a default changes only after a measured result clears its bar.
-- Every PR gets an independent read-only review by a fresh agent that did not write the change; the author answers
-  each finding before merging.
-- The lead keeps a daily digest of the day's changes in `.ccx/reports/daily-digest/<date>.md` (local, not committed).
+  note in the docs, not deleting the feature; a default changes only after a measured result clears its bar
+  (see [docs/engineering-standards.md](docs/engineering-standards.md)).
+- Every PR made by an agent gets an independent read-only review by a fresh agent that did not write the change;
+  the author answers each finding before merging.
+- The lead session keeps a daily digest of the day's changes in `.ccx/reports/daily-digest/<date>.md` (local, not committed).
 - Docs are bilingual: `x.md` (English) + `x.zh.md` (Chinese), linking to each other. For real decisions, update
   `changes/<PR>.decision.md`; it is folded into `docs/DECISIONS.md` when releasing (see `changes/README.md`).
   Direct edits to `docs/DECISIONS.md` are still allowed, but parallel PRs can conflict.
