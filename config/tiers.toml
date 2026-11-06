@@ -113,6 +113,7 @@ hard = "direct"
 # 时不生效。依据：pg1 派活花费 82% 在主导侧；hc1 / pg1 self 账本校准（一个文件 3–4 次请求、每次约 25k token）。
 [routing]
 mode = "auto"             # ccx config set routing.mode off
+default = "auto"          # experimental / 实验性: auto | self_first; not measured / 未实测; docs/self-first.md
 require_ready = true      # prefer installed + login evidence; false restores ordering / 优先已安装且有登录证据
 small_self = false        # ccx config set routing.small_self on
 small_self_run = false    # experimental: lead does small tasks itself; --force bypasses

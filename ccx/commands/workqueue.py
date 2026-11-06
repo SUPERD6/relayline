@@ -273,7 +273,7 @@ def restored(old_run: str, rec: dict) -> str:
 
 
 def _one(it: dict, root: Path, caller: str, p, cfg, warm: str | None = None, got: dict | None = None,
-         worktree: bool = False) -> dict:
+         worktree: bool = False, user_force: bool = False) -> dict:
     """Route and run one queue item; write its outcome back. Never raises (a thread must report).
     warm: a lane's last run (ccx/lanes.py), whose session takes this item as a new task; got["rec"]: its record.
     worktree: a write item that runs beside other writers works in its own git worktree (as `ccx batch`)."""
@@ -285,7 +285,8 @@ def _one(it: dict, root: Path, caller: str, p, cfg, warm: str | None = None, got
         m = _mode(it)                                      # before SPLIT_HINT is added (see _mode)
         spec = {"brief": it["brief"] + ("\n\n" + wq.SPLIT_HINT if it.get("depth", 0) < wq.MAX_DEPTH else ""),
                 "to": it.get("to"), "minutes": it.get("minutes"), "kind": it.get("kind"), "mode": m["mode"],
-                "mode_source": m["source"], "mode_why": m["why"], "cwd": str(root), "force": True}
+                "mode_source": m["source"], "mode_why": m["why"], "cwd": str(root), "force": True,
+                "_self_first_request_source": "queue", "_user_force": user_force}
         if not spec["minutes"]:
             spec["clarity"] = "goal"                       # switch on routing even without an estimate
         kw, route = resolve(spec, caller, p, cfg)
@@ -454,6 +455,8 @@ def _waves(a, root: Path, caller: str, p, cfg, width: int, n: int, done: list,
                         "problem"}, None
             got: dict = {}
             kw = {"worktree": True} if tree.get(it["id"]) else {}
+            if getattr(a, "_user_force", False):
+                kw["user_force"] = True
             res = _one(it, root, caller, p, cfg, warm=warm, got=got, **kw)
             kind = _pressure(got.get("rec"))
             if kind:
@@ -505,6 +508,8 @@ def _refill(a, root: Path, caller: str, p, cfg, width: int, done: list,
                         got: dict = {}
                         wt = bool(tree.get(it["id"]))
                         kw = {"worktree": True} if wt else {}
+                        if getattr(a, "_user_force", False):
+                            kw["user_force"] = True
                         live[ex.submit(_one, it, root, caller, p, cfg, None, got, **kw)] = (it, got, wt)
             first = False
             if not live:

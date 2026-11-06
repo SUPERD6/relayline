@@ -130,6 +130,8 @@ def parse(argv: list[str]) -> argparse.Namespace:
     normalized = _canonical_options(ap, a, argv)
     options = normalized[:normalized.index("--")] if "--" in normalized else normalized
     a._explicit = {x.split("=", 1)[0] for x in options if x.startswith("--")}
+    if "--force" in a._explicit and getattr(a, "force", False) is True:
+        a._user_force = True
     if rest and not (isinstance(getattr(a, "brief", None), list) and not any(r.startswith("-") for r in rest)):
         ap.error(f"unrecognized arguments: {' '.join(rest)}")
     if isinstance(getattr(a, "brief", None), list):

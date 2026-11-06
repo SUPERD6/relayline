@@ -345,6 +345,7 @@ SETTINGS = {   # key -> (type, help). Only these can be set with `ccx config set
                           "delegates no new work (route and propose say do it yourself; run, batch, q run / resume "
                           "and way refuse without --force); cross-vendor review and talk work as before: ccx ask, "
                           "ccx discuss, ccx run --mode read, mem, board"),
+    "routing.default": (str, "auto | self_first: experimental self-first delegation gate; auto keeps existing behavior"),
     "relay.enabled": (_bool, "true | false: experimental quota capture and explicit continuation (default false)"),
     "routing.require_ready": (_bool, "true | false: prefer installed CLIs with local login evidence (default true)"),
     "routing.small_self_run": (_bool, "true | false: experimental small-task run refusal for leads; --force bypasses (default false)"),
@@ -472,6 +473,8 @@ def set_setting(p: Paths, key: str, raw: str) -> dict:
         raise ValueError("escalate.on_self_checked must be review, rung or off")
     if key == "routing.mode" and raw not in ("auto", "off"):
         raise ValueError("routing.mode must be auto or off")
+    if key == "routing.default" and raw not in ("auto", "self_first"):
+        raise ValueError("routing.default must be auto or self_first")
     if key == "quota.routing" and raw not in ("on", "off"):
         raise ValueError("quota.routing must be on or off")
     if key == "routing.small_self_by" and raw not in ("cost", "files"):

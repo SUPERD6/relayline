@@ -77,6 +77,16 @@ The default tier stays `save` until a confirmation run decides.
 refuse without `--force`. `ccx run --mode read` (a cross-vendor review or second opinion), `ccx ask`, `ccx discuss`,
 memory, the board and `ccx resume` of a run already started are unchanged.
 
+**Self first** (`ccx config set routing.default self_first`; shipped `auto`, experimental, not measured):
+`ccx route` / `ccx propose` advise self and automatic `ccx run` refuses unless lead quota is tight
+(`quota.avoid_above` or projected over 100%), context reaches `policy.bands.lead_ctx_large`, an explicit
+`--to`/`--model`/`--provider`/`--role` assigns delegation, or `--independent-parts` declares independent work.
+Run's `--parallel` only asks the child to use its own sub-agents; it does not satisfy this condition.
+Missing readings stay `Unknown`, never tight/large. Inspect `self_first.checks`, `matched` and `why` in the
+advice/receipt. Eligibility does not authorize delegation or bypass existing checks; `--force` keeps its
+override and `routing.mode=off` still wins. Policies remain unchanged; no matching condition also prevents
+a picked tier's proposal pre-authorization. See `docs/self-first.md` in the ccx repository.
+
 **Small tasks yourself** (`routing.small_self`, off as shipped; the person turns it on): with no tier picked,
 `ccx route` / `ccx propose` advise `do-it-yourself` when doing the task yourself costs less than delegating's fixed
 cost. By `small_self_by = "files"` (default): at most `small_self_files` (1) source files. By `"cost"`

@@ -51,6 +51,15 @@ python scripts/task_routing.py record --rung codex:gpt-6.1-sol:medium --b 4 --ok
 `ccx run` / `batch` / `q run` / `q resume` / `way` 不带 `--force` 就拒绝。`ccx run --mode read`（跨厂商审查或第二意见）、`ccx ask`、
 `ccx discuss`、记忆、对话板和已开始运行的 `ccx resume` 不变。
 
+**优先自己做**（`ccx config set routing.default self_first`；默认 `auto`，实验性、尚未实测）：
+`ccx route` / `ccx propose` 建议自己做，普通自动路由的 `ccx run` 拒绝派活，除非主导额度紧
+（`quota.avoid_above` 或预测超过 100%）、上下文达到 `policy.bands.lead_ctx_large`、
+显式 `--to`/`--model`/`--provider`/`--role` 指派，或 `--independent-parts` 声明独立并行工作。
+run 的 `--parallel` 只要求子智能体自己开子智能体，不满足这项条件。
+读不到保持 `Unknown`，不当成额度紧或上下文大。建议或收据中的 `self_first.checks`、`matched`、`why` 给出依据。
+满足条件不构成授权，也不绕过原有检查；`--force` 保留覆盖作用，`routing.mode=off` 仍是总开关。
+原策略不变；不满足条件时也阻止已选档位预授权提议。详见 ccx 仓库 `docs/self-first.zh.md`。
+
 **小活自己做**（`routing.small_self`，默认关，用户自己打开）：没选档位时，`ccx route` / `ccx propose` 在自己做比派活的固定开销便宜时
 建议 `do-it-yourself`。`small_self_by = "files"`（默认）：最多 `small_self_files`（1）个源文件。`"cost"`（实验）：请求数（`--requests`，否则 2 + 每个 `--files` 1.5 次，没给就按简报点名的文件）
 × 每次重读的量（你的会话，`--lead-ctx` 或像 `ccx lead` 那样读出，读不到按 25k）× 你的模型价格，再加读进的文件写缓存的钱，

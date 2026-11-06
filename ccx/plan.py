@@ -432,6 +432,7 @@ def resolve_role(spec: dict, caller: str, p: Paths, cfg: dict, resolve=None) -> 
     if fixed:
         # Naming the model is the person's assignment, as with --model. Force ONLY the sizing lookup;
         # routing.mode, autonomy and budget gates still run outside it. No A/B task is opened for sizing.
+        # force is for sizing; the positive CLI _user_force marker is copied unchanged for self_first.
         sized.update(force=True)
     kw, route = resolve(sized, caller, p, cfg)
     route.update(role=name, role_spec=role["spec"], role_source=role["source"])
