@@ -33,6 +33,8 @@ def new(p: Paths, route: dict, text: str, lead_session: str | None) -> dict:
             row["preauthorized"] = True
     if route.get("routing_mode") == "off":     # routing.mode=off said do it yourself: nothing was offered
         row["routing_mode"] = "off"
+    if route.get("self_first"):
+        row["self_first"] = route["self_first"]
     ledger.append_event(p, row)
     return row
 

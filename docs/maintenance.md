@@ -65,6 +65,7 @@ measurement shows right answers do not drop, and the decision gets a row in [DEC
 | `subagent.clean` | `false` | sub-agents start without the person's skills and user settings | same B3 measurement; may lose right answers that personal skills bring | no |
 | `subagent.codex_lean_tools` | `false` | write runs on Codex lose web search, image generation and goals | same B3 measurement | no |
 | `policy.picked` | `""` | pre-authorizes delegation by tier, without proposing first | a person's own choice, never a default | yes |
+| `routing.default` | `"auto"` | experimental `self_first` permits delegation only with tight lead quota, large context, explicit assignment or independent parallel work; records the conditions in advice/receipts ([details](self-first.md)) | engineering checks only; not measured | yes |
 
 Empty by design rather than experimental (set with `ccx config set`): `board.github` and `intake.github` (nothing
 touches the network until you name a private repository of yours), `report.publish_dir`, `projects.roots`.

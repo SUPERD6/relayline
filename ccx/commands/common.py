@@ -299,6 +299,13 @@ def resolve(spec: dict, caller: str, p, cfg: dict) -> tuple[dict | None, dict]:
     tradeoff = spec.get("tradeoff") or cfg["defaults"].get("tradeoff", "save")
     policy_tier = spec.get("tradeoff") or picked_tier(cfg) or tradeoff
     route = {"tradeoff": tradeoff}
+    from ..self_first import decision
+    gate = None if spec.get("_self_first_advisory") else decision(p, cfg, spec, caller)
+    if gate is not None:
+        route["self_first"] = gate
+        if gate["applied"]:
+            route["advice"] = "do-it-yourself: " + gate["why"]
+            return None, route
     if spec.get("no_ab"):                     # kept in the ledger: ledger.is_eval leaves such runs out
         route["no_ab"] = True
     if spec.get("minutes"):
@@ -491,6 +498,9 @@ def _spec_from_args(a, text: str) -> dict:
             "novelty": a.novelty, "minutes": a.minutes, "tradeoff": a.tradeoff, "force": a.force,
             "provider": getattr(a, "provider", None), "mode": getattr(a, "mode", None),
             "quota": parse_quota(getattr(a, "quota", None)), "kind": getattr(a, "kind", None),
+            "parallel": getattr(a, "parallel", False),
+            "independent_parts": getattr(a, "independent_parts", False),
+            "_user_force": getattr(a, "_user_force", False),
             "cwd": getattr(a, "cwd", None)}
 
 
@@ -500,6 +510,9 @@ def _routing_args(ap, into=None) -> None:
     g = into if into is not None else ap.add_argument_group(
         "routing rubric (task-routing; any of these switches on the calibrated pick)")
     g.add_argument("--files", type=int, default=0, help="files touched")
+    g.add_argument("--independent-parts", action="store_true",
+                   help="task has independent parts that can run concurrently (self_first eligibility; "
+                        "does not ask the sub-agent to start its own sub-agents)")
     g.add_argument("--coupling", choices=["one", "cross", "system"])
     g.add_argument("--clarity", choices=["spec", "goal", "unknown"])
     g.add_argument("--risk", choices=["low", "visible", "critical"])

@@ -178,7 +178,7 @@ def line(res: dict) -> dict:
     out["check"] = res["check"]       # as it was (cmd, passed, exit, covers): leads, scripts and the receipt read it
     if res.get("review"):
         out["review"] = {k: res["review"][k] for k in ("verdict", "by") if res["review"].get(k)}
-    if (res.get("route") or {}).get("role_effort_reason"):
+    if (res.get("route") or {}).get("role_effort_reason") or (res.get("route") or {}).get("self_first"):
         out["route"] = res["route"]
     out["view"] = "line"              # the rest: `ccx show <run_id>`
     out["recap"] = res.get("recap", "")

@@ -521,7 +521,7 @@ def _cmd_run(a) -> int:
     res["route"] = {k: v for k, v in route.items() if k in ("source", "b", "rung", "p", "chain_p", "tier",
                                                               "stale", "mode", "trial", "cheaper_self", "role",
                                                               "role_effort_auto", "role_fallback", "why", "rubric",
-                                                              "difficulty", "role_effort_reason", "strict_escalate")}
+                                                              "difficulty", "role_effort_reason", "strict_escalate", "self_first")}
     if proj:
         res["project"] = {k: proj[k] for k in ("name", "path", "approval_rules") if proj.get(k)}
     if auto:
@@ -915,7 +915,7 @@ def cmd_batch(a) -> int:
         return git and tidy
     reqs, skipped, req_tasks = [], [], []
     for i, t in enumerate(tasks):
-        kw, route = resolve(t, caller, p, cfg)
+        kw, route = resolve({**t, "_user_force": getattr(a, "_user_force", False)}, caller, p, cfg)
         if kw is None:
             skipped.append({"id": t.get("id"), "advice": route.get("advice")})
             continue
@@ -1055,6 +1055,8 @@ def cmd_route(a) -> int:
 def _route_summary(out: dict) -> list[str]:
     """Plain lines for a person at a terminal (human_tail): the pick, why, and the command that runs it."""
     ranked = out.get("quota_routing") or {}
+    do_self = (any((out.get(key) or {}).get("applied") for key in ("self_first", "small_self"))
+               or out.get("routing_mode") == "off")
     if ranked.get("all_tight"):
         return [out.get("quota_note") or ranked["message"],
                 f"建议自己做或等重置到 {quota.reset_text(ranked.get('resets_at'))}"]
@@ -1069,12 +1071,12 @@ def _route_summary(out: dict) -> list[str]:
             lines.append(out["quota_note"])
         if out.get("advice"):
             lines.append(f"Advice: {out['advice']}")
-        if (out.get("small_self") or {}).get("applied") or out.get("routing_mode") == "off":
+        if do_self:
             return lines + ["Next: do it yourself"]
         return lines + [f"Next: ccx run --to {out['rung'].split(':')[0]} \"<the task>\" with the same flags"]
     tier, label = out.get("tier"), out.get("label")
     why = ", ".join(out.get("reasons") or [])
-    if (out.get("small_self") or {}).get("applied") or out.get("routing_mode") == "off":
+    if do_self:
         return [f"Tier: {tier} ({label})" + (f": {why}" if why else ""), f"Advice: {out['advice']}",
                 "Next: do it yourself"]
     if out.get("quota_note"):
@@ -1089,6 +1091,18 @@ def _route_summary(out: dict) -> list[str]:
 
 @quota.reading_scope()
 def _route(a) -> dict:
+    from ..self_first import advise
+    out = _route_pick(a)
+    spec = {**vars(a), "quota": parse_quota(a.quota)}
+    # Reuse the context already read for the cost comparison; zero remains a known reading.
+    sv = out.get("self_vs_delegate") or {}
+    if spec.get("lead_ctx") is None and sv.get("ctx_source") in ("given", "lead_session"):
+        spec["lead_ctx"] = sv.get("lead_ctx_tokens")
+    advise(paths(), load_config(paths()), out, spec, _caller(None))
+    return out
+
+
+def _route_pick(a) -> dict:
     p = paths()
     cfg = load_config(p)
     if getattr(a, "role", None):
@@ -1100,7 +1114,7 @@ def _route(a) -> dict:
                 "novelty": a.novelty, "minutes": a.minutes, "tradeoff": a.tradeoff, "force": True,
                 "mode": getattr(a, "mode", None) or row["defaults"].get("mode"),
                 "cwd": a.cwd, "kind": a.kind, "quota": parse_quota(a.quota),
-                "explicit": getattr(a, "_explicit", set())}
+                "explicit": getattr(a, "_explicit", set()), "_self_first_advisory": True}
         mode = apply_mode(spec)
         _, out = resolve_role(spec, _caller(None), p, cfg, resolve=resolve)
         out["mode"] = mode
@@ -1117,7 +1131,8 @@ def _route(a) -> dict:
                 "risk": a.risk, "novelty": a.novelty, "tradeoff": a.tradeoff, "force": True,
                 "minutes": a.minutes,
                 "quota": parse_quota(a.quota),
-                "brief": " ".join(a.text or []), "mode": getattr(a, "mode", None), "kind": a.kind}
+                "brief": " ".join(a.text or []), "mode": getattr(a, "mode", None), "kind": a.kind,
+                "_self_first_advisory": True}
         mode = apply_mode(spec)
         kw, route = resolve(spec, _caller(None), p, cfg)
         route["mode"] = mode            # recommended read/write and why; routing priced the start-up with it
@@ -1355,6 +1370,9 @@ def cmd_propose(a) -> int:
         from ..plan import OFF_HOW, OFF_WHY
         out.update(worth_offering=False, authorized=False, recommend="self", why=OFF_WHY, say=None,
                    routing_mode="off", next=f"not worth offering: do it yourself, nothing to ask ({OFF_HOW})")
+    elif (route.get("self_first") or {}).get("applied"):
+        out.update(worth_offering=False, authorized=False, recommend="self", why=route["self_first"]["why"],
+                   say=None, next="not worth offering: do it yourself (routing.default=self_first)")
     elif tp.get("explicit") and tp.get("mode"):
         # the person picked this tier in their settings (policy.picked): it pre-authorises what the tier delegates
         # (docs/DECISIONS.md, tiers). worth_offering agrees with authorized: true when the tier delegates (a skill
@@ -1399,6 +1417,8 @@ def cmd_propose(a) -> int:
                lead_ctx_tokens=row["lead_ctx_tokens"], ctx_source=c.get("ctx_source"))
     if route.get("small_self"):
         out["small_self"] = route["small_self"]
+    if route.get("self_first"):
+        out["self_first"] = route["self_first"]
     if tp:
         out["tier"] = {k: tp.get(k) for k in ("tier", "band", "mode", "uncertain", "hard", "explicit", "provisional",
                                               "error") if k in tp}
@@ -1629,6 +1649,8 @@ def register(sub) -> None:
     ro.add_argument("--mode", choices=["read", "write"], help="explicit read/write (else inferred from the text)")
     ro.add_argument("--minutes", type=float, help="how long a skilled engineer would need (standard difficulty unit)")
     ro.add_argument("--to", choices=["auto", *DELEGATE_AGENTS, *PROVIDER_AGENTS], default="auto")
+    ro.add_argument("--parallel", action="store_true",
+                    help="describe sub-agent parallel execution; does not establish self_first eligibility")
     _routing_args(ro)
     sv = ro.add_argument_group("self vs delegate (needs --lead)")
     sv.add_argument("--lead", help="your own rung, e.g. claude:opus:high")

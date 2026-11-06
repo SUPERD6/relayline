@@ -62,6 +62,7 @@
 | `subagent.clean` | `false` | 子智能体不加载个人技能和用户设置 | 同一个 B3 测量；个人技能带来的正确率可能丢掉 | 不能 |
 | `subagent.codex_lean_tools` | `false` | Codex 写入任务关掉网页搜索、生成图片和 goals | 同一个 B3 测量 | 不能 |
 | `policy.picked` | `""` | 按档位预先授权派活，不再先提议 | 是个人自己的选择，永远不当默认 | 能 |
+| `routing.default` | `"auto"` | 实验性 `self_first` 只在主导额度紧、上下文大、明确指定派活或有独立并行工作时允许继续路由；建议和收据保留条件依据（[详情](self-first.zh.md)） | 只有工程检查，尚未实测 | 能 |
 
 不是实验性、而是有意留空的（用 `ccx config set` 设）：`board.github` 和 `intake.github`（空 = 完全不碰网络，直到你填上自己的私人仓库）、`report.publish_dir`、`projects.roots`。
 
