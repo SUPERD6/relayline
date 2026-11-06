@@ -810,6 +810,18 @@ def run(req: Request, p: Paths) -> dict:
             kw["clean"] = True                 # not in a fork run (see clean_claude)
         inv = BUILDERS[cli](model=spec["model"], effort=spec["effort"], perm=perm, cwd=cwd,
                            prompt=user_words.attach(prompt, words), run_dir=run_dir, resume_id=resume_id, lean=spec["lean"], **kw)
+        env = {**extra, **(run_env(req.mode) if run_env else {})}
+        child_env = _child_env(cli, run_id, env, provider=bool(extra), clean_home=chome)
+        from .credential_guard import protect
+        try:
+            guard = protect(cli, inv, cfg, req.cwd, child_env)
+        except ValueError as e:
+            beat.set()
+            record.update(state="finished", ok=False, kind="error", error=f"credential guard configuration: {e}")
+            _write_record(run_dir, record)
+            raise ValueError(record["error"]) from e
+        if guard is not None:
+            record["credential_guard"] = guard
         t0 = time.time()
         # the attempt in flight: if this process dies, `ccx stop` / the sweep turn it into an attempt (ccx/recover.py)
         record["current"] = {"n": len(record["attempts"]), "agent": to, "cli": cli, "tier": spec.get("tier"),
@@ -817,9 +829,7 @@ def run(req: Request, p: Paths) -> dict:
                              "before": seen.get(resume_id) if cli == "codex" else None}
         hb = _Heartbeat(p, cwd, req.task if req.step else None, cli)
         try:
-            env = {**extra, **(run_env(req.mode) if run_env else {})}
-            oc, so, se = execute(cli, inv, timeout, _child_env(cli, run_id, env, provider=bool(extra),
-                                                               clean_home=chome),
+            oc, so, se = execute(cli, inv, timeout, child_env,
                                  on_session=on_session, watch=_spend_watch(p, cfg, cli, spec, record, t0,
                                                                            req.budget_usd, cwd)
                                  if req.allow_subagents else None,
