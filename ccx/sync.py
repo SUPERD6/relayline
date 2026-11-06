@@ -111,7 +111,9 @@ SHARED_LINE = ("- 共享工作上下文：另一家开着的会话最近在做�
 
 
 def claude_memory_block(p: Paths) -> str:
-    from .lead_slim import guidance_for
+    from .lead_slim import guidance_for, minimal_context_on
+    if minimal_context_on(p):
+        return minimal_memory_block()
     slim = guidance_for(p)
     return (f"## 共享记忆与协作（ccx）\n@{p.memory_index.as_posix()}\n"
             f"- ccx 命令：`{ccx_command()}`（下文简写 ccx）\n"
@@ -122,6 +124,9 @@ def claude_memory_block(p: Paths) -> str:
 
 def lead_memory_block(p: Paths, agent: str) -> str:
     """For a lead whose context file can't @import: the snapshot inlined, naming the hub original (I6)."""
+    from .lead_slim import minimal_context_on
+    if minimal_context_on(p):
+        return minimal_memory_block()
     snap = p.memory_index.read_text(encoding="utf-8") if p.memory_index.exists() else ""
     other = "Claude" if agent == "codex" else "其他工具"
     worker = "Claude Code" if agent == "codex" else "另一家"
@@ -137,6 +142,11 @@ def lead_memory_block(p: Paths, agent: str) -> str:
 
 def codex_memory_block(p: Paths) -> str:
     return lead_memory_block(p, "codex")
+
+
+def minimal_memory_block() -> str:
+    from .lead_slim import MINIMAL_CONTEXT
+    return MINIMAL_CONTEXT.replace("`ccx ", f"`{ccx_command().rstrip()} ")
 
 
 IMPORTS = {"claude"}       # context files that load `@path` themselves, so the block points at the live original
@@ -214,7 +224,9 @@ def sync_memory(p: Paths, plan: Plan) -> None:
         if agent in IMPORTS:
             body = claude_memory_block(p)
         else:      # snapshot may not exist yet in dry-run; render what it will be
-            body = lead_memory_block(p, agent) + ("" if p.memory_index.exists() else "\n" + memory.SNAPSHOT_TEMPLATE)
+            from .lead_slim import minimal_context_on
+            body = lead_memory_block(p, agent) + ("" if p.memory_index.exists() or minimal_context_on(p)
+                                                  else "\n" + memory.SNAPSHOT_TEMPLATE)
         old = cf.read_text(encoding="utf-8") if cf.exists() else ""
         new = upsert_block(old, "memory", body)
         if new != old:
