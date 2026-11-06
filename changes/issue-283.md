@@ -1,0 +1,2 @@
+- Fix #283: expose the shared evidence headline in full run output, every `ccx show` form, and UI run/task/map receipts. Completed executions without independent passing check or review evidence show `UNVERIFIED`; execution `ok`, `status`, exit codes, commands, options and defaults remain unchanged.
+- Follow-up review: normalize stored execution flags through `exit_ok`, reject edited-test/namecheck evidence, identify records by attempts, and retain UI status styling, probable-verdict qualifiers and explicit human verdicts.

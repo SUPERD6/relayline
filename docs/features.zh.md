@@ -202,6 +202,12 @@ I1 的白名单、同源检查、限长和一次性确认仍然有效，确认�
    序列化的一行 JSON 默认新增首字段 `headline`，例如 `{"headline":"DONE",...}`。
    `CHECK_FAILED` / `CHECK_BROKEN` 优先于完成状态；其他提示包括 `REVIEW_ISSUES`、`PARTIAL`、
    `STOPPED`、`SELF_CHECKED`、`UNVERIFIED`。标签只概括已有证据，不新增判定；原生 line 模式仍把需关注的结果展开为完整 JSON。
+   完整运行结果、`ccx show`（含 `--full`、`--wait`、`--any`）和 `ccx ui` 也显示 `headline`，
+   与执行状态分开。执行结束但没有独立检查通过、也没有审查通过时显示 `UNVERIFIED`，不显示 `DONE`。
+   自写测试仍标 `SELF_CHECKED`；仅有弱检查、覆盖未知或依据已改动的检查也不足以显示 `DONE`。
+   `DONE` 只表示记录中的检查或审查通过，不证明一般意义上的正确性。
+   **`ok=true` 只表示执行完成，不表示做对。** 修改过已有测试或存在未定义名称命中时，不据此显示 `DONE`。
+   UI 任务卡片优先显示明确的人工结论；推测的 `soft` 结论保留“大概率没问题”提示。
    默认还会新增日志保存行为与字段 `stdout_path`、`stderr_path`、`stdout_truncated`、`stderr_truncated`、
    `failed_cases`：每次检查的 stdout/stderr 合计最多 2 × 256 KiB，基线比较关闭时也生效。
    已有 `tail` 含义不变，详见[检查记录](check-baseline.zh.md)。

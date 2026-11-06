@@ -109,6 +109,7 @@ def receipt_outcome(res: dict) -> str:
 def receipt_headline(res: dict) -> str:
     """Display cue only: execution ok is not acceptance. Keep JSON values and gates intact."""
     check = res.get("check") or {}
+    review = res.get("review") or {}
     if res.get("kind") == "check_broken" or check.get("status") == "check_broken":
         return "CHECK_BROKEN"
     if res.get("kind") == "check_failed" or check.get("passed") is False:
@@ -122,9 +123,44 @@ def receipt_headline(res: dict) -> str:
         return "FAILED"
     if res.get("kind") == "ok_self_checked" or check.get("basis"):
         return "SELF_CHECKED"
-    if status != "done" or check.get("passed") is not True:
+    namecheck = res.get("namecheck") or {}
+    hits = namecheck.get("hits") if isinstance(namecheck, dict) else namecheck
+    if res.get("edited_tests") or hits:
+        return "UNVERIFIED"
+    checked = (check.get("passed") is True and not any(check.get(k) for k in
+               ("weak", "status", "note", "basis_changed", "covers_unknown")))
+    reviewed = review.get("verdict") == "pass" and not any(review.get(k) for k in
+               ("error", "downgraded", "edited_tests"))
+    if status != "done" or not (checked or reviewed):
         return "UNVERIFIED"
     return "DONE"
+
+
+def record_headline(record: dict) -> str:
+    """Adapt a stored run to the same display rules as its compact receipt, without mutating it."""
+    from .delegate import exit_ok
+
+    check = dict(record.get("check") or {})
+    covers = check.get("covers") or {}
+    if isinstance(covers, dict):
+        for source, target in (("self_authored", "basis"), ("basis_changed", "basis_changed"),
+                               ("unknown", "covers_unknown")):
+            if covers.get(source):
+                check[target] = True
+    if check.get("broken"):
+        check["status"] = "check_broken"
+    if check.get("unchanged_tree") and check.get("passed"):
+        check["passed"] = None
+    return receipt_headline({**record, "check": check,
+                             "ok": exit_ok({"ok": False, **record}) and record.get("kind") != "env",
+                             "status": "running" if record.get("state") == "running" else
+                             (record.get("result") or {}).get("status")})
+
+
+def with_headline(res: dict) -> dict:
+    """Add a display field; retain every existing value and keep recap last."""
+    headline = record_headline(res) if "attempts" in res else receipt_headline(res)
+    return {"headline": headline, **{k: v for k, v in res.items() if k != "headline"}}
 
 
 def line(res: dict) -> dict:
