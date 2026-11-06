@@ -179,13 +179,17 @@ def dismiss(p: Paths, run_id: str, note: str = "") -> dict:
 
 # ---- spot checks of probable verdicts (J7) ------------------------------------------------------------------------
 def sample_soft(p: Paths, n: int = 5, days: float = 7, seed: int | None = None,
-                include_evals: bool = False) -> list[dict]:
+                include_evals: bool = False, *, project: str | None = None, state: str | None = None) -> list[dict]:
     """Up to n probable verdicts (soft) of the last `days` that nobody judged since, picked at random, each with
     what changed, so the person can say ok or wrong. Their answers are what `ledger.soft_trust` counts."""
     import random
+    import math
+    from .verify_list import matches
+    if not math.isfinite(days) or days < 0:
+        raise ValueError("--days must be a finite non-negative number (0 = all history)")
     rows = ledger.rows(p)
     runs = ledger.runs_by_id(rows)
-    since = time.time() - days * 86400
+    since = time.time() - days * 86400 if days else float("-inf")
     soft: dict[str, dict] = {}
     for r in rows:
         if r.get("type") != "verify" or not r.get("run_id"):
@@ -198,10 +202,14 @@ def sample_soft(p: Paths, n: int = 5, days: float = 7, seed: int | None = None,
     ids = sorted(soft)
     random.Random(seed).shuffle(ids)
     out = []
-    for rid in ids[:max(n, 0)]:
+    for rid in (ids if project or state else ids[:max(n, 0)]):
+        if len(out) >= max(n, 0):
+            break
         try:
             rec = ledger.load_run(p, rid)
         except (FileNotFoundError, ValueError):
+            continue
+        if not matches(rec, project, state):
             continue
         res = rec.get("result") or {}
         check = rec.get("check") or {}
