@@ -101,7 +101,8 @@ jobs:
         with:
           python-version: "3.11"
       - name: prepare public build dependencies
-        run: python -m pip download --only-binary=:all: --no-deps --dest "$RUNNER_TEMP/walkthrough-wheels" "setuptools>=77" wheel
+        run: |
+          python -m pip download --only-binary=:all: --no-deps --dest "$RUNNER_TEMP/walkthrough-wheels" "setuptools>=77" wheel
       - name: run outside the checkout, without credentials or models
         run: |
           cd "$RUNNER_TEMP"
