@@ -1,9 +1,1 @@
-# Issue #283: separate execution from acceptance evidence
-
-Keep all execution fields, gates, defaults and exit codes. Reuse the existing additive `headline`
-display cue across run output, show and UI rather than redefining `ok` or introducing a new verdict.
-An independent passing check or a passing review supports `DONE`; self-authored checks keep
-`SELF_CHECKED`, and absent or weak check evidence alone is `UNVERIFIED`. These labels describe
-recorded evidence, not hidden-test correctness. No new configurable behavior is enabled.
-
-Regression evidence: fake-CLI command tests and synthetic UI records only (engineering check).
+| 2026-11-05 | Separate execution success from acceptance evidence: reuse the evidence headline in run output, `ccx show` and the UI; completed runs without an independent passing check or review show `UNVERIFIED` | 区分执行成功和验收证据：在运行输出、`ccx show` 和界面复用证据 headline；没有独立通过的检查或审查时显示 `UNVERIFIED` | Keep `ok`, status, exit codes and defaults unchanged; labels describe recorded evidence, not hidden-test correctness; fake-CLI engineering checks only / 不改 `ok`、状态、退出码和默认值；标签只描述已记录证据，不代表隐藏测试正确；仅有假 CLI 工程检查 | `ccx/leadview.py`, `ccx/commands/records.py`, `ccx/ui.py`, `tests/test_issue_283.py` |
