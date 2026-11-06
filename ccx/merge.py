@@ -46,7 +46,7 @@ NOT_DONE = ("check_failed", "check_broken", "check_baseline_failed", "no_changes
 # turned the whole diff down, or nothing changed
 HELD = ("check_broken", "no_changes", "review_issues", "review_failed")
 # the run stopped for a reason another run would meet again: start nothing more, hand it back to the lead
-STOPPED = ("quota", "auth", "user_stopped", "env", "timeout", "over_budget", "max_usd", "needs_write", "interrupted",
+STOPPED = ("quota", "capacity", "auth", "user_stopped", "env", "timeout", "over_budget", "max_usd", "needs_write", "interrupted",
            "split", "model")
 
 HEAD = ("[ccx merged pieces] The {n} pieces below are independent small tasks, merged into this one run to save "

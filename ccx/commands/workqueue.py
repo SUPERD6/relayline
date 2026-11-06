@@ -264,7 +264,7 @@ def _tree_fields(rec: dict) -> tuple[dict, str | None]:
 
 def restored(old_run: str, rec: dict) -> str:
     """How an interrupted piece came back (OpenRig's taxonomy): resumed | fresh | decide | failed."""
-    if rec.get("kind") in ("quota", "auth", "env", "needs_write", "over_budget", "user_stopped", "interrupted",
+    if rec.get("kind") in ("quota", "capacity", "auth", "env", "needs_write", "over_budget", "user_stopped", "interrupted",
                                "check_broken", "check_baseline_failed", "no_changes", "no_answer"):
         return "decide"                 # something only the user or the lead can settle
     if not rec.get("ok") or rec.get("kind") in ("check_failed", "timeout", "error"):

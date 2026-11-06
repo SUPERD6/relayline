@@ -1,5 +1,7 @@
 {
   "zh": {
+    "h_capacity": "“{t}”因模型满载停下", "a_capacity": "模型满载，停下了",
+    "w_capacity": "模型满载，可稍后 ccx resume 或换模型。",
     "q_reading": "读取中…", "q_read_error": "读取失败：{e}",
     "runs_budget_stop": "预算耗尽（{u}），审查未跑", "runs_review_error": "审查未跑：{e}", "runs_substitution": "改派 {from}→{to}（配额）",
     "runs_substitution_other": "改派 {from}→{to}",
@@ -309,6 +311,8 @@
     "tok_col_rewritten": "重写"
   },
   "en": {
+    "h_capacity": "\"{t}\" stopped: model at capacity", "a_capacity": "Stopped: model at capacity",
+    "w_capacity": "The model is at capacity. Try ccx resume later or switch models.",
     "q_reading": "reading…", "q_read_error": "Reading failed: {e}",
     "runs_budget_stop": "Budget exhausted ({u}); review did not run", "runs_review_error": "Review did not run: {e}", "runs_substitution": "Substituted {from}→{to} (quota)",
     "runs_substitution_other": "Substituted {from}→{to}",

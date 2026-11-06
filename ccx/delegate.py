@@ -596,22 +596,27 @@ def run(req: Request, p: Paths) -> dict:
     # "you are the implementer" only where it is true and the block it refers to is there: a write run with the
     # lead's shared context attached; never ccx's read-only reviewer or a read task
     lead_note = LEAD_NOTE if shared and req.mode == "write" and not reviewer else ""
-    if cont:
-        first_prompt = CONTINUE.format(run_id=run_id, caller=req.caller, cwd=cwd, brief=brief,
-                                       mode_text=mode_text, selfcheck=selfcheck, lead_note=lead_note)
-    elif prev:
-        first_prompt = FOLLOWUP.format(run_id=run_id, brief=req.brief)
-    else:
-        first_prompt = PROMPT.format(
+    def make_fresh_prompt():
+        return PROMPT.format(
             run_id=run_id, caller=req.caller, cwd=cwd, brief=brief,
             mode_text=mode_text, selfcheck=selfcheck, lead_note=lead_note,
             context_line=f"Project context (read first): {ctx}\n" if ctx else "",
             memory_line=(f"User background index (open only if the task needs it): {p.memory_index}\n"
                          if p.memory_index.exists() else "") + _brief_notes(p, cfg, req.to, brief, req.cwd.resolve()),
         )
+    fresh_prompt = None
+    if cont:
+        first_prompt = CONTINUE.format(run_id=run_id, caller=req.caller, cwd=cwd, brief=brief,
+                                       mode_text=mode_text, selfcheck=selfcheck, lead_note=lead_note)
+    elif prev:
+        first_prompt = FOLLOWUP.format(run_id=run_id, brief=req.brief)
+    else:
+        first_prompt = fresh_prompt = make_fresh_prompt()
     from . import user_words
     words, words_meta = user_words.capture(req, cfg, p, run_dir, prev_for_settings)
     first_prompt = user_words.attach(first_prompt, words)
+    if fresh_prompt is not None:
+        fresh_prompt = user_words.attach(fresh_prompt, words)
     (run_dir / "prompt.md").write_text(first_prompt, encoding="utf-8")
     if not prev:
         # the person's own brief: `ccx task resume` restarts from it when the run was killed before its session began
@@ -849,6 +854,11 @@ def run(req: Request, p: Paths) -> dict:
         finally:
             hb.close()
         dt = round(time.time() - t0, 1)
+        from . import capacity
+        capacity_signal = (None if env_failure((oc.result or {}).get("status"), oc.ok, oc.kind, se, oc.error)
+                           else capacity.signal(cfg, oc, so, se))
+        if capacity_signal:
+            oc.kind = "capacity"
         recovered = None
         if oc.kind in ("timeout", "over_budget", "user_stopped") and not any((oc.usage or {}).values()):
             # killed before its final usage line: read back what it spent (Claude's stream, Codex's session file)
@@ -890,6 +900,8 @@ def run(req: Request, p: Paths) -> dict:
             **({"recovered": True} if recovered and oc.usage else {}),
             **({"permission_denials": oc.permission_denials} if oc.permission_denials is not None else {}),
             **({"codex_total": codex_total} if codex_total else {})})
+        if capacity_signal:
+            record["attempts"][-1]["capacity_stop"] = capacity_signal
         try:                           # how many requests, how big each one's input (ccx/reqstats.py): display only
             from . import reqstats
             record["attempts"][-1].update(reqstats.fields(reqstats.attempt_inputs(cli, so, oc.session_id or session,
@@ -938,6 +950,27 @@ def run(req: Request, p: Paths) -> dict:
                 policy_retried = True
                 prompt = POLICY_RETRY.format(run_id=run_id, rejected="\n".join(rejected))
                 continue                          # same rung, same session
+        if oc.kind == "capacity":
+            remaining, envs = [], None
+            if not prev or cont:
+                remaining, envs, fell_back = capacity.next_plan(
+                    req, p, cfg, plan, i, record["attempts"], fell_back)
+            target = remaining[0]["rung"] if remaining else None
+            record.setdefault("capacity_recovery", []).append({
+                "from": spec["rung"], "to": target, "reason": "model_at_capacity",
+                "action": "switch" if target else "stop",
+                **capacity.transition(spec, remaining[0] if remaining else None, cfg)})
+            _write_record(run_dir, record)
+            if not remaining:
+                break
+            if envs:
+                pv_env.update(envs)
+            plan = plan[:i + 1] + remaining
+            if fresh_prompt is None:
+                fresh_prompt = user_words.attach(make_fresh_prompt(), words)
+            prompt, session, dispatch_phase = fresh_prompt, None, "recovery"
+            i += 1
+            continue
         if oc.kind == "quota" and req.fallback and not fell_back and (not prev or cont):
             fb = _fallback_plan(req, p, cfg, spec)
             if fb:
@@ -1118,7 +1151,7 @@ def run(req: Request, p: Paths) -> dict:
         if record.get("kind") in (None, "ok"):
             record["kind"] = "no_changes"
     if req.task and req.step:
-        if oc.kind in ("quota", "timeout", "user_stopped"):
+        if oc.kind in ("quota", "capacity", "timeout", "user_stopped"):
             args = ["fail", req.task, str(req.step), "--reason", "quota" if oc.kind == "quota" else "error",
                     "--note", f"ccx run {run_id}: {oc.kind}; resume with `ccx resume {run_id}`"]
             if oc.retry_after:
@@ -1133,7 +1166,7 @@ def run(req: Request, p: Paths) -> dict:
     # provisional learning: a definite failure, or a success the sub-agent itself checked.
     # `ccx verify` (the lead's verdict) adds or corrects this later.
     verified = check_passed is not None or (oc.result or {}).get("verification", "not-run") not in ("", "not-run")
-    if oc.kind not in ("quota", "auth", "timeout", "model", "needs_write", "split", "over_budget", "user_stopped",
+    if oc.kind not in ("quota", "capacity", "auth", "timeout", "model", "needs_write", "split", "over_budget", "user_stopped",
                        "max_usd", "review_issues", "review_failed", "env") and record.get("kind") not in ("check_broken", BASELINE_FAILED, "no_changes", "no_answer") and (status in ("blocked", "failed") or not oc.ok
                                                         or (status == "done" and verified)):
         try:
@@ -1480,6 +1513,8 @@ def compact(record: dict) -> dict:
         out["quota_fallback"] = record["quota_fallback"]
     if record.get("quota_stop"):
         out["quota_stop"] = record["quota_stop"]
+    if record.get("capacity_recovery"):
+        out["capacity_recovery"] = record["capacity_recovery"]
     atts = record["attempts"]
     chain = [a.get("tier") or a.get("rung") or "?" for k, a in enumerate(atts)   # a policy retry stays on its rung
              if not (k and atts[k - 1].get("kind") == "policy" and atts[k - 1]["rung"] == a["rung"])]
@@ -1545,7 +1580,7 @@ def compact(record: dict) -> dict:
             out["needs_lead"] = ("env: " + (env_cause(record.get("env_error"), record.get("to")) or "the sub-agent "
                                  "could not start a process here") + "; tell the person, and only after they fixed it "
                                  f"`ccx resume {record['run_id']} --env-fixed`")
-        if record["kind"] in ("quota", "timeout", "user_stopped", "interrupted"):
+        if record["kind"] in ("quota", "capacity", "timeout", "user_stopped", "interrupted"):
             why = "ccx stop" if record["kind"] == "user_stopped" else record["kind"]
             out["hint"] = f"stopped by {why}; continue later with `ccx resume {record['run_id']}`"
             ra = last.get("retry_after")

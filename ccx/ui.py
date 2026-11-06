@@ -514,10 +514,10 @@ def _act(rec: dict, verdict: dict | None, now: float, beat: float | None) -> dic
         return {"kind": "decide", "what": "a_check_failed", "why": ["w_check_failed", {"cmd": c.get("cmd") or "",
                                                                                          "exit": c.get("exit")}],
                 "buttons": [show, _btn("b_fix_check", ["ccx", "resume", rid, "the check fails: fix it"], "primary")]}
-    if kind in ("quota", "timeout"):
+    if kind in ("quota", "capacity", "timeout"):
         ra = ((rec.get("attempts") or [{}])[-1]).get("retry_after")
-        return {"kind": "decide", "what": "a_quota" if kind == "quota" else "a_timeout",
-                "why": ["w_quota" if kind == "quota" else "w_timeout", {"at": ra}],
+        return {"kind": "decide", "what": "a_" + kind,
+                "why": ["w_" + kind, {"at": ra}],
                 "buttons": [_btn("b_resume", ["ccx", "resume", rid], "primary"), show]}
     if kind == "over_budget":
         return {"kind": "decide", "what": "a_over_budget", "why": ["w_over_budget", {}],
@@ -775,7 +775,7 @@ def hist_of_run(rec: dict, title: str) -> list[dict]:
     if rec.get("state") == "finished":
         k = rec.get("kind")
         st = (rec.get("result") or {}).get("status")
-        key = ("h_" + k) if k in ("needs_write", "check_failed", "check_broken", "review_failed", "quota", "timeout",
+        key = ("h_" + k) if k in ("needs_write", "check_failed", "check_broken", "review_failed", "quota", "capacity", "timeout",
                                   "over_budget", "no_changes", "env", "ok_self_checked") \
             else "h_done" if rec.get("ok") and st in ("done", "partial") else "h_failed"
         out.append({"ts": t, "k": key, "p": {"t": title},
@@ -1339,7 +1339,7 @@ def brief_notes(rd: Reader, run_dir: Path) -> list[int]:
 
 
 # a run that ended for one of these reasons says nothing about whether the work (or a note it carried) was right
-NOT_WRONG = {"env", "quota", "user_stopped", "over_budget", "max_usd", "policy", "needs_write", "timeout", "no_answer",
+NOT_WRONG = {"env", "quota", "capacity", "user_stopped", "over_budget", "max_usd", "policy", "needs_write", "timeout", "no_answer",
              "check_baseline_failed"}
 
 

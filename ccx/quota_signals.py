@@ -1,4 +1,4 @@
-"""Conservative relay-only quota evidence; legacy verdicts remain unchanged.
+"""Conservative quota and model-capacity evidence; legacy quota verdicts remain unchanged.
 
 Claude fixtures are captured CLI events. Codex quota coverage is synthetic.
 Ordinary model/tool prose, HTTP 429 alone, auth and transport errors are not quota.
@@ -54,13 +54,21 @@ def identify(value: dict | str) -> dict:
                 rows.append(identify(item))
         # Protocol evidence takes precedence over human-readable wording.
         if rows:
+            terminal = terminal_error(value)
+            if terminal and terminal["kind"] == "capacity":
+                return terminal
             return next((r for r in rows if r["kind"] == "quota"),
-                        next((r for r in rows if r["kind"] != "unknown"), {"kind": "unknown"}))
+                        next((r for r in rows if r["kind"] not in ("unknown", "capacity")),
+                             {"kind": "unknown"}))
         low = value.strip().lower()
         if re.match(r"^(?:api error:\s*)?(?:401|403|authentication|unauthorized|network|connection|timeout)\b", low):
             return {"kind": "unknown"}
         if re.match(r"^(?:api error:\s*)?(?:429 too many requests:\s*)?(?:usage limit (?:reached|exceeded)\b|you['’]ve hit your usage limit\b)", low):
             return {"kind": "quota", "source": "explicit_usage_text"}
+        if re.match(r"^(?:api error:\s*)?(?:(?:429|503)(?:\s+[^:]+)?:\s*)?"
+                    r"(?:(?:the )?(?:selected )?model(?: [\w.:-]+)? is (?:at capacity|overloaded)\b|"
+                    r"model capacity (?:exceeded|exhausted)\b)", low):
+            return {"kind": "capacity", "source": "explicit_capacity_text"}
         return {"kind": "unknown"}
 
     event = value.get("type")
@@ -75,6 +83,8 @@ def identify(value: dict | str) -> dict:
     protocol_error = event in ("error", "turn.failed", "result") or value.get("is_api_error_message") is True
     if protocol_error and (code == "usage_limit_reached" or value.get("api_error") == "usage_limit_reached"):
         return {"kind": "quota", "source": "usage_limit_reached"}
+    if protocol_error and code in ("model_capacity_exceeded", "model_overloaded", "overloaded_error"):
+        return {"kind": "capacity", "source": "structured_error"}
     if value.get("hook_event_name") == "StopFailure" and error == "rate_limit":
         confirmed = _hook_usage(value)
         return {"kind": "quota" if confirmed else "rate_limit_unconfirmed", "source": "StopFailure",
@@ -87,9 +97,37 @@ def identify(value: dict | str) -> dict:
                     "source": "rate_limit_event", "resets_at": info.get("resetsAt"),
                     **({"usage_confirmed": True} if confirmed else {})}
     if code is not None:
+        if protocol_error and code in ("server_error", "rate_limit_error"):
+            message = error.get("message", "") if isinstance(error, dict) else value.get("message", "")
+            signal = identify(message) if isinstance(message, str) else {"kind": "unknown"}
+            if signal["kind"] == "capacity":
+                return signal
         return {"kind": "unknown"}  # explicit non-quota error type beats its free-form message
+    if event == "result" and value.get("is_error") is True:
+        messages = [value.get("result", "")]
+        errors = value.get("errors") or []
+        messages.extend(errors if isinstance(errors, list) else [errors])
+        messages = [message for message in messages if isinstance(message, str) and message.strip()]
+        evidence = identify(messages[-1]) if messages else {"kind": "unknown"}
+        if evidence["kind"] == "capacity":
+            return evidence
     # Only error envelopes may use the conservative text fallback, never assistant/tool/user prose.
     if event in ("error", "turn.failed"):
         message = error.get("message", "") if isinstance(error, dict) else value.get("message", "")
         return identify(message) if isinstance(message, str) else {"kind": "unknown"}
     return {"kind": "unknown"}
+
+
+def terminal_error(text: str) -> dict | None:
+    """Last CLI error/turn result only; transient errors and ordinary agent prose cannot win."""
+    terminal = None
+    for line in text.splitlines():
+        try:
+            event = json.loads(line)
+        except ValueError:
+            continue
+        if not isinstance(event, dict):
+            continue
+        if event.get("type") in ("error", "turn.failed", "result", "turn.completed"):
+            terminal = identify(event)
+    return terminal
