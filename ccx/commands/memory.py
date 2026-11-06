@@ -238,6 +238,15 @@ def cmd_mem(a) -> int:
         check()
         if os.environ.get("CCX_ROLE") == "subagent":
             return 0          # sub-agents get the notes their task is about in the brief (I6), not memory deltas
+        from ..lead_slim import minimal_context_on
+        if not getattr(a, "full", False) and minimal_context_on(p):
+            if p.snapshot_external:
+                from ..sync import minimal_memory_block
+                print(hook_text(minimal_memory_block(), a.as_))
+            if not a.peek:
+                from ..startup_maintenance import maintain
+                maintain(p)
+            return 0          # don't consume cursors or mark unseen context as read
         from .. import project
         root = project.find_root()
         shown: list[int] = []
@@ -305,34 +314,8 @@ def cmd_mem(a) -> int:
         if out:
             print(hook_text(out, a.as_))
         if not a.peek:
-            check()
-            try:                       # quiet: probable verdicts for runs nobody judged (H13); never blocks the start
-                from ..delegate import soft_verdicts
-                soft_verdicts(p)
-                from ..ability import after_verdict
-                after_verdict(p)
-            except Exception:  # noqa: BLE001
-                pass
-            try:                       # quiet housekeeping: old finished sub-sessions out of the apps' history
-                check()
-                from ..archive_worker import schedule
-                schedule(p)
-            except Exception:  # noqa: BLE001 — never break session start
-                pass
-            try:                       # the project catalog, rescanned in the background once a day
-                check()
-                from .. import projects as pj
-                from ..config import load_config
-                pj.refresh_later(p, load_config(p))
-            except Exception:  # noqa: BLE001 — never break session start
-                pass
-            if os.environ.get("CCX_NO_BENCH_REFRESH") != "1":
-                check()
-                try:                   # weekly public benchmark data for routing, in the background
-                    from .. import learn
-                    learn.refresh_benchmarks_later(p)
-                except Exception:  # noqa: BLE001
-                    pass
+            from ..startup_maintenance import maintain
+            maintain(p)
     elif a.mem_cmd == "show":
         print(p.memory_index.read_text(encoding="utf-8") if p.memory_index.exists() else "(empty)")
         es = memory.entries(p)
@@ -543,6 +526,7 @@ def register(sub) -> None:
     md = msub.add_parser("delta")
     md.add_argument("--as", dest="as_", choices=leads(), required=True)
     md.add_argument("--peek", action="store_true", help="do not move the cursor")
+    md.add_argument("--full", action="store_true", help="load details on demand even with lead.slim_context enabled")
     msub.add_parser("show")
     msub.add_parser("status")
     mc = msub.add_parser("compact", help="fold the journal into the snapshot by topic; --by project: write "

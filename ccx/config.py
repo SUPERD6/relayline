@@ -386,6 +386,7 @@ SETTINGS = {   # key -> (type, help). Only these can be set with `ccx config set
                            "strong lead's name, which passes no --model), e.g. opus"),
     "lead.codex": (str, "model the Codex lead runs on, e.g. gpt-6.1-sol"),
     "lead.slim_small": (_bool, "experimental: do clearly small tasks without a routing call or brief (default false)"),
+    "lead.slim_context": (_bool, "experimental: minimal managed context and on-demand hook details (default false)"),
     "prompt.slim": (_bool, "true | false: a run given --mode write and no --check is not told what to do when the "
                            "task only asks for an answer (that sentence is left out); false = the text as before "
                            "(default true)"),

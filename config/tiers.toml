@@ -138,6 +138,7 @@ routing = "on"           # off keeps the previous routing / off 关闭配额排�
 
 [lead]                    # 主导平时用的模型：估算“如果自己做要花多少”；lead.model_by_task 开时也是“强档”的名字（强档不传 --model，工具照常用自己的模型）
 slim_small = false        # experimental: skip routing call/brief for clearly small tasks; see docs/lead-slim.md
+slim_context = false      # experimental: minimal lead context, details on demand; see docs/lead-slim.md
 claude = "opus"
 codex = "gpt-6.1-sol"
 model_by_task = false     # 按任务选主导模型（默认关）：ccx 新开/推荐一个新的主对话时按难度选，见 [lead_by_task]

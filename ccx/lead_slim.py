@@ -2,6 +2,19 @@
 from __future__ import annotations
 
 
+MINIMAL_CONTEXT = ("ccx is available: run `ccx -h` or load the agent-delegate skill for commands and details.\n"
+                   "Load shared context on demand with `ccx mem delta --as <tool> --full`.")
+
+
+def minimal_context_on(p) -> bool:
+    """Experimental context suppression, independent of small-task routing guidance."""
+    from .config import load_config
+    try:
+        return (load_config(p).get("lead") or {}).get("slim_context") is True
+    except (OSError, ValueError, TypeError, AttributeError):
+        return False
+
+
 def guidance_for(p) -> str:
     """Optional guidance must not break existing sync/hook output on bad config."""
     from .config import load_config

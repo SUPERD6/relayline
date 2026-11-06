@@ -1,0 +1,1 @@
+| 2026-11-05 | Keep minimal lead context opt-in and retain skill discovery | 最短主导上下文默认关闭，保留技能发现 | Engineering checks only; client skill metadata remains automatic / 仅工程检查；客户端技能元数据仍自动加载 | `lead.slim_context`, `docs/lead-slim.md` |

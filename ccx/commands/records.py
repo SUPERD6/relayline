@@ -349,6 +349,9 @@ def cmd_lead(a) -> int:
              else leadcost.suggest(p, agent, f))
         return 0
     if a.hint:
+        from ..lead_slim import minimal_context_on
+        if minimal_context_on(p):
+            return 0
         try:
             data = json.loads(sys.stdin.read() or "{}") if not sys.stdin.isatty() else {}
         except ValueError:
