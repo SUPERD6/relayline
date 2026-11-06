@@ -7,6 +7,7 @@ import tempfile
 import tomllib
 import unittest
 from pathlib import Path
+from unittest import mock
 
 ROOT = Path(__file__).resolve().parent.parent
 FAKES = ROOT / "tests" / "fakes"
@@ -18,6 +19,10 @@ from ccx.sync import TOML_BEGIN, sync_all, upsert_block  # noqa: E402
 
 
 class Env(unittest.TestCase):
+    # SessionStart maintenance can outlive mem delta, even with
+    # CCX_NO_AUTO_ARCHIVE=1. Join hook children before removing the test hub.
+    ccx_entrypoint = FAKES / "ccx_wait.py"
+
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
         t = Path(self.tmp.name)
@@ -60,7 +65,7 @@ class Env(unittest.TestCase):
 
     def ccx(self, *args, env=None, stdin=None):
         e = {**self.env, **(env or {})}
-        r = subprocess.run([sys.executable, str(ROOT / "ccx.py"), *args], cwd=self.work, env=e,
+        r = subprocess.run([sys.executable, str(self.ccx_entrypoint), *args], cwd=self.work, env=e,
                            capture_output=True, text=True, input=stdin, encoding="utf-8")
         return r
 
@@ -588,6 +593,71 @@ class TestUninstall(Env):
                 self.assertEqual(b"\r\n" in ct.read_bytes(), nl == "\r\n")            # line endings kept
                 sync_all(p, apply=True, parts=["hooks"])
                 self.assertEqual(ct.read_bytes(), before)                             # same place, same bytes
+
+
+class TestHookProcessCleanup(unittest.TestCase):
+    def test_hook_test_environments_use_waiting_entrypoint(self):
+        from test_archive_worker_safety import TestArchiveSafety
+        from test_engineering_regressions import TestArchiveCompletion
+
+        for environment in (Env, TestProjectLayer, TestMemory, TestExternalLayout,
+                            TestArchiveSafety, TestArchiveCompletion):
+            with self.subTest(environment=environment.__name__):
+                self.assertEqual(environment.ccx_entrypoint, FAKES / "ccx_wait.py")
+
+    def test_children_are_joined_even_when_cli_exits_with_an_error(self):
+        from fakes.ccx_wait import run_cli
+
+        for code in (0, 7):
+            with self.subTest(exit_code=code):
+                events = []
+                children = [mock.Mock(), mock.Mock()]
+                children[0].wait.side_effect = lambda **kw: events.append("archive finished")
+                children[1].wait.side_effect = lambda **kw: events.append("refresh finished")
+
+                def cli(*args, **kwargs):
+                    subprocess.Popen(["fake-archive"])
+                    subprocess.Popen(["fake-refresh"])
+                    events.append("CLI exited")
+                    raise SystemExit(code)
+
+                with mock.patch.object(subprocess, "Popen", side_effect=children), \
+                     mock.patch("runpy.run_path", side_effect=cli), \
+                     self.assertRaises(SystemExit) as raised:
+                    run_cli(ROOT / "ccx.py")
+                self.assertEqual(raised.exception.code, code)
+                self.assertEqual(events, ["CLI exited", "archive finished", "refresh finished"])
+
+    def test_timeout_reaps_remaining_children_and_preserves_cli_error(self):
+        from fakes.ccx_wait import run_cli
+
+        for code in (None, 0, 7):
+            with self.subTest(exit_code=code):
+                children = [mock.Mock(), mock.Mock()]
+                timeout = subprocess.TimeoutExpired("fake-archive", 30)
+                children[0].wait.side_effect = [timeout, None]
+
+                def cli(*args, **kwargs):
+                    subprocess.Popen(["fake-archive"])
+                    subprocess.Popen(["fake-refresh"])
+                    if code is not None:
+                        raise SystemExit(code)
+
+                with mock.patch.object(subprocess, "Popen", side_effect=children), \
+                     mock.patch("runpy.run_path", side_effect=cli), \
+                     self.assertRaises(BaseExceptionGroup) as raised:
+                    run_cli(ROOT / "ccx.py")
+                children[0].kill.assert_called_once_with()
+                self.assertEqual(children[0].wait.call_count, 2)
+                children[1].wait.assert_called_once_with(timeout=30)
+                children[1].kill.assert_not_called()
+                errors = raised.exception.exceptions
+                self.assertIs(errors[-1], timeout)
+                if code is not None:
+                    self.assertIsInstance(errors[0], SystemExit)
+                    self.assertEqual(errors[0].code, code)
+                else:
+                    self.assertEqual(errors, (timeout,))
 
 
 class TestProjectLayer(Env):
