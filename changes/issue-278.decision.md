@@ -1,0 +1,1 @@
+| 2026-11-05 | Detect Bash-only check syntax on Windows | 在 Windows 识别验收命令的 Bash 专属语法 | Preserve working cmd.exe commands; shared operators alone do not switch shells / 保留可运行的 cmd.exe 命令，共用操作符不单独切换 shell | `ccx/check_shell.py`, `docs/check-shell.md` |
