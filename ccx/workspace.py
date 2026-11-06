@@ -308,25 +308,48 @@ def run_check(cmd: str, cwd: Path, timeout: int = 900, tail_chars: int = 800, *,
     `broken` (status check_broken) = the command could not test anything, which is not a verdict on the work.
     `tail_chars`: how much of the end of its output is kept (a focused retry hands the sub-agent ~2000)."""
     from .runners import without_launcher_vars
+    from .check_shell import find_bash, needs_bash
 
     t0 = time.time()
     ran = quote_k_expr(cmd)
-    ran = _expand_globs(ran, cwd) if os.name == "nt" else ran
     check_env = without_launcher_vars(os.environ if env is None else env)
+    bash_required = os.name == "nt" and needs_bash(ran)
+    bash = find_bash(check_env) if bash_required else None
+    # Bash must see the original quotes/globs, rather than cmd.exe's rewrites.
+    ran = _expand_globs(ran, cwd) if os.name == "nt" and not bash_required else ran
+    broken = ""
+    missing_bash = ("check requires Bash syntax, but Git Bash/bash was not found. "
+                    "Install Git Bash or rewrite --check for cmd.exe")
     stdout, stderr = "", ""
     try:
-        r = subprocess.run(ran, shell=True, cwd=cwd, capture_output=True, text=True, timeout=timeout,
-                           stdin=subprocess.DEVNULL, encoding="utf-8", errors="replace",
-                           env=check_env)
-        stdout, stderr = r.stdout, r.stderr
-        code, tail = r.returncode, (stdout + stderr)[-tail_chars:]
+        if bash_required and not bash:
+            broken = missing_bash
+            code, tail, stderr = -1, broken[-tail_chars:], broken
+        else:
+            invocation = [bash, "--noprofile", "--norc", "-c", ran] if bash else ran
+            r = subprocess.run(invocation, shell=not bool(bash), cwd=cwd, capture_output=True, text=True, timeout=timeout,
+                               stdin=subprocess.DEVNULL, encoding="utf-8", errors="replace",
+                               env=check_env)
+            stdout, stderr = r.stdout, r.stderr
+            code, tail = r.returncode, (stdout + stderr)[-tail_chars:]
     except subprocess.TimeoutExpired as e:
         stdout = e.stdout or b""
         stderr = e.stderr or b""
         stdout = stdout.decode("utf-8", errors="replace") if isinstance(stdout, bytes) else stdout
         stderr = stderr.decode("utf-8", errors="replace") if isinstance(stderr, bytes) else stderr
         code, tail = -1, f"timed out after {timeout}s"
+    except OSError as e:
+        # Only the new missing-Bash case is recoverable, including an executable
+        # that disappeared after discovery. All pre-existing OS errors propagate.
+        if not (bash_required and bash and cwd.is_dir() and not Path(bash).is_file()):
+            raise
+        broken = missing_bash + f" ({str(e).replace(';', '.')})"
+        code, tail = -1, broken[-tail_chars:]
+        stderr = broken
     out = {"cmd": cmd, "exit": code, "passed": code == 0, "seconds": round(time.time() - t0, 1), "tail": tail}
+    if bash_required and "\\" in ran:
+        out["shell_warning"] = ("Bash treats backslashes as escapes. Use forward slashes or quote Windows paths "
+                                "carefully in --check")
     if log_dir is not None:
         from .check_baseline import failed_cases, save_logs
         out["failed_cases"] = failed_cases(stdout + "\n" + stderr, code)
@@ -336,7 +359,9 @@ def run_check(cmd: str, cwd: Path, timeout: int = 900, tail_chars: int = 800, *,
         out["artifacts"] = save(check_env, cmd, ran, cwd, code, stdout, stderr)
     if ran != cmd:
         out["ran"] = ran
-    if code in PYTEST_BROKEN and "pytest" in cmd:
+    if broken:
+        out.update(status="check_broken", broken=broken)
+    elif code in PYTEST_BROKEN and "pytest" in cmd:
         out.update(status="check_broken", broken=PYTEST_BROKEN[code] + "; fix the check (ccx resume <run_id> "
                    "--check \"...\"), not the code")
     if out["passed"]:
