@@ -165,6 +165,28 @@ Two `undo-not-verdict` external checks failed with `cost_usd=None`: **preliminar
 hard-coded date (similar to dd88517); only a commit title and code clues were checked. API-equivalent spend:
 pg3 $0.148 + pg3b $1.462 + hc2 $2.411 = **$4.02 rounded**.
 
+## Experimental, measured, not recommended
+
+These options remain available for reproduction, but are not recommended for routine use: the measured
+candidates did not clear their gates, or the published evidence is insufficient (Unknown). Defaults are unchanged;
+all experimental behaviors below remain opt-in. These are historical results, not a test of today's main.
+Costs are API-equivalent unless the source says otherwise; dates, pins and limitations are in each source.
+Pass/Fail labels apply only to items with preregistered gates; recommendations without a gate are not labelled Fail.
+
+| Option / experiment | What was tested | Verdict, numbers and source |
+|---|---|---|
+| B3: `[subagent] codex_memories = false` | Codex memories off vs daily setup, 2026-10-31 | **Unknown**: 29 valid pairs, right 29/29 on each side; one snapshot-mismatched pair excluded. Total prompt ratio 1.082; no reliable saving. [Report](https://github.com/SUPERD6/relayline/blob/main/docs/research/2026-10-31-b3-lean-switches.md) · [preregistered plan](https://github.com/SUPERD6/relayline/blob/main/docs/research/2026-10-30-b3-lean-switches-plan.md) |
+| B3: `[subagent] clean = true` | Clean sub-agent vs daily setup, 2026-10-31 | **Fail**: 30 pairs, right 27/30 vs baseline 30/30; 3 lost pairs, at most 2 allowed. Total prompt ratio 1.100. [Report](https://github.com/SUPERD6/relayline/blob/main/docs/research/2026-10-31-b3-lean-switches.md) · [preregistered plan](https://github.com/SUPERD6/relayline/blob/main/docs/research/2026-10-30-b3-lean-switches-plan.md) |
+| B3: `[subagent] codex_lean_tools = true` | Fewer Codex tools vs daily setup, 2026-10-31 | **Fail** under the registered rule: 30 pairs, right 29/30 vs 30/30; post-hoc reading undecided (30 of 50 registered pairs clean). Total prompt ratio 0.882; no reliable saving. [Report](https://github.com/SUPERD6/relayline/blob/main/docs/research/2026-10-31-b3-lean-switches.md) · [preregistered plan](https://github.com/SUPERD6/relayline/blob/main/docs/research/2026-10-30-b3-lean-switches-plan.md) |
+| Focused fix-round re-review: `[review] fix_rereview = "focus"` | Full vs focused replay, 40 pairs, 2026-10-28 | **Fail** (replay gate not met): paired median saving 2.4 s, below the 10 s bar; rescues retained 9/10. Focus missed 24/33 recorded must-fix issues, full replay 21/33; one replay each, not distinguishable from noise. [Decision and method: 2026-10-28 row](https://github.com/SUPERD6/relayline/blob/main/docs/DECISIONS.md) |
+| Lead model selection: `ccx2@auto` / `--lead-model auto`; `lead.model_by_task = true` | Per-task lead selection vs fixed models, r6a | **Unknown**: n=10 per arm, one round, all three right 9/10; total cost ccx2 $1.0126, ccx2@auto-medium $1.499, ccx2nc $0.9122. Auto cost about 48% more than ccx2, median wall 201.1 s. [Raw summary and paired comparisons](https://github.com/SUPERD6/relayline/blob/main/bench/results/r5-dev-summary.json); the [data notes](https://github.com/SUPERD6/relayline/blob/main/bench/README.md) draw no published conclusion for r6a, and no preregistered gate was located. The [2026-10-28 decision row](https://github.com/SUPERD6/relayline/blob/main/docs/DECISIONS.md) and [CHANGELOG](https://github.com/SUPERD6/relayline/blob/main/CHANGELOG.md) warn that difficulty from reference-change size is an oracle upper bound; only tasks with pre-estimated minutes count for enabling it. Distinct from normal `ccx route` selection. |
+| Warm lanes: `ccx batch --lanes N` / `[lanes] default` | 2/3 lanes vs ten parallel runs and one combined run, 2026-10-25 | **Default adoption not recommended** (report recommendation, no preregistered gate): 2 rounds per arm, all 10/10 right. Sub-agent cost about 40% below ten fresh runs, but 4–5× one combined run; wall 82–101 s vs parallel 28–43 s. Descriptive, one task type; not a formal preregistered Pass/Fail gate. [Report](https://github.com/SUPERD6/relayline/blob/main/docs/research/2026-10-25-warm-lanes.md) |
+| Task-derived test review: `review.mode = "tests"` | Preregistered R2 (final round), replay of 29 pg3b receipts (15 wrong, 14 correct), pin `b7f9463`; figures here come from the post-hoc diagnostic report | **Fail**: confirmed catches 0/15; even counting 7 wrong Unknowns as catches gives 7/15 = 46.7%, below 50%. Correct cases: 5/14 Unknown. R1 **Unknown**: catches 0/15, 25/29 Unknown. [Diagnostic report](https://github.com/SUPERD6/relayline/blob/main/docs/research/2026-11-05-p2-r2-diagnostics.md); [unchanged gate and R1 result (preregistration branch, Chinese only)](https://github.com/SUPERD6/relayline/blob/prereg/optimize-20261104/docs/research/prereg/2026-11-04-p2-r2.zh.md) |
+
+B3 has only 30 clean pairs per arm (nomem 29 valid), rather than the registered 50, and shares one baseline.
+B3 ratios of medians were lower (0.645, 0.565, 0.538), but paired statistics do not support reliable savings; see the [report, “The median and the pairs disagree”](https://github.com/SUPERD6/relayline/blob/main/docs/research/2026-10-31-b3-lean-switches.md).
+No command, option, JSON meaning, exit code or runtime default is changed by this documentation.
+
 ## Switching leads, and every feature
 
 Each layer's commands and options in detail: [docs/features.md](https://github.com/SUPERD6/relayline/blob/main/docs/features.md).
