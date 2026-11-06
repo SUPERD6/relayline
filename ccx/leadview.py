@@ -134,7 +134,7 @@ def line(res: dict) -> dict:
     out = {"run_id": res["run_id"], "agent": res.get("agent"), "model": res.get("model"), "ok": bool(res.get("ok")),
            "status": receipt_status(res), "summary": said, "files_changed": res.get("files_changed", [])}
     for k in ("effort", "requested_agent", "requested_model", "substituted_for", "reported_status", "diffstat", "worktree",
-              "continued_from", "chain", "escalated", "quota_fallback", "role", "role_receipt"):
+              "continued_from", "chain", "escalated", "quota_fallback", "capacity_recovery", "role", "role_receipt"):
         if res.get(k):
             out[k] = res[k]
     if "base_behind" in res:

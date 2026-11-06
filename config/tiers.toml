@@ -23,6 +23,7 @@ enabled = false
 [defaults]
 auto_escalate = true      # 子任务返回 blocked/failed 时，在同一会话里换更强一档继续（续接上下文，不重新喂背景）
 max_escalations = 1
+capacity_fallback = true  # Skip models at capacity; at most two switches / 容量不足时换模型，最多两次
 focused_retry = false     # 说做完了但 --check 没过时，下一次（同一家）续同一会话，带上失败的命令和约 2000 字的输出，只修失败处；
 # false = 照旧（升档提示 + 400 字）。r6a 里这类重试中位 389 s、比首轮还慢；默认关，等一轮实测确认不降正确率再开
 max_parallel = 3         # batch 并行上限

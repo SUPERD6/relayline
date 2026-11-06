@@ -19,7 +19,7 @@ from typing import Callable
 from .workspace import _git, worktree_repo
 
 # what ends a lane's session: the next piece then starts a new one
-BAD_KINDS = ("quota", "auth", "timeout", "user_stopped", "interrupted", "check_failed", "check_broken",
+BAD_KINDS = ("quota", "capacity", "auth", "timeout", "user_stopped", "interrupted", "check_failed", "check_broken",
              "check_baseline_failed", "review_failed",
              "review_issues", "needs_write", "over_budget", "max_usd", "split", "no_changes", "no_answer", "env")
 

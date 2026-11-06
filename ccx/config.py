@@ -363,6 +363,7 @@ SETTINGS = {   # key -> (type, help). Only these can be set with `ccx config set
                                         "tasks are delegated as before"),
     "defaults.ab_self_rate": (float, "share of routed tasks the lead does itself to measure savings (0 = off)"),
     "defaults.max_escalations": (int, "stronger rungs to try after a verified failure"),
+    "defaults.capacity_fallback": (_bool, "true | false: skip models at capacity, at most two switches (default true)"),
     "defaults.focused_retry": (_bool, "true | false: when ccx's --check fails after the sub-agent said done, the next "
                                       "attempt on the same agent continues its session with the failing command and "
                                       "~2000 characters of its output, told to fix only that (default false: the "
