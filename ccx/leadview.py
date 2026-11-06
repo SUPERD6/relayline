@@ -19,7 +19,7 @@ import os
 SUMMARY_CHARS = 300
 # any of these in a result means the lead has something to look at: the whole result goes out
 ATTENTION = ("needs_lead", "hint", "kind", "edited_tests", "namecheck", "policy_blocked", "cost_chain_error",
-             "base", "retry_after", "open_questions", "next_step", "brief_warnings",
+             "base", "retry_after", "open_questions", "next_step", "brief_warnings", "credential_guard_warnings",
              "autonomy", "project",      # an L2 merge's outcome (merged, why not, undo), a project's approval rules
              "fixed_after_review_of")    # passed after a fix round: the first review's issues are worth a look
 
@@ -37,6 +37,8 @@ def clean(res: dict) -> bool:
     complete = res.get("status") == "done" or (res.get("status") == "partial"
                and res.get("reported_status") == "done" and quota_reassigned(res))
     if not res.get("ok") or not complete or res.get("max_usd") or any(res.get(k) for k in ATTENTION):
+        return False
+    if "credential_guard" in res and (res["credential_guard"] or {}).get("status") != "Pass":
         return False
     c = res.get("check") or {}
     if c.get("passed") is not True or c.get("weak") or c.get("status") or c.get("note") \
@@ -170,7 +172,8 @@ def line(res: dict) -> dict:
     out = {"run_id": res["run_id"], "agent": res.get("agent"), "model": res.get("model"), "ok": bool(res.get("ok")),
            "status": receipt_status(res), "summary": said, "files_changed": res.get("files_changed", [])}
     for k in ("effort", "requested_agent", "requested_model", "substituted_for", "reported_status", "diffstat", "worktree",
-              "continued_from", "chain", "escalated", "quota_fallback", "capacity_recovery", "role", "role_receipt"):
+              "continued_from", "chain", "escalated", "quota_fallback", "capacity_recovery", "role", "role_receipt",
+              "credential_guard", "credential_guard_warnings"):
         if res.get(k):
             out[k] = res[k]
     if "base_behind" in res:

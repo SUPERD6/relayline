@@ -12,6 +12,35 @@ MAX_SETTINGS_CHARS = 22000
 MAX_COMMAND_CHARS = 30000  # headroom below Windows CreateProcess's 32767 UTF-16 units
 
 
+def launch_warning(cli: str) -> str:
+    if cli != "claude":
+        return (f"ccx warning: credential guard for {cli}: Unknown; no verified per-directory read deny. "
+                "The existing sandbox is unchanged; use external isolation for sensitive tasks.")
+    return ("ccx warning: credential guard adds Claude Read/Bash deny rules; arbitrary programs, "
+            "MCP and path aliases are not an OS isolation boundary.")
+
+
+def record_guard(record: dict, current: dict, guard: dict | None) -> None:
+    """Keep launch evidence before execution, including interrupted attempts; off is a no-op."""
+    if guard is None:
+        return
+    current["credential_guard"] = dict(guard)
+    summaries = [{"n": n, "agent": attempt.get("agent"), "model": attempt.get("model"),
+                  **attempt["credential_guard"]}
+                 for n, attempt in enumerate([*record["attempts"], current])
+                 if "credential_guard" in attempt]
+    # Fail is weakest; Unknown must never become Pass. At equal status, absence
+    # of verified controls is weaker than injected tool rules (neither proves isolation).
+    weakest = min(summaries, key=lambda item: (
+        {"Fail": 0, "Unknown": 1, "Pass": 2}.get(item.get("status"), 1),
+        item.get("mechanism") != "unverified"))
+    record["credential_guard"] = {
+        **{key: value for key, value in weakest.items() if key not in ("n", "agent", "model")},
+        "attempts": summaries}
+    record.setdefault("credential_guard_warnings", []).append({
+        "attempt": current["n"], "agent": current["agent"], "message": launch_warning(current["cli"])})
+
+
 def _aliases(raw: str | Path, base: Path) -> list[Path]:
     path = Path(raw).expanduser()
     if not path.is_absolute():
@@ -82,8 +111,7 @@ def protect(cli: str, inv, cfg: dict, project: Path, env: dict) -> dict | None:
     if not isinstance(extra, list) or any(not isinstance(p, str) or not p.strip() for p in extra):
         raise ValueError("security.credential_dirs must be a list of nonempty paths")
     if cli != "claude":
-        print(f"ccx warning: credential guard for {cli}: Unknown; no verified per-directory read deny. "
-              "The existing sandbox is unchanged; use external isolation for sensitive tasks.", file=sys.stderr, flush=True)
+        print(launch_warning(cli), file=sys.stderr, flush=True)
         return {"status": "Unknown", "mechanism": "unverified"}
     if any(x in inv.argv for x in ("--dangerously-skip-permissions", "bypassPermissions",
                                   "--permission-mode=bypassPermissions")):
@@ -127,6 +155,5 @@ def protect(cli: str, inv, cfg: dict, project: Path, env: dict) -> dict | None:
     if len(encoded) > MAX_SETTINGS_CHARS or command_units > MAX_COMMAND_CHARS:
         raise ValueError("credential guard rule length exceeds launch limit; reduce security.credential_dirs or inherited settings")
     inv.argv[i] = encoded
-    print("ccx warning: credential guard adds Claude Read/Bash deny rules; arbitrary programs, "
-          "MCP and path aliases are not an OS isolation boundary.", file=sys.stderr, flush=True)
+    print(launch_warning(cli), file=sys.stderr, flush=True)
     return {"status": "Unknown", "mechanism": "claude-permissions-deny", "rules_added": True}
