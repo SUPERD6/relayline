@@ -39,8 +39,8 @@ UI 服务开着时，观察器把新的开始 / 完成状态写成 `kind: run` �
 | **1. 互为主子** | Claude Code 当主、Codex 干活，或者反过来；DeepSeek 也能当主导（`dsh`，或跑 DeepSeek 模型的 Claude Code），也能接活（经 Claude Code、经 Codex 或 `dsh`）；Gemini CLI 可以接活（实验性，未实测）。每家一个适配器，`ccx agents` 列出每家能做什么、测过哪个版本、官方还是社区。 | 两个方向真机跑通；DeepSeek 当主导（dsh、跑 DeepSeek 的 Claude Code）和当子智能体（三条路）都真跑过；Gemini 实验性、未实测 |
 | **2. 两个模型直接对话** | `ccx ask` 让另一家快速给个第二意见；`ccx resume` 在同一个子会话里追问；`ccx send` 把消息发进正在运行的 Codex 会话；`ccx say` / `ccx board` 让同一项目里开着的 Claude Code、Codex、DeepSeek 会话互相留言（每轮只看到给自己的新内容；Claude Code 桌面端只能下一轮看到，DeepSeek 会话要自己跑 `ccx board`）；`ccx discuss` 让 2–3 家不同厂商的模型把选错代价高的决定讨论清楚（出方案、挑错、裁判，最多 3 轮），在 `ccx ui` 里显示成对话。从外面派活：手机用 Remote Control，或用 `ccx intake` 把你在私人仓库开的带标签 issue 当任务取走、做完在 issue 里回报（[说明](intake.zh.md)）。 | 前三个真机可用；`ccx discuss` 真跑过两次，先两家、后三家（Codex、Claude、DeepSeek；[记录](research/2026-10-25-discuss-three-vendors.zh.md)）；`ccx intake` 实验性：只用假 `gh` 测过，没对真实 GitHub 跑过 |
 | **3. 共享记忆** | 个人层（你的 hub：记忆、技能、MCP、账本）和项目层（`.ccx/`：背景、日志、交接、断点）。开局 hook 只推对方新写的几行；`ccx handoff` 换主导接力，`ccx fresh` 把长对话交给同一工具的新对话。**共享工作上下文**（[说明](shared-context.zh.md)）：用代码从各家会话记录摘出“最近在做什么”，派活时附上（`ccx run --context`）、按需看（`ccx peek`）、每轮推一行——各家仍各有自己的上下文。 | 真机可用；共享工作上下文：在专门需要它的任务上一次做对 36/36，不带 7/36（[A/B](research/2026-10-25-shared-context-ab.zh.md)） |
-| **4. 分工合作** | 5 个问题打出难度 → 选智能体、模型、强度并给出成功率；算下来自己做更划算或该先拆，就直接说不派。`ccx batch` / `ccx q` 并行（`--lanes N`，默认关：同一家的小活续在几个热会话里，不再每块开新会话），长任务断了 `ccx task resume` 接着做。 | 选模型真机可用，但先验没校准；队列只有模拟测试 |
-| **5. 省和高效** | 子智能体精简启动；`ccx lead` 看主导每轮重读多少（`--breakdown` 拆开看、`--cache` 找缓存断在哪、`--suggest` 给主导自己的档位建议）；`ccx sum` 只把大段输出里要紧的给主导。 | 工具都在；省多少取决于主导怎么用（见实测） |
+| **4. 分工合作** | 5 个问题打出难度 → 选智能体、模型、强度并给出成功率；算下来自己做更划算或该先拆，就直接说不派。`ccx batch` / `ccx q` 并行（热车道是实验性、已测不推荐，见下方结果），长任务断了 `ccx task resume` 接着做。 | 选模型真机可用，但先验没校准；队列只有模拟测试 |
+| **5. 省和高效** | 子智能体精简启动；另列的 B3 精简开关是实验性、已测不推荐（见下方结果）；`ccx lead` 看主导每轮重读多少（`--breakdown` 拆开看、`--cache` 找缓存断在哪、`--suggest` 给主导自己的档位建议）；`ccx sum` 只把大段输出里要紧的给主导。 | 工具都在，省多少取决于用法；另列的 B3 未证明可靠节省 |
 | **6. 不掉质量** | ccx 自己重跑验收命令（`--check`）；另一家的模型独立审查改动（`--review`）；每次记对错（`ccx verify --ok 0 --reason wrong`），没人判的 12 小时后按证据记“大概对/错”；`ccx trial` 做一周正式对比。 | 真机可用；自动结论还没被抽查过 |
 | **7. 不丢可控** | 改配置先预演、真改前备份；`ccx undo` 撤回某次运行的改动；`--mode read` / `--worktree` 不动工作区；子智能体不能再派子智能体；`ccx ui` 在本机显示谁在干什么、什么等你拍板，按钮（停下、记对错、再改一轮、改预算）先给你看要运行的 `ccx` 命令，再点一次才运行。 | 真机可用；`ccx ui` 在 Edge 和桌面端内置浏览器里开过 |
 
@@ -352,7 +352,28 @@ DeepSeek Harness（`--to dsh`）：T1–T3 用 deepseek-flash 的 low / high / m
 
 **按 token 付费的智能体**（`[providers.*]` 里的各家和 `dsh`）花的是真钱，所以每家都有 `daily_usd` 上限（默认 $1）；环境变量里没有密钥的 provider 不参与任何选择（`ccx agents` 里看 `ready`）。没有价格的模型会被拒绝运行，因为它花了多少算不出来，上限就守不住。它们不会被自动拿来在额度用完时接班，也不会自己被选为审查者；自动选模型只考虑经 Claude Code 的 DeepSeek（有标定和价格），其余几家标定之前要用 `--provider` / `--to` 指定。
 
-## 实验性：子智能体精简开关（`[subagent]`，实测前不开）
+## 实验性、已测不推荐
+
+这些选项保留用于复现，但不推荐日常启用：已测候选没有过门槛，或公开证据不足（Unknown）。默认值不变，
+下列实验行为仍须主动选择。这些是历史结果，不是对当前 main 的评测。
+费用除来源另有说明外均为 API 等价美元；日期、pin 和限制见各行出处。
+表中 Pass/Fail 仅用于有预登记门槛的项；无门槛的建议不记为 Fail。
+
+| 开关 / 实验 | 测了什么 | 结果、数字与出处 |
+|---|---|---|
+| B3：`[subagent] codex_memories = false` | 关闭 Codex memories 对比日常配置，2026-10-31 | **Unknown**：29 个有效配对，两边都做对 29/29；排除 1 对快照不一致的配对。prompt 总量比 1.082，未证明可靠节省。[报告](research/2026-10-31-b3-lean-switches.zh.md) · [预登记计划](research/2026-10-30-b3-lean-switches-plan.zh.md) |
+| B3：`[subagent] clean = true` | 干净子智能体对比日常配置，2026-10-31 | **Fail**：30 对，做对 27/30，基线 30/30；输 3 对，最多允许 2 对。prompt 总量比 1.100。[报告](research/2026-10-31-b3-lean-switches.zh.md) · [预登记计划](research/2026-10-30-b3-lean-switches-plan.zh.md) |
+| B3：`[subagent] codex_lean_tools = true` | 少给 Codex 工具对比日常配置，2026-10-31 | 按登记规则 **Fail**：30 对，做对 29/30，基线 30/30；事后解读未定（登记 50 对，只有 30 对干净）。prompt 总量比 0.882，未证明可靠节省。[报告](research/2026-10-31-b3-lean-switches.zh.md) · [预登记计划](research/2026-10-30-b3-lean-switches-plan.zh.md) |
+| 修复轮复审聚焦：`[review] fix_rereview = "focus"` | 全量与聚焦复审回放，40 对，2026-10-28 | **Fail**（回放门槛没过）：配对中位仅省 2.4 秒，低于 10 秒门槛；保住 9/10 次救回。记录的 33 条 must 中 focus 漏 24 条、full 重跑漏 21 条；各只回放一次，分不出噪声。[决定及方法：2026-10-28 行](DECISIONS.md) |
+| 主导选模型：`ccx2@auto` / `--lead-model auto`；`lead.model_by_task = true` | 按任务选主导模型对比固定模型，r6a | **Unknown**：每组 n=10、仅一轮，三组均做对 9/10；总费用 ccx2 $1.0126、ccx2@auto-medium $1.499、ccx2nc $0.9122；auto 比 ccx2 高约 48%，墙钟中位 201.1 秒。[原始汇总及配对对比](../bench/results/r5-dev-summary.json)；[数据说明](../bench/README.zh.md)未对 r6a 下公开结论，未找到预登记门槛。[2026-10-28 决定行](DECISIONS.md)及 [CHANGELOG](../CHANGELOG.md)说明：难度若来自参考答案改动档，只是理想上限（oracle），仅事先估时的任务可用于启用决定。它不同于正常的 `ccx route` 选择。 |
+| 热车道：`ccx batch --lanes N` / `[lanes] default` | 2/3 车道对比十路并行和一次合做，2026-10-25 | **不推荐默认启用**（报告建议，无预登记门槛）：每组 2 轮，均做对 10/10。子智能体费用比十个新运行低约 40%，但为一次合做的 4–5 倍；墙钟 82–101 秒，并行 28–43 秒。仅一类任务的描述性结果，不是正式预登记 Pass/Fail 门槛。[报告](research/2026-10-25-warm-lanes.zh.md) |
+| 测试型审查：`review.mode = "tests"` | 预登记第二轮（最后一轮），回放 pg3b 29 张收据（15 错、14 对），pin `b7f9463`；本行数字来自事后诊断报告 | **Fail**：确认抓错 0/15；即使把错题中 7 个 Unknown 都算抓到，也只有 7/15 = 46.7%，低于 50%。正确题中 5/14 为 Unknown。第一轮 **Unknown**：抓错 0/15、25/29 Unknown。[诊断报告](research/2026-11-05-p2-r2-diagnostics.zh.md)；[未变的预登记门槛及第一轮结果（预登记分支，仅中文）](https://github.com/SUPERD6/relayline/blob/prereg/optimize-20261104/docs/research/prereg/2026-11-04-p2-r2.zh.md) |
+
+B3 每组只有 30 个干净配对（nomem 有效 29 对），不是登记的 50 对，且共用一个基线。
+B3 三组的中位数比分别较低（0.645、0.565、0.538），但配对统计不支持可靠节省；见[报告“中位数和配对结果相反”一节](research/2026-10-31-b3-lean-switches.zh.md)。
+本次文档不改变任何命令、选项、JSON 含义、退出码或运行默认值。
+
+### 实验性：子智能体精简开关（`[subagent]`，实测前不开）
 
 `config/tiers.toml` 里有三个开关（可在 `hub/ccx/tiers.toml` 覆盖），决定派出去的子智能体启动时加载什么。出厂都是今天的做法，
 要等前后对比证明正确率不降才改默认（[计划和评测组](research/2026-10-30-b3-lean-switches-plan.zh.md)）。没有单次运行的命令行开关。

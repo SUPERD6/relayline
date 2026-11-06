@@ -142,6 +142,27 @@ hc2 预登记第 3 条同时写“≤25/30”和“只算 env_clean 行”，存
 `undo-not-verdict` 两张收据外部 check 因 `cost_usd=None` 失败，**初步**看是旧测试写死日期（与 dd88517 同类），
 只核对过提交标题和代码线索。API 等价总花费：pg3 $0.148 + pg3b $1.462 + hc2 $2.411 = **四舍五入 $4.02**。
 
+## 实验性、已测不推荐
+
+这些选项保留用于复现，但不推荐日常启用：已测候选没有过门槛，或公开证据不足（Unknown）。默认值不变，
+下列实验行为仍须主动选择。这些是历史结果，不是对当前 main 的评测。
+费用除来源另有说明外均为 API 等价美元；日期、pin 和限制见各行出处。
+表中 Pass/Fail 仅用于有预登记门槛的项；无门槛的建议不记为 Fail。
+
+| 开关 / 实验 | 测了什么 | 结果、数字与出处 |
+|---|---|---|
+| B3：`[subagent] codex_memories = false` | 关闭 Codex memories 对比日常配置，2026-10-31 | **Unknown**：29 个有效配对，两边都做对 29/29；排除 1 对快照不一致的配对。prompt 总量比 1.082，未证明可靠节省。[报告](docs/research/2026-10-31-b3-lean-switches.zh.md) · [预登记计划](docs/research/2026-10-30-b3-lean-switches-plan.zh.md) |
+| B3：`[subagent] clean = true` | 干净子智能体对比日常配置，2026-10-31 | **Fail**：30 对，做对 27/30，基线 30/30；输 3 对，最多允许 2 对。prompt 总量比 1.100。[报告](docs/research/2026-10-31-b3-lean-switches.zh.md) · [预登记计划](docs/research/2026-10-30-b3-lean-switches-plan.zh.md) |
+| B3：`[subagent] codex_lean_tools = true` | 少给 Codex 工具对比日常配置，2026-10-31 | 按登记规则 **Fail**：30 对，做对 29/30，基线 30/30；事后解读未定（登记 50 对，只有 30 对干净）。prompt 总量比 0.882，未证明可靠节省。[报告](docs/research/2026-10-31-b3-lean-switches.zh.md) · [预登记计划](docs/research/2026-10-30-b3-lean-switches-plan.zh.md) |
+| 修复轮复审聚焦：`[review] fix_rereview = "focus"` | 全量与聚焦复审回放，40 对，2026-10-28 | **Fail**（回放门槛没过）：配对中位仅省 2.4 秒，低于 10 秒门槛；保住 9/10 次救回。记录的 33 条 must 中 focus 漏 24 条、full 重跑漏 21 条；各只回放一次，分不出噪声。[决定及方法：2026-10-28 行](docs/DECISIONS.md) |
+| 主导选模型：`ccx2@auto` / `--lead-model auto`；`lead.model_by_task = true` | 按任务选主导模型对比固定模型，r6a | **Unknown**：每组 n=10、仅一轮，三组均做对 9/10；总费用 ccx2 $1.0126、ccx2@auto-medium $1.499、ccx2nc $0.9122；auto 比 ccx2 高约 48%，墙钟中位 201.1 秒。[原始汇总及配对对比](bench/results/r5-dev-summary.json)；[数据说明](bench/README.zh.md)未对 r6a 下公开结论，未找到预登记门槛。[2026-10-28 决定行](docs/DECISIONS.md)及 [CHANGELOG](CHANGELOG.md)说明：难度若来自参考答案改动档，只是理想上限（oracle），仅事先估时的任务可用于启用决定。它不同于正常的 `ccx route` 选择。 |
+| 热车道：`ccx batch --lanes N` / `[lanes] default` | 2/3 车道对比十路并行和一次合做，2026-10-25 | **不推荐默认启用**（报告建议，无预登记门槛）：每组 2 轮，均做对 10/10。子智能体费用比十个新运行低约 40%，但为一次合做的 4–5 倍；墙钟 82–101 秒，并行 28–43 秒。仅一类任务的描述性结果，不是正式预登记 Pass/Fail 门槛。[报告](docs/research/2026-10-25-warm-lanes.zh.md) |
+| 测试型审查：`review.mode = "tests"` | 预登记第二轮（最后一轮），回放 pg3b 29 张收据（15 错、14 对），pin `b7f9463`；本行数字来自事后诊断报告 | **Fail**：确认抓错 0/15；即使把错题中 7 个 Unknown 都算抓到，也只有 7/15 = 46.7%，低于 50%。正确题中 5/14 为 Unknown。第一轮 **Unknown**：抓错 0/15、25/29 Unknown。[诊断报告](docs/research/2026-11-05-p2-r2-diagnostics.zh.md)；[未变的预登记门槛及第一轮结果（预登记分支，仅中文）](https://github.com/SUPERD6/relayline/blob/prereg/optimize-20261104/docs/research/prereg/2026-11-04-p2-r2.zh.md) |
+
+B3 每组只有 30 个干净配对（nomem 有效 29 对），不是登记的 50 对，且共用一个基线。
+B3 三组的中位数比分别较低（0.645、0.565、0.538），但配对统计不支持可靠节省；见[报告“中位数和配对结果相反”一节](docs/research/2026-10-31-b3-lean-switches.zh.md)。
+本次文档不改变任何命令、选项、JSON 含义、退出码或运行默认值。
+
 ## 换主导，以及全部功能
 
 每一层的命令和选项详见 [docs/features.zh.md](docs/features.zh.md)。
