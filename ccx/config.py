@@ -321,6 +321,8 @@ ROLE_DEFAULTS = {"mode": ("read", "write"), "review": ("auto", "on", "off"),
 
 
 SETTINGS = {   # key -> (type, help). Only these can be set with `ccx config set`.
+    "security.credential_guard": (_bool, "experimental credential directory tool denies; default false"),
+    "security.credential_dirs": (path_list, "additional credential directories, separated by ';'"),
     "dispatch.cheap_first": (_bool, "experimental: cheap first attempt with independent --check; default false"),
     "check.baseline": (str, "off (default) | on_fail: experimental clean-dispatch-tree failure comparison"),
     "review.mode": (str, "read (default) | tests (experimental task-derived tests); legacy auto/on/off remain valid"),

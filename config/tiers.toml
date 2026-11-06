@@ -218,6 +218,11 @@ dsh    = { model = "deepseek-v4-pro", effort = "max" }
 # dsh = DeepSeek 官方的 DeepSeek Harness（无头模式），按 token 付真钱；只在 --to dsh 时用，不参与自动选择和换边。
 
 # 权限：read = 只读分析；write = 可以改文件。
+[security]
+# Experimental tool denies, not OS isolation. Codex per-directory read denial is Unknown.
+credential_guard = false
+credential_dirs = []  # additional directories; relative paths use the task's project
+
 [permissions.codex]
 # 用 -c sandbox_mode=...，因为 `codex exec resume` 不接受 -s，用同一写法新开和续接都能用。
 read  = ["-c", "sandbox_mode=\"read-only\""]
