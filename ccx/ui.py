@@ -82,7 +82,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path, PureWindowsPath
 from urllib.parse import parse_qs, urlsplit
 
-from . import agents, board
+from . import agents, board, leadview
 from . import queue as wq
 from .config import Paths, claude_home, codex_home, load_config
 from .ledger import is_eval
@@ -731,6 +731,7 @@ def piece_of_run(rd: Reader, rec: dict, verdict: dict | None, now: float, title:
     rv = rec.get("review") or {}
     piece = {
         "id": _sid(rec["run_id"]), "run_id": rec["run_id"], "title": title, "worker": rec.get("to"),
+        "headline": leadview.record_headline(rec),
         "model": model, "effort": last.get("effort"), "mode": rec.get("mode"), "status": status, "step": step,
         "skip": skip, "secs": secs, "usd": _usd(rec), "quota_units": _quota_units(rec, rd.cfg()),
         "tokens": lv["tokens"] if running and lv["tokens"] else _tokens(rec),
@@ -1386,6 +1387,7 @@ def receipt_row(rd: Reader, p: Paths, rec: dict, verdict: dict | None, piece_run
             "rung": last.get("rung") or rec.get("first_rung"), "rounds": len(atts),
             "usd": _usd(rec), "quota_units": _quota_units(rec, rd.cfg()),
             "running": rec.get("state") == "running", "ok": rec.get("ok"), "kind": rec.get("kind"),
+            "headline": leadview.record_headline(rec),
             "check": check,
             "review": rv.get("verdict") if rv.get("verdict") not in (None, "not-run") else None,
             "reviewer": _who_rung(rv.get("by")) if rv.get("verdict") not in (None, "not-run") else None,
@@ -1909,6 +1911,7 @@ def _run_row(rd: Reader, rec: dict) -> dict:
     d = rd.p.runs / rec["run_id"]
     task = _visible_brief(d)
     return {"run_id": rec["run_id"], "ts": ts, "project": _pid(root) if root else None,
+            "headline": leadview.record_headline(rec),
             "project_name": root.name if root else "", "from": rec.get("caller"), "to": rec.get("to"),
             "rung": last.get("rung") or rec.get("first_rung"), "task": _short(task or rec.get("label") or ""),
             "status": display_status, "display_status": display_status, "running": running, "usd": _usd(rec), "seconds": seconds,
@@ -2065,6 +2068,7 @@ def full_run(rd: Reader, rid: str, after: int = 0, source: str = "") -> dict:
                        "notes": review.get("notes") or [],
                        "fixes": fixes, "round": rec.get("review_round")},
             "receipt": {"requests": None, "prefix_tokens": None, "first_input": None,
+                        "headline": leadview.record_headline(rec), "ok": rec.get("ok"),
                         **_run_notices(rec),
                         **run_fields(rec.get("attempts") or []), "usd": _usd(rec), "quota_units": units,
                         "kind": rec.get("kind"), "via": rec.get("via") or next((r.get("via") for r in reversed(

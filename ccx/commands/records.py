@@ -4,7 +4,7 @@ from __future__ import annotations
 import time
 from pathlib import Path
 
-from .. import ledger, recover, report
+from .. import leadview, ledger, recover, report
 from ..config import SETTINGS, daily_cap, load_config, paths, set_setting
 from ..agents import leads
 from ..delegate import compact, recap, undo
@@ -181,7 +181,7 @@ def wait_run(p, run_id: str, seconds: float) -> tuple[dict | None, str]:
 
 def _result(rec: dict, asked: str, rid: str, full: bool) -> dict:
     if full:
-        return rec
+        return leadview.with_headline(rec)
     res = compact(rec)
     route = rec.get("route") or {}
     if route.get("role"):
@@ -196,7 +196,7 @@ def _result(rec: dict, asked: str, rid: str, full: bool) -> dict:
     if rid != asked:
         res["chain"] = f"{asked} -> {rid}"          # the review fix round's result is the final one
     res["recap"] = recap(rec, res)
-    return res
+    return leadview.with_headline(res)
 
 
 def cmd_show(a) -> int:
@@ -209,10 +209,9 @@ def cmd_show(a) -> int:
         # running: the ids as asked, so the next call still reports the chain (asked -> fix round) and the lead
         # can match them up
         running = [asked for asked, _ in running]
-        from .. import leadview
         cfg = load_config(p)
-        out = {"finished": [_result(rec, asked, rid, True) if a.full else
-                            leadview.render(_result(rec, asked, rid, False), cfg)[0] for asked, rec, rid in done],
+        out = {"finished": [_result(rec, asked, rid, True) if a.full else leadview.with_headline(
+                            leadview.render(_result(rec, asked, rid, False), cfg)[0]) for asked, rec, rid in done],
                "running": running,
                "waited_s": round(time.time() - t0, 1)}
         if running:
@@ -237,7 +236,7 @@ def cmd_show(a) -> int:
     recover.sweep(p)                    # a run whose ccx process is gone shows as interrupted, not running
     rec, rid = follow_chain(p, ledger.load_run(p, run_id))
     if a.full:
-        _out(rec)
+        _out(leadview.with_headline(rec))
         if rid != run_id:
             print(f"\nchain: {run_id} -> {rid}")
             print(f"\nlogs of {run_id}: {p.runs / run_id}")
@@ -252,7 +251,7 @@ def cmd_show(a) -> int:
         # RunWaiter's tag_due waits out)
         res.update(ok=False, fix_round="finishing", next=f"ccx show {run_id} --wait")
     res["recap"] = recap(rec, res)                # pending fix-round flags must agree with the printed recap
-    _out(res)
+    _out(leadview.with_headline(res))
     return 0
 
 

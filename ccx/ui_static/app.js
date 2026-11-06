@@ -490,7 +490,7 @@
       const rv = r.review ? t("map_rv_" + r.review, {w: r.reviewer || "?"}) : t("map_rv_none");
       return `<li class="o-${esc(r.outcome)}"><div>${whoOrYou(r.from)} → ${who(r.to)} <b>${usd(r.usd || 0)}</b> `
         + `<span class="mono cost">${esc([r.tier, r.rung].filter(Boolean).join(" · "))}${r.rounds > 1 ? " · " + t("map_rounds", {n: r.rounds}) : ""}</span></div>`
-        + `<div class="said">${checkLine(r.check)}</div><div class="said">${rv} · <span class="${v === "map_v_bad" || v === "map_v_wrong" ? "warn" : v === "map_v_ok" ? "good" : ""}">${t(v)}</span>`
+        + `<div class="said">${esc(r.headline || "")} · ${checkLine(r.check)}</div><div class="said">${rv} · <span class="${v === "map_v_bad" || v === "map_v_wrong" ? "warn" : v === "map_v_ok" ? "good" : ""}">${t(v)}</span>`
         + `${link ? ` · <a href="${link}">${t("map_open")}</a>` : ""} · <a href="${runHref(r.run_id)}">${t("runs_open")}</a>${r.ts ? ` · ${ago(r.ts)}` : ""}</div></li>`;
     }).join("") + `</ul>`;
     return h + ((m.receipts_total || 0) > rs.length ? `<p class="cost">${t("map_rcpt_more", {n: m.receipts_total - rs.length})}</p>` : "");
@@ -972,6 +972,18 @@
   /* ---------- a task page (or a split piece's own page): the org chart, the to-dos on it, the side panel ---------- */
   const SHOW = 4, NEEDS_SHOWN = 6;
   function statusHTML(p) {
+    const verdict = p.verdict;
+    if (verdict && verdict.ok != null && !verdict.soft) {
+      const judged = {...p, status: verdict.ok ? "done" : "fail"};
+      return workflowStatusHTML(judged) + `<span class="cost"> · ${t(verdict.ok ? "receipt_verdict_pass" : "receipt_verdict_fail")}</span>`;
+    }
+    const evidence = p.headline ? `<span class="cost"> · ${esc(p.headline)}</span>` : "";
+    if (p.status === "done" && !(verdict && verdict.soft) && p.headline && p.headline !== "DONE") {
+      return `<span class="st" style="color:var(--amber)">${esc(p.headline)}</span>`;
+    }
+    return workflowStatusHTML(p) + evidence;
+  }
+  function workflowStatusHTML(p) {
     const steps = t("step");
     if (p.status === "done") return `<span class="st pass">${t(p.verdict && p.verdict.soft ? "st_done_soft" : "st_done")}</span>`;
     if (p.status === "run") return `<span class="st" style="color:var(--teal)">${t("st_run", {s: steps[p.step] || "", t: dur(p.secs)})}${p.tokens ? " · " + tok(p.tokens) : ""}</span>`;
@@ -1249,6 +1261,7 @@
       u: typeof cap === "number" ? usd(cap) : t("runs_unknown"),
       step: before === "attempt" ? t("runs_next_attempt") : before === "fix round" ? t("runs_fix_round") : before})
       : r.review_error ? t("runs_review_error", {e: r.review_error}) : esc(r.status);
+    if (r.headline) status = `${esc(r.headline)}<br>${t("receipt_execution")}: ${status}`;
     if (r.max_usd && r.review_error) status += `<br>${t("runs_review_error", {e: r.review_error})}`;
     for (const move of r.substitutions || []) status += `<br>${t(move.reason === "quota" ? "runs_substitution" : "runs_substitution_other", {from: move.from, to: move.to})}`;
     return status;

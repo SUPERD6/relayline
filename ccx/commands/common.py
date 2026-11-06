@@ -27,7 +27,7 @@ def lead_out(res: dict, cfg: dict | None = None) -> None:
         from ..config import load_config, paths
         cfg = load_config(paths())
     obj, one = leadview.render(res, cfg)
-    print(leadview.dumps(obj, one))
+    print(leadview.dumps(leadview.with_headline(obj), one))
 
 
 def human_tail(lines: list[str], stream=None) -> None:

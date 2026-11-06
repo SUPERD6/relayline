@@ -300,6 +300,14 @@ In Claude Code you say: "make `loader.py` accept a custom delimiter and add test
    `{"headline":"DONE",...}`. `CHECK_FAILED` / `CHECK_BROKEN` take precedence over completion; other cues
    include `REVIEW_ISSUES`, `PARTIAL`, `STOPPED`, `SELF_CHECKED` and `UNVERIFIED`. They summarize existing
    evidence, not a new verdict. Native line mode still expands attention-worthy results into full JSON.
+   Full run output, `ccx show` (including `--full`, `--wait` and `--any`) and `ccx ui` also expose
+   `headline`, separately from execution status. A finished execution without an independent passing check
+   or a passing review is `UNVERIFIED`, never `DONE`. Self-authored checks remain `SELF_CHECKED`;
+   weak, unknown-coverage or changed-basis checks alone do not establish `DONE`.
+   `DONE` means the recorded check/review evidence passed, not proof of general correctness.
+   **`ok=true` only means execution completed; it does not mean the task was done correctly.**
+   Edited existing tests or undefined-name hits do not support `DONE`. In UI task cards, an explicit
+   human verdict takes precedence; probable (`soft`) verdicts retain their qualified label.
    Check output retention is also a default addition: `stdout_path`, `stderr_path`, `stdout_truncated`,
    `stderr_truncated`, and `failed_cases`, with at most 2 × 256 KiB of stdout/stderr per check, even with
    baseline comparison off. The existing `tail` is unchanged; see [check records](check-baseline.md).
