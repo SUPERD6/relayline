@@ -117,6 +117,8 @@ ccx way --stats [--include-evals]           # 每类活每家（分档位）的�
 ccx discuss "问题" [--dry-run]              # 2-3 家不同厂商讨论选错代价高的决定：出方案、挑错、裁判
 ccx verify <run_id> --ok 0 --reason wrong     # 你的判断（没人判断的，12 小时后按证据自动记“大概率对/错”）
 ccx verify --sample 5                        # 抽查本周 5 个自动判定：看改动，回答对 / 错
+ccx verify --list                            # JSON：近 7 天已结束、还没有判定的运行（只读）
+ccx verify --list --days 30 --project my-repo --state done  # 过滤待判运行；--days 0 = 全部历史
 ccx handoff --from-transcript codex --to claude   # 原主导写不了（额度用完）：从它的会话文件生成交接
                                                   # （先用代码提取；格式认不出时交给自动选出的子智能体整理，--no-model 不用模型）
 ccx undo <run_id> [--apply] [--wrong]   # 撤回某次可写运行改动的文件（新建的挪到一边）；--wrong 同时记成做错
@@ -184,3 +186,14 @@ ccx autonomy --project desk-pet         # 总管不用问能做多少：L0 / L1�
 ccx sync [--apply] [--only skills,memory,hooks,mcp]
 ccx doctor
 ```
+
+`verify --list` 是经过工程检查的只读待判列表（`{"pending": [...]}`），按时间从新到旧排列。
+它排除运行中、临时、已忽略、已有判定（包括自动判定）、内部和评测运行；`--include-evals` 可包含内部和评测运行，
+但仍排除已忽略运行。`--days` 按运行时间戳过滤，默认 7 天，0 表示全部历史。
+`--project` 按项目目录名或路径精确匹配，`--state` 按结果状态匹配（如 `done`、`partial`、`blocked`、`failed`）。
+这些过滤参数也可配 `--sample N`，其原有 `sample` JSON 和交互式 ok/wrong/skip 行为保持不变。
+worktree 运行按 UI 相同的项目解析方式归到主仓库。按目录名选择时，会包含所有同名项目；需要区分时用完整项目路径。
+Windows 下目录名和全路径比较都忽略大小写。工作路径为空或无效时不匹配。
+`--list` 与运行 ID、`--ok` 或 `--dismiss` 同时给出会报错，避免判定被悄悄丢弃。
+运行记录通过账本的重试读取函数加载。JSON 中的 `unreadable` 表示读不到的条数（全部可读时为 0），
+大于 0 时另有提示。该计数覆盖所有扫描记录；无法读取的记录是否符合过滤条件为 Unknown。

@@ -682,12 +682,16 @@ def cmd_task(a) -> int:
 
 def cmd_verify(a) -> int:
     result = _cmd_verify(a)
+    if a.list and not a.sample and not a.sweep:
+        return result
     from ..ability import after_verdict
     after_verdict(paths())
     return result
 
 
 def _cmd_verify(a) -> int:
+    if a.list and (a.run_id or a.ok is not None or a.dismiss):
+        raise ValueError("--list cannot be combined with a run id, --ok or --dismiss")
     if a.sweep:
         from ..delegate import soft_verdicts
         done = soft_verdicts(paths(), a.after_h)
@@ -697,15 +701,24 @@ def _cmd_verify(a) -> int:
     if a.sample:
         import sys
         from ..verdicts import review_sample, sample_soft
-        picks = sample_soft(paths(), a.sample, include_evals=a.include_evals)
+        picks = sample_soft(paths(), a.sample, days=a.days, include_evals=a.include_evals,
+                            project=a.project, state=a.state)
         if not picks:
-            _out({"sample": [], "note": "no probable verdict this week that nobody judged since"})
+            _out({"sample": [], "note": "no probable verdict this week that nobody judged since" if a.days == 7
+                  and not a.project and not a.state else "no probable verdict matching the filters"})
         elif sys.stdin.isatty() and not a.list:
             done = review_sample(paths(), picks)
             _out({"judged": done, "overturned": sum(d["overturned"] for d in done)})
         else:
             _out({"sample": picks, "how": "look at each, then `ccx verify RUN_ID --ok 1|0` (run this in a terminal "
                   "to answer one by one)"})
+        return 0
+    if a.list:
+        from ..verify_list import pending
+        counts = {}
+        items = pending(paths(), a.days, a.project, a.state, a.include_evals, counts=counts)
+        _out({"pending": items, **counts,
+              **({"note": f"could not read {counts['unreadable']} run record(s)"} if counts["unreadable"] else {})})
         return 0
     if a.dismiss:
         if not a.run_id or a.ok is not None:
@@ -714,7 +727,7 @@ def _cmd_verify(a) -> int:
         _out(dismiss(paths(), a.run_id, a.note))
         return 0
     if a.ok is None:
-        raise ValueError("give --ok 1 or --ok 0 (or --dismiss, --sweep, --sample N)")
+        raise ValueError("give --ok 1 or --ok 0 (or --dismiss, --sweep, --sample N, --list)")
     if a.builtin:
         from ..delegate import verify_builtin
         if a.b is None:
@@ -1541,8 +1554,11 @@ def register(sub) -> None:
     vadv.add_argument("--after-h", type=float, default=12.0, help="with --sweep: only runs at least this old (hours)")
     vadv.add_argument("--sample", type=int, metavar="N", help="spot-check N random probable verdicts of this week: "
                       "shows what changed and asks ok / wrong (J7: tells how far probable verdicts can be trusted)")
-    vadv.add_argument("--include-evals", action="store_true", help="with --sample: evaluation runs too")
-    vadv.add_argument("--list", action="store_true", help="with --sample: print the picks as JSON instead of asking")
+    vadv.add_argument("--include-evals", action="store_true", help="with --list or --sample: evaluation runs too")
+    vadv.add_argument("--list", action="store_true", help="list unjudged runs as JSON; with --sample: print picks instead of asking")
+    vadv.add_argument("--days", type=float, default=7, help="with --list or --sample: last N days (default 7; 0 = all history)")
+    vadv.add_argument("--project", help="with --list or --sample: exact project folder name or path")
+    vadv.add_argument("--state", help="with --list or --sample: result status, e.g. done, partial, blocked, failed")
     vadv.add_argument("--builtin", metavar="RUNG", help="work your own built-in sub-agent did, e.g. "
                       "claude-builtin:haiku:low")
     vadv.add_argument("--b", type=float, help="with --builtin: the difficulty ccx route used")

@@ -157,6 +157,8 @@ ccx way --stats [--include-evals]           # per kind of work and tier: who is 
 ccx discuss "question" [--dry-run]           # 2-3 vendors talk a costly decision through: propose, find faults, judge
 ccx verify <run_id> --ok 0 --reason wrong     # your verdict (unjudged runs get a probable one after 12 h)
 ccx verify --sample 5                        # spot-check 5 probable verdicts of this week: ok / wrong
+ccx verify --list                            # JSON: finished runs with no verdict, last 7 days (read-only)
+ccx verify --list --days 30 --project my-repo --state done  # filter pending runs; --days 0 = all history
 ccx handoff --from-transcript codex --to claude   # the old lead can't write it (quota out): built from its session file
                                                   # (by code; a format the code can't read goes to a routed sub-agent, --no-model to skip)
 ccx undo <run_id> [--apply] [--wrong]   # put back what a write run changed (new files moved aside); --wrong: also judge it wrong
@@ -222,3 +224,16 @@ ccx autonomy --project desk-pet            # how much the manager does without a
 ccx project init | status | compact ; ccx inbox "note" --file mail.eml   # project layer
 ccx sync [--apply] [--only skills,memory,hooks,mcp] ; ccx doctor ; ccx uninstall [--apply]
 ```
+
+`verify --list` is an engineering-checked, read-only pending list (`{"pending": [...]}`), newest first.
+It excludes running, ephemeral, dismissed, already judged (including probable verdicts), internal and evaluation runs;
+`--include-evals` includes internal/evaluation runs but still excludes dismissed runs. `--days` uses the run's
+timestamp and defaults to 7; 0 includes all history. `--project` matches an exact project folder name or path,
+and `--state` matches the result status (for example `done`, `partial`, `blocked`, `failed`). These filters also
+work with `--sample N`; its existing `sample` JSON and interactive ok/wrong/skip behavior remain unchanged.
+Worktree runs are grouped under their main repository using the same project resolution as the UI.
+A folder-name selector includes all projects with that name; use a full project path to disambiguate.
+On Windows, both folder-name and full-path comparisons ignore case. Missing or invalid working paths do not match.
+`--list` refuses a run id, `--ok` or `--dismiss` alongside it, so listing cannot silently discard a verdict.
+Run records use the ledger's retrying reader. The JSON includes `unreadable` (0 when all records were read),
+and a note when records could not be read. This count covers all scanned records; their filter membership is unknown.
