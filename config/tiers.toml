@@ -27,7 +27,10 @@ focused_retry = false     # 说做完了但 --check 没过时，下一次（同�
 # false = 照旧（升档提示 + 400 字）。r6a 里这类重试中位 389 s、比首轮还慢；默认关，等一轮实测确认不降正确率再开
 max_parallel = 3         # batch 并行上限
 max_depth = 1             # 子智能体不能再派子智能体，防止套娃烧 token
-timeout_sec = 1800
+timeout_sec = 1800        # per attempt (run/resume), seconds / 每次尝试的秒数；默认仍为 30 分钟
+# Experimental: tell the worker the limit up front and ask for a partial result near it. No runtime injection.
+# 实验性：派活时告知时限，要求接近时先写阶段结果；不在运行中注入消息。见 docs/timeouts.zh.md。
+timeout_reminder = false
 tradeoff = "save"         # 省钱 save | 平衡 balanced | 快 fast | 最便宜 cheapest（见下面 [policy.*]），或 0..1 的旋钮（0 最省，1 最快）；ccx config set defaults.tradeoff 0.3
 # save：小活先用便宜模型，没做成（含 ccx 重跑 --check 没过）就自动升一档。2026-10-25 起默认；之前是 balanced，
 # 七核心 A/B（PR #30）里它在 5 分钟的小活上选 sonnet medium，比 luna low 贵约 10 倍，luna low 那时 55/63 做对。

@@ -380,7 +380,9 @@ SETTINGS = {   # key -> (type, help). Only these can be set with `ccx config set
     "worktree.fetch": (_bool, "true | false: fetch the current upstream before a new worktree (default true; "
                               "warn only, never pull or change the local base)"),
     "worktree.fetch_timeout": (int, "positive seconds to wait for the upstream fetch (default 15)"),
-    "defaults.timeout_sec": (int, "per-attempt timeout"),
+    "defaults.timeout_sec": (int, "per-attempt timeout in seconds (default 1800; run/resume)"),
+    "defaults.timeout_reminder": (_bool, "experimental: include the time limit and a partial-result reminder "
+                                         "in every attempt's prompt (default false; no runtime injection)"),
     "lanes.default": (int, "warm lanes for ccx batch / q run: small pieces for the same project and agent share at "
                            "most N sub-sessions, one after another (0 = off: every piece its own session)"),
     "lanes.max_tokens": (int, "a warm lane starts a new session after a piece that used this many tokens (the session has grown long)"),
