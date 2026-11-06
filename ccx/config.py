@@ -256,6 +256,14 @@ def relay_enabled(cfg: dict) -> bool:
     return enabled
 
 
+def git_auto_stage(cfg: dict) -> bool:
+    """Experimental host-side conflict staging is opt-in and never commits."""
+    enabled = (cfg.get("git") or {}).get("auto_stage_resolved", False)
+    if not isinstance(enabled, bool):
+        raise ValueError("git.auto_stage_resolved must be true or false")
+    return enabled
+
+
 def worktree_location(cfg: dict) -> str:
     """Where new worktrees go; reject typos before creating a directory or a branch."""
     location = (cfg.get("worktree") or {}).get("location", "sibling")
@@ -376,6 +384,8 @@ SETTINGS = {   # key -> (type, help). Only these can be set with `ccx config set
                                       "always reviewed against the task text (default); rung = one stronger rung "
                                       "redoes it first while one is left; off = the label only"),
     "defaults.max_parallel": (int, "parallel sub-agents in ccx batch"),
+    "git.auto_stage_resolved": (_bool, "experimental: host stages resolved conflict paths after write runs; "
+                                      "never commit (default false)"),
     "worktree.location": (str, "sibling | inside: new git worktrees beside the repository (default) or in "
                                "<repo>/.ccx/worktrees/<run_id> (ignore .ccx/ in .gitignore)"),
     "worktree.fetch": (_bool, "true | false: fetch the current upstream before a new worktree (default true; "

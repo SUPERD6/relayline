@@ -44,6 +44,9 @@ namecheck = "warn"        # 写入运行后，静态查改动过的函数里有�
 [check]
 baseline = "off"         # experimental: on_fail reruns a failed check on the clean dispatch-time Git tree
 
+[git]
+auto_stage_resolved = false # experimental: parent stages marker-free resolved conflicts; never commits
+
 [worktree]
 location = "sibling"      # sibling = <repo parent>/.ccx-worktrees/<repo>/<run_id> (unchanged default)
 # inside = <repo>/.ccx/worktrees/<run_id>; ignore .ccx/ in the project's .gitignore

@@ -543,6 +543,8 @@ def run(req: Request, p: Paths) -> dict:
             stale_base = None
         cwd = make_worktree(cwd, run_id, base_info=base_info)
 
+    from . import git_pending
+    git_before = git_pending.inspect(cwd)
     ctx = _project_context(cwd)
     # "read-only" alone made gpt-6-luna/low answer once that it had no tool to read files (E8 run, 2026-10-24)
     mode_text = ("read-only: read files and run commands that change nothing (your shell tool works), but do not "
@@ -1224,7 +1226,8 @@ def run(req: Request, p: Paths) -> dict:
     beat.set()
     record.pop("current", None)
     if not ledger.claim_final(run_dir, "run"):
-        # `ccx stop` found this process gone and closed the run already: its record and ledger row stand
+        # `ccx stop` found this process gone and closed the run already: its record and ledger row stand.
+        # Do not inspect/mutate Git or overwrite git_pending after another finalizer owns this receipt.
         closed = ledger.load_run(p, run_id)
         if closed.get("state") == "running":
             # nobody wrote a final state although the lock is taken: say so instead of an empty "not ok"
@@ -1232,6 +1235,7 @@ def run(req: Request, p: Paths) -> dict:
                           + ((run_dir / "final.lock").read_text(encoding="utf-8", errors="replace")[:200]))
         board_run(closed, "finished")
         return closed
+    record["git_pending"] = git_pending.finish(cwd, cfg, git_before, write=req.mode == "write")
     dispatch.receipt(record)
     _write_record(run_dir, record)
     ledger.append(p, record)
@@ -1515,6 +1519,8 @@ def compact(record: dict) -> dict:
         out.update(evidence(record))
     if "dispatch" in record:
         out["dispatch"] = record["dispatch"]
+    if "git_pending" in record:
+        out["git_pending"] = record["git_pending"]
     if last.get("substituted_for"):
         out["substituted_for"] = last["substituted_for"]
     if record.get("diffstat"):
