@@ -1,0 +1,13 @@
+- Fix UTF-8/BOM quota hooks on Windows and ignore hooks inside delegated sub-agents.
+- Serialize relay launches per workspace, detect known live ccx writers, identify stale locks, and release claims on spawn failure.
+- Replace relay source diffs with bounded metadata and content fingerprints, enforce snapshot deadlines, and ignore local packets in Git.
+- Preserve foreign hook settings when relay is disabled; use Claude edit permissions and reject zero-exit continuations without observed changes.
+- Escalate cheap attempts accepted only by worker-modified tests; do not label filtered checks independently verified.
+- Allow cheap-dispatch CLI errors and timeouts to reach the next authorized rung even without a resumable session.
+- Retry cheap-dispatch failures with Unknown baselines, while keeping opaque checks and pipelines on the ordinary route.
+- Capture unconfirmed rate limits without quota claims or stop advice; require explicit `--force-unconfirmed` for launch, including legacy unmarked hook/event packets.
+- Escalate passing cheap attempts whose check independence is Unknown, while preserving the ordinary route's behavior.
+- Report Unknown workspace changes separately with a non-success ccx exit; retain the child's recorded exit code.
+- Keep hook Git deadlines short, add configurable longer manual relay deadlines, and explain snapshot failures and retry steps.
+- State Claude's actual edit/tool permissions and report denied checks as not-run without granting unrecorded commands.
+- Recognize explicit synthetic Codex usage-limit wording and distinguish billing errors; resolve semantic batch shims to direct native/Node execution or fail closed.

@@ -1,0 +1,2 @@
+- Add experimental, default-off P4 `--native-checkout` and `--focused-retry` evaluation flags, an offline `--validate-native` audit, and final-split three-arm dry-run coverage; preserve existing defaults, options, JSON meanings and acceptance rules.
+- Add a read-only historical P4 command/exit overlap report; retain independent acceptance because check timing and file-tree binding are unavailable.

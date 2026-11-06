@@ -81,7 +81,8 @@ def prepare(base: Path, python: Path) -> None:
     shutil.copy2(ROOT / "README.md", work / "README.md")
 
 
-def walkthrough(base: Path, wheelhouse: Path | None = None, allow_download: bool = False) -> dict:
+def walkthrough(base: Path, wheelhouse: Path | None = None, allow_download: bool = False,
+                installed_wheel: bool = False) -> dict:
     env = environment(base)
     python = base / "venv" / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
     prepare(base, python)
@@ -112,14 +113,29 @@ def walkthrough(base: Path, wheelhouse: Path | None = None, allow_download: bool
 
     if run("venv", [sys.executable, "-m", "venv", str(base / "venv")])["verdict"] != "Pass":
         return finish()
-    pip = [str(python), "-m", "pip", "install", "--no-deps"]
+    pip = [str(python), "-m", "pip"]
+    sources = []
     if allow_download:
-        pip += ["--index-url", "https://pypi.org/simple", "--retries", "0", "--timeout", "15"]
+        sources += ["--index-url", "https://pypi.org/simple", "--retries", "0", "--timeout", "15"]
     else:
-        pip += ["--no-index"]
+        sources += ["--no-index"]
     if wheelhouse:
-        pip += ["--find-links", str(wheelhouse)]
-    installed = run("install-editable", [*pip, "-e", str(base / "source")])["verdict"] == "Pass"
+        sources += ["--find-links", str(wheelhouse)]
+    if installed_wheel:
+        built = run("build-wheel", [*pip, "wheel", "--no-deps", *sources,
+                                    "--wheel-dir", str(base / "wheels"), str(base / "source")])
+        wheels = sorted((base / "wheels").glob("relayline-*.whl"))
+        if built["verdict"] != "Pass" or len(wheels) != 1:
+            # CI must never pass a wheel check by falling back to the source tree.
+            records[-1]["verdict"] = "Fail"
+            return finish()
+        installed = run("install-wheel", [*pip, "install", "--no-index", "--no-deps",
+                                           str(wheels[0])])["verdict"] == "Pass"
+        if not installed:
+            return finish()
+    else:
+        installed = run("install-editable", [*pip, "install", "--no-deps", *sources,
+                                              "-e", str(base / "source")])["verdict"] == "Pass"
     ccx = ([str(python.parent / ("ccx.exe" if os.name == "nt" else "ccx"))] if installed
            else [str(python), str(base / "source/ccx.py")])
     if not installed:
@@ -159,10 +175,13 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--wheelhouse", type=Path, help="offline build dependencies (setuptools>=77 and wheel)")
     parser.add_argument("--allow-download", action="store_true", help="allow build dependencies from public PyPI")
+    parser.add_argument("--installed-wheel", action="store_true",
+                        help="build with pip wheel and run the clean venv's installed entry point; no source fallback")
     args = parser.parse_args()
     base = Path(tempfile.mkdtemp(prefix="ccx-walkthrough-")).resolve()
     print(f"Artifacts (retained): {base}", flush=True)
-    result = walkthrough(base, args.wheelhouse.resolve() if args.wheelhouse else None, args.allow_download)
+    result = walkthrough(base, args.wheelhouse.resolve() if args.wheelhouse else None, args.allow_download,
+                         args.installed_wheel)
     return 0 if result["verdict"] == "Pass" else 1
 
 

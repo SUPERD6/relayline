@@ -248,6 +248,14 @@ def load_config(p: Paths | None = None, *, documents: dict | None = None) -> dic
     return cfg
 
 
+def relay_enabled(cfg: dict) -> bool:
+    """Experimental quota handoff is disabled unless explicitly enabled with a boolean."""
+    enabled = (cfg.get("relay") or {}).get("enabled", False)
+    if not isinstance(enabled, bool):
+        raise ValueError("relay.enabled must be true or false")
+    return enabled
+
+
 def worktree_location(cfg: dict) -> str:
     """Where new worktrees go; reject typos before creating a directory or a branch."""
     location = (cfg.get("worktree") or {}).get("location", "sibling")
@@ -313,10 +321,12 @@ ROLE_DEFAULTS = {"mode": ("read", "write"), "review": ("auto", "on", "off"),
 
 
 SETTINGS = {   # key -> (type, help). Only these can be set with `ccx config set`.
+    "dispatch.cheap_first": (_bool, "experimental: cheap first attempt with independent --check; default false"),
     "check.baseline": (str, "off (default) | on_fail: experimental clean-dispatch-tree failure comparison"),
     "review.mode": (str, "read (default) | tests (experimental task-derived tests); legacy auto/on/off remain valid"),
     "review.tests_model": (str, "test reviewer model or vendor:model[:effort]; empty keeps the cross-vendor candidate"),
     "review.tests_effort": (str, "task-derived test reviewer effort; empty keeps the selected candidate's effort"),
+    "review.contract_diag": (bool, "experimental offline contract diagnostic; default false; never changes verdicts"),
     "delegate.user_words": (bool, "experimental: attach the Claude lead's latest real user message (default false)"),
     "delegate.user_words_max_chars": (int, "maximum retained original-wording characters (default 8000)"),
     # Arbitrary roles.<name> and roles.defaults.<name> mode/worktree/review/check use ccx.roles
@@ -335,6 +345,7 @@ SETTINGS = {   # key -> (type, help). Only these can be set with `ccx config set
                           "delegates no new work (route and propose say do it yourself; run, batch, q run / resume "
                           "and way refuse without --force); cross-vendor review and talk work as before: ccx ask, "
                           "ccx discuss, ccx run --mode read, mem, board"),
+    "relay.enabled": (_bool, "true | false: experimental quota capture and explicit continuation (default false)"),
     "routing.require_ready": (_bool, "true | false: prefer installed CLIs with local login evidence (default true)"),
     "routing.small_self_run": (_bool, "true | false: experimental small-task run refusal for leads; --force bypasses (default false)"),
     "routing.strict_escalate": (_bool, "true | false: experimental cheapest-rung guard for unchecked writes or strict interfaces (default false)"),

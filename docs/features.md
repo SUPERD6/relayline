@@ -3,6 +3,7 @@
 English · [中文](features.zh.md) · back to the [README](../README.md)
 
 Experimental, off by default: [carry original user wording to sub-agents](user-words.md).
+Also experimental and off by default: [quota handoff and explicit cross-vendor continuation](relay.md).
 
 ## See delegated work
 

@@ -2,6 +2,23 @@
 
 English · [中文](measured.zh.md) · back to the [README](../README.md) · all [research reports](research/README.md)
 
+## Optimization snapshot (2026-11-05)
+
+[Stage report and raw-row reproduction](research/2026-11-05-optimize-results.md): no evidence here supports
+promoting a candidate default. Historical results below keep their original versions and limits.
+
+| Run / pin | Right: self / candidate | Cost per success: self / candidate (AE USD) | Median wall: self / candidate | Gate verdict |
+|---|---|---|---|---|
+| Short round B / `b5c72f026998` | 29/30 / 29/30 | $0.021097 / $0.026744 (1.268×) | 9.35 / 11.3 s | Fail: cost exceeds 1.2×; candidate delegated 0/30 |
+| Historical P4 / `5acfa7d76479` | 7/8 / 7/8 | $0.145118 / $0.297706 (2.051×) | 39.7575 / 218.5935 s (5.498×) | Fail: cost and time |
+
+All/clean coincide (short 60/60, P4 16/16); one round each. Short fingerprints record concurrency 2 despite
+the single-evaluation protocol; P4 has historical LF acceptance contamination. Do not infer clean causal effects.
+P4's $1.958487 child spend has unknown vendor attribution, so low lead cost cannot prove Claude-quota savings.
+Review A retry (`f46c993`, known receipts, engineering replay): confirmed catch 0/15, 22/29 Unknown, budget errors
+in 20/29 rows; $1.865314 excludes its earlier aborted attempt. Gate verdict Unknown, not evidence of effective review.
+The report separates secondary historical summaries, missing raw evidence and unrun stages. No new models were called.
+
 ## Role model source check (2026-11-01)
 
 `codex-cli 0.164.0 --help` accepts `-m/--model MODEL` without enumerating models. Official model pages were

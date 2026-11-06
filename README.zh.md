@@ -1,8 +1,3 @@
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/banner-dark.svg">
-  <img alt="relayline（命令 ccx）：几个编码智能体互为主导和子智能体；一次真实运行：选了 Codex luna/low，一次完成，已验收，$0.0023" src="docs/assets/banner-light.svg" width="100%">
-</picture>
-
 <p align="center">
   <a href="https://github.com/SUPERD6/relayline/actions/workflows/test.yml"><img alt="tests" src="https://github.com/SUPERD6/relayline/actions/workflows/test.yml/badge.svg"></a>
   <img alt="Python 3.11+" src="https://img.shields.io/badge/python-3.11%2B-3776AB">
@@ -15,38 +10,39 @@
 
 # relayline
 
-**Claude Code、Codex、DeepSeek 互相派能验收的活、互相说话；每次派活都带回一张收据（ccx 自己重跑的验收、另一家的审查、
-花费），任何一步你都能停下或撤回。** 命令是 `ccx`，只用 Python 标准库。
+**在 Claude Code 和 Codex 之间接着做，共用记忆和上下文，把跨工具用量记在一本账上。**
+命令是 `ccx`，只用 Python 标准库。
+
+- **额度用完不断工（实验性）：** 用交接记录让另一家接着做；真实额度耗尽后的自动接管尚未验证，不能保证无缝继续。
+- **两家共用记忆和上下文：** 项目便签随任务带过去，切换主导时交接当前进度。
+- **跨工具一本账：** Claude Code 和 Codex 的运行用量放在一起看；金额是 API 等价估算，订阅实际消耗额度。
+
+## 快速开始
+
+```bash
+claude plugin install relayline --marketplace SUPERD6/relayline   # Claude Code 里的技能和 hook（2.1.275+）
+pipx install relayline                                            # ccx 本体，给终端和 Codex 用
+ccx setup                    # 向导：每一步都说明，改东西前先问
+ccx run --to codex --mode read "Summarise README.md in three lines for a new user: what this project does, how to install it, and the first command to try"
+```
+
+最后一行是只读的第一次试用：Codex 读这份 README，用最便宜的模型三行作答（命令和英文版一致。你在自己的终端里用 `--to`
+点名时，再小的任务也会派出去，只在 stderr 提示一句自己做更省；主会话代为调用时，太小的任务仍会被建议自己做）。`ccx setup` 问到的 hub 是你自己的一个文件夹，放共享记忆、技能和每次运行的记录。
+
+然后是 ccx 真正要做的事：一件有验收命令、能判断做没做完的杂活（在你的项目里，用你自己的测试命令；`--check` 里点名的测试文件必须已经存在，否则 ccx 在启动子智能体之前就会停下）：
+
+```bash
+ccx run --to codex --check "python -m pytest -q tests/test_dates.py" --review on "parse_date() rejects ISO dates that end in Z; make it accept them and add a case for it to tests/test_dates.py"
+ccx undo <run_id>            # 不想要：先显示会还原什么；加 --apply 才真还原
+```
+
+只有 ccx 自己跑你的 `--check` 通过了，这次运行才算过；`--review on` 让另一家的模型读改动；JSON 结果里有运行 id、
+验收、审查和花费。可能改文件、却没给 `--check` 的运行，会在 stderr 提醒一行。
+
+需要 Python 3.11+，以及登录好的 `claude` 和 `codex` 命令行；DeepSeek（`dsh`，或 `DEEPSEEK_API_KEY` 里的密钥）可选。
+`ccx -h` 只列日常命令（run、resume、show、verify、q、undo、ui、mem 等）；`ccx advanced`（等于 `ccx -h --all`）列出所有分组：智能体之间互相调用的（board、say、reply、peek）、进阶（hub、多个项目、安装）、维护，开发者用的（trial、ab、bench 等）放在最后，也可以写成 `ccx dev <命令>`。一个命令都没删，旧写法照常能用（[命令](docs/features.zh.md#命令日常的在前一个不删)）。
 
 <p align="center"><img alt="15 秒演示动画：ccx route 选出 Codex gpt-6-luna low；ccx run 把活从 Claude Code 交给 Codex，一次做完；收据写着 ccx 自己重跑的验收（通过）、另一家的审查（通过）和花费；ccx ui 在页面上显示同一张收据（替身 CLI，花费是编的）" src="docs/assets/demo.svg" width="100%"></p>
-
-## 八层讲清它是什么
-
-先并列历史实验和候选复查（[每个数字和它的局限](docs/measured.zh.md)）：
-
-- **仓库任务，历史实验：留出集（hc1，旧代码，2026-10-29）：** 做 ccx 时没用过的 10 个任务 × 3 轮，Sonnet 当主导，隐藏测试。ccx 未见正确率
-  更差（29/30，自己做 29/30，Claude Code 内置子智能体的默认用法 27/28：两行不干净剔除，算上是 28/30），每次成功花 $0.063，自己做 $0.090、内置 $0.103；
-  用时约为自己做的 3 倍（[报告和局限](docs/research/2026-10-29-hc1-holdout.zh.md)）。
-- **候选代码复查（hc2，2026-11-04）：** 全部行 28/30，`env_clean` 行 25/27，每成功 $0.088（干净行），墙钟中位 168 秒。**self 和内置子智能体本轮没有重跑**。成本和墙钟都比 hc1 高了，代码和沙箱环境的影响没有分开（[报告](docs/research/2026-11-04-hc2-holdout.zh.md)）。
-- **小题，外部基准（polyglot pg1，2026-10-31）：** 30 道 Python 练习题，题目本身没有测试。经 Sonnet 主导派给最便宜档，
-  ccx 做对 12/30，自己做 25/30，每次成功的花费是自己做的 3.1 倍，用时约 5 倍。小而接口严格的题别派；
-  两次是不同的题和不同的 ccx 版本，不是配对比较
-  （[报告和局限](docs/research/2026-10-31-polyglot-pg1.zh.md)）。
-
-一次派活会走过全部八层。每行：ccx 做什么、一个出自 [docs/measured.zh.md](docs/measured.zh.md) 的实测数字、一个限制。
-
-| 层 | ccx 做什么 | 一个数字 | 一个限制 |
-|---|---|---|---|
-| ① 对话 | 智能体直接对话：`ccx discuss` 让两三家对一个代价高的决定各给意见；对话板（`ccx say`、`ccx reply`）让开着的会话互相留言，话题聊太久会停下等你 | 还没有实测 | Claude Code 当主导时，要到下一轮才看到对话板消息 |
-| ② 共享记忆 | 个人中心（hub）和项目层；跟任务有关的便签自动写进每个子智能体的说明；`ccx handoff` 在主导之间交接 | 项目便签被遵守 9/9，没有便签 0/9 | 3 个任务 × 3；经启动钩子注入的 hub 记忆没测 |
-| ③ 拆分与流水线 | `ccx q`：持久的工作队列，每块一个 worktree，按依赖顺序合并 | 小任务交给 Codex 的对照：主导每个任务都少发一次请求，21/21 | 总花费基本持平（比值 1.02），token 3.3 倍，慢约 23 秒 |
-| ④ 派活与选人 | `ccx route` 给任务打分，选派给谁、什么模型和 effort，或者直说自己做更便宜；做失败了升一档 | 历史 hc1（旧代码，2026-10-29）：$0.063，self $0.090；候选 hc2：$0.088 / 成功 | hc2 self 和内置子智能体没有重跑；成本和墙钟高于 hc1，代码与沙箱影响未隔离；小题历史 pg1 贵 3.1 倍 |
-| ⑤ 验收与收据 | ccx 自己重跑你的 `--check`，另一家审查改动，你给结论；收据写明 check 覆盖了哪些测试、这次派活有没有改它自己的测试 | hc2 隐藏测试 28/30（干净行 25/27） | [pg3b](docs/research/2026-11-03-pg3b-receipts.zh.md) 的 29 张 `ok_self_checked` 中 15 张隐藏测试不过，独立审查对 29 张全给 pass；这种 pass 不算做对 |
-| ⑥ 控制与恢复 | `ccx stop`、`ccx resume`、`ccx undo`、`--worktree`、自主度 L0–L2（见下） | 只靠交接文件，下一个智能体说清进度 3/3（受控运行，其中一次中途被杀） | 一个真实长会话起初失败（读到了过期的计划），修后才对 |
-| ⑦ 测量与诚实 | 跨厂商一本账、评测前查干净环境、公开基准、负结果也发布 | 一次真实运行上，API 等价花费和 Claude 自报花费差 1.5% | 价格是 API 等价价；订阅用户实际付的是额度 |
-| ⑧ 界面与上手 | `ccx ui`：一个项目一张图（智能体和它们的对话、记忆连到收据、收据、本周花费）；`ccx demo` 不用账号；`ccx setup` 和 `ccx doctor` | 还没有实测（没做过用户研究） | 在 ccx 自己的测试之外，真实使用还很少 |
-
-省钱不是单独一层，是 ③④⑤ 的目标：自己做更贵才派、能并行才拆、验收少重跑。
 
 ## 你随时能停
 
@@ -76,30 +72,40 @@
 <td width="50%"><img alt="ccx ui 任务页：一件任务画成组织图；右边是一次派活的收据：谁做的、花费、ccx 重跑的验收、审查、结论、实际改动的文件（ccx demo 数据）" src="docs/assets/ui/task-zh.png"></td>
 </tr><tr><td align="center">一个项目一张图</td><td align="center">每次派活的收据</td></tr></table>
 
-## 快速开始
+## 八层讲清它是什么
 
-```bash
-claude plugin install relayline --marketplace SUPERD6/relayline   # Claude Code 里的技能和 hook（2.1.275+）
-pipx install relayline                                            # ccx 本体，给终端和 Codex 用
-ccx setup                    # 向导：每一步都说明，改东西前先问
-ccx run --to codex --mode read "Summarise README.md in three lines for a new user: what this project does, how to install it, and the first command to try"
-```
+先并列历史实验和候选复查（[每个数字和它的局限](docs/measured.zh.md)）：
 
-最后一行是只读的第一次试用：Codex 读这份 README，用最便宜的模型三行作答（命令和英文版一致。你在自己的终端里用 `--to`
-点名时，再小的任务也会派出去，只在 stderr 提示一句自己做更省；主会话代为调用时，太小的任务仍会被建议自己做）。`ccx setup` 问到的 hub 是你自己的一个文件夹，放共享记忆、技能和每次运行的记录。
+- **仓库任务，历史实验：留出集（hc1，旧代码，2026-10-29）：** 做 ccx 时没用过的 10 个任务 × 3 轮，Sonnet 当主导，隐藏测试。ccx 未见正确率
+  更差（29/30，自己做 29/30，Claude Code 内置子智能体的默认用法 27/28：两行不干净剔除，算上是 28/30），每次成功花 $0.063，自己做 $0.090、内置 $0.103；
+  用时约为自己做的 3 倍（[报告和局限](docs/research/2026-10-29-hc1-holdout.zh.md)）。
+- **候选代码复查（hc2，2026-11-04）：** 全部行 28/30，`env_clean` 行 25/27，每成功 $0.088（干净行），墙钟中位 168 秒。**self 和内置子智能体本轮没有重跑**。成本和墙钟都比 hc1 高了，代码和沙箱环境的影响没有分开（[报告](docs/research/2026-11-04-hc2-holdout.zh.md)）。
+- **小题，外部基准（polyglot pg1，2026-10-31）：** 30 道 Python 练习题，题目本身没有测试。经 Sonnet 主导派给最便宜档，
+  ccx 做对 12/30，自己做 25/30，每次成功的花费是自己做的 3.1 倍，用时约 5 倍。小而接口严格的题别派；
+  两次是不同的题和不同的 ccx 版本，不是配对比较
+  （[报告和局限](docs/research/2026-10-31-polyglot-pg1.zh.md)）。
 
-然后是 ccx 真正要做的事：一件有验收命令、能判断做没做完的杂活（在你的项目里，用你自己的测试命令；`--check` 里点名的测试文件必须已经存在，否则 ccx 在启动子智能体之前就会停下）：
+一次派活会走过全部八层。每行：ccx 做什么、一个出自 [docs/measured.zh.md](docs/measured.zh.md) 的实测数字、一个限制。
 
-```bash
-ccx run --to codex --check "python -m pytest -q tests/test_dates.py" --review on "parse_date() rejects ISO dates that end in Z; make it accept them and add a case for it to tests/test_dates.py"
-ccx undo <run_id>            # 不想要：先显示会还原什么；加 --apply 才真还原
-```
+| 层 | ccx 做什么 | 一个数字 | 一个限制 |
+|---|---|---|---|
+| ① 对话 | 智能体直接对话：`ccx discuss` 让两三家对一个代价高的决定各给意见；对话板（`ccx say`、`ccx reply`）让开着的会话互相留言，话题聊太久会停下等你 | 还没有实测 | Claude Code 当主导时，要到下一轮才看到对话板消息 |
+| ② 共享记忆 | 个人中心（hub）和项目层；跟任务有关的便签自动写进每个子智能体的说明；`ccx handoff` 在主导之间交接 | 项目便签被遵守 9/9，没有便签 0/9 | 3 个任务 × 3；经启动钩子注入的 hub 记忆没测 |
+| ③ 拆分与流水线 | `ccx q`：持久的工作队列，每块一个 worktree，按依赖顺序合并 | 小任务交给 Codex 的对照：主导每个任务都少发一次请求，21/21 | 总花费基本持平（比值 1.02），token 3.3 倍，慢约 23 秒 |
+| ④ 派活与选人 | `ccx route` 给任务打分，选派给谁、什么模型和 effort，或者直说自己做更便宜；做失败了升一档 | 历史 hc1（旧代码，2026-10-29）：$0.063，self $0.090；候选 hc2：$0.088 / 成功 | hc2 self 和内置子智能体没有重跑；成本和墙钟高于 hc1，代码与沙箱影响未隔离；小题历史 pg1 贵 3.1 倍 |
+| ⑤ 验收与收据 | ccx 自己重跑你的 `--check`，另一家审查改动，你给结论；收据写明 check 覆盖了哪些测试、这次派活有没有改它自己的测试 | hc2 隐藏测试 28/30（干净行 25/27） | [pg3b](docs/research/2026-11-03-pg3b-receipts.zh.md) 的 29 张 `ok_self_checked` 中 15 张隐藏测试不过，独立审查对 29 张全给 pass；这种 pass 不算做对 |
+| ⑥ 控制与恢复 | `ccx stop`、`ccx resume`、`ccx undo`、`--worktree`、自主度 L0–L2（见下） | 只靠交接文件，下一个智能体说清进度 3/3（受控运行，其中一次中途被杀） | 一个真实长会话起初失败（读到了过期的计划），修后才对 |
+| ⑦ 测量与诚实 | 跨厂商一本账、评测前查干净环境、公开基准、负结果也发布 | 一次真实运行上，API 等价花费和 Claude 自报花费差 1.5% | 价格是 API 等价价；订阅用户实际付的是额度 |
+| ⑧ 界面与上手 | `ccx ui`：一个项目一张图（智能体和它们的对话、记忆连到收据、收据、本周花费）；`ccx demo` 不用账号；`ccx setup` 和 `ccx doctor` | 还没有实测（没做过用户研究） | 在 ccx 自己的测试之外，真实使用还很少 |
 
-只有 ccx 自己跑你的 `--check` 通过了，这次运行才算过；`--review on` 让另一家的模型读改动；JSON 结果里有运行 id、
-验收、审查和花费。可能改文件、却没给 `--check` 的运行，会在 stderr 提醒一行。
+省钱不是单独一层，是 ③④⑤ 的目标：自己做更贵才派、能并行才拆、验收少重跑。
 
-需要 Python 3.11+，以及登录好的 `claude` 和 `codex` 命令行；DeepSeek（`dsh`，或 `DEEPSEEK_API_KEY` 里的密钥）可选。
-`ccx -h` 只列日常命令（run、resume、show、verify、q、undo、ui、mem 等）；`ccx advanced`（等于 `ccx -h --all`）列出所有分组：智能体之间互相调用的（board、say、reply、peek）、进阶（hub、多个项目、安装）、维护，开发者用的（trial、ab、bench 等）放在最后，也可以写成 `ccx dev <命令>`。一个命令都没删，旧写法照常能用（[命令](docs/features.zh.md#命令日常的在前一个不删)）。
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/banner-dark.svg">
+  <img alt="relayline（命令 ccx）：几个编码智能体互为主导和子智能体；一次真实运行：选了 Codex luna/low，一次完成，已验收，$0.0023" src="docs/assets/banner-light.svg" width="100%">
+</picture>
+
+旧横幅中的 $0.0023 是一个运行示例，不是平均成本或省钱结论；原始示例见横幅 SVG，日期、版本和完整收据在横幅中为 Unknown（[原件](docs/assets/banner-light.svg)）。
 
 ## 和自己做、和 Claude Code 自带的子智能体比
 
@@ -162,6 +168,10 @@ hc2 预登记第 3 条同时写“≤25/30”和“只算 env_clean 行”，存
 真实的额度用完、macOS 和 Linux（只在 CI 里跑，没有真的智能体命令行）、从 GitHub 地址装 Codex 插件（未实测）、H11（`memory.by_kind=false`，默认关；原试用已作废）、`ccx intake` 对真实
 GitHub；完整清单见 STATUS。
 仍在开发中（版本号看上面的 release 徽章）：哪些验证过、怎么验证的，见 [docs/STATUS.zh.md](docs/STATUS.zh.md)。
+
+Linux 还新增了独立的安装后 walkthrough job：先 `pip wheel`，再建干净虚拟环境，运行 setup、doctor、demo、UI 导出和假 CLI 第一次派活。
+package job 也跑同一流程。这些是无凭据的工程检查，不是真实智能体的 Linux 实测；macOS 证据仍只有 CI。
+复现方法见[安装后验证](docs/install.zh.md#无凭据的-wheel-安装后验证)。
 
 ## 更多
 

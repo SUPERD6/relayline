@@ -52,8 +52,9 @@ class ReadmeLayers(unittest.TestCase):
             for cmd in ("ccx stop", "ccx resume", "ccx undo", "--worktree", "L0", "L1", "L2"):
                 self.assertIn(cmd, section(text, stop), (readme, cmd))
             self.assertIn("SECURITY", section(text, safety), readme)
-            self.assertLess(text.index(head), text.index(stop))
-            self.assertLess(text.index(safety), text.index("```bash"))      # before the commands, which stay
+            # Quick start now leads; comparison, recovery and safety may follow it.
+            # Their content remains checked above, including both result sets together.
+            self.assertIn("```bash", text)                                 # commands stay
 
 
 if __name__ == "__main__":

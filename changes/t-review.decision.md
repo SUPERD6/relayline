@@ -1,0 +1,1 @@
+| 2026-11-05 | Keep contract extraction offline and diagnostic only | 契约提取仅做离线诊断 | This task excludes real model calls; extraction does not establish semantic expectations / 本单不调用模型，提取文字不等于建立语义预期 | `docs/review-contract-diag.md`, `ccx/review_pipeline.py` |

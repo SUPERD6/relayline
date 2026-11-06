@@ -1,0 +1,3 @@
+- Preserve both contract-diagnostic and cheap-dispatch compact receipt fields when integrating the review, relay and dispatch lines; existing defaults, commands, options, JSON meanings and verdicts are retained.
+- Add an opt-in, tool-free Claude semantic contract adapter, hidden-pytest failure extraction and unconfirmed human coverage tables; offline generation remains the default and semantic runs require an explicit budget capped at $8.
+- Connect context and memory retest manifests to serial, isolated ccx execution with explicit --run/--budget, $4/$3 ceilings, per-call reservations, retained failures and stop-on-unknown-cost behavior; fake-CLI engineering checks only.

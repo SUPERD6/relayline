@@ -170,6 +170,8 @@ def _slim(record: dict, cfg: dict | None = None) -> dict:
     slim["seconds"] = round(sum(a["seconds"] for a in record["attempts"]), 1)
     if "check_baseline_seconds" in record:
         slim["check_baseline_seconds"] = record["check_baseline_seconds"]
+    if "dispatch" in record:
+        slim["dispatch"] = record["dispatch"]
     costs = [a["cost_usd"] for a in record["attempts"] if a.get("cost_usd") is not None]
     slim["cost_usd"] = round(sum(costs), 5) if costs else None
     slim["attempts"] = len(record["attempts"])

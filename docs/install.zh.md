@@ -2,6 +2,21 @@
 
 [English](install.md) · 中文 · 回到 [README](../README.zh.md)
 
+## 无凭据的 wheel 安装后验证
+
+从源码检出运行 `python scripts/walkthrough.py --installed-wheel --allow-download`。
+脚本用 `pip wheel` 构建 wheel，装到全新虚拟环境，再从仓库外的临时项目运行安装好的 `ccx` 入口：
+setup 预览/应用、doctor、demo/UI 导出、README 第一次派活及查看收据。只用 `tests/fakes` 假 CLI、隔离的工具目录和
+环境变量白名单，不传递凭据、不调用真实模型。构建或安装 wheel 失败就报失败，不回退源码。
+日志和 `result.json` 保存在输出的临时目录。
+
+只有显式传 `--allow-download` 才下载；离线可改传 `--wheelhouse <目录>`，其中准备好 setuptools>=77 和 wheel。
+两个参数都不传就保持离线。不传 `--installed-wheel` 时，保留原来的 editable 安装 walkthrough。
+CI 的 package job 在其操作系统矩阵上跑 wheel walkthrough，另有独立 Ubuntu job 每个 PR 用 Python 3.11 跑。
+Linux 和 macOS 检查都用假 CLI，不是真实智能体；macOS 证据只有 CI。
+这些是 **engineering check**，不能证明真实额度接力、省钱或提速。
+`ccx setup` 开头与 README 一样只介绍三点：实验性额度接力、共享记忆/上下文、跨工具一本账；接线和可选 selftest 不变。
+
 ## 安装
 
 需要 Python 3.11+（只用标准库），并且 `codex` 和 `claude` 两个 CLI 都已登录；`dsh`（DeepSeek Harness）可选；`gemini` 可选，且只能当子智能体（适配器按它的文档写的，没真跑过）。

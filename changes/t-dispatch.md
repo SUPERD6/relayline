@@ -1,0 +1,3 @@
+- Add experimental, default-off cheap-first dispatch with independent acceptance, baseline-aware failure escalation, and separate first/escalation/recovery cost records.
+- Add a six-task P4 `ccxcheapfirst` dry-run plan against `self`, a $8 operational envelope guard, and early stopping above a 30% escalation rate; real-model savings and accuracy remain Unknown.
+- Preserve existing commands, options, default routing, JSON meanings and exit codes; exercise the opt-in path through fake-CLI subprocess regression tests.

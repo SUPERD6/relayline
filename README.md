@@ -1,8 +1,3 @@
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/SUPERD6/relayline/main/docs/assets/banner-dark.svg">
-  <img alt="relayline (command ccx): coding agents as each other's lead and sub-agent; a real run: Codex luna/low, done in one attempt, verified, $0.0023" src="https://raw.githubusercontent.com/SUPERD6/relayline/main/docs/assets/banner-light.svg" width="100%">
-</picture>
-
 <p align="center">
   <a href="https://github.com/SUPERD6/relayline/actions/workflows/test.yml"><img alt="tests" src="https://github.com/SUPERD6/relayline/actions/workflows/test.yml/badge.svg"></a>
   <img alt="Python 3.11+" src="https://img.shields.io/badge/python-3.11%2B-3776AB">
@@ -15,44 +10,42 @@
 
 # relayline
 
-**Claude Code, Codex and DeepSeek hand each other checkable work and talk to each other; every hand-off comes back
-with a receipt (the check ccx ran itself, another vendor's review, the cost), and you can stop or undo any of it.**
+**Continue work between Claude Code and Codex, share memory and context, and keep usage in one ledger.**
 The command is `ccx`; Python standard library only.
 
+- **Keep working when quota runs out (experimental):** handoff records help the other tool continue; automatic takeover after a real quota stop is not verified or guaranteed seamless.
+- **Shared memory and context:** project notes travel with the task, and a handoff carries current progress when switching leads.
+- **One ledger across tools:** see Claude Code and Codex usage together; costs are API-equivalent estimates, while subscriptions consume quota.
+
+## Quick start
+
+```bash
+claude plugin install relayline --marketplace SUPERD6/relayline   # the skills and hooks in Claude Code (2.1.275+)
+pipx install relayline                                            # ccx itself, for your terminal and Codex
+ccx setup                    # guided: explains each step and asks before changing anything
+ccx run --to codex --mode read "Summarise README.md in three lines for a new user: what this project does, how to install it, and the first command to try"
+```
+
+The last line is a read-only first try: Codex reads this README and answers in three lines, on the cheapest model.
+From your own terminal, `--to` delegates even a very small task (stderr notes that doing it yourself is cheaper);
+when a lead session calls ccx, a task that small is still turned back to it.
+The hub `ccx setup` asks about is one folder of your own for shared memory, skills and the record of every run.
+
+Then the job ccx is for, a chore with a check that says whether it is done (in your project, with your test command; the test file the `--check` names must already exist, or ccx stops before starting the sub-agent):
+
+```bash
+ccx run --to codex --check "python -m pytest -q tests/test_dates.py" --review on "parse_date() rejects ISO dates that end in Z; make it accept them and add a case for it to tests/test_dates.py"
+ccx undo <run_id>            # if you don't want it: shows what would be restored; --apply restores it
+```
+
+ccx passes the run only when your `--check` passes when ccx runs it itself; `--review on` has another vendor's model
+read the diff; the JSON result carries the run id, the check, the review and the cost. A run that may edit files and
+has no `--check` gets a one-line reminder on stderr.
+
+You need Python 3.11+ and the `claude` and `codex` CLIs, logged in; DeepSeek (`dsh`, or a key in
+`DEEPSEEK_API_KEY`) is optional. `ccx -h` lists the everyday commands (run, resume, show, verify, q, undo, ui, mem, ...); `ccx advanced` (same as `ccx -h --all`) lists every group: the ones agents call to each other (board, say, reply, peek), the advanced ones (hub, several projects, install), maintenance, and the developer ones (trial, ab, bench) last, which also run as `ccx dev <command>`. Nothing was removed: old command lines work as before ([commands](https://github.com/SUPERD6/relayline/blob/main/docs/features.md#commands-everyday-first-nothing-removed)).
+
 <p align="center"><img alt="Animated demo, 15 seconds: ccx route picks Codex gpt-6-luna low; ccx run hands the task from Claude Code to Codex and it is done in one attempt; the receipt shows the check ccx ran again (passed), another vendor's review (pass) and the cost; ccx ui shows the same receipt on its page (stand-in CLIs, made-up costs)" src="https://raw.githubusercontent.com/SUPERD6/relayline/main/docs/assets/demo.svg" width="100%"></p>
-
-## What it is, in eight layers
-
-Historical experiments and the candidate recheck, side by side
-([every number with its limits](https://github.com/SUPERD6/relayline/blob/main/docs/measured.md)):
-
-- **Repository tasks, historical experiment: Hold-out set (hc1, old code, 2026-10-29):** 10 tasks not used while building ccx × 3 rounds, a Sonnet
-  lead, hidden tests. ccx was not seen to be less right (29/30, against 29/30 doing it yourself and 27/28 for Claude
-  Code's built-in sub-agent in its default usage) and cost $0.063 per success against $0.090 and $0.103 (27/28: two unclean rows left out; 28/30 with them), at about 3× the wall time of doing it yourself
-  ([report and limits](https://github.com/SUPERD6/relayline/blob/main/docs/research/2026-10-29-hc1-holdout.md)).
-- **Candidate recheck (hc2, 2026-11-04):** 28/30 overall, 25/27 `env_clean` rows, $0.088 per success (clean rows), median wall time 168 s. **Self and the built-in sub-agent were not rerun.** Cost and wall time were higher than hc1; code and sandbox environment effects were not isolated ([report](https://github.com/SUPERD6/relayline/blob/main/docs/research/2026-11-04-hc2-holdout.md)).
-- **Small exercises, external benchmark (polyglot pg1, 2026-10-31):** 30 Python exercises with no tests of their
-  own. Through a Sonnet lead to the cheapest tier, ccx was right 12/30 against 25/30 doing it yourself, at 3.1× the
-  cost per success and about 5× the wall time. Small strict-interface tasks are not worth delegating. The two are
-  different task sets and ccx versions, not paired
-  ([report and limits](https://github.com/SUPERD6/relayline/blob/main/docs/research/2026-10-31-polyglot-pg1.md)).
-
-One delegation walks through all eight layers. Each row: what ccx does, one measured number from
-[docs/measured.md](https://github.com/SUPERD6/relayline/blob/main/docs/measured.md), and one limit.
-
-| Layer | What ccx does | A number | A limit |
-|---|---|---|---|
-| ① Conversation | Agents talk directly: `ccx discuss` gets two or three vendors' views on a costly decision; the board (`ccx say`, `ccx reply`) lets open sessions write to each other and waits for you when a thread runs on | none measured yet | a Claude Code lead sees a board message only on its next turn |
-| ② Shared memory | A personal hub and a project layer; the notes a task is about go into every sub-agent's brief; `ccx handoff` passes the baton between leads | a project note was followed 9/9, against 0/9 without it | 3 tasks × 3; hub memory through start hooks not tested |
-| ③ Splitting and pipeline | `ccx q`: a durable queue of pieces, each in its own worktree, merged in dependency order | handing small tasks to Codex (A/B): the lead made one request fewer on every task, 21/21 | total spend about even (ratio 1.02), 3.3× the tokens, about 23 s slower |
-| ④ Delegation and choosing | `ccx route` scores the task and picks who, which model and effort, or says doing it yourself is cheaper; a run that fails climbs a tier | Historical hc1 (old code, 2026-10-29): $0.063 vs self $0.090; candidate hc2: $0.088 per success | hc2 self and built-in not rerun; cost and wall higher than hc1, code and sandbox effects not isolated; historical pg1 small exercises cost 3.1× |
-| ⑤ Checks and receipts | ccx re-runs your `--check` itself, another vendor reviews the diff, you give the verdict; the receipt says what the check covered and whether the run edited its own tests | hc2 hidden tests: 28/30 (clean 25/27) | [pg3b](https://github.com/SUPERD6/relayline/blob/main/docs/research/2026-11-03-pg3b-receipts.md): 15 of 29 `ok_self_checked` receipts failed hidden tests; independent review passed all 29, so this pass does not mean correct |
-| ⑥ Control and recovery | `ccx stop`, `ccx resume`, `ccx undo`, `--worktree`, autonomy levels L0–L2 (below) | from a handoff alone the next agent said where things stood 3/3 in controlled runs, one of them killed midway | one real long session failed at first (it read a stale plan); correct once fixed |
-| ⑦ Measurement and honesty | One ledger across vendors, clean-environment checks before an evaluation, a public benchmark, negative results published | API-equivalent cost was 1.5 % from Claude's own reported cost on one real run | prices are API-equivalent; on a subscription you pay in quota |
-| ⑧ Interface and first steps | `ccx ui`: one project on one map (the agents and their conversation, memory linked to the receipts, the receipts, this week's spend); `ccx demo` with no account; `ccx setup` and `ccx doctor` | none measured (no user study yet) | real use outside ccx's own tests is still thin |
-
-Saving money is not a layer of its own: it is what ③, ④ and ⑤ are for (delegate only when doing it yourself costs
-more, split only what can run in parallel, accept without re-running).
 
 ## You can stop at any point
 
@@ -92,33 +85,45 @@ folder (offline, no Claude or Codex login; your own setup is not touched).
 <td width="50%"><img alt="ccx ui, one hand-off's receipt: Codex gpt-6-luna low did it, cost $0.0051 with its review, the check ccx ran again passed, Claude haiku's review passed, the files actually changed from ccx's own snapshots (ccx demo data)" src="https://raw.githubusercontent.com/SUPERD6/relayline/main/docs/assets/ui/task-en.png"></td>
 </tr><tr><td align="center">One project on one map</td><td align="center">Every hand-off's receipt</td></tr></table>
 
-## Quick start
+## What it is, in eight layers
 
-```bash
-claude plugin install relayline --marketplace SUPERD6/relayline   # the skills and hooks in Claude Code (2.1.275+)
-pipx install relayline                                            # ccx itself, for your terminal and Codex
-ccx setup                    # guided: explains each step and asks before changing anything
-ccx run --to codex --mode read "Summarise README.md in three lines for a new user: what this project does, how to install it, and the first command to try"
-```
+Historical experiments and the candidate recheck, side by side
+([every number with its limits](https://github.com/SUPERD6/relayline/blob/main/docs/measured.md)):
 
-The last line is a read-only first try: Codex reads this README and answers in three lines, on the cheapest model.
-From your own terminal, `--to` delegates even a very small task (stderr notes that doing it yourself is cheaper);
-when a lead session calls ccx, a task that small is still turned back to it.
-The hub `ccx setup` asks about is one folder of your own for shared memory, skills and the record of every run.
+- **Repository tasks, historical experiment: Hold-out set (hc1, old code, 2026-10-29):** 10 tasks not used while building ccx × 3 rounds, a Sonnet
+  lead, hidden tests. ccx was not seen to be less right (29/30, against 29/30 doing it yourself and 27/28 for Claude
+  Code's built-in sub-agent in its default usage) and cost $0.063 per success against $0.090 and $0.103 (27/28: two unclean rows left out; 28/30 with them), at about 3× the wall time of doing it yourself
+  ([report and limits](https://github.com/SUPERD6/relayline/blob/main/docs/research/2026-10-29-hc1-holdout.md)).
+- **Candidate recheck (hc2, 2026-11-04):** 28/30 overall, 25/27 `env_clean` rows, $0.088 per success (clean rows), median wall time 168 s. **Self and the built-in sub-agent were not rerun.** Cost and wall time were higher than hc1; code and sandbox environment effects were not isolated ([report](https://github.com/SUPERD6/relayline/blob/main/docs/research/2026-11-04-hc2-holdout.md)).
+- **Small exercises, external benchmark (polyglot pg1, 2026-10-31):** 30 Python exercises with no tests of their
+  own. Through a Sonnet lead to the cheapest tier, ccx was right 12/30 against 25/30 doing it yourself, at 3.1× the
+  cost per success and about 5× the wall time. Small strict-interface tasks are not worth delegating. The two are
+  different task sets and ccx versions, not paired
+  ([report and limits](https://github.com/SUPERD6/relayline/blob/main/docs/research/2026-10-31-polyglot-pg1.md)).
 
-Then the job ccx is for, a chore with a check that says whether it is done (in your project, with your test command; the test file the `--check` names must already exist, or ccx stops before starting the sub-agent):
+One delegation walks through all eight layers. Each row: what ccx does, one measured number from
+[docs/measured.md](https://github.com/SUPERD6/relayline/blob/main/docs/measured.md), and one limit.
 
-```bash
-ccx run --to codex --check "python -m pytest -q tests/test_dates.py" --review on "parse_date() rejects ISO dates that end in Z; make it accept them and add a case for it to tests/test_dates.py"
-ccx undo <run_id>            # if you don't want it: shows what would be restored; --apply restores it
-```
+| Layer | What ccx does | A number | A limit |
+|---|---|---|---|
+| ① Conversation | Agents talk directly: `ccx discuss` gets two or three vendors' views on a costly decision; the board (`ccx say`, `ccx reply`) lets open sessions write to each other and waits for you when a thread runs on | none measured yet | a Claude Code lead sees a board message only on its next turn |
+| ② Shared memory | A personal hub and a project layer; the notes a task is about go into every sub-agent's brief; `ccx handoff` passes the baton between leads | a project note was followed 9/9, against 0/9 without it | 3 tasks × 3; hub memory through start hooks not tested |
+| ③ Splitting and pipeline | `ccx q`: a durable queue of pieces, each in its own worktree, merged in dependency order | handing small tasks to Codex (A/B): the lead made one request fewer on every task, 21/21 | total spend about even (ratio 1.02), 3.3× the tokens, about 23 s slower |
+| ④ Delegation and choosing | `ccx route` scores the task and picks who, which model and effort, or says doing it yourself is cheaper; a run that fails climbs a tier | Historical hc1 (old code, 2026-10-29): $0.063 vs self $0.090; candidate hc2: $0.088 per success | hc2 self and built-in not rerun; cost and wall higher than hc1, code and sandbox effects not isolated; historical pg1 small exercises cost 3.1× |
+| ⑤ Checks and receipts | ccx re-runs your `--check` itself, another vendor reviews the diff, you give the verdict; the receipt says what the check covered and whether the run edited its own tests | hc2 hidden tests: 28/30 (clean 25/27) | [pg3b](https://github.com/SUPERD6/relayline/blob/main/docs/research/2026-11-03-pg3b-receipts.md): 15 of 29 `ok_self_checked` receipts failed hidden tests; independent review passed all 29, so this pass does not mean correct |
+| ⑥ Control and recovery | `ccx stop`, `ccx resume`, `ccx undo`, `--worktree`, autonomy levels L0–L2 (below) | from a handoff alone the next agent said where things stood 3/3 in controlled runs, one of them killed midway | one real long session failed at first (it read a stale plan); correct once fixed |
+| ⑦ Measurement and honesty | One ledger across vendors, clean-environment checks before an evaluation, a public benchmark, negative results published | API-equivalent cost was 1.5 % from Claude's own reported cost on one real run | prices are API-equivalent; on a subscription you pay in quota |
+| ⑧ Interface and first steps | `ccx ui`: one project on one map (the agents and their conversation, memory linked to the receipts, the receipts, this week's spend); `ccx demo` with no account; `ccx setup` and `ccx doctor` | none measured (no user study yet) | real use outside ccx's own tests is still thin |
 
-ccx passes the run only when your `--check` passes when ccx runs it itself; `--review on` has another vendor's model
-read the diff; the JSON result carries the run id, the check, the review and the cost. A run that may edit files and
-has no `--check` gets a one-line reminder on stderr.
+Saving money is not a layer of its own: it is what ③, ④ and ⑤ are for (delegate only when doing it yourself costs
+more, split only what can run in parallel, accept without re-running).
 
-You need Python 3.11+ and the `claude` and `codex` CLIs, logged in; DeepSeek (`dsh`, or a key in
-`DEEPSEEK_API_KEY`) is optional. `ccx -h` lists the everyday commands (run, resume, show, verify, q, undo, ui, mem, ...); `ccx advanced` (same as `ccx -h --all`) lists every group: the ones agents call to each other (board, say, reply, peek), the advanced ones (hub, several projects, install), maintenance, and the developer ones (trial, ab, bench) last, which also run as `ccx dev <command>`. Nothing was removed: old command lines work as before ([commands](https://github.com/SUPERD6/relayline/blob/main/docs/features.md#commands-everyday-first-nothing-removed)).
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/SUPERD6/relayline/main/docs/assets/banner-dark.svg">
+  <img alt="relayline (command ccx): coding agents as each other's lead and sub-agent; a real run: Codex luna/low, done in one attempt, verified, $0.0023" src="https://raw.githubusercontent.com/SUPERD6/relayline/main/docs/assets/banner-light.svg" width="100%">
+</picture>
+
+The old banner's $0.0023 is one run example, not a mean cost or a savings claim; its date, version and full receipt are Unknown in the [banner source](https://github.com/SUPERD6/relayline/blob/main/docs/assets/banner-light.svg).
 
 ## Compared with doing it yourself and with Claude Code's own sub-agent
 
@@ -189,6 +194,11 @@ each is described, and STATUS says how each is tested): Gemini CLI, a real quota
 agent CLIs), installing the Codex plugin from a GitHub address (not tried live), H11 (`memory.by_kind=false`, off by default; original trial voided), `ccx intake` against real GitHub; the full list is
 in STATUS. Still work in progress (the release badge above says which version): what is verified and how is in
 [docs/STATUS.md](https://github.com/SUPERD6/relayline/blob/main/docs/STATUS.md).
+
+Linux also has a dedicated installed-wheel walkthrough job: `pip wheel`, a clean virtual environment, then setup,
+doctor, demo, UI export and the first delegation using fake CLIs. The package job runs the same walkthrough.
+These are credential-free engineering checks, not real-agent Linux measurements; macOS evidence is CI only.
+See [how to reproduce it](https://github.com/SUPERD6/relayline/blob/main/docs/install.md#credential-free-installed-wheel-walkthrough).
 
 ## More
 

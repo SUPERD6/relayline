@@ -2,6 +2,24 @@
 
 English · [中文](install.zh.md) · back to the [README](../README.md)
 
+## Credential-free installed-wheel walkthrough
+
+From a clone, run `python scripts/walkthrough.py --installed-wheel --allow-download`.
+It builds a wheel with `pip wheel`, installs that wheel into a fresh virtual environment, and runs the installed
+`ccx` entry point from a temporary project outside the checkout: setup preview/apply, doctor, demo/UI exports,
+the README's first delegation and its receipt. It uses only `tests/fakes` CLIs, isolated tool homes and an
+environment allowlist; it forwards no credentials and calls no real models. A failed wheel build/install fails
+the check without a source fallback. Logs and `result.json` stay in the printed temporary directory.
+
+Downloads require explicit `--allow-download`; for offline use supply
+`--wheelhouse <folder>` containing setuptools>=77 and wheel instead. With neither flag the script stays offline.
+Without `--installed-wheel`, the existing editable-install walkthrough remains unchanged.
+CI's package job runs the wheel walkthrough on its OS matrix; a separate Ubuntu job runs it on Python 3.11
+for every PR. Linux and macOS checks use fake CLIs, not real agents; macOS evidence is CI only.
+These are **engineering checks**, not measured quota recovery, savings or speed improvements.
+`ccx setup` opens with the same three points as the README: experimental quota continuity, shared memory/context,
+and a cross-tool ledger; its wiring and opt-in selftest remain unchanged.
+
 ## Install
 
 **Requirements:**

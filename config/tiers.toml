@@ -1,3 +1,7 @@
+[relay]
+# Experimental: capture + explicit cross-vendor continuation. No automatic takeover.
+enabled = false
+
 # ccx 分级配置：按任务难度选模型和推理强度。
 # 原则：能自己两三步做完的不派（T0）；派出去时用"能做好的最便宜一档"；
 # 失败或卡住才升一级（最多升 max_escalations 次）。
@@ -386,6 +390,10 @@ mode = "read"
 # Empty = preserve the existing candidate. These do not enable test review or affect read review.
 tests_model = ""
 tests_effort = ""
+# Experimental, offline-only contract extraction in a source-free process. No model calls;
+# citations/hash and evidence labels only; does not change review/acceptance verdicts.
+# 实验性离线契约诊断；默认关，不调用模型、不改变验收判定。见 docs/review-contract-diag.zh.md。
+contract_diag = false
 min_lines = 50        # auto 时：代码（不含 .md 等文档）改动达到这么多行也审；0 = 不按行数触发
 weak = true           # auto 时：证据弱也审一次，只用另一家最便宜的一档。弱 = 没有 --check；--check 不跑测试（只 lint / import / exit 0）；
                       # 它跑的测试没提到改动的代码文件或改动的公开函数；或这条验收命令放过过做错的结果。不需要历史。
@@ -495,3 +503,7 @@ daily_usd = 1.0
 [delegate]
 user_words = false          # Experimental: original user wording from the current Claude lead conversation.
 user_words_max_chars = 8000  # Retained characters; an explicit --user-words-file also uses this cap.
+
+[dispatch]
+# Experimental: caller-supplied independent --check required; baseline failures never trigger escalation.
+cheap_first = false

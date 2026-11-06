@@ -179,7 +179,8 @@ class TestDocsAgree(unittest.TestCase):
         for name, hold in (("README.md", ("Hold-out set (hc1", "default usage", "$0.063", "2026-10-29-hc1-holdout.md")),
                            ("README.zh.md", ("留出集（hc1", "默认用法", "$0.063", "2026-10-29-hc1-holdout.zh.md"))):
             s = self.read(name)
-            first = s.split("## ", 2)[1]                           # the first section: the eight layers, two results first
+            heading = "## What it is, in eight layers" if name == "README.md" else "## 八层讲清它是什么"
+            first = s.split(heading, 1)[1].split("\n## ", 1)[0]    # comparison stays together after quick start
             for must in hold:                                      # the hold-out row is filled, with its qualifier
                 self.assertIn(must, first, (name, must))
             self.assertNotIn("pending", first.lower(), name)
