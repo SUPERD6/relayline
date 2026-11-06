@@ -1,0 +1,1 @@
+| 2026-11-05 | Warn on clear brief conflicts; make blocking opt-in | 简报明确冲突默认警告，阻止派活需显式开启 | Prefer missed warnings over false refusals; engineering checks only / 宁可漏报，避免误拦；仅有工程检查 | `ccx/briefcheck.py`, `docs/brief-check.md` |

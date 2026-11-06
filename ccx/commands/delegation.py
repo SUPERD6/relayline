@@ -117,7 +117,7 @@ def _without_wait(argv: list[str]) -> list[str]:
     return out
 
 
-def _bg_maybe_wait(argv: list[str], p, wait: float | None) -> int:
+def _bg_maybe_wait(argv: list[str], p, wait: float | None, *, brief_warnings: list | None = None) -> int:
     """`--bg`: detach and print the run id. `--bg --wait N` (one call instead of `--bg` then `ccx show --wait`):
     the id goes to stderr at once (flushed: a lead whose tool call is cut off still has it), then this process waits
     up to N s. Finished: the final compact result on stdout (exit 0 / 2 as a foreground run). Not finished:
@@ -126,6 +126,8 @@ def _bg_maybe_wait(argv: list[str], p, wait: float | None) -> int:
     _bg_not_delegated) and end it the same way."""
     procs: list = []
     bg = _background(argv, p, procs)
+    if brief_warnings:
+        bg["brief_warnings"] = brief_warnings
     if wait is None:
         _out(bg)
         return 0
@@ -371,6 +373,18 @@ def _cmd_run(a) -> int:
         raise ValueError("--bg needs the task as text or --brief-file (stdin is not passed on)")
     if a.wait is not None and not a.bg:
         raise ValueError("--wait N goes with --bg (a foreground run already waits until it is done)")
+    from .. import briefcheck
+    text = _brief(a)
+    # Cache stdin too; check the caller's task before role/project/context wrapping and before detaching.
+    a.brief = [text]
+    brief_warnings = briefcheck.check(text, apply_mode(_run_spec(a, text))["mode"],
+                                     Path(a.cwd or os.getcwd()), a.check)
+    # The foreground dispatcher already printed these; keep them in the detached child's record only.
+    if not os.environ.get("CCX_RUN_ID"):
+        briefcheck.emit(brief_warnings)
+    if brief_warnings and getattr(a, "strict_brief", False):
+        _out({"delegated": False, "error": "strict brief check failed", "brief_warnings": brief_warnings})
+        return 2
     from ..small_tasks import enabled, run_advice
     if enabled(cfg, "small_self_run"):
         text = _brief(a)
@@ -391,7 +405,7 @@ def _cmd_run(a) -> int:
             _preauth_for_run(p, cfg, a.proposal, _run_spec(a, _brief(a)))
         if not a.check and apply_mode(_run_spec(a, _brief(a)))["mode"] == "write":
             print(NO_CHECK_NUDGE, file=sys.stderr, flush=True)     # here, where the person sees it
-        return _bg_maybe_wait(sys.argv[1:], p, a.wait)
+        return _bg_maybe_wait(sys.argv[1:], p, a.wait, brief_warnings=brief_warnings)
     text = _brief(a)
     user_task = (Path(a.user_task_file).read_text(encoding="utf-8")
                  if getattr(a, "user_task_file", None) else text)
@@ -458,7 +472,7 @@ def _cmd_run(a) -> int:
             _out(stop)
             return 0
         if a.bg:
-            return _bg_maybe_wait(sys.argv[1:], p, a.wait)
+            return _bg_maybe_wait(sys.argv[1:], p, a.wait, brief_warnings=brief_warnings)
     lead = lead_session_id(caller)
     cwd = Path(a.cwd or os.getcwd())
     if role and not a.brief_file:
@@ -482,6 +496,7 @@ def _cmd_run(a) -> int:
                   lead_session=lead, resume_run=prev, continued=bool(prev), fork_lead=fork,
                   allow_subagents=not a.no_subagents, check=a.check, review=a.review, risk=a.risk,
                   namecheck=getattr(a, "namecheck", None),
+                  brief_warnings=brief_warnings,
                   subagents="off" if a.no_subagents else subagents_spec(a.subagents), budget_usd=a.budget,
                   max_usd=max_usd(a, cfg), parallel=True if a.parallel else None, share_context=a.context,
                   user_words_file=str(Path(a.user_words_file).resolve()) if a.user_words_file else None,
@@ -1408,6 +1423,8 @@ def register(sub) -> None:
     r.add_argument("brief", nargs="*", help="task text (or use --brief-file / stdin)")
     r.add_argument("--role", type=role_name, help="configured role: agent/model/effort and optional run defaults")
     r.add_argument("--brief-file")
+    r.add_argument("--strict-brief", action="store_true", help="experimental: refuse dispatch on static brief "
+                   "warnings (default: warn on stderr and in the receipt, then continue)")
     r.add_argument("--user-task-file", help="UTF-8 original task for test review, preferred over the worker brief")
     r.add_argument("--to", choices=["auto", *DELEGATE_AGENTS, *PROVIDER_AGENTS], default="auto")
     adv.add_argument("--from", dest="caller", choices=[*DELEGATE_AGENTS, *PROVIDER_AGENTS, "user"])

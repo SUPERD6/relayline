@@ -19,7 +19,7 @@ import os
 SUMMARY_CHARS = 300
 # any of these in a result means the lead has something to look at: the whole result goes out
 ATTENTION = ("needs_lead", "hint", "kind", "edited_tests", "namecheck", "policy_blocked", "cost_chain_error",
-             "base", "retry_after", "open_questions", "next_step",
+             "base", "retry_after", "open_questions", "next_step", "brief_warnings",
              "autonomy", "project",      # an L2 merge's outcome (merged, why not, undo), a project's approval rules
              "fixed_after_review_of")    # passed after a fix round: the first review's issues are worth a look
 
