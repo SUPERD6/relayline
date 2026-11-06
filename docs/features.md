@@ -5,6 +5,9 @@ English · [中文](features.zh.md) · back to the [README](../README.md)
 Experimental, off by default: [carry original user wording to sub-agents](user-words.md).
 Also experimental and off by default: [quota handoff and explicit cross-vendor continuation](relay.md).
 
+Receipts also report [pending Git steps](git-pending.md); optional parent-side conflict staging is experimental
+and off by default.
+
 ## See delegated work
 
 `ccx ui` links to **Runs** (`/runs` or `/#/runs`). All saved runs, including live ones, have project/status/date

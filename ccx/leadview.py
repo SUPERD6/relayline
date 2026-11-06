@@ -36,6 +36,12 @@ def clean(res: dict) -> bool:
     none ran."""
     complete = res.get("status") == "done" or (res.get("status") == "partial"
                and res.get("reported_status") == "done" and quota_reassigned(res))
+    pending = res.get("git_pending") or {}
+    unsafe_conflicts = set(pending.get("unsafe_paths") or []) & set(
+        (pending.get("unmerged") or []) + (pending.get("known_conflicts") or []))
+    if (pending.get("steps") or pending.get("conflict_markers") or unsafe_conflicts
+            or (pending.get("auto_stage") or {}).get("failed")):
+        return False
     if not res.get("ok") or not complete or res.get("max_usd") or any(res.get(k) for k in ATTENTION):
         return False
     c = res.get("check") or {}
@@ -62,6 +68,11 @@ def review_not_run(res: dict) -> bool:
 def receipt_notes(res: dict) -> list[str]:
     """Facts that must survive a compact receipt; no claim that an unstarted fallback ran."""
     notes = []
+    pending = res.get("git_pending") or {}
+    if pending.get("steps"):
+        notes.append("Git pending: " + "; ".join(pending["steps"]))
+    if (pending.get("auto_stage") or {}).get("staged"):
+        notes.append("Git: staged resolved conflicts; no commit")
     fallback = res.get("quota_fallback") or {}
     if quota_reassigned(res):
         notes.append(f"reassigned {fallback['from']}→{fallback['to']} (quota)")
@@ -175,6 +186,8 @@ def line(res: dict) -> dict:
             out[k] = res[k]
     if "base_behind" in res:
         out["base_behind"] = res["base_behind"]
+    if "git_pending" in res:
+        out["git_pending"] = res["git_pending"]
     out["check"] = res["check"]       # as it was (cmd, passed, exit, covers): leads, scripts and the receipt read it
     if res.get("review"):
         out["review"] = {k: res["review"][k] for k in ("verdict", "by") if res["review"].get(k)}

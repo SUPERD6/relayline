@@ -1,0 +1,1 @@
+| 2026-11-06 | Inspect conflicts within a size bound; stage only changed UU/AA paths with opt-in | 限量检测冲突，仅显式开启后暂存本次修改的 UU/AA 路径 | Require dispatch hashes; leave modify/delete choices manual; preserve ordinary receipts and sandbox rights; engineering check only / 要求运行前哈希，增删冲突人工选择，保留普通收据及沙箱权限，仅工程检查 | `ccx/git_pending.py`, `docs/git-pending.md` |
