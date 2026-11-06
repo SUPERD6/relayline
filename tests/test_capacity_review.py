@@ -50,6 +50,32 @@ def test_capacity_is_open_in_ui():
     assert _outcome({"state": "finished", "kind": "capacity", "ok": False}, None) == "open"
 
 
+def test_capacity_queue_restore_needs_decision():
+    from ccx.commands.workqueue import restored
+
+    assert restored("old", {"kind": "capacity", "ok": False}) == "decide"
+
+
+def test_capacity_ui_offers_resume_and_specific_history():
+    from ccx.ui import _act, hist_of_run
+
+    rec = {"run_id": "busy", "state": "finished", "kind": "capacity", "ok": False}
+    act = _act(rec, None, 0, None)
+    assert act["kind"] == "decide" and act["what"] == "a_capacity"
+    assert act["why"][0] == "w_capacity"
+    assert act["buttons"][0]["argv"] == ["ccx", "resume", "busy"]
+    assert hist_of_run(rec, "task")[-1]["k"] == "h_capacity"
+
+
+@pytest.mark.parametrize("language", ["zh", "en"])
+def test_capacity_ui_translations_explain_recovery(language):
+    strings = json.loads((ROOT / "ccx" / "ui_static" / "strings.json").read_text(encoding="utf-8"))[language]
+    for key in ("h_capacity", "a_capacity", "w_capacity"):
+        assert strings[key] and ("满载" if language == "zh" else "capacity") in strings[key]
+    assert "ccx resume" in strings["w_capacity"]
+    assert ("换模型" if language == "zh" else "switch models") in strings["w_capacity"]
+
+
 def test_merge_does_not_retry_capacity_failure(monkeypatch):
     from test_merge import _finish, rec, req
 
@@ -83,6 +109,50 @@ class TestCapacityReviewCommand(AdapterEnv):
     def run_read(self, brief="read parser", *, env=None, code=0, flags=()):
         return self.j("run", "--from", "user", "--to", "codex", "--tier", "T2", "--mode", "read",
                       "--review", "off", "--context", "off", "--no-ab", *flags, brief, env=env, code=code)
+
+    def test_successful_auto_continue_does_not_mark_unused_memory(self):
+        from ccx import memory
+        from ccx.config import Paths
+
+        p = Paths(self.hub)
+        note = memory.add(p, "parser tests need fixtures", "codex", topic="parser")
+        env = {"CCX_LEAD_SESSION": "capacity-lead"}
+        first = self.run_read("read parser", env=env)
+        before = memory.usage(p)
+        assert before[note["seq"]]["n"] == 1
+        out = self.run_read("read parser again", env=env)
+        assert out["continued_from"] == first["run_id"]
+        assert "same session" in self.calls()[-1]["prompt"]
+        assert memory.usage(p) == before
+
+    def test_capacity_switch_builds_fresh_prompt_with_memory_once(self):
+        from ccx import memory
+        from ccx.config import Paths
+
+        p = Paths(self.hub)
+        note = memory.add(p, "parser tests need fixtures", "codex", topic="parser")
+        env = {"CCX_LEAD_SESSION": "capacity-lead"}
+        first = self.run_read("read parser", env=env)
+        out = self.run_read("read parser again", env={**env, "FAKE_CAPACITY_MODELS": "gpt-6.1-sol",
+                                                     "FAKE_CAPACITY_RESUME_ONLY": "1"})
+        assert out["continued_from"] == first["run_id"] and out["agent"] == "claude"
+        assert "Shared notes" not in self.calls()[-2]["prompt"]
+        assert f"#{note['seq']} (parser)" in self.calls()[-1]["prompt"]
+        assert memory.usage(p)[note["seq"]]["n"] == 2
+
+    def test_capacity_stop_does_not_build_unused_fresh_prompt(self):
+        from ccx import memory
+        from ccx.config import Paths
+
+        p = Paths(self.hub)
+        memory.add(p, "parser tests need fixtures", "codex", topic="parser")
+        env = {"CCX_LEAD_SESSION": "capacity-lead"}
+        first = self.run_read("read parser", env=env)
+        before = memory.usage(p)
+        out = self.run_read("read parser again", env={**env, "FAKE_CAPACITY_MODELS": "all"},
+                            flags=("--no-escalate", "--no-fallback"), code=2)
+        assert out["continued_from"] == first["run_id"] and out["kind"] == "capacity"
+        assert memory.usage(p) == before
 
     def test_transient_capacity_then_other_failure_stays_other_failure(self):
         out = self.run_read(env={"FAKE_CAPACITY_MODELS": "all", "FAKE_CAPACITY_TRANSIENT": "1",

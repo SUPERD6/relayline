@@ -595,26 +595,26 @@ def run(req: Request, p: Paths) -> dict:
     # "you are the implementer" only where it is true and the block it refers to is there: a write run with the
     # lead's shared context attached; never ccx's read-only reviewer or a read task
     lead_note = LEAD_NOTE if shared and req.mode == "write" and not reviewer else ""
-    need_fresh = not prev or (cont and cfg["defaults"].get("capacity_fallback", True) is True)
-    if need_fresh:
-        fresh_prompt = PROMPT.format(
+    def make_fresh_prompt():
+        return PROMPT.format(
             run_id=run_id, caller=req.caller, cwd=cwd, brief=brief,
             mode_text=mode_text, selfcheck=selfcheck, lead_note=lead_note,
             context_line=f"Project context (read first): {ctx}\n" if ctx else "",
             memory_line=(f"User background index (open only if the task needs it): {p.memory_index}\n"
                          if p.memory_index.exists() else "") + _brief_notes(p, cfg, req.to, brief, req.cwd.resolve()),
         )
+    fresh_prompt = None
     if cont:
         first_prompt = CONTINUE.format(run_id=run_id, caller=req.caller, cwd=cwd, brief=brief,
                                        mode_text=mode_text, selfcheck=selfcheck, lead_note=lead_note)
     elif prev:
         first_prompt = FOLLOWUP.format(run_id=run_id, brief=req.brief)
     else:
-        first_prompt = fresh_prompt
+        first_prompt = fresh_prompt = make_fresh_prompt()
     from . import user_words
     words, words_meta = user_words.capture(req, cfg, p, run_dir, prev_for_settings)
     first_prompt = user_words.attach(first_prompt, words)
-    if need_fresh:
+    if fresh_prompt is not None:
         fresh_prompt = user_words.attach(fresh_prompt, words)
     (run_dir / "prompt.md").write_text(first_prompt, encoding="utf-8")
     if not prev:
@@ -954,6 +954,8 @@ def run(req: Request, p: Paths) -> dict:
             if envs:
                 pv_env.update(envs)
             plan = plan[:i + 1] + remaining
+            if fresh_prompt is None:
+                fresh_prompt = user_words.attach(make_fresh_prompt(), words)
             prompt, session, dispatch_phase = fresh_prompt, None, "recovery"
             i += 1
             continue
