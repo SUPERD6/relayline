@@ -12,6 +12,7 @@ import pytest
 
 from test_ccx import Env, ROOT
 from ccx.config import Paths
+from ccx import sessionguard
 
 
 class RegressionEnv(Env):
@@ -191,6 +192,12 @@ class TestArchiveCompletion(RegressionEnv):
                 if child.poll() is None:
                     child.kill()
                 child.communicate(timeout=20)
+        # This test deliberately needs the hook to return before releasing its
+        # worker, so it cannot use the joining entry point. The 'done' signal
+        # precedes archive_worker.run releasing its lock: wait for that release
+        # before cleanup can remove a directory the worker is still writing.
+        with sessionguard.lock(p, timeout=30):
+            pass
         entries = [json.loads(line) for line in (p.state / "archived.jsonl").read_text(encoding="utf-8").splitlines()]
         self.assertEqual([e["run_id"] for e in entries], [rid])
         self.assertEqual(entries[0]["sessions"], [["codex", sid, None]])

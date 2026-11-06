@@ -222,7 +222,7 @@ class TestArchiveSafety(Env):
             "        if t.name == 'ccx-archive-reaper': t.join(60)\n"
             "atexit.register(reap)\n", encoding="utf-8")
         relative = os.path.relpath(self.hub, self.work)
-        result = subprocess.run([sys.executable, str(ROOT / "ccx.py"), "mem", "delta", "--as", "codex"],
+        result = subprocess.run([sys.executable, str(self.ccx_entrypoint), "mem", "delta", "--as", "codex"],
                                 cwd=self.work, env={**self.env, "CCX_HUB": relative, "PYTHONPATH": str(support)},
                                 capture_output=True, text=True, encoding="utf-8", timeout=60)
         assert result.returncode == 0, result.stderr
