@@ -813,8 +813,10 @@ def run(req: Request, p: Paths) -> dict:
             kw["memories"] = False             # [subagent] codex_memories = false: every Codex rung
         if cli == "claude" and clean_claude:
             kw["clean"] = True                 # not in a fork run (see clean_claude)
+        from .timeouts import deadline_prompt
         inv = BUILDERS[cli](model=spec["model"], effort=spec["effort"], perm=perm, cwd=cwd,
-                           prompt=user_words.attach(prompt, words), run_dir=run_dir, resume_id=resume_id, lean=spec["lean"], **kw)
+                           prompt=deadline_prompt(user_words.attach(prompt, words), cfg, timeout),
+                           run_dir=run_dir, resume_id=resume_id, lean=spec["lean"], **kw)
         env = {**extra, **(run_env(req.mode) if run_env else {})}
         child_env = _child_env(cli, run_id, env, provider=bool(extra), clean_home=chome)
         from .credential_guard import protect
@@ -867,6 +869,10 @@ def run(req: Request, p: Paths) -> dict:
             oc.usage = recovered[0] or oc.usage
         n = len(record["attempts"])
         (run_dir / f"events.{n}.log").write_text(so, encoding="utf-8")
+        timeout_detail = None
+        if oc.kind == "timeout":
+            from .timeouts import timeout_context
+            timeout_detail = timeout_context(cli, so, run_snapshot(p, record))
         if cli == "claude" and not extra and "rate_limit_event" in so:
             try:                       # Claude's quota windows only show up here: keep them for pacing
                 from . import quota
@@ -893,6 +899,7 @@ def run(req: Request, p: Paths) -> dict:
             **({"dispatch_phase": dispatch_phase} if cheap_dispatch else {}),
             "agent": to, "tier": spec.get("tier"), "rung": spec["rung"], "model": spec["model"],
             "effort": spec["effort"], "ok": oc.ok, "kind": oc.kind, "seconds": dt, "usage": oc.usage,
+            **({"timeout_context": timeout_detail} if timeout_detail is not None else {}),
             # through a provider the CLI still prices with its own vendor's table: only ccx's price is right
             "cost_usd": None if extra else oc.cost_usd, "ae_usd": round(ae, 6) if ae is not None else None,
             "error": oc.error, "auth_problem": oc.auth_problem, "retry_after": oc.retry_after,
@@ -1091,6 +1098,8 @@ def run(req: Request, p: Paths) -> dict:
     record.update(result=oc.result, ok=oc.ok, error=None if oc.ok else oc.error,
                   auth_problem=oc.auth_problem, kind=oc.kind,
                   state="stopped" if oc.kind == "user_stopped" else "finished")
+    if oc.kind == "timeout" and record["attempts"]:
+        record["timeout_context"] = record["attempts"][-1]["timeout_context"]
     if stop_file.exists():
         record["stop_requested"] = True
     check_passed = None
@@ -1507,6 +1516,8 @@ def compact(record: dict) -> dict:
         out["substituted_for"] = last["substituted_for"]
     if record.get("diffstat"):
         out["diffstat"] = record["diffstat"]          # `git diff --shortstat` since the run's undo snapshot
+    if record.get("kind") == "timeout" and "timeout_context" in record:
+        out["timeout_context"] = record["timeout_context"]
     if "base_behind" in record:
         out["base_behind"] = record["base_behind"]
     if record.get("quota_fallback"):

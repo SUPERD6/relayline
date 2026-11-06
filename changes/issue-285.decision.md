@@ -1,0 +1,1 @@
+| 2026-11-06 | Reuse the attempt timeout setting; add bounded timeout evidence and a default-off up-front reminder | 复用单次尝试时限配置；新增有上限的超时证据与默认关闭的开局提醒 | Preserve existing verdicts and reported-file semantics; runtime injection and reminder compliance remain Unknown / 保留判定和回报文件字段含义，运行中注入与提醒遵从情况仍为 Unknown | `ccx/timeouts.py`, `docs/timeouts.md`, #285 |
