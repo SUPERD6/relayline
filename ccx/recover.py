@@ -135,6 +135,7 @@ def close_dead(p: Paths, run_id: str, kind: str, state: str, why: str, by: str,
             "seconds": round(max(0.0, time.time() - float(cur.get("t0") or time.time())), 1), "usage": u,
             "cost_usd": None, "ae_usd": round(ae, 6) if ae is not None else None, "error": why,
             "auth_problem": False, "retry_after": None, "session_id": sid, "recovered": True,
+            **({"credential_guard": cur["credential_guard"]} if "credential_guard" in cur else {}),
             **({"codex_total": total} if total else {})})
     last = (rec.get("attempts") or [{}])[-1]
     rec.update({key: last[key] for key in ("agent", "model", "effort") if key in last})

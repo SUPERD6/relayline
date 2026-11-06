@@ -32,6 +32,18 @@ Claude 记录 `status: "Unknown"`、`mechanism: "claude-permissions-deny"`，不
 `rules_added` 仅表示规则已注入启动设置，**不统计拒绝次数**，也不把已有 CLI 拒绝计数归因到这些规则。
 **Codex 未受到本 guard 的禁读保护**。记录和警告不添加凭据内容或目录清单。
 CLI 自身的认证和启动配置加载不属于工具规则保护范围。
+
+开启时，`attempts[n].credential_guard` 保留各次启动证据，包括满载后换模型的尝试。
+顶层 `credential_guard` 取本次运行所有尝试里最弱的状态（依次为 `Fail`、`Unknown`、`Pass`），
+并新增 `attempts` 摘要，包含从零开始的 `n`、agent、model 和禁读证据。
+状态相同时，`unverified` 比已注入规则更弱；原有 mechanism 和 `rules_added` 字段描述最弱的那次，
+不代表整次运行；其他尝试的证据保留在摘要里。核对每次启动，以 `attempts[].credential_guard` 为准。
+目前两个适配器仍都报告 `Unknown`，Claude 注入规则不代表 `Pass`。
+启动警告同时写入运行记录的 `credential_guard_warnings` 列表，包含从零开始的 `attempt`、agent 和 message。
+紧凑的 `run`/`show` 收据也包含汇总与警告。中断后恢复成 attempt 时保留禁读证据。
+主导选择 `line` 模式时，有禁读警告或禁读状态不是 `Pass` 就保留完整收据；直接使用 line 视图也保留两个禁读字段。
+开关关闭时不新增这些字段，已有收据输出保持不变。
+
 Claude 生成的 settings 上限为 22,000 字符，完整引用后的命令上限为 30,000 个 UTF-16 单元，
 低于 Windows 的 32,767 单元上限；过长时启动前报错，不截断保护规则。
 配置错误走现有配置错误退出码 3，记录为 finished/error，不再误记 killed/被中断，也不产生 CLI 尝试。

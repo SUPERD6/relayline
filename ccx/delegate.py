@@ -819,7 +819,7 @@ def run(req: Request, p: Paths) -> dict:
                            run_dir=run_dir, resume_id=resume_id, lean=spec["lean"], **kw)
         env = {**extra, **(run_env(req.mode) if run_env else {})}
         child_env = _child_env(cli, run_id, env, provider=bool(extra), clean_home=chome)
-        from .credential_guard import protect
+        from .credential_guard import protect, record_guard
         try:
             guard = protect(cli, inv, cfg, req.cwd, child_env)
         except ValueError as e:
@@ -827,13 +827,12 @@ def run(req: Request, p: Paths) -> dict:
             record.update(state="finished", ok=False, kind="error", error=f"credential guard configuration: {e}")
             _write_record(run_dir, record)
             raise ValueError(record["error"]) from e
-        if guard is not None:
-            record["credential_guard"] = guard
         t0 = time.time()
         # the attempt in flight: if this process dies, `ccx stop` / the sweep turn it into an attempt (ccx/recover.py)
         record["current"] = {"n": len(record["attempts"]), "agent": to, "cli": cli, "tier": spec.get("tier"),
                              "rung": spec["rung"], "model": spec["model"], "effort": spec["effort"], "t0": t0,
                              "before": seen.get(resume_id) if cli == "codex" else None}
+        record_guard(record, record["current"], guard)
         hb = _Heartbeat(p, cwd, req.task if req.step else None, cli)
         try:
             oc, so, se = execute(cli, inv, timeout, child_env,
@@ -896,6 +895,7 @@ def run(req: Request, p: Paths) -> dict:
                 oc.usage = _add_children(oc.usage, oc.session_id, t0, kids)
         ae = learn.price_usd(p, to, spec["model"], oc.usage, ts=t0) if oc.usage else None
         record["attempts"].append({
+            **({"credential_guard": guard} if guard is not None else {}),
             **({"dispatch_phase": dispatch_phase} if cheap_dispatch else {}),
             "agent": to, "tier": spec.get("tier"), "rung": spec["rung"], "model": spec["model"],
             "effort": spec["effort"], "ok": oc.ok, "kind": oc.kind, "seconds": dt, "usage": oc.usage,
@@ -1506,6 +1506,9 @@ def compact(record: dict) -> dict:
             out[key] = record[key]
     if record.get("brief_warnings"):
         out["brief_warnings"] = record["brief_warnings"]
+    for key in ("credential_guard", "credential_guard_warnings"):
+        if key in record:
+            out[key] = record[key]
     if "contract_diagnostic" in record:
         from .review_pipeline import evidence
         out["contract_diagnostic"] = record["contract_diagnostic"]

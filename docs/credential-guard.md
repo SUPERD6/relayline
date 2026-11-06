@@ -48,6 +48,22 @@ guard does **not** count refusals or attribute existing CLI denial counters to
 these rules. Codex is **not protected by this guard**. No credential contents or
 protected path list is added to the record or warning.
 CLI authentication and startup configuration loading are outside tool-level denies.
+
+When enabled, each `attempts[n].credential_guard` preserves that attempt's launch
+evidence, including attempts stopped by capacity fallback. Top-level `credential_guard`
+keeps the weakest status across the run's attempts (`Fail`, then `Unknown`, then `Pass`),
+with an `attempts` summary containing zero-based `n`, agent, model and guard evidence.
+At equal status, `unverified` is weaker than injected rules. Its existing mechanism
+and `rules_added` fields describe that weakest attempt, not the whole run; summaries
+retain the others. For individual launch evidence, use `attempts[].credential_guard`.
+Both current adapters still report `Unknown`; Claude's injected rules do not imply `Pass`.
+Launch warnings also appear in the run's `credential_guard_warnings` list with zero-based `attempt`,
+agent and message. Compact `run`/`show` receipts include the aggregate and warnings.
+With the lead's `line` preference, guard warnings or a non-`Pass` guard status keep
+the full receipt visible. Direct line consumers also retain both guard fields.
+Interrupted attempts retain their guard evidence when recovered. With the switch off,
+none of these fields are added and existing receipt output is unchanged.
+
 Generated Claude settings are limited to 22,000 characters; the complete quoted
 command is limited to 30,000 UTF-16 units, below Windows's 32,767-unit ceiling.
 Excessive rules/settings fail before launch, without truncating away protection.
