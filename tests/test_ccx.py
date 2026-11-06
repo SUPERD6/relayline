@@ -598,10 +598,9 @@ class TestUninstall(Env):
 class TestHookProcessCleanup(unittest.TestCase):
     def test_hook_test_environments_use_waiting_entrypoint(self):
         from test_archive_worker_safety import TestArchiveSafety
-        from test_engineering_regressions import TestArchiveCompletion
 
-        for environment in (Env, TestProjectLayer, TestMemory, TestExternalLayout,
-                            TestArchiveSafety, TestArchiveCompletion):
+        # TestArchiveCompletion is deliberately asynchronous and waits on the archive lock instead.
+        for environment in (Env, TestProjectLayer, TestMemory, TestExternalLayout, TestArchiveSafety):
             with self.subTest(environment=environment.__name__):
                 self.assertEqual(environment.ccx_entrypoint, FAKES / "ccx_wait.py")
 
