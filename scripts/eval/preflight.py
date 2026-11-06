@@ -2101,6 +2101,9 @@ def options_from(a, arms: list[str], work: Path, canary_on: bool, start: bool = 
 
 
 def main(argv=None) -> int:
+    for stream in (sys.stdout, sys.stderr):
+        if hasattr(stream, "reconfigure"):
+            stream.reconfigure(encoding="utf-8")
     a = parser().parse_args(argv)
     rep = run_checks(options_from(a, a.arms.split(","), Path(a.workdir), a.canary))
     print(json.dumps(rep, ensure_ascii=False, indent=1))
