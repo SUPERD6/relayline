@@ -97,6 +97,7 @@ class Request:
     chain_usd: float = 0.0          # what the chain spent before this run (a fix round: its first run + review)
     user_task: str | None = None    # original task, before role/project wrapping; explicit callers may supply it
     user_words_file: str | None = None  # explicit original wording; otherwise opt-in Claude transcript
+    brief_warnings: list[dict[str, str]] | None = None  # additive, advisory dispatch diagnostics
 
 
 def _busy(p: Paths, prev: dict, scan: int = 300) -> str | None:
@@ -653,6 +654,7 @@ def run(req: Request, p: Paths) -> dict:
         "forked_from_lead": bool(req.fork_lead), "ephemeral": req.ephemeral,
         "mode_source": req.mode_source, "mode_why": req.mode_why, "check_cmd": req.check, "risk": req.risk,
         "namecheck_mode": req.namecheck,
+        **({"brief_warnings": req.brief_warnings} if req.brief_warnings else {}),
         **({"user_task": req.user_task} if req.user_task is not None and
            ((cfg.get("review") or {}).get("mode") == "tests" or
             (cfg.get("review") or {}).get("contract_diag") is True) else {}),
@@ -1450,6 +1452,8 @@ def compact(record: dict) -> dict:
     for key in ("requested_agent", "requested_model"):
         if key in record:
             out[key] = record[key]
+    if record.get("brief_warnings"):
+        out["brief_warnings"] = record["brief_warnings"]
     if "contract_diagnostic" in record:
         from .review_pipeline import evidence
         out["contract_diagnostic"] = record["contract_diagnostic"]
