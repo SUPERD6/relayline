@@ -39,19 +39,21 @@ MODEL_HINTS = ("model is not supported", "is not supported when using", "model_n
 def match_hint(text: str, hints: tuple[str, ...]) -> tuple[str, int] | None:
     """Return the first matching hint and its position, preserving hint-list priority.
 
-    Text hints keep substring matching; numeric hints require non-alphanumeric neighbors so identifiers and
-    longer numbers cannot look like HTTP statuses. Underscores and punctuation are valid boundaries.
+    Text hints keep substring matching; numeric hints reject adjacent ASCII letters/digits so ASCII identifiers
+    and longer numbers cannot look like HTTP statuses. Non-ASCII text, underscores and punctuation are valid boundaries.
     """
     low = (text or "").lower()
     for hint in hints:
         numeric = hint.isdigit()
-        # Lowercasing can expand a letter (e.g. U+0130); check numeric boundaries in the original text.
+        # Keep numeric offsets in the original text; lowercasing can expand a letter (e.g. U+0130).
         source = (text or "") if numeric else low
         i = source.find(hint)
         while i != -1:
             end = i + len(hint)
-            if not numeric or ((i == 0 or not source[i - 1].isalnum())
-                               and (end == len(source) or not source[end].isalnum())):
+            if not numeric or (
+                (i == 0 or not (source[i - 1].isascii() and source[i - 1].isalnum()))
+                and (end == len(source) or not (source[end].isascii() and source[end].isalnum()))
+            ):
                 return hint, i
             i = source.find(hint, i + 1)
     return None

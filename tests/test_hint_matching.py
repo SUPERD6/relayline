@@ -1,4 +1,4 @@
-"""Issue #311: numeric status hints must not match inside identifiers or longer numbers."""
+"""Issue #311: numeric status hints must not match inside ASCII identifiers or longer numbers."""
 import json
 
 import pytest
@@ -8,7 +8,7 @@ from ccx import quota, runners
 
 @pytest.mark.parametrize("text", [
     "8c1b429c8b1a", "a401f3", "4290", "1429", "4010", "1401",
-    "a429", "429z", "a401", "401z", "\u00e9429", "401\u00e9", "\u0130429", "\u0130401",
+    "a429", "429z", "a401", "401z",
     "report8c1b429c8b1a.json", "resulta401f3.txt",
 ])
 def test_embedded_numbers_are_not_status_hints(text):
@@ -28,6 +28,13 @@ def test_embedded_numbers_are_not_status_hints(text):
     ("status: 401", "auth", "401"),
     ("401", "auth", "401"),
     ("(401)", "auth", "401"),
+    # Non-ASCII letters remain valid boundaries, preserving localized error messages.
+    ("\u00e9429", "quota", "429"),
+    ("401\u00e9", "auth", "401"),
+    ("\u0130429", "quota", "429"),
+    ("\u0130401", "auth", "401"),
+    ("错误429", "quota", "429"),
+    ("错误401", "auth", "401"),
 ])
 def test_standalone_numbers_keep_classification_and_evidence(text, kind, hint):
     assert runners.classify(text) == kind
@@ -47,7 +54,9 @@ def test_standalone_numbers_keep_classification_and_evidence(text, kind, hint):
     ("request 1401 failed", "error", False),
     ("request 4010 failed", "error", False),
     ("file 8c1b429c8b1a.txt failed", "error", False),
-    ("file \u0130401.txt failed", "error", False),
+    ("file \u0130401.txt failed", "auth", True),
+    ("错误429", "quota", False),
+    ("错误401", "auth", True),
     ("status: 401", "auth", True),
     ("HTTP 429", "quota", False),
     ("Please LOGIN", "auth", True),
