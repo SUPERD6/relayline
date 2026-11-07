@@ -1,6 +1,7 @@
 """Windowless, detached session-start housekeeping. No model calls."""
 from __future__ import annotations
 
+import os
 import subprocess
 import sys
 import threading
@@ -9,6 +10,8 @@ from pathlib import Path
 
 def schedule(p) -> bool:
     """Best effort: no waiting for archival, no inherited pipes or console."""
+    if os.environ.get("CCX_NO_START_ARCHIVE") == "1":
+        return False
     from .winproc import BACKGROUND
     try:
         from .config import Paths
