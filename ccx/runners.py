@@ -36,13 +36,35 @@ MODEL_HINTS = ("model is not supported", "is not supported when using", "model_n
                "invalid model", "unknown model")
 
 
-def classify(text: str) -> str:
+def match_hint(text: str, hints: tuple[str, ...]) -> tuple[str, int] | None:
+    """Return the first matching hint and its position, preserving hint-list priority.
+
+    Text hints keep substring matching; numeric hints reject adjacent ASCII letters/digits so ASCII identifiers
+    and longer numbers cannot look like HTTP statuses. Non-ASCII text, underscores and punctuation are valid boundaries.
+    """
     low = (text or "").lower()
-    if any(h in low for h in MODEL_HINTS):
+    for hint in hints:
+        numeric = hint.isdigit()
+        # Keep numeric offsets in the original text; lowercasing can expand a letter (e.g. U+0130).
+        source = (text or "") if numeric else low
+        i = source.find(hint)
+        while i != -1:
+            end = i + len(hint)
+            if not numeric or (
+                (i == 0 or not (source[i - 1].isascii() and source[i - 1].isalnum()))
+                and (end == len(source) or not (source[end].isascii() and source[end].isalnum()))
+            ):
+                return hint, i
+            i = source.find(hint, i + 1)
+    return None
+
+
+def classify(text: str) -> str:
+    if match_hint(text, MODEL_HINTS):
         return "model"          # this account can't use this model: try another model, not a stronger effort
-    if any(h in low for h in QUOTA_HINTS):
+    if match_hint(text, QUOTA_HINTS):
         return "quota"
-    if any(h in low for h in AUTH_HINTS):
+    if match_hint(text, AUTH_HINTS):
         return "auth"
     return "error"
 

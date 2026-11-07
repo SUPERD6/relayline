@@ -277,7 +277,7 @@ def stop_evidence(cli: str, stdout: str, stderr: str, error: str | None) -> dict
     """Why an attempt was taken for a quota stop (H2): Claude's rejected rate_limit_event as it came, else the hint
     in runners.QUOTA_HINTS that matched and the words around it. Kept so a wrong call ("quota" in a task's own
     text, a new wording of a real limit) can be found and the hints corrected, without spending quota to test."""
-    from .runners import QUOTA_HINTS
+    from .runners import QUOTA_HINTS, match_hint
     if cli == "claude":
         for line in stdout.splitlines():
             if '"rate_limit_event"' not in line:
@@ -290,11 +290,10 @@ def stop_evidence(cli: str, stdout: str, stderr: str, error: str | None) -> dict
                 return {"by": "rate_limit_event", "event": {k: info.get(k) for k in (
                     "status", "rateLimitType", "resetsAt", "overageStatus", "isUsingOverage") if k in info}}
     text = " ".join(x for x in (error, stderr[-4000:], stdout[-4000:]) if x)
-    low = text.lower()
-    for h in QUOTA_HINTS:
-        i = low.find(h)
-        if i != -1:
-            return {"by": "hint", "hint": h, "text": " ".join(text[max(0, i - 160): i + 160].split())}
+    match = match_hint(text, QUOTA_HINTS)
+    if match:
+        hint, i = match
+        return {"by": "hint", "hint": hint, "text": " ".join(text[max(0, i - 160): i + 160].split())}
     return {"by": "unknown"}
 
 
