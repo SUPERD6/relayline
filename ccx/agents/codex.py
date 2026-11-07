@@ -9,7 +9,7 @@ import tomllib
 from pathlib import Path
 
 from ..config import RESULT_SCHEMA, codex_home
-from ..runners import AUTH_HINTS, Invocation, Outcome, _json_from_text, bin_argv, classify, usage_dict
+from ..runners import AUTH_HINTS, Invocation, Outcome, _json_from_text, bin_argv, classify, match_hint, usage_dict
 from .base import Adapter
 
 # Settings a lean start (--ignore-user-config) must still carry over from the user's config.toml.
@@ -137,8 +137,8 @@ def parse_codex(stdout: str, stderr: str, rc: int, last_file: Path | None) -> Ou
     text = text or last_agent_msg
     out.raw_text = text
     out.result = _json_from_text(text)
-    joined = " ".join(errors[-3:] + [stderr[-500:]]).lower()
-    out.auth_problem = any(h in joined for h in AUTH_HINTS) and out.result is None
+    joined = " ".join(errors[-3:] + [stderr[-500:]])
+    out.auth_problem = match_hint(joined, AUTH_HINTS) is not None and out.result is None
     out.ok = rc == 0 and out.result is not None
     if not out.ok:
         out.error = (errors[-1] if errors else stderr.strip()[-800:]) or f"exit code {rc}"

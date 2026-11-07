@@ -9,7 +9,7 @@ import os
 from pathlib import Path
 
 from ..config import RESULT_SCHEMA, claude_home
-from ..runners import AUTH_HINTS, Invocation, Outcome, _json_from_text, bin_argv, classify, usage_dict
+from ..runners import AUTH_HINTS, Invocation, Outcome, _json_from_text, bin_argv, classify, match_hint, usage_dict
 from .base import Adapter
 
 def claude_schema() -> dict:
@@ -138,8 +138,8 @@ def parse_claude(stdout: str, stderr: str, rc: int, _last: Path | None = None) -
             errs = data.get("errors") or []
             errs = "; ".join(str(e) for e in (errs if isinstance(errs, list) else [errs]) if e)
             out.error = "; ".join(x for x in (out.raw_text or data.get("subtype"), errs) if x) or None
-    joined = (stderr + " " + (out.error or "")).lower()
-    out.auth_problem = any(h in joined for h in AUTH_HINTS) and out.result is None
+    joined = stderr + " " + (out.error or "")
+    out.auth_problem = match_hint(joined, AUTH_HINTS) is not None and out.result is None
     out.ok = rc == 0 and out.result is not None and not (isinstance(data, dict) and data.get("is_error"))
     if not out.ok and not out.error:
         out.error = stderr.strip()[-800:] or f"exit code {rc}"
