@@ -443,7 +443,9 @@ hints between steps, skips later steps when its budget is exhausted, and exits 0
 hard deadline, which emits the last complete checkpoint (nothing if none exists) and logs one line to
 `ccx/hook-timeouts.jsonl` (command, seconds, the step it was in). `ccx doctor` shows the hard-timeout count over
 7 days. Session-start archival runs in a detached, windowless worker; overlapping workers use an OS lock and skip
-busy work. Its failure does not affect hook output. Settings, command options and JSON fields are unchanged.
+busy work. Its failure does not affect hook output. `CCX_NO_AUTO_ARCHIVE=1` disables only after-run archival;
+`CCX_NO_START_ARCHIVE=1` disables the session-start archive worker. Settings, command options and JSON fields
+are unchanged.
 These paths have offline engineering checks; live-client behavior is not verified. Reproduce the synthetic timing
 check with `python scripts/benchmark_hook_report.py`; see [the results](research/hook-report-speed.md).
 

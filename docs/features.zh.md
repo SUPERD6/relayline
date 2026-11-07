@@ -266,7 +266,8 @@ I1 的白名单、同源检查、限长和一次性确认仍然有效，确认�
 `ccx config set hooks.timeout_s N`，0 = 不限）：每步保存完整提示，预算用完就跳过后续步骤，退出码仍为 0。
 读取卡住时，硬超时会输出最后保存的完整提示（没有才不输出），在 `ccx/hook-timeouts.jsonl` 记一行（命令、用时、
 卡在哪一步）。`ccx doctor` 显示最近 7 天的硬超时次数。开局归档改由脱离钩子的无窗口后台进程执行；
-重叠进程用 OS 锁，遇忙跳过，失败不影响提示。设置、命令选项和 JSON 字段不变。
+重叠进程用 OS 锁，遇忙跳过，失败不影响提示。`CCX_NO_AUTO_ARCHIVE=1` 只关闭运行后归档；
+`CCX_NO_START_ARCHIVE=1` 关闭会话启动的归档 worker。设置、命令选项和 JSON 字段不变。
 这些路径只有离线 engineering check，尚未验证真实客户端行为。用 `python scripts/benchmark_hook_report.py`
 复现合成计时，见[结果](research/hook-report-speed.zh.md)。
 

@@ -284,6 +284,7 @@ fork_turns = "all"
 #             之后 ccx resume 或 1 小时内自动续接到它时，ccx 先把它取回来（codex unarchive / 挪回记录）。
 # hours     = 只在开局时归档结束超过 auto_archive_hours 小时的（旧做法）
 # off       = 不自动归档
+# CCX_NO_AUTO_ARCHIVE=1 只关运行后归档；CCX_NO_START_ARCHIVE=1 关会话启动的归档 worker。
 archive = "after_run"
 # after_run 和 hours 下：开局时还会把结束超过这么多小时的会话补归档。0 = 不按小时补归档。
 auto_archive_hours = 2

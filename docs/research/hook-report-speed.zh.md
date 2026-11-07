@@ -57,10 +57,11 @@ bootstrap 掩盖读取成本。报告不含主导用量。不读真实账本、�
 评审修正：开局调度不再读取 `CCX_NO_AUTO_ARCHIVE`，与原 `archive.auto` 语义一致；
 `CCX_NO_AUTO_ARCHIVE=1` 只关闭运行后归档。要跳过开局归档调度、阻止归档 worker 启动，
 设置 `CCX_NO_START_ARCHIVE=1`；不设置时保持默认行为。
-也可以用 `sessions.auto_archive_hours = 0` 关闭按时间补做的开局归档，或用
-`sessions.archive = "off"` 关闭开局和运行后两种自动归档。这两个配置不会阻止 worker 启动，
-也不会阻止它处理待写入的 DeepSeek 归档；要完全跳过 worker，请使用新环境变量。
-手动 `ccx archive` 仍然可用。
+`sessions.archive` 有三个取值：`"after_run"`（默认）在运行结果确定后归档，同时保留开局时按时间归档；
+`"hours"` 关闭运行后归档，保留开局时按时间归档；`"off"` 关闭这两种自动归档。
+`sessions.auto_archive_hours = 0` 只关闭开局时按时间归档。设置 `sessions.archive = "off"` 或
+`sessions.auto_archive_hours = 0` 后，worker 仍会启动并调用 `dsh_flush` 处理待写入的 DeepSeek 归档；
+要完全跳过 worker，请使用 `CCX_NO_START_ARCHIVE=1`。手动 `ccx archive` 仍然可用。
 
 统筹已授权只调整 `tests/test_sessions.py::TestOneShotAndArchive::test_auto_archive_at_session_start`：
 钩子返回后轮询完整归档日志行，最多等待 60 秒，再执行原有断言。原断言、测试环境和假 CLI 均不变，

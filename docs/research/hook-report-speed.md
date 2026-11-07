@@ -65,10 +65,12 @@ The full suite is reserved for the lead and was not run here.
 Review follow-up: session-start scheduling now ignores `CCX_NO_AUTO_ARCHIVE`, matching the original `archive.auto`
 semantics: `CCX_NO_AUTO_ARCHIVE=1` disables only after-run archival. To skip session-start scheduling and prevent
 the archive worker from launching, set `CCX_NO_START_ARCHIVE=1`; leaving it unset preserves the default behavior.
-Alternatively, `sessions.auto_archive_hours = 0` disables age-based startup archival, or
-`sessions.archive = "off"` disables both startup and after-run automatic archival. These configuration settings
-do not prevent worker startup or its pending DeepSeek archive flush; use the new environment variable to skip
-the worker entirely. Manual `ccx archive` remains available.
+`sessions.archive` accepts three values: `"after_run"` (default) archives runs once their results are final and
+also keeps age-based archival at session start; `"hours"` disables after-run archival while keeping age-based
+startup archival; `"off"` disables both automatic archival paths. `sessions.auto_archive_hours = 0` disables
+only age-based startup archival. Setting `sessions.archive = "off"` or `sessions.auto_archive_hours = 0` still
+allows the worker to start and call `dsh_flush` to process pending DeepSeek archival; use `CCX_NO_START_ARCHIVE=1`
+to skip the worker entirely. Manual `ccx archive` remains available.
 
 The lead authorized updating only
 `tests/test_sessions.py::TestOneShotAndArchive::test_auto_archive_at_session_start`: after the hook returns, poll

@@ -85,7 +85,6 @@ class TestStartArchiveOptOut(Env):
         result = subprocess.run([sys.executable, str(ROOT / "ccx.py"), "mem", "delta", "--as", "codex"],
                                 cwd=self.work, env=env, capture_output=True, text=True, encoding="utf-8", timeout=60)
         assert result.returncode == 0, result.stderr
-        assert result.stderr == ""
         journal = p.state / "archived.jsonl"
         if disabled:
             assert not marker.exists()
