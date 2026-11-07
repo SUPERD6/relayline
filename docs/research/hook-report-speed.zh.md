@@ -54,7 +54,14 @@ bootstrap 掩盖读取成本。报告不含主导用量。不读真实账本、�
 13 项浏览器或平台相关检查跳过。最后本单专项测试 10 项通过，包含独立进程的 OS 锁检查。
 `scripts/collect_changes.py --check` 和 `git diff --check` 通过。未跑全量，留给统筹验收。
 
-评审修正：开局调度不再读取 `CCX_NO_AUTO_ARCHIVE`，与原 `archive.auto` 语义一致；该变量仍控制运行后归档。
+评审修正：开局调度不再读取 `CCX_NO_AUTO_ARCHIVE`，与原 `archive.auto` 语义一致；
+`CCX_NO_AUTO_ARCHIVE=1` 只关闭运行后归档。要跳过开局归档调度、阻止归档 worker 启动，
+设置 `CCX_NO_START_ARCHIVE=1`；不设置时保持默认行为。
+也可以用 `sessions.auto_archive_hours = 0` 关闭按时间补做的开局归档，或用
+`sessions.archive = "off"` 关闭开局和运行后两种自动归档。这两个配置不会阻止 worker 启动，
+也不会阻止它处理待写入的 DeepSeek 归档；要完全跳过 worker，请使用新环境变量。
+手动 `ccx archive` 仍然可用。
+
 统筹已授权只调整 `tests/test_sessions.py::TestOneShotAndArchive::test_auto_archive_at_session_start`：
 钩子返回后轮询完整归档日志行，最多等待 60 秒，再执行原有断言。原断言、测试环境和假 CLI 均不变，
 没有改其他既有测试。新增子进程回归用 socket 信号阻塞假归档，先观察到钩子返回且归档尚未完成，再主动放行并检查完成。

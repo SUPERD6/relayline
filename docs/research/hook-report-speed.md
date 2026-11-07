@@ -63,7 +63,14 @@ including the external-process OS-lock check. `scripts/collect_changes.py --chec
 The full suite is reserved for the lead and was not run here.
 
 Review follow-up: session-start scheduling now ignores `CCX_NO_AUTO_ARCHIVE`, matching the original `archive.auto`
-semantics (the variable still controls after-run archival). The lead authorized updating only
+semantics: `CCX_NO_AUTO_ARCHIVE=1` disables only after-run archival. To skip session-start scheduling and prevent
+the archive worker from launching, set `CCX_NO_START_ARCHIVE=1`; leaving it unset preserves the default behavior.
+Alternatively, `sessions.auto_archive_hours = 0` disables age-based startup archival, or
+`sessions.archive = "off"` disables both startup and after-run automatic archival. These configuration settings
+do not prevent worker startup or its pending DeepSeek archive flush; use the new environment variable to skip
+the worker entirely. Manual `ccx archive` remains available.
+
+The lead authorized updating only
 `tests/test_sessions.py::TestOneShotAndArchive::test_auto_archive_at_session_start`: after the hook returns, poll
 for a complete archive journal row with a 60-second safety deadline, then run the unchanged original assertions.
 The test keeps its existing environment and fake CLI. No other pre-existing test was modified. A new subprocess

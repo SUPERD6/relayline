@@ -16,12 +16,13 @@ def maintain(p) -> None:
         after_verdict(p)
     except Exception:  # noqa: BLE001 — never break session start
         pass
-    try:
-        check()
-        from .archive_worker import schedule
-        schedule(p)
-    except Exception:  # noqa: BLE001
-        pass
+    if os.environ.get("CCX_NO_START_ARCHIVE") != "1":
+        try:
+            check()
+            from .archive_worker import schedule
+            schedule(p)
+        except Exception:  # noqa: BLE001
+            pass
     try:
         check()
         from . import projects
