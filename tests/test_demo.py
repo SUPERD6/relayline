@@ -2,6 +2,7 @@
 from ccx's own fake data in a temporary folder, served by the real server, every data endpoint read back. No agent
 CLI is ever started (the one command run is `ccx handoff`, which only writes into the demo project)."""
 import http.client
+import io
 import json
 import os
 import shutil
@@ -10,6 +11,7 @@ import sys
 import threading
 import time
 from pathlib import Path
+from contextlib import redirect_stderr
 from unittest import mock
 
 import pytest
@@ -18,6 +20,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from ccx import demo, ui  # noqa: E402
 from ccx.config import Paths  # noqa: E402
+from fakes.ccx_wait import joined_children  # noqa: E402
 
 REPO = Path(__file__).resolve().parent.parent
 HAS_GIT = shutil.which("git") is not None
@@ -59,10 +62,16 @@ def built(monkeypatch):
     try:
         p = demo.build(base)
         assert dict(os.environ) == env_before and listing(own) == before
-        with mock.patch.dict(os.environ, demo.env(base)):
+        # server tears down before built: stop serving, then join the UI's
+        # daemon readers/watchers and any commands before restoring their
+        # environment or deleting their cwd. build() itself uses synchronous git.
+        with mock.patch.dict(os.environ, demo.env(base)), joined_children(threads=True):
             yield base, p, own
     finally:
-        assert demo.remove(base)
+        errors = io.StringIO()
+        with redirect_stderr(errors):
+            removed = demo.remove(base)
+        assert removed, errors.getvalue()
         assert not base.exists()
 
 
@@ -322,6 +331,97 @@ def test_remove_deletes_a_demo_past_260_characters(tmp_path):
     with mock.patch.dict(os.environ, demo.env(base)):
         demo.build(base)
     assert demo.remove(base) and not base.exists()
+
+
+def test_remove_reports_the_path_that_cannot_be_deleted(tmp_path, capsys):
+    base = tmp_path / "demo"
+    hub = base / "hub"
+    hub.mkdir(parents=True)
+    (hub / demo.DEMO_MARK).write_text("{}", encoding="utf-8")
+    blocked = hub / "busy.json"
+    blocked.write_text("{}", encoding="utf-8")
+
+    def denied(path):
+        raise PermissionError("file is in use")
+
+    def cannot_remove(path, **kwargs):
+        callback = kwargs.get("onexc") or kwargs["onerror"]
+        error = PermissionError("file is in use")
+        callback(denied, str(blocked), error if "onexc" in kwargs else (PermissionError, error, None))
+
+    with mock.patch.object(shutil, "rmtree", side_effect=cannot_remove):
+        assert demo.remove(base) is False
+    err = capsys.readouterr().err
+    assert str(blocked) in err and "file is in use" in err
+    assert demo.remove(base) is True
+    assert capsys.readouterr().err == ""
+
+
+def test_demo_cleanup_joins_a_reader_and_its_child():
+    """A reader still running at scope exit can launch work that must also be joined."""
+    release = threading.Event()
+    started = threading.Event()
+    child = mock.Mock()
+
+    def read():
+        started.set()
+        release.wait(30)
+        subprocess.Popen(["fake-demo-reader"])
+
+    reader = threading.Thread(target=read, daemon=True)
+    join = reader.join
+
+    def finish_reader(*args, **kwargs):
+        release.set()
+        return join(*args, **kwargs)
+
+    try:
+        with mock.patch.object(subprocess, "Popen", return_value=child), \
+             mock.patch.object(reader, "join", side_effect=finish_reader) as joined:
+            with joined_children(threads=True):
+                reader.start()
+                assert started.wait(5)
+                assert not release.is_set()
+            joined.assert_called_once_with(timeout=30)
+            assert not reader.is_alive()
+            child.wait.assert_called_once_with(timeout=30)
+    finally:
+        release.set()
+        join(30)
+
+
+def test_demo_fixture_joins_reader_before_removal(built, monkeypatch):
+    release = threading.Event()
+    started = threading.Event()
+
+    def read():
+        started.set()
+        release.wait(30)
+
+    reader = threading.Thread(target=read, daemon=True)
+    join = reader.join
+    remove = demo.remove
+
+    def finish_reader(*args, **kwargs):
+        assert os.environ["CCX_HUB"] == str(built[1].hub)
+        release.set()
+        return join(*args, **kwargs)
+
+    def check_remove(base):
+        try:
+            assert not reader.is_alive(), "demo reader must finish before directory removal"
+        finally:
+            # Release even on a regression so the test itself leaves no work.
+            release.set()
+            join(30)
+            removed = remove(base)
+        return removed
+
+    monkeypatch.setattr(reader, "join", finish_reader)
+    monkeypatch.setattr(demo, "remove", check_remove)
+    reader.start()
+    assert started.wait(5)
+    assert not release.is_set()
 
 
 def test_switch_lead_panel_and_timeline(server):

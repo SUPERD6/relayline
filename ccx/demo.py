@@ -409,17 +409,24 @@ def build(base: Path | None = None, now: float | None = None) -> Paths:
 
 def remove(base: Path, owned: bool = False) -> bool:
     """Delete a demo folder: one build() made (its hub carries the marker), or with `owned` a folder new_base() made
-    for this process (a build that failed before the marker). True when the folder is gone."""
+    for this process (a build that failed before the marker). True when the folder is gone; failures and their
+    paths are written to stderr."""
     base = Path(base)
+    failures = []
     if base.exists() and (owned or is_demo(Paths(base / "hub"))):
-        _rmtree(base)
-    return not base.exists()
+        failures = _rmtree(base)
+    removed = not base.exists()
+    if not removed:
+        details = failures or [f"{base}: folder remains (not a marked demo, or deletion was incomplete)"]
+        print("ccx demo: could not remove:\n" + "\n".join(details[:5]), file=sys.stderr)
+    return removed
 
 
-def _rmtree(d: Path) -> None:
+def _rmtree(d: Path) -> list[str]:
     """shutil.rmtree that also removes read-only files (git keeps its objects read-only on Windows) and paths past
     260 characters (the fake session file is written through the Windows long-path prefix; the tree is removed
-    through it too)."""
+    through it too). Return paths and errors that persist after clearing read-only flags."""
+    failures = []
     if os.name == "nt" and not str(d).startswith("\\\\"):
         from .workspace import canonical
         d = Path("\\\\?\\" + str(canonical(d)))
@@ -427,9 +434,10 @@ def _rmtree(d: Path) -> None:
         try:
             os.chmod(path, stat.S_IWRITE)
             fn(path)
-        except OSError:
-            pass
+        except OSError as error:
+            failures.append(f"{path}: {error}")
     if sys.version_info >= (3, 12):
         shutil.rmtree(d, onexc=again)
     else:
         shutil.rmtree(d, onerror=again)
+    return failures
