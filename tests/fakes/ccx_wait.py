@@ -3,7 +3,7 @@ import runpy
 import subprocess
 import sys
 import threading
-from contextlib import contextmanager
+from contextlib import contextmanager, nullcontext
 from pathlib import Path
 from unittest import mock
 
@@ -36,8 +36,8 @@ def joined_children(*, threads=False):
 
     cli_error = None
     cleanup_errors = []
-    with mock.patch.object(subprocess, "Popen", start), \
-         mock.patch.object(threading.Thread, "start", start_thread if threads else thread_start):
+    thread_patch = mock.patch.object(threading.Thread, "start", start_thread) if threads else nullcontext()
+    with mock.patch.object(subprocess, "Popen", start), thread_patch:
         try:
             yield
         except BaseException as error:

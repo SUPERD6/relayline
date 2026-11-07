@@ -357,6 +357,26 @@ def test_remove_reports_the_path_that_cannot_be_deleted(tmp_path, capsys):
     assert capsys.readouterr().err == ""
 
 
+def test_remove_refuses_an_unmarked_folder_without_stderr(tmp_path, capsys):
+    mine = tmp_path / "keep.txt"
+    mine.write_text("keep", encoding="utf-8")
+    with mock.patch.object(demo, "_rmtree") as delete:
+        assert demo.remove(tmp_path) is False
+    delete.assert_not_called()
+    assert mine.read_text(encoding="utf-8") == "keep"
+    assert capsys.readouterr().err == ""
+
+
+def test_remove_displays_paths_without_windows_long_path_prefixes(tmp_path, capsys):
+    failures = [r"\\?\C:\demo\busy.json: file is in use", r"\\?\UNC\server\demo\busy.json: file is in use"]
+    with mock.patch.object(demo, "_rmtree", return_value=failures):
+        assert demo.remove(tmp_path, owned=True) is False
+    err = capsys.readouterr().err
+    assert "ccx demo: these paths could not be deleted:" in err
+    assert r"C:\demo\busy.json" in err and r"\\server\demo\busy.json" in err
+    assert "\\\\?\\" not in err
+
+
 def test_demo_cleanup_joins_a_reader_and_its_child():
     """A reader still running at scope exit can launch work that must also be joined."""
     release = threading.Event()
@@ -391,6 +411,7 @@ def test_demo_cleanup_joins_a_reader_and_its_child():
 
 
 def test_demo_fixture_joins_reader_before_removal(built, monkeypatch):
+    # check_remove's assertion runs later, during the built fixture's teardown.
     release = threading.Event()
     started = threading.Event()
 

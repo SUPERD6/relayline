@@ -14,6 +14,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from ccx import demo, ui  # noqa: E402
 from ccx.config import Paths  # noqa: E402
+from fakes.ccx_wait import joined_children  # noqa: E402
 
 STATIC = Path(__file__).resolve().parent.parent / "ccx" / "ui_static"
 
@@ -23,7 +24,7 @@ def data():
     base = demo.new_base()
     try:
         p = demo.build(base)
-        with mock.patch.dict(os.environ, demo.env(base)):
+        with mock.patch.dict(os.environ, demo.env(base)), joined_children(threads=True):
             yield p, ui.collect(p, quota_wait=False)
     finally:
         demo.remove(base)
@@ -159,7 +160,7 @@ def test_map_leaves_out_test_runs_and_the_week_counts_a_review_once():
     base = demo.new_base()
     try:
         p = demo.build(base)
-        with mock.patch.dict(os.environ, demo.env(base)):
+        with mock.patch.dict(os.environ, demo.env(base)), joined_children(threads=True):
             src = json.loads((p.runs / "demo-r-ok" / "run.json").read_text(encoding="utf-8"))
             ev = {**src, "run_id": "eval-x", "label": "eval-hc1-x", "ts": src["ts"] + 1,
                   "attempts": [{**src["attempts"][0], "ae_usd": 5.0}]}

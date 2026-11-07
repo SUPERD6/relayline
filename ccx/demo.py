@@ -413,12 +413,14 @@ def remove(base: Path, owned: bool = False) -> bool:
     paths are written to stderr."""
     base = Path(base)
     failures = []
-    if base.exists() and (owned or is_demo(Paths(base / "hub"))):
+    attempted = base.exists() and (owned or is_demo(Paths(base / "hub")))
+    if attempted:
         failures = _rmtree(base)
     removed = not base.exists()
-    if not removed:
-        details = failures or [f"{base}: folder remains (not a marked demo, or deletion was incomplete)"]
-        print("ccx demo: could not remove:\n" + "\n".join(details[:5]), file=sys.stderr)
+    if attempted and not removed:
+        details = failures or [f"{base}: folder remains after deletion"]
+        details = [line.replace("\\\\?\\UNC\\", "\\\\").replace("\\\\?\\", "") for line in details[:5]]
+        print("ccx demo: these paths could not be deleted:\n" + "\n".join(details), file=sys.stderr)
     return removed
 
 
