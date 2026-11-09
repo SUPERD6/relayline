@@ -453,6 +453,25 @@ def _ratio(numerator, denominator):
             "ratio": numerator / denominator if numerator is not None and denominator else None}
 
 
+def arm_summary(rs: list[dict]) -> dict:
+    """Read-only per-arm statistics, also used by the unified offline summary."""
+    wall = [r["wall_s"] for r in rs if r.get("wall_s") is not None]
+    result = {"attempted": len(rs), "right": sum(r.get("ok") is True for r in rs),
+              "cost_known_usd": round(sum(r.get("usd") if r.get("usd") is not None else
+                                           r.get("known_usd", 0) for r in rs), 6),
+              "cost_unknown": sum(not r.get("cost_complete") for r in rs),
+              "wall_median_s": statistics.median(wall) if wall else None,
+              "wall_total_s": sum(wall), "episodes": {}}
+    result.update(P5.aggregate(rs))
+    groups = {}
+    for r in rs:
+        groups.setdefault((r.get("tag"), r["round"], r["episode"]), []).append(r)
+    result["episodes"] = {"/".join(map(str, k)): {"tasks": len(v), "right": sum(x.get("ok") is True for x in v),
+                                  "usd": sum(x.get("usd") or 0 for x in v),
+                                  "wall_s": sum(x.get("wall_s") or 0 for x in v)} for k, v in groups.items()}
+    return result
+
+
 def summary(rows: list[dict], expected: int, limits: dict | None = None, gates: str = "p4") -> dict:
     evidence = {r.get("evidence", "not run") for r in rows}
     result = {"evidence": next(iter(evidence)) if len(evidence) == 1 else "not run",
@@ -462,20 +481,7 @@ def summary(rows: list[dict], expected: int, limits: dict | None = None, gates: 
         arms = {}
         for arm in dict.fromkeys([*ARMS, *(r["arm"] for r in subset)]):
             rs = [r for r in subset if r["arm"] == arm]
-            wall = [r["wall_s"] for r in rs if r.get("wall_s") is not None]
-            arms[arm] = {"attempted": len(rs), "right": sum(r.get("ok") is True for r in rs),
-                         "cost_known_usd": round(sum(r.get("usd") if r.get("usd") is not None else
-                                                      r.get("known_usd", 0) for r in rs), 6),
-                         "cost_unknown": sum(not r.get("cost_complete") for r in rs),
-                         "wall_median_s": statistics.median(wall) if wall else None,
-                         "wall_total_s": sum(wall), "episodes": {}}
-            arms[arm].update(P5.aggregate(rs))
-            groups = {}
-            for r in rs:
-                groups.setdefault((r.get("tag"), r["round"], r["episode"]), []).append(r)
-            arms[arm]["episodes"] = {"/".join(map(str, k)): {"tasks": len(v), "right": sum(x.get("ok") is True for x in v),
-                                        "usd": sum(x.get("usd") or 0 for x in v),
-                                        "wall_s": sum(x.get("wall_s") or 0 for x in v)} for k, v in groups.items()}
+            arms[arm] = arm_summary(rs)
         s, c = arms["self"], arms["ccxlong"]
         ratios = {"cost": _ratio(c["cost_known_usd"], s["cost_known_usd"]),
                   "right": _ratio(c["right"], s["right"]),
