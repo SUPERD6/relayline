@@ -1,22 +1,28 @@
 # Status
 
-English · [中文](STATUS.zh.md) · updated 2026-11-04 · version 0.6.0 (GitHub Release and PyPI published)
+English · [中文](STATUS.zh.md) · updated 2026-11-10 · version 0.6.0 released (GitHub Release and PyPI); main is ahead of it, unreleased
 
 One page for hand-off, maintained by the lead. History: [archive](STATUS-archive.md);
 changes: [CHANGELOG](../CHANGELOG.md) + [per-PR notes](../changes/README.md).
 
 ## Now
 
-**Released:** 0.6.0 is on GitHub Releases and PyPI; install with `pipx install relayline` (#265).
-The [engineering standards](engineering-standards.md) and [optimization plan](research/2026-11-04-optimization-plan.md) merged (#266). The goal is no default regression and one reproducible positive scenario; current benefit remains **Unknown**.
+**Released:** 0.6.0 (`pipx install relayline`, #265). Main has since merged #266–#316, not yet released; the notes in `changes/` are not yet folded into the CHANGELOG. Goal unchanged ([engineering standards](engineering-standards.md), [optimization plan](research/2026-11-04-optimization-plan.md)): no default regression and one reproducible positive scenario. Current benefit of every new switch below is **Unknown**.
 
-**Stage 0 — measured, diagnostic, reused tasks, not final evidence:** self scored 30/30, $0.0989 per success, median wall 26.9 s, `env_clean` 30/30, total $2.97. Under the preregistered rules, self's paired cost ratio 1.017 is **Pass** (cost growth is not on the lead side); paired wall ratio 1.276 is in the gray zone (**Unknown**). Same-version hc2 ccx2: 28/30, $0.0861 per success, median wall 169 s, run at a different time. These diagnostics do not establish current-version savings. [hc2 report](research/2026-11-04-hc2-holdout.md)
+**Stage 1 and later tooling, rounds 2–3 (#267–#277, engineering check, mostly off by default):** #267 passes the user's original wording to sub-agents; #268 moves archiving to the background and reads the ledger once per report (speed, scheduling only; effect on completed work not measured); #269 puts evaluation temporary directories in the workspace and keeps the event stream; #270 adds `small_self_run` and a guard on the cheapest tier. Then #271 test-based review and replay, #273 fixes from the first replay, #274 stage 3 tools (30 new tasks, candidate default-path groups), #275 stage 4 tools (long session), #276 second round (receipts, check baseline, review, short-task overhead) and #277 third round (quota relay, cheap first round, review contract, narrower onboarding). **Stage 0** (diagnostic, reused tasks; self 30/30, paired cost ratio 1.017 Pass, wall ratio 1.276 Unknown; same-version hc2 ccx2 was run at a different time) is diagnostic only and is not evidence of current-version savings: [hc2 report](research/2026-11-04-hc2-holdout.md). **Sandbox:** WinError 5 occurred only with TMP outside the workspace, so it is an evaluation-condition issue ([report](research/2026-11-04-sandbox-tmp.md)).
 
-**Sandbox — measured:** WinError 5 occurred only with TMP outside the workspace; default system Temp worked. This is an evaluation-condition issue ([report](research/2026-11-04-sandbox-tmp.md)).
+**Fixes and switches merged since (#290–#316):**
+- Windows: `--check` with `export` runs under Git Bash, not PowerShell (#293); preflight output is UTF-8 (#301).
+- Before dispatch: a brief that contradicts the run mode now warns; only `--strict-brief` (experimental, off by default) refuses (#294); `ccx verify --list` lists results awaiting a verdict (#295).
+- Receipts: `ok` is no longer shown as "correct" — runs with no independent check show UNVERIFIED (#296); a timed-out run leaves a changed-files list and the last message, time limit configurable, timeout reminder `defaults.timeout_reminder` off by default (#304); unfinished Git steps are listed (#309); credential-guard state is recorded per attempt (#305; the credential guard itself is off by default, see below).
+- Model busy: switch model, then vendor, instead of retrying the same model (#298, **default on**, can be turned off).
+- Off by default: `routing.default = self_first` ([doc](self-first.md), #299); `lead.slim_context` (#300); credential deny rules for sub-agents (#297, **Claude side only**; Codex side has no effective deny rule, open issue #289); optional staging of resolved conflict files by ccx (#309); `defaults.timeout_reminder` (#304).
+- Docs/diagnostics: the home and features pages list the "experimental, tested, not recommended" switches in one place with numbers and sources (#302); `CCX_NO_START_ARCHIVE=1` turns off the start-of-session archive (#310; `CCX_NO_AUTO_ARCHIVE` covers only the after-run archive); number hints (429/401) match as separate words, so UUIDs and hashes no longer read as rate-limit/login problems (#313).
+- Tests/tools: tests wait for background maintenance children and the UI thread before cleaning up (#308, #312); read-only evaluation summary script `scripts/eval/unified_summary.py` (per-group successes, paired McNemar, any two groups in p4) (#315).
 
-**Stage 1 — engineering check, effects Unknown:** merged #267 (user's original wording), #268 (hooks/report speed), #269 (evaluation temporary directories/event stream), #270 (`small_self_run` + `strict_escalate`); **#271 pending merge** (test-based review/replay scripts). All are off by default or evaluation-only. #268 synthetic timings: report 336→97 ms; archive hook path 914→5 ms (scheduling only, not completed archive work).
+**Unified test — preregistered, not started:** [pre-registration](research/prereg/2026-11-07-unified.md) merged (#316): this round runs G1 shared context, G2 memory, G3 cheap first round, G4 long task, one factor changed per group, diagnostic only; G5/G6 moved out of this round. As of 2026-11-10 it has not started (the pre-run smoke test found Codex quota exhausted). Each group reports only Pass/Fail/Unknown; one round is a signal, and no default changes from it. Until it runs, nothing here may be described as cheaper or better.
 
-**Existing defaults/history:** routing auto, quota awareness/review on; `small_self`, lean switches, memory deduplication, history-free children/batch merging and repro gate off/experimental; worktrees `sibling`, `inside` opt-in/experimental; budget 0/unlimited, billing `api`. #243–#262 and the eight-layer wrap-up are in the changelog/archive. GIF, blog post and a new H11 trial were waived for 0.6.0 (lead proposed, person did not object); `memory.by_kind` stays off/experimental. #225 documents safety controls and risks, adding no permission.
+**Existing defaults:** routing auto, quota awareness/review on; `small_self`, lean switches, memory deduplication, history-free children/batch merging and repro gate off/experimental; worktrees `sibling`, `inside` opt-in/experimental; budget 0/unlimited, billing `api`; `memory.by_kind` off/experimental.
 
 | Evidence | Result and limit | Source |
 |---|---|---|
@@ -29,19 +35,19 @@ The [engineering standards](engineering-standards.md) and [optimization plan](re
 
 ## Next three
 
-1. **Stage 2:** replay test-based review; catch rate ≥ 50%, false-block rate ≤ 20% (engineering check).
-2. **Stages 3 and 4:** fresh-task and large-task evaluations; thresholds in the [plan](research/2026-11-04-optimization-plan.md).
-3. **Stage 5:** repeat and benchmark external issues, then decide public positioning. **Total hard cap: $60**, including failures/interruption; stop at 1.5× a stage's estimate ceiling.
+1. Run the unified test G1–G4 per the [pre-registration](research/prereg/2026-11-07-unified.md) and publish the report (needs Codex quota).
+2. Verify #289 with the real Codex CLI: does the credential deny rule take effect on the Codex side?
+3. Release: fold `changes/` into the CHANGELOG and bump the version (`scripts/collect_changes.py`, see [changes/README](../changes/README.md)).
 
 ## How sure we are (short)
 
-- **real (Windows, logged-in CLIs):** delegation both ways, check/review, stop/resume/accounting, archiving, DeepSeek lead, discuss, board/wake-up, shared-context A/B, hc1/pg3b/hc2 and stage 0, batch/worktrees/undo, non-ASCII paths/hidden consoles, Windows Codex hooks, interactive Codex turns, dsh queued archive, temporary Claude marketplace install, UI test hiding and Codex implementation/review workflow. #243–#254 exceptions: #248 no Claude review (quota), #250 lead cherry-pick, #244/#246 fixes accepted outside sandbox.
-- **fake only / engineering:** seats, quota ordering/reassignment, roles, readiness/refresh, one-line outcomes, dashboard and stage 1. **Real samples replayed:** #245 Claude limit events/four probe readings (< $0.005 each); Codex refusal samples synthetic, no live automatic reassignment proved ([fixtures](../tests/data/real_signals/)).
-- **not verified:** live quota-stop reassignment, macOS keychain readiness (missing credentials = Unknown), real offline/slow fetch timeouts, installed `gpt-6.1-terra` accounting price; macOS/Linux live machines (CI only), Gemini CLI, Codex desktop `say --now`/doctor rule/wake hook, dsh later archive writes, GitHub Codex plugin install, live own-sub-agent limits (F11 did not fire), `--review auto` trigger rate, live hook timeout, GitHub intake, L2 auto-merge end to end, routing outside evals. Local plan-review absent; CI fixes for `/private/var`, 8.3 short names and `\\?\` prefixes not rechecked.
+- **real (Windows, logged-in CLIs):** delegation both ways, check/review, stop/resume/accounting, archiving, DeepSeek lead, discuss, board/wake-up, shared-context A/B, hc1/pg3b/hc2 and stage 0, batch/worktrees/undo, non-ASCII paths/hidden consoles, Windows Codex hooks, interactive Codex turns, dsh queued archive, temporary Claude marketplace install, UI test hiding and Codex implementation/review workflow.
+- **fake only / engineering (including everything merged since #271); for example:** seats, quota ordering/reassignment, quota relay, model-busy switching, roles, readiness/refresh, one-line outcomes, dashboard, receipt UNVERIFIED display, timeout receipts, Git-pending listing, brief/mode conflict check, self_first, slim_context, Claude-side credential deny rules, summary script. **Real samples replayed:** #245 Claude limit events/four probe readings; Codex refusal samples synthetic, no live automatic reassignment proved ([fixtures](../tests/data/real_signals/)).
+- **not verified:** Codex-side credential deny rules (#289); live quota-stop reassignment, macOS keychain readiness (missing credentials = Unknown), real offline/slow fetch timeouts, installed `gpt-6.1-terra` accounting price; macOS/Linux live machines (CI only), Gemini CLI, Codex desktop `say --now`/doctor rule/wake hook, dsh later archive writes, GitHub Codex plugin install, live own-sub-agent limits, `--review auto` trigger rate, live hook timeout, GitHub intake, L2 auto-merge end to end, routing outside evals; effect of every switch listed above on cost or success (Unknown until the unified test runs).
+- **known issues:** open: #289 only. Still unverified from before: no local plan-review; CI fixes for `/private/var`, 8.3 short names and `\\?\` prefixes not rechecked; live own-sub-agent limits (F11 did not fire).
 
-### Pending personal verification (2026-11-04)
+### Pending personal verification (2026-11-10)
 
-- ~~#205 required checks~~: API confirmed `ci-ok` + `personal-data`; ~~TestPyPI/PyPI tokens~~: published; ~~old personal paths~~: keep history; ~~old local branches~~: deleted, backups retained; ~~`worktree.location`~~: keep default `sibling`.
-- Confirm GitHub description/topics wording.
-- Re-pin Claude desktop app's Pinned Git Origins.
-- Approve P0-13 (about $2)? Not running. ~~Self rerun on the hold-out set~~: completed in stage 0.
+- Quota relay desktop hook: 1-minute check ([docs/relay.md](relay.md)).
+- Create a Codex login directory for evaluations.
+- Carried over: confirm GitHub description/topics wording; re-pin Claude desktop app's Pinned Git Origins.
