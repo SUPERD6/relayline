@@ -80,6 +80,25 @@ def probe_hook(hub: Path, cwd: Path, agent: str) -> dict:
             "payload": result.stdout, "native_hook_execution": "Unknown"}
 
 
+def checked_codex_home(arg: str) -> Path:
+    """The --codex-home of a run with Codex units, prepared as p4_long_session.py's is (preflight's
+    check_codex_home: an absolute folder apart from your own homes, a login present, nothing that reaches every
+    run). A read-only check first; only a home that passes it is then prepared for the start as p4 does
+    (write=True: a missing config.toml is written with the keys ccx carries over, on Windows the unelevated
+    sandbox, and a synced plugins/ folder is removed). No credential file is opened: the login is checked by
+    existence only."""
+    import preflight as PF
+    if not arg:
+        raise ValueError("units run Codex: pass --codex-home <a Codex home you logged in to yourself>; "
+                         "an empty home has no login (issue #320)")
+    home, real = Path(PF.codex_home_arg(arg)), PF.real_paths()
+    for write in (False, True):
+        problems, _ = PF.check_codex_home(home, True, real, write=write)
+        if problems:
+            raise ValueError("--codex-home refused: " + "; ".join(problems))
+    return home
+
+
 def main(argv=None):
     p = argparse.ArgumentParser(description=__doc__)
     sub = p.add_subparsers(dest="cmd", required=True)
@@ -98,6 +117,9 @@ def main(argv=None):
     run.add_argument("--unit-budget", type=float, default=0.05, help="maximum reserved USD per invocation")
     run.add_argument("--reps", type=int, default=3)
     run.add_argument("--out", type=Path, help="fresh output directory required with --run")
+    run.add_argument("--codex-home", default="", help="a dedicated Codex home you logged in to yourself "
+                     "(`CODEX_HOME=<dir> codex login`); required with --run when units run Codex. Only its path is "
+                     "passed on: Codex units use it as CODEX_HOME and write their sessions there")
     hook = sub.add_parser("probe-hook")
     hook.add_argument("--hub", required=True, type=Path, help="synthetic hub only")
     hook.add_argument("--cwd", required=True, type=Path)
@@ -116,8 +138,9 @@ def main(argv=None):
             if a.run:
                 if a.budget is None or a.out is None:
                     raise ValueError("execution requires --run --budget USD --out FRESH_DIRECTORY")
-                from strength_runner import execute
-                data = execute(data, a.out, a.budget, a.unit_budget)
+                from strength_runner import execute, needs_codex_home
+                codex_home = checked_codex_home(a.codex_home) if needs_codex_home(data["units"]) else None
+                data = execute(data, a.out, a.budget, a.unit_budget, codex_home)
         else:
             data = plan(a.kind, a.reps, a.unit_usd) if a.cmd == "plan" else probe_hook(a.hub, a.cwd, a.agent)
     except (ValueError, OSError) as e:
