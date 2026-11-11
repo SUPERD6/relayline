@@ -68,7 +68,7 @@ Checked on 2026-11-05: `claude --version` / `claude --help` = **2.1.316**; `code
 
 ## One-minute desktop check (2026-11-05; pending user verification)
 
-1. Enable relay and apply hook sync as above in a disposable Git project. The desktop Code tab does not support `/hooks`, so check registration in one of two ways: (a) run interactive `claude` in a terminal and type `/hooks`; or (b) read `hooks.StopFailure` in `~/.claude/settings.json` (the desktop app and the CLI share this file). Either way, look for matcher `rate_limit` → `ccx relay capture --hook`. Open a fresh desktop session afterwards so it picks up the file.
+1. Enable relay and apply hook sync as above in a disposable Git project. The desktop Code tab does not support `/hooks`, so check registration in one of two ways: (a) run interactive `claude` in a terminal and type `/hooks`; or (b) read `hooks.StopFailure` in `~/.claude/settings.json` (ccx writes `~/.claude/settings.json`; on Windows that is `%USERPROFILE%\.claude\settings.json`; whether the desktop app reads the same file has not been verified separately). Either way, look for matcher `rate_limit` → `ccx relay capture --hook`. If a desktop session does not trigger the hook, reopen the session and try again.
 2. If a normal session is already at its natural usage limit, submit one harmless prompt. Look for a new `.ccx/relay/*.notification.json` and its packet. Confirm the packet names the desktop session, HEAD and dirty files. If no limit is present, stop after checking hook visibility: real desktop event delivery remains **Unknown**; do not spend tokens to exhaust quota.
 3. Stop the old session and its automatic resume. Use `relay continue ...` without `--launch` to inspect the prepared handoff in the other direction.
 
