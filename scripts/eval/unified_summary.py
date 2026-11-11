@@ -1,7 +1,9 @@
 """Read-only summaries of retained strength/P4 results; standard library, no model calls.
 
-Strength/P4 valid = no error, ok is not None, and usd is known (finite, nonnegative
-number, not bool). Outcomes must be bool or None. Successes count valid True
+Strength/P4 valid = no error, ccx receipt status is not "error" (a run that failed
+itself, e.g. kind=auth, is Unknown, not a task failure), ok is not None, and usd is
+known (finite, nonnegative number, not bool). P4 rows carry no top-level status, so
+the status rule leaves them unchanged. Outcomes must be bool or None. Successes count valid True
 outcomes. Costs include every attempt, including failures and errors; total_usd
 and usd_per_success are null if any cost is unknown. usd_per_success is also null
 when there are zero successes. known_total_usd retains the known partial cost.
@@ -36,7 +38,8 @@ from p5_costs import money
 from seven_ab import mcnemar_p
 from shared_context_ab import TASKS
 
-VALID_DEFINITION = "no error, ok is not None, usd is known (finite nonnegative number, not bool)"
+VALID_DEFINITION = ("no error, ccx receipt status is not \"error\", ok is not None, "
+                    "usd is known (finite nonnegative number, not bool)")
 SETTLED_TASKS = {task["id"] for task in TASKS if not task["neutral"]}
 
 
@@ -59,7 +62,8 @@ def strength_rows(out: Path) -> list[dict]:
 
 
 def valid(row: dict) -> bool:
-    return not row.get("error") and row.get("ok") is not None and money(row.get("usd")) is not None
+    return (not row.get("error") and row.get("status") != "error" and row.get("ok") is not None
+            and money(row.get("usd")) is not None)
 
 
 def check_outcomes(rows: list[dict], scope: str) -> None:

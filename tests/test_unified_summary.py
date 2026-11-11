@@ -41,6 +41,21 @@ def test_strength_valid_costs_and_zero_successes():
                                      "cost_unknown": 0, "usd_per_success": None}
 
 
+def test_strength_receipt_status_error_is_invalid_not_a_failure():
+    """Issue #321: a ccx receipt with status error (e.g. kind=auth, a 401) is Unknown, not a task done wrong."""
+    rows = [{"task": "t", "agent": "codex", "rep": 1, "arm": "on", "ok": False, "usd": 0.0,
+             "status": "error", "kind": "auth"},
+            {"task": "t", "agent": "codex", "rep": 1, "arm": "off", "ok": True, "usd": .1, "status": "done"},
+            {"task": "t", "agent": "codex", "rep": 2, "arm": "on", "ok": False, "usd": .1, "status": "done"},
+            {"task": "t", "agent": "codex", "rep": 2, "arm": "off", "ok": False, "usd": .1}]
+    assert not U.valid(rows[0]) and U.valid(rows[1]) and U.valid(rows[3])
+    assert '"error"' in U.VALID_DEFINITION and "status" in U.VALID_DEFINITION
+    result = U.strength(rows, pair=("on", "off"))
+    assert result["arms"]["on"]["attempted"] == 2 and result["arms"]["on"]["valid"] == 1
+    assert result["arms"]["on"]["total_usd"] == .1            # its cost still counts
+    assert result["pair"]["n_pairs"] == 1 and (result["pair"]["b"], result["pair"]["c"]) == (0, 0)
+
+
 @pytest.mark.parametrize("cost", [None, True, "1", -1, float("nan"), float("inf")])
 def test_strength_unknown_cost_is_not_zero_or_valid(cost):
     result = U.strength([{"arm": "mem", "ok": True, "usd": cost},
