@@ -146,6 +146,24 @@ def test_serial_runner_stops_and_keeps_unknown_or_overspend(tmp_path, cost):
     assert frozen["runtime_budget_usd"] == .05 and frozen["unit_budget_usd"] == .05
 
 
+def test_serial_runner_stops_on_receipt_status_error(tmp_path):
+    """Issue #321: a ccx receipt with status error (kind=auth) stops the group, not only a Python exception."""
+    manifest = {**retest.plan("memory", 1), "units": [{"task": "one"}, {"task": "two"}], "n": 2}
+    row = {"ok": False, "usd": 0.0, "rc": 1, "status": "error", "kind": "auth"}
+    with mock.patch.object(runner, "run_unit", return_value=row) as run:
+        report = runner.execute(manifest, tmp_path / "out", .1, .05, tmp_path)
+    assert run.call_count == 1 and report["budget_stopped"] and report["attempted"] == 1
+    assert report["stop_reason"] == "ccx receipt status error (kind=auth)"
+    done = {"ok": False, "usd": 0.0, "rc": 0, "status": "done", "kind": "ok"}
+    with mock.patch.object(runner, "run_unit", return_value=done) as run:
+        report = runner.execute(manifest, tmp_path / "out2", .1, .05, tmp_path)
+    assert run.call_count == 2 and not report["budget_stopped"]
+    unknown = {**row, "usd": None}         # an errored receipt with unknown cost keeps the reservation
+    with mock.patch.object(runner, "run_unit", return_value=unknown) as run:
+        report = runner.execute(manifest, tmp_path / "out3", .1, .05, tmp_path)
+    assert run.call_count == 1 and report["charged_usd"] == .05 and report["spent_usd"] is None
+
+
 @pytest.mark.parametrize("arm", ["nomem", "mem", "hubmem", "hubstart"])
 def test_memory_arms_execute_real_ccx_with_fake_cli(tmp_path, monkeypatch, arm):
     monkeypatch.setenv("CCX_CODEX_BIN", str(ROOT / "tests/fakes/fake_codex.py"))

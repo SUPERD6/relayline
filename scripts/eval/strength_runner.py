@@ -144,6 +144,11 @@ def execute(manifest: dict, out: Path, budget: float, unit_budget: float, codex_
         if amount > reservation + 1e-9 or row.get("kind") == "over_budget" or row.get("error"):
             stopped, reason = True, "unit exceeded reservation or interrupted"
             break
+        if row.get("status") == "error":
+            # The ccx receipt says the run itself failed (e.g. kind=auth): the preregistration stops the group on
+            # an errored row, not only on a Python exception here (issue #321: 42 units ran on with 401).
+            stopped, reason = True, f"ccx receipt status error (kind={row.get('kind')})"
+            break
     report = {"kind": manifest["kind"], "dry_run": False, "evidence": "engineering check",
               "attempted": len(rows), "planned": manifest["n"], "rows": rows,
               "successes": sum(r.get("ok") is True for r in rows), "budget_usd": budget,

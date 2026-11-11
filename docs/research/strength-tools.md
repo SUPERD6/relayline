@@ -50,7 +50,9 @@ must be preregistered before treating this as a controlled model comparison.
 
 Results, hidden-test failures and interruptions are retained in `results.jsonl`;
 unknown cost keeps the full reservation and stops the batch, rather than charging
-zero. A spent cap, per-call overspend or interruption stops subsequent units.
+zero. A spent cap, per-call overspend, interruption or a ccx receipt with
+`status: "error"` (e.g. `kind: auth`) stops subsequent units; `unified_summary.py`
+counts such a row as invalid (Unknown), not as a task failure.
 In-flight requests can overshoot token-monitoring caps; this is not a billing
 guarantee. Reports retain the planned denominator, attempted count and Unknown
 gate. No automatic rework is run; report this separately from historical trials
