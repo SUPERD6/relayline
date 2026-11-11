@@ -68,10 +68,10 @@ Checked on 2026-11-05: `claude --version` / `claude --help` = **2.1.316**; `code
 
 ## One-minute desktop check (2026-11-05; pending user verification)
 
-1. Enable relay and apply hook sync as above in a disposable Git project. Open `/hooks` in a **fresh desktop Code session**, and check for `StopFailure` → `rate_limit` → `ccx relay capture --hook`.
+1. Enable relay and apply hook sync as above in a disposable Git project. The desktop Code tab does not support `/hooks`, so check registration in one of two ways: (a) run interactive `claude` in a terminal and type `/hooks`; or (b) read `hooks.StopFailure` in `~/.claude/settings.json` (ccx writes `~/.claude/settings.json`; on Windows that is `%USERPROFILE%\.claude\settings.json`; whether the desktop app reads the same file has not been verified separately). Either way, look for matcher `rate_limit` → `ccx relay capture --hook`. If a desktop session does not trigger the hook, reopen the session and try again.
 2. If a normal session is already at its natural usage limit, submit one harmless prompt. Look for a new `.ccx/relay/*.notification.json` and its packet. Confirm the packet names the desktop session, HEAD and dirty files. If no limit is present, stop after checking hook visibility: real desktop event delivery remains **Unknown**; do not spend tokens to exhaust quota.
 3. Stop the old session and its automatic resume. Use `relay continue ...` without `--launch` to inspect the prepared handoff in the other direction.
 
-Desktop hook execution and notification visibility have **not been tested**. This check can verify hook registration immediately; actual rate-limit delivery needs an already limited session and is not promised within one minute.
+2026-11-10: a simulated StopFailure event fed to the hook command (stdin) wrote `.ccx/relay/*.notification.json` (state `rate_limit_unconfirmed`). Desktop hook execution on a real usage limit and notification visibility are still **Unknown**. This check can verify hook registration immediately; actual rate-limit delivery needs an already limited session and is not promised within one minute.
 
 To disable: `ccx config set relay.enabled false`, then `ccx sync --only hooks --apply`. A stale installed capture hook is also a silent no-op while disabled. Uninstall removes only ccx's relay handler and preserves other handlers.

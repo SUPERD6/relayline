@@ -67,10 +67,10 @@ StopFailure 和被拒绝的 rate_limit_event 缺少这些证据时保留 `rate_l
 
 ## 桌面一分钟检查（2026-11-05，待本人验证）
 
-1. 在一次性 Git 项目按上文开启并同步钩子。在**新开的桌面 Code 会话**输入 `/hooks`，确认 `StopFailure` → `rate_limit` → `ccx relay capture --hook`。
+1. 在一次性 Git 项目按上文开启并同步钩子。桌面 Code 标签页不支持 `/hooks`，用下面两种办法之一检查注册：(a) 在终端运行交互式 `claude`，输入 `/hooks`；(b) 直接看 `~/.claude/settings.json` 里的 `hooks.StopFailure`（ccx 写入的是 `~/.claude/settings.json`，Windows 上是 `%USERPROFILE%\.claude\settings.json`；桌面 app 是否读取同一个文件没有单独验证）。两种办法都要确认有 matcher `rate_limit` → `ccx relay capture --hook`。如果桌面会话没触发钩子，先重开会话再试。
 2. 若正常使用的会话已经自然限额，发一个无害请求，查看 `.ccx/relay/*.notification.json` 是否新增，检查包里的桌面会话、HEAD 和脏文件。尚未限额时只检查钩子可见性，实际事件投递仍为 **Unknown**，不要为了验证耗尽额度。
 3. 停止旧会话及其自动恢复。运行不带 `--launch` 的 `relay continue ...` 查看另一家的交接内容。
 
-桌面钩子执行和提示可见性均**未实测**。一分钟可核对注册；实际限额事件需要已限额会话，不能承诺一分钟内验证。
+2026-11-10 已用模拟的 StopFailure 事件（经 stdin 喂给钩子命令）验证能写出 `.ccx/relay/*.notification.json`（状态 `rate_limit_unconfirmed`）；真实限额时桌面是否触发钩子、提示是否可见仍为 **Unknown**。一分钟可核对注册；实际限额事件需要已限额会话，不能承诺一分钟内验证。
 
 关闭方法：`ccx config set relay.enabled false`，再 `ccx sync --only hooks --apply`。关闭时遗留 capture 钩子静默无操作。uninstall 只移除 ccx 的接力 handler，保留其他 handler。
