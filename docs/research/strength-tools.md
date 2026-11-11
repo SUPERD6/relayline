@@ -21,8 +21,8 @@ independent clone/pin and final-set selection. An explicit serial runner is avai
 ```text
 python scripts/eval/strength_retest.py execute context --dry-run
 python scripts/eval/strength_retest.py execute memory --dry-run
-python scripts/eval/strength_retest.py execute context --run --budget 4 --out FRESH_CONTEXT_DIRECTORY
-python scripts/eval/strength_retest.py execute memory --run --budget 3 --out FRESH_MEMORY_DIRECTORY
+python scripts/eval/strength_retest.py execute context --run --budget 4 --out FRESH_CONTEXT_DIRECTORY --codex-home EVAL_CODEX_HOME
+python scripts/eval/strength_retest.py execute memory --run --budget 3 --out FRESH_MEMORY_DIRECTORY --codex-home EVAL_CODEX_HOME
 ```
 
 `execute` defaults to an offline estimate. Paid execution requires both `--run`
@@ -32,8 +32,18 @@ the task ceiling and exits 2 when its estimate exceeds that budget. The frozen
 manifest records both the runtime cap and per-call reservation before execution.
 It reuses `seven_func`'s ccx command and isolated
 hub mechanism, with a fresh repo, client homes and config for every unit. No
-client-home discovery or credential copying occurs. Supply authentication through
-the CLI's environment before a real run. Every invocation receives `--budget`
+client-home discovery or credential copying occurs. Codex units need
+`--codex-home EVAL_CODEX_HOME`: a dedicated folder you logged in to yourself once
+(`CODEX_HOME=<dir> codex login`), checked as `p4_long_session.py` checks its own
+(preflight's `check_codex_home`: absolute, apart from your own homes, a login
+present by existence only, no AGENTS.md/rules/plugins). Without it, a run with Codex
+units stops before the first unit (a fresh empty home has no login: issue #320).
+A home that passes is prepared as p4 prepares its own: a missing `config.toml` is
+written (on Windows with the unelevated sandbox) and a synced `plugins/` folder is
+removed. Only the path is passed on; every Codex unit uses it as `CODEX_HOME` and
+`CODEX_SQLITE_HOME`, so their Codex sessions collect there, not in the unit folder,
+and the home keeps them between runs (a later run's check may ask you to clean it).
+Supply DeepSeek authentication through the CLI's environment before a real run. Every invocation receives `--budget`
 and a serial reservation (`--unit-budget`, default $0.05), with no escalation,
 fallback, child agents or review. Provider settings/rates in isolated homes
 must be preregistered before treating this as a controlled model comparison.

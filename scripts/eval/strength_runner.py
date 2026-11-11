@@ -25,12 +25,21 @@ def unit_cost(hub: Path) -> float | None:
     return round(sum(amounts), 8)
 
 
-def run_unit(unit: dict, kind: str, dest: Path, budget: float) -> dict:
-    """All writes and client state stay in this unit; hidden tests arrive after the CLI exits."""
+def needs_codex_home(units) -> bool:
+    return any(u.get("agent") == "codex" for u in units)
+
+
+def run_unit(unit: dict, kind: str, dest: Path, budget: float, codex_home: Path | None = None) -> dict:
+    """All writes and client state stay in this unit, except a Codex unit's own Codex files: those go to the
+    caller's logged-in `codex_home` (shared by the run's Codex units, as in p4_long_session.py), because a fresh
+    empty CODEX_HOME has no login (issue #320: every Codex unit got 401). Hidden tests arrive after the CLI exits."""
+    if unit.get("agent") == "codex" and codex_home is None:
+        raise ValueError("a Codex unit needs a logged-in Codex home (--codex-home)")
     task = next(t for t in (TASKS if kind == "context" else CASES) if t["id"] == unit["task"])
     repo = make_repo(task, dest / "repo")
     isolated = lead_env()
-    isolated.update(CCX_CONFIG=str(dest / "config.toml"), CODEX_HOME=str(dest / "codex-home"),
+    codex_dir = str(codex_home) if unit.get("agent") == "codex" else str(dest / "codex-home")
+    isolated.update(CCX_CONFIG=str(dest / "config.toml"), CODEX_HOME=codex_dir, CODEX_SQLITE_HOME=codex_dir,
                     CLAUDE_CONFIG_DIR=str(dest / "claude-home"), CCX_CODEX_ISOLATE="1",
                     DSH_HOME=str(dest / "dsh-home"), CCX_NO_AUTO_ARCHIVE="1",
                     CCX_CLAUDE_NO_SKILLS="1", CCX_CLAUDE_SETTING_SOURCES="project,local")
@@ -100,13 +109,17 @@ def run_unit(unit: dict, kind: str, dest: Path, budget: float) -> dict:
     return row
 
 
-def execute(manifest: dict, out: Path, budget: float, unit_budget: float) -> dict:
+def execute(manifest: dict, out: Path, budget: float, unit_budget: float, codex_home: Path | None = None) -> dict:
     if (not math.isfinite(budget) or not 0 < budget <= manifest["cap_usd"] or
             not math.isfinite(unit_budget) or unit_budget <= 0):
         raise ValueError("invalid budget or unit budget")
+    # Refuse before anything starts, never fall back to an empty home (issue #320).
+    if needs_codex_home(manifest["units"]) and codex_home is None:
+        raise ValueError("units run Codex: pass a logged-in Codex home (--codex-home)")
     # A fresh directory prevents accidental cost resets, repeated units and overwriting evidence.
     out.mkdir(parents=True, exist_ok=False)
-    frozen_plan = {**manifest, "runtime_budget_usd": budget, "unit_budget_usd": unit_budget}
+    frozen_plan = {**manifest, "runtime_budget_usd": budget, "unit_budget_usd": unit_budget,
+                   "codex_home": str(codex_home) if codex_home is not None else None}
     (out / "manifest.json").write_text(json.dumps(frozen_plan, indent=2) + "\n", encoding="utf-8", newline="")
     rows, spent, charged, stopped, reason = [], 0.0, 0.0, False, ""
     for index, unit in enumerate(manifest["units"]):
@@ -115,7 +128,7 @@ def execute(manifest: dict, out: Path, budget: float, unit_budget: float) -> dic
             break
         reservation = min(unit_budget, round(budget - charged, 8))
         try:
-            row = run_unit(unit, manifest["kind"], out / f"unit-{index:04d}", reservation)
+            row = run_unit(unit, manifest["kind"], out / f"unit-{index:04d}", reservation, codex_home)
         except (Exception, KeyboardInterrupt) as exc:  # retain a failed unit even when setup could not start
             row = {**unit, "ok": None, "usd": None, "error": type(exc).__name__}
         row.update(code_pin=manifest["code_pin"], reservation_usd=reservation)

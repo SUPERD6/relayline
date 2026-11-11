@@ -20,14 +20,20 @@ python scripts/eval/strength_retest.py plan memory --dry-run --out memory-plan.j
 ```text
 python scripts/eval/strength_retest.py execute context --dry-run
 python scripts/eval/strength_retest.py execute memory --dry-run
-python scripts/eval/strength_retest.py execute context --run --budget 4 --out FRESH_CONTEXT_DIRECTORY
-python scripts/eval/strength_retest.py execute memory --run --budget 3 --out FRESH_MEMORY_DIRECTORY
+python scripts/eval/strength_retest.py execute context --run --budget 4 --out FRESH_CONTEXT_DIRECTORY --codex-home EVAL_CODEX_HOME
+python scripts/eval/strength_retest.py execute memory --run --budget 3 --out FRESH_MEMORY_DIRECTORY --codex-home EVAL_CODEX_HOME
 ```
 
 `execute` 默认只估价。付费执行必须同时给出 `--run`、有限正数 `--budget` 和全新输出目录；
 context 上限 $4，memory 上限 $3。dry-run 分别显示本次预算与任务上限，估价超过本次预算时退出 2；
 冻结清单在开跑前记录实际总预算和单元预留。复用 `seven_func` 的 ccx 命令与隔离 hub，每个单元有全新的
-repo、客户端 home 和配置，不寻找或复制凭据。真跑前通过 CLI 环境显式提供认证。
+repo、客户端 home 和配置，不寻找或复制凭据。有 Codex 单元时必须给 `--codex-home EVAL_CODEX_HOME`：
+一个你自己登录过一次的专用目录（`CODEX_HOME=<dir> codex login`），检查方式同 `p4_long_session.py`
+（preflight 的 `check_codex_home`：绝对路径、不和你自己的 home 重叠、只看登录文件是否存在、没有
+AGENTS.md/rules/plugins）。不给时，有 Codex 单元的运行在第一个单元前就停（新建的空目录没有登录，见 issue #320）。
+检查通过后按 p4 的做法准备这个目录：没有 `config.toml` 就写一份（Windows 上设 unelevated 沙箱），删掉同步进来的
+`plugins/`。只传路径；所有 Codex 单元都把它当作 `CODEX_HOME` 和 `CODEX_SQLITE_HOME`，所以 Codex 会话记录集中在
+这个目录，不在单元目录里，而且跨运行保留（之后的运行检查时可能要求你清理）。DeepSeek 的认证真跑前通过 CLI 环境显式提供。
 每次调用传入 `--budget`，串行单元预留由 `--unit-budget` 控制（默认 $0.05），关闭升档、
 回退、子智能体和审查。要作受控模型比较，必须先预登记隔离 home 的提供方设置和计价。
 
