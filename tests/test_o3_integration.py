@@ -267,6 +267,42 @@ def test_codex_unit_uses_the_given_home_and_dsh_unit_its_own(tmp_path, monkeypat
     assert seen[1] == {"CODEX_HOME": own, "CODEX_SQLITE_HOME": own}
 
 
+def test_codex_unit_temp_is_inside_the_unit_like_p4(tmp_path, monkeypatch):
+    """Issue #327: a Codex unit's TMP/TEMP is an existing folder in the unit, and every `codex exec` gets a private
+    temp folder inside its working directory (preflight.codex_workspace_tmp_env, as p4 does). The fake rejects any
+    other temp root, as Windows' unelevated sandbox does with the system %TEMP%."""
+    monkeypatch.setenv("CCX_CODEX_BIN", str(ROOT / "tests/fakes/fake_codex.py"))
+    monkeypatch.setenv("CCX_NO_LOCATE", "1")
+    monkeypatch.setenv("FAKE_WRITE", "calc.py=def average(xs):\n    return sum(xs) / len(xs) if xs else None\n")
+    monkeypatch.setenv("FAKE_TMP_ROOT", "cwd")
+    log = tmp_path / "calls.jsonl"
+    monkeypatch.setenv("FAKE_LOG", str(log))
+    seen, real_run = [], runner.subprocess.run
+    def spy(argv, *args, **kwargs):
+        if "strength-retest" in argv:
+            env = kwargs["env"]
+            seen.append({k: env.get(k) for k in ("TMP", "TEMP", "TMPDIR", "CCX_CODEX_BIN")})
+            seen[-1]["tmp_exists"] = Path(env["TMP"]).is_dir()
+        return real_run(argv, *args, **kwargs)
+    monkeypatch.setattr(runner.subprocess, "run", spy)
+    dest = tmp_path / "unit"
+    model, effort = retest.MODELS["codex"]
+    unit = {"task": "t1-empty-mean", "arm": "off", "agent": "codex", "model": model, "effort": effort, "rep": 1}
+    row = runner.run_unit(unit, "context", dest, .1, fake_codex_home(tmp_path))
+    assert "error" not in row and row["ok"] is True, row
+    assert row["tmp_policy"] == "codex-workspace-private"
+    [env] = seen
+    assert env["TMP"] == env["TEMP"] == env["TMPDIR"] == str(dest / "tmp") and env["tmp_exists"]
+    assert Path(env["CCX_CODEX_BIN"]).name == "codex_tmp.py"
+    checks = [json.loads(s) for s in log.read_text(encoding="utf-8").splitlines() if '"tmp_check"' in s]
+    assert checks, "the fake Codex never ran"
+    for c in checks:
+        temp = Path(c["tmp_check"][0])
+        assert len(set(c["tmp_check"])) == 1 and temp.parent == Path(c["cwd"])
+        assert temp.name.startswith(".ccx-eval-tmp-") and temp.resolve().is_relative_to(dest.resolve())
+        assert not temp.exists()      # the launcher removed it
+
+
 def test_semantic_batch_stops_on_unknown_cost_before_second_call(tmp_path, capsys):
     from ccx.review_pipeline import validate
     result = {"contract": validate({"behaviors": []}, SOURCES), "model_calls": 1,
