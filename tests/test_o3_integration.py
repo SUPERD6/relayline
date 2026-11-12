@@ -253,18 +253,24 @@ def test_codex_unit_uses_the_given_home_and_dsh_unit_its_own(tmp_path, monkeypat
     seen, real_run = [], runner.subprocess.run
     def spy(argv, *args, **kwargs):
         if "strength-retest" in argv:
-            seen.append({k: kwargs["env"].get(k) for k in ("CODEX_HOME", "CODEX_SQLITE_HOME")})
+            seen.append({k: kwargs["env"].get(k) for k in ("CODEX_HOME", "CODEX_SQLITE_HOME", "TMP")})
         return real_run(argv, *args, **kwargs)
     monkeypatch.setattr(runner.subprocess, "run", spy)
     home = fake_codex_home(tmp_path)
+    rows = {}
     for agent in ("codex", "dsh"):
         model, effort = retest.MODELS[agent]
         unit = {"task": "t1-empty-mean", "arm": "off", "agent": agent, "model": model, "effort": effort, "rep": 1}
-        row = runner.run_unit(unit, "context", tmp_path / agent, .1, home)
-        assert "error" not in row, row
-    assert seen[0] == {"CODEX_HOME": str(home), "CODEX_SQLITE_HOME": str(home)}
+        rows[agent] = runner.run_unit(unit, "context", tmp_path / agent, .1, home)
+        assert "error" not in rows[agent], rows[agent]
+    homes = [{k: s[k] for k in ("CODEX_HOME", "CODEX_SQLITE_HOME")} for s in seen]
+    assert homes[0] == {"CODEX_HOME": str(home), "CODEX_SQLITE_HOME": str(home)}
     own = str(tmp_path / "dsh" / "codex-home")
-    assert seen[1] == {"CODEX_HOME": own, "CODEX_SQLITE_HOME": own}
+    assert homes[1] == {"CODEX_HOME": own, "CODEX_SQLITE_HOME": own}
+    # Issue #327: only the Codex unit gets the unit temp policy; the dsh unit keeps the inherited temp.
+    assert rows["codex"]["tmp_policy"] == "codex-workspace-private"
+    assert seen[0]["TMP"] == str(tmp_path / "codex" / "tmp")
+    assert "tmp_policy" not in rows["dsh"] and seen[1]["TMP"] != str(tmp_path / "dsh" / "tmp")
 
 
 def test_codex_unit_temp_is_inside_the_unit_like_p4(tmp_path, monkeypatch):
@@ -301,6 +307,8 @@ def test_codex_unit_temp_is_inside_the_unit_like_p4(tmp_path, monkeypatch):
         assert len(set(c["tmp_check"])) == 1 and temp.parent == Path(c["cwd"])
         assert temp.name.startswith(".ccx-eval-tmp-") and temp.resolve().is_relative_to(dest.resolve())
         assert not temp.exists()      # the launcher removed it
+    exclude = (dest / "repo" / ".git" / "info" / "exclude").read_text(encoding="utf-8")
+    assert "/.ccx-eval-tmp-*/" in exclude.splitlines()
 
 
 def test_semantic_batch_stops_on_unknown_cost_before_second_call(tmp_path, capsys):
