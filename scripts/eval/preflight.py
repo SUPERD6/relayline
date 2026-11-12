@@ -531,25 +531,34 @@ def prepare(u: Unit, extra_deny: list[str] = ()) -> dict:
     if u.fresh_home:
         env["CLAUDE_CONFIG_DIR"] = str(u.x / "claude-config")
     if u.codex_workspace_tmp:
-        from ccx.runners import bin_argv
-        env["CCX_EVAL_CODEX_ARGV"] = json.dumps(bin_argv("codex"))
-        env["CCX_CODEX_BIN"] = str(Path(__file__).with_name("codex_tmp.py"))
-        # Local metadata only, shared by this unit's linked worktrees. Even an interrupted launcher's temp
-        # directory is ignored by git add/status and ccx's change accounting. No tracked ignore file is edited.
-        r = subprocess.run(["git", "rev-parse", "--git-path", "info/exclude"], cwd=u.repo,
-                           capture_output=True, text=True, encoding="utf-8") if (u.repo / ".git").exists() else None
-        if r is not None and r.returncode == 0:
-            exclude = Path(r.stdout.strip())
-            if not exclude.is_absolute():
-                exclude = u.repo / exclude
-            if not _inside(exclude, u.work):
-                raise ValueError("the eval repository's git exclude file is outside its work directory")
-            old = exclude.read_text(encoding="utf-8") if exclude.exists() else ""
-            rule = "/.ccx-eval-tmp-*/"
-            if rule not in old.splitlines():
-                exclude.parent.mkdir(parents=True, exist_ok=True)
-                exclude.write_text(old.rstrip("\n") + "\n" + rule + "\n", encoding="utf-8", newline="")
+        env.update(codex_workspace_tmp_env(u.repo, u.work))
     return env
+
+
+def codex_workspace_tmp_env(repo: Path, work: Path) -> dict:
+    """The environment entries that route Codex through codex_tmp.py, so each workspace-write `codex exec` gets
+    TMP/TEMP/TMPDIR in a fresh private directory inside its working directory (writable under Windows'
+    unelevated sandbox, where the system %TEMP% is not). Also ignores those directories in `repo`'s local git
+    exclude. Shared by prepare() (p4) and strength_runner.py."""
+    from ccx.runners import bin_argv
+    out = {"CCX_EVAL_CODEX_ARGV": json.dumps(bin_argv("codex")),
+           "CCX_CODEX_BIN": str(Path(__file__).with_name("codex_tmp.py"))}
+    # Local metadata only, shared by this unit's linked worktrees. Even an interrupted launcher's temp
+    # directory is ignored by git add/status and ccx's change accounting. No tracked ignore file is edited.
+    r = subprocess.run(["git", "rev-parse", "--git-path", "info/exclude"], cwd=repo,
+                       capture_output=True, text=True, encoding="utf-8") if (repo / ".git").exists() else None
+    if r is not None and r.returncode == 0:
+        exclude = Path(r.stdout.strip())
+        if not exclude.is_absolute():
+            exclude = repo / exclude
+        if not _inside(exclude, work):
+            raise ValueError("the eval repository's git exclude file is outside its work directory")
+        old = exclude.read_text(encoding="utf-8") if exclude.exists() else ""
+        rule = "/.ccx-eval-tmp-*/"
+        if rule not in old.splitlines():
+            exclude.parent.mkdir(parents=True, exist_ok=True)
+            exclude.write_text(old.rstrip("\n") + "\n" + rule + "\n", encoding="utf-8", newline="")
+    return out
 
 
 def env_keys_sha(env: dict) -> str:

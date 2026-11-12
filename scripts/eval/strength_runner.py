@@ -12,6 +12,7 @@ from common import ROOT, append_jsonl, lead_env, make_repo, score
 from l5_memory import CASES, DISTRACTORS
 from shared_context_ab import TASKS, lead_transcript
 from seven_func import ccx_run, check_env, last_json
+import preflight as PF
 from ccx import ledger
 from ccx.config import Paths
 
@@ -32,7 +33,10 @@ def needs_codex_home(units) -> bool:
 def run_unit(unit: dict, kind: str, dest: Path, budget: float, codex_home: Path | None = None) -> dict:
     """All writes and client state stay in this unit, except a Codex unit's own Codex files: those go to the
     caller's logged-in `codex_home` (shared by the run's Codex units, as in p4_long_session.py), because a fresh
-    empty CODEX_HOME has no login (issue #320: every Codex unit got 401). Hidden tests arrive after the CLI exits."""
+    empty CODEX_HOME has no login (issue #320: every Codex unit got 401). A Codex unit's TMP/TEMP/TMPDIR is its own
+    tmp/ folder, and each workspace-write `codex exec` gets a private temp folder inside its working directory,
+    as in p4 (issue #327: under the unelevated sandbox the system %TEMP% is not writable and PowerShell hangs).
+    Hidden tests arrive after the CLI exits."""
     if unit.get("agent") == "codex" and codex_home is None:
         raise ValueError("a Codex unit needs a logged-in Codex home (--codex-home)")
     task = next(t for t in (TASKS if kind == "context" else CASES) if t["id"] == unit["task"])
@@ -47,6 +51,11 @@ def run_unit(unit: dict, kind: str, dest: Path, budget: float, codex_home: Path 
     for name in ("codex-home", "claude-home", "dsh-home"):
         (dest / name).mkdir(parents=True, exist_ok=True)
     (dest / "config.toml").write_text("", encoding="utf-8", newline="")
+    if unit.get("agent") == "codex":
+        tmp = dest / "tmp"
+        tmp.mkdir(parents=True, exist_ok=True)
+        env.update({k: str(tmp) for k in ("TMP", "TEMP", "TMPDIR")})
+        env.update(PF.codex_workspace_tmp_env(repo, dest))
     hub = Path(env["CCX_HUB"])
     # No app/session archiving: these synthetic homes are retained as evidence.
     def command(args):
@@ -61,6 +70,8 @@ def run_unit(unit: dict, kind: str, dest: Path, budget: float, codex_home: Path 
 
     brief, payload = task["brief"], ""
     row = {**unit, "ok": None, "usd": 0.0, "rc": None, "native_hook_execution": "Unknown"}
+    if unit.get("agent") == "codex":
+        row["tmp_policy"] = "codex-workspace-private"
     started = False
     t0 = time.monotonic()
     try:
