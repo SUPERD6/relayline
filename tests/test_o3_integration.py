@@ -323,7 +323,7 @@ def test_runner_timeout_ends_the_whole_ccx_tree(tmp_path, monkeypatch):
     pid_file, grandchild_file = tmp_path / "codex.pid", tmp_path / "grandchild.pid"
     monkeypatch.setenv("FAKE_PID", str(pid_file))
     monkeypatch.setenv("FAKE_GRANDCHILD", str(grandchild_file))
-    monkeypatch.setattr(runner, "CCX_RUN_TIMEOUT_S", 12)
+    monkeypatch.setattr(runner, "CCX_RUN_TIMEOUT_S", 25)    # room for a slow machine to start the fake tree
     started, real_popen = [], subprocess.Popen
     def spy(argv, *args, **kwargs):
         proc = real_popen(argv, *args, **kwargs)
@@ -367,6 +367,32 @@ def test_semantic_batch_stops_on_unknown_cost_before_second_call(tmp_path, capsy
     assert rc == 2 and run.call_count == 1 and report["model_calls"] == 1
     assert report["spent_usd"] is None and report["charged_usd"] == .5
     assert report["known_spent_usd"] == 0 and len(report["rows"]) == 15
+
+
+def test_setup_failure_or_timeout_stops_the_unit_before_ccx_run(tmp_path, monkeypatch):
+    """Issue #329 review: a setup `ccx` call that fails still raises RuntimeError, and one that times out still
+    raises TimeoutExpired (as with subprocess.run before run_tree); either way the unit records the error and the
+    unit's `ccx run` is never started. Mocked run_tree: no process starts."""
+    unit = {"task": "mem-errors", "arm": "mem", "agent": "dsh", "model": "m", "effort": "low", "rep": 1}
+    calls = []
+    def failing(argv, **kwargs):
+        calls.append(argv)
+        return subprocess.CompletedProcess(argv, 1, "", "boom")
+    monkeypatch.setattr(runner, "run_tree", failing)
+    row = runner.run_unit(unit, "memory", tmp_path / "fail", .05)
+    assert row["error"] == "RuntimeError" and row["usd"] == 0.0
+    assert len(calls) == 1 and "strength-retest" not in calls[0]
+    def hanging(argv, **kwargs):
+        calls.append(argv)
+        raise subprocess.TimeoutExpired(argv, kwargs["timeout"])
+    monkeypatch.setattr(runner, "run_tree", hanging)
+    row = runner.run_unit(unit, "memory", tmp_path / "hang", .05)
+    assert row["error"] == "TimeoutExpired" and row["usd"] == 0.0
+    assert len(calls) == 2 and "strength-retest" not in calls[1]
+    monkeypatch.setattr(runner, "run_tree", failing)                # and the group stops on that row
+    manifest = {**retest.plan("memory", 1), "units": [unit, {**unit, "rep": 2}], "n": 2}
+    report = runner.execute(manifest, tmp_path / "out", .1, .05)
+    assert report["budget_stopped"] and report["attempted"] == 1 and report["rows"][0]["error"] == "RuntimeError"
 
 
 def test_retest_setup_error_preserves_attempt_and_reservation(tmp_path):

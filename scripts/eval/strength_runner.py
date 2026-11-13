@@ -35,13 +35,19 @@ def run_tree(argv: list[str], *, cwd: Path, env: dict, timeout: float) -> subpro
     only the direct child (issue #329: ccx and its codex.exe ran on after a 300 s timeout). The child starts with
     ccx's group_flags() and is stopped with ccx's kill_tree(). On POSIX kill_tree() takes the child's process group,
     and ccx starts its CLI in a group of its own, so the descendants are listed first and killed too. The
-    TimeoutExpired is raised again, so the row still says error: TimeoutExpired."""
+    TimeoutExpired is raised again, so the row still says error: TimeoutExpired. stdin is DEVNULL (subprocess.run
+    inherited it): the brief is an argument, so ccx never reads stdin here."""
     proc = subprocess.Popen(argv, cwd=cwd, env=env, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
                             stderr=subprocess.PIPE, text=True, encoding="utf-8", errors="replace", **group_flags())
     try:
         out, err = proc.communicate(timeout=timeout)
     except BaseException:
-        procs = PF.snapshot() if os.name != "nt" else None      # Windows: taskkill /T walks the tree itself
+        procs = None                                            # Windows: taskkill /T walks the tree itself
+        if os.name != "nt":
+            procs = PF.snapshot()
+            if procs is None:
+                print(f"strength_runner: could not list processes; descendants of pid {proc.pid} in a process group "
+                      "of their own (e.g. the CLI ccx started) may not have been killed", file=sys.stderr)
         below = sorted(PF.family(procs, proc.pid)[1]) if procs else []
         if not kill_tree(proc.pid):
             proc.kill()
