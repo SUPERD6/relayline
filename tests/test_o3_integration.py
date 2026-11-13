@@ -5,6 +5,7 @@ import os
 from pathlib import Path
 import subprocess
 import sys
+import time
 from unittest import mock
 
 import pytest
@@ -250,12 +251,12 @@ def test_codex_unit_uses_the_given_home_and_dsh_unit_its_own(tmp_path, monkeypat
     monkeypatch.setenv("CCX_CODEX_BIN", str(ROOT / "tests/fakes/fake_codex.py"))
     monkeypatch.setenv("CCX_DSH_BIN", str(ROOT / "tests/fakes/fake_dsh.py"))
     monkeypatch.setenv("CCX_NO_LOCATE", "1")
-    seen, real_run = [], runner.subprocess.run
+    seen, real_run = [], runner.run_tree
     def spy(argv, *args, **kwargs):
         if "strength-retest" in argv:
             seen.append({k: kwargs["env"].get(k) for k in ("CODEX_HOME", "CODEX_SQLITE_HOME", "TMP")})
         return real_run(argv, *args, **kwargs)
-    monkeypatch.setattr(runner.subprocess, "run", spy)
+    monkeypatch.setattr(runner, "run_tree", spy)
     home = fake_codex_home(tmp_path)
     rows = {}
     for agent in ("codex", "dsh"):
@@ -283,14 +284,14 @@ def test_codex_unit_temp_is_inside_the_unit_like_p4(tmp_path, monkeypatch):
     monkeypatch.setenv("FAKE_TMP_ROOT", "cwd")
     log = tmp_path / "calls.jsonl"
     monkeypatch.setenv("FAKE_LOG", str(log))
-    seen, real_run = [], runner.subprocess.run
+    seen, real_run = [], runner.run_tree
     def spy(argv, *args, **kwargs):
         if "strength-retest" in argv:
             env = kwargs["env"]
             seen.append({k: env.get(k) for k in ("TMP", "TEMP", "TMPDIR", "CCX_CODEX_BIN")})
             seen[-1]["tmp_exists"] = Path(env["TMP"]).is_dir()
         return real_run(argv, *args, **kwargs)
-    monkeypatch.setattr(runner.subprocess, "run", spy)
+    monkeypatch.setattr(runner, "run_tree", spy)
     dest = tmp_path / "unit"
     model, effort = retest.MODELS["codex"]
     unit = {"task": "t1-empty-mean", "arm": "off", "agent": "codex", "model": model, "effort": effort, "rep": 1}
@@ -311,6 +312,49 @@ def test_codex_unit_temp_is_inside_the_unit_like_p4(tmp_path, monkeypatch):
     assert "/.ccx-eval-tmp-*/" in exclude.splitlines()
 
 
+def test_runner_timeout_ends_the_whole_ccx_tree(tmp_path, monkeypatch):
+    """Issue #329: a `ccx run` that hangs past the runner's timeout is ended with its whole tree (ccx, the eval
+    Codex launcher, the fake Codex and a tool process the fake started), not only the direct child. The row
+    still says TimeoutExpired with Unknown cost, and the group stops. Fake CLIs only; a short timeout."""
+    monkeypatch.setenv("CCX_CODEX_BIN", str(ROOT / "tests/fakes/fake_codex.py"))
+    monkeypatch.setenv("CCX_NO_LOCATE", "1")
+    monkeypatch.setenv("FAKE_STATUS", "hang")
+    monkeypatch.setenv("FAKE_HANG_S", "120")
+    pid_file, grandchild_file = tmp_path / "codex.pid", tmp_path / "grandchild.pid"
+    monkeypatch.setenv("FAKE_PID", str(pid_file))
+    monkeypatch.setenv("FAKE_GRANDCHILD", str(grandchild_file))
+    monkeypatch.setattr(runner, "CCX_RUN_TIMEOUT_S", 25)    # room for a slow machine to start the fake tree
+    started, real_popen = [], subprocess.Popen
+    def spy(argv, *args, **kwargs):
+        proc = real_popen(argv, *args, **kwargs)
+        if "strength-retest" in argv:
+            started.append(proc.pid)
+        return proc
+    monkeypatch.setattr(runner.subprocess, "Popen", spy)
+    model, effort = retest.MODELS["codex"]
+    unit = {"task": "t1-empty-mean", "arm": "off", "agent": "codex", "model": model, "effort": effort, "rep": 1}
+    manifest = {**retest.plan("context", 1), "units": [unit, {**unit, "rep": 2}], "n": 2}
+    pids = []
+    try:
+        report = runner.execute(manifest, tmp_path / "out", .1, .05, fake_codex_home(tmp_path))
+        [row] = report["rows"]
+        assert row["error"] == "TimeoutExpired" and row["usd"] is None, row
+        assert report["budget_stopped"] and report["attempted"] == 1 and report["spent_usd"] is None
+        assert report["charged_usd"] == .05
+        assert pid_file.exists() and grandchild_file.exists(), "the fake Codex never got going before the timeout"
+        pids = [*started, int(pid_file.read_text()), int(grandchild_file.read_text())]
+        assert len(started) == 1 and len(set(pids)) == 3
+        deadline = time.monotonic() + 10
+        left = [p for p in pids if runner.PF.alive(p)]
+        while left and time.monotonic() < deadline:
+            time.sleep(.5)
+            left = [p for p in left if runner.PF.alive(p)]
+        assert left == [], f"processes left after the timeout: {left}"
+    finally:                    # never leave a stray process behind, even when an assertion above failed
+        pids = [*started, *(int(f.read_text()) for f in (pid_file, grandchild_file) if f.exists())]
+        runner.PF.kill([p for p in pids if runner.PF.alive(p)])
+
+
 def test_semantic_batch_stops_on_unknown_cost_before_second_call(tmp_path, capsys):
     from ccx.review_pipeline import validate
     result = {"contract": validate({"behaviors": []}, SOURCES), "model_calls": 1,
@@ -323,6 +367,32 @@ def test_semantic_batch_stops_on_unknown_cost_before_second_call(tmp_path, capsy
     assert rc == 2 and run.call_count == 1 and report["model_calls"] == 1
     assert report["spent_usd"] is None and report["charged_usd"] == .5
     assert report["known_spent_usd"] == 0 and len(report["rows"]) == 15
+
+
+def test_setup_failure_or_timeout_stops_the_unit_before_ccx_run(tmp_path, monkeypatch):
+    """Issue #329 review: a setup `ccx` call that fails still raises RuntimeError, and one that times out still
+    raises TimeoutExpired (as with subprocess.run before run_tree); either way the unit records the error and the
+    unit's `ccx run` is never started. Mocked run_tree: no process starts."""
+    unit = {"task": "mem-errors", "arm": "mem", "agent": "dsh", "model": "m", "effort": "low", "rep": 1}
+    calls = []
+    def failing(argv, **kwargs):
+        calls.append(argv)
+        return subprocess.CompletedProcess(argv, 1, "", "boom")
+    monkeypatch.setattr(runner, "run_tree", failing)
+    row = runner.run_unit(unit, "memory", tmp_path / "fail", .05)
+    assert row["error"] == "RuntimeError" and row["usd"] == 0.0
+    assert len(calls) == 1 and "strength-retest" not in calls[0]
+    def hanging(argv, **kwargs):
+        calls.append(argv)
+        raise subprocess.TimeoutExpired(argv, kwargs["timeout"])
+    monkeypatch.setattr(runner, "run_tree", hanging)
+    row = runner.run_unit(unit, "memory", tmp_path / "hang", .05)
+    assert row["error"] == "TimeoutExpired" and row["usd"] == 0.0
+    assert len(calls) == 2 and "strength-retest" not in calls[1]
+    monkeypatch.setattr(runner, "run_tree", failing)                # and the group stops on that row
+    manifest = {**retest.plan("memory", 1), "units": [unit, {**unit, "rep": 2}], "n": 2}
+    report = runner.execute(manifest, tmp_path / "out", .1, .05)
+    assert report["budget_stopped"] and report["attempted"] == 1 and report["rows"][0]["error"] == "RuntimeError"
 
 
 def test_retest_setup_error_preserves_attempt_and_reservation(tmp_path):

@@ -95,6 +95,9 @@ if os.environ.get("FAKE_BIG_CHILD") and os.environ.get("CODEX_HOME"):
         fh.write(json.dumps({"type": "event_msg", "timestamp": "2026-10-24T00:00:01Z", "payload": {
             "type": "token_count", "info": {"total_token_usage": {"input_tokens": 50_000_000, "cached_input_tokens": 0,
                                                                   "output_tokens": 1_000_000}}}}) + "\n")
+if os.environ.get("FAKE_PID"):         # file to write this process's own pid (a tree check finds it)
+    with open(os.environ["FAKE_PID"], "w", encoding="utf-8") as fh:
+        fh.write(str(os.getpid()))
 if os.environ.get("FAKE_GRANDCHILD"):
     # a tool process of its own (as a .cmd shim's real CLI, or a shell command): `ccx stop` must end it too
     import subprocess
