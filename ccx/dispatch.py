@@ -75,10 +75,21 @@ def check_config(cfg: dict, active: bool) -> dict:
     return {**cfg, "check": {**(cfg.get("check") or {}), "baseline": "on_fail"}} if active else cfg
 
 
-def may_escalate(check: dict, self_checked: bool = False) -> bool:
-    """Unknown baselines do not block an authorized retry; known baseline-only failures do."""
+def may_escalate(check: dict, self_checked: bool = False, *, insensitive: bool = False) -> bool:
+    """Unknown baselines allow retries; baseline-only failures need explicit sensitivity authorization."""
     return (not check.get("passed") and not check.get("broken") and not self_checked
-            and check.get("baseline_comparison") in (None, "Unknown", "baseline_passed", "new_failures"))
+            and (check.get("baseline_comparison") in (None, "Unknown", "baseline_passed", "new_failures")
+                 or insensitive and check.get("sensitivity") == "insensitive"))
+
+
+def sensitivity_retry(cfg: dict, check: dict, active: bool, phase: str) -> bool:
+    """Only the cheap first result can spend its existing escalation on an insensitive check."""
+    return (active and phase == "first" and (cfg.get("check") or {}).get("sensitivity") == "escalate"
+            and check.get("sensitivity") == "insensitive" and not check.get("broken"))
+
+
+def unverified(cfg: dict, check: dict, active: bool, phase: str) -> bool:
+    return check.get("passed") is True and sensitivity_retry(cfg, check, active, phase)
 
 
 def receipt(record: dict) -> None:

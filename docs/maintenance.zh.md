@@ -46,6 +46,7 @@
 
 | 键 | 默认 | 打开后做什么 | 为什么关着 | `config set` |
 |---|---|---|---|---|
+| `check.sensitivity` | `"off"` | `"warn"` 与派活时的干净 Git 树比较检查；`"escalate"` 还让不敏感的便宜首轮进入原请求档位（[详情](check-baseline.zh.md)） | 只有工程检查，额外基线耗时和真实模型影响尚未实测 | 能 |
 | `defaults.focused_retry` | `false` | `--check` 没过时，重试续同一会话，带上失败的命令和输出 | "只修失败处"缩小了重试复查的范围，没法保证做对的不减少；等一轮实测（起因：r6a 里旧式重试中位 389 秒） | 能 |
 | `defaults.namecheck` | `"warn"` | `"fail"` 让改动代码里的未定义名字直接判失败 | `warn` 离线 0 误报；`fail` 等前后对比（r6a 跑了 `ccx2nc` 组，结果还没发表） | 不能（单次用 `ccx run --namecheck`） |
 | `lanes.default` | `0` | `ccx batch` / `ccx q run` 让几块活续在几个热会话里，不再每块开新会话 | 比每块新开会话便宜约 40%，但更慢，也仍比一次做完贵（[热通道](research/2026-10-25-warm-lanes.zh.md)）；由确认实验决定 | 能 |

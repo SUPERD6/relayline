@@ -18,11 +18,17 @@
 便宜首轮检查通过后仍升一档。默认派活路径对未知检查依据的处理不变。
 
 本路径为当前运行启用 [`check.baseline = "on_fail"`](check-baseline.zh.md)，不修改 hub 的原配置。
-只有旧失败不升档；基线通过时，可以携带本次失败输出；基线失败时，只携带能识别出的新增失败用例。
+默认策略下，只有旧失败不升档；基线通过时，可以携带本次失败输出；基线失败时，只携带能识别出的新增失败用例。
 基线无法取得或比较不清楚时保留 Unknown，仍允许按当前失败输出升档，不把 Unknown 改标为已确认的新增失败。
 现有检查判定、退出码含义不变。
 环境错误不触发任务升档；原额度 fallback、模型不可用替换、审查与修复限制保留。
 CLI 执行错误与超时可进入下一授权档，即使没有产生可续跑的会话。认证失败、停止请求与预算条件保留原处理。
+
+实验性 [`check.sensitivity`](check-baseline.zh.md#检查敏感性实验性默认关闭) 默认 `off`。
+`warn` 会在检查通过时也运行基线，报告 `sensitive`、`insensitive` 或 `unknown`。
+`escalate` 把不敏感的首轮（包括与基线相同的失败）视为未验证，在已有升档限制和独立性约束内，
+进入原本请求的档位一次。`--no-escalate` 仍从原起始档执行，用 `needs_lead` 把不敏感结果交回主导。
+没有验收命令时不额外运行基线，收据记录基线耗时。
 
 `run.json`、`ccx show` 和 ledger 新增 `dispatch`：记录实际首档、原选定档、`attempted`、
 `escalated`、`escalation_rate`、`first_usd`、`escalation_usd`、`recovery_usd`（额度或模型恢复）。

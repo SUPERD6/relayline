@@ -1027,8 +1027,26 @@ def run(req: Request, p: Paths) -> dict:
             chk = (_namecheck(req, p, cfg, record, cwd)         # mode fail + a hit: the command is not run
                    or checks(req.check, **({"tail_chars": CHECK_TAIL_CHARS} if focused else {})))
             early_check = (len(record["attempts"]), chk, left)
-            if (not chk["passed"] and not chk.get("broken") and not only_baseline(chk)
-                    and (not cheap_dispatch or dispatch.may_escalate(chk, _self_checked_now(p, record, cwd, chk)))):
+            insensitive_retry = (dispatch.sensitivity_retry(cfg, chk, cheap_dispatch, dispatch_phase)
+                                 and spec["rung"] != requested["rung"])
+            if (dispatch.unverified(cfg, chk, cheap_dispatch, dispatch_phase) and spec["rung"] != requested["rung"]
+                    and not _self_checked_now(p, record, cwd, chk)):
+                if bg_review is not None:
+                    _finish_review(bg_review, record, p, keep=False)
+                    bg_review = None
+                record["attempts"][-1]["check_sensitivity"] = "insensitive"
+                _write_record(run_dir, record)
+                if plan[i + 1]["agent"] == to and session:
+                    prompt = ESCALATE.format(run_id=run_id, status="unverified_check",
+                                             summary=chk["sensitivity_hint"])
+                else:
+                    prompt, session = first_prompt + "\n" + chk["sensitivity_hint"], None
+                dispatch_phase = "escalation"
+                i += 1
+                continue
+            if (not chk["passed"] and not chk.get("broken") and (not only_baseline(chk) or insensitive_retry)
+                    and (not cheap_dispatch or dispatch.may_escalate(
+                        chk, _self_checked_now(p, record, cwd, chk), insensitive=insensitive_retry))):
                 if bg_review is not None:
                     _finish_review(bg_review, record, p, keep=False)
                     bg_review = None
@@ -1631,15 +1649,22 @@ def compact(record: dict) -> dict:
         out["needs_lead"] = f"review_failed: {first}"[:300]
     if "check_baseline" in record:
         out["check_baseline"] = record["check_baseline"]
+    for key in ("check_baseline_seconds", "check_sensitivity", "check_sensitivity_mode"):
+        if key in record:
+            out[key] = record[key]
     if record.get("check"):
         c = record["check"]
         out["check"] = {"cmd": c["cmd"], "passed": c["passed"], "exit": c["exit"],
                         **({"weak": c["weak"], "note": c["note"]} if c.get("weak") else {}),
                         **({"status": "check_broken"} if c.get("broken") else {})}
         for key in ("stdout_path", "stderr_path", "stdout_truncated", "stderr_truncated",
-                    "baseline_comparison", "new_failures"):
+                    "baseline_comparison", "new_failures", "sensitivity", "fixed_cases", "sensitivity_seconds"):
             if key in c:
                 out["check"][key] = c[key]
+        if c.get("sensitivity") == "insensitive":
+            hint = c["sensitivity_hint"]
+            out["needs_lead"] = ((out["needs_lead"] + "; ") if out.get("needs_lead") else "") + hint
+            out["hint"] = ((out["hint"] + "; ") if out.get("hint") else "") + hint
         if c.get("covers"):                         # P1-10: what it ran, and whether the run changed its yardstick
             from .coverage import text
             out["check"]["covers"] = text(c["covers"])

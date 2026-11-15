@@ -10,6 +10,7 @@ Real-model evaluation and cost savings: **not run / Unknown**. No command or opt
 ```toml
 [check]
 baseline = "off"  # default; optional: "on_fail"
+sensitivity = "off"  # experimental; optional: "warn", "escalate"
 ```
 
 Enable with `ccx config set check.baseline on_fail`; restore with `ccx config set check.baseline off`.
@@ -33,7 +34,7 @@ only after a passing check in this mode, avoiding a review while baseline diagno
 | Baseline / comparison | Result |
 |---|---|
 | Baseline passes | Existing failure/retry behavior |
-| Complete failure lists; no new cases | `kind=check_baseline_failed`; no check repair or escalation, no automatic task-failure learning; the lead fixes the baseline before accepting |
+| Complete failure lists; no new cases | `kind=check_baseline_failed`; no check repair or escalation (except the sensitivity opt-in below), no automatic task-failure learning; the lead fixes the baseline before accepting |
 | Complete failure lists; new cases | Existing retry ladder; retry prompts list only new case names; raw output remains in logs |
 | Cannot compare | `baseline_comparison=Unknown`; retain exit codes and existing failure/retry behavior |
 
@@ -74,3 +75,51 @@ baseline-only failures become blocked, awaiting baseline repair rather than coun
 Failed cleanup records `cleanup_path`, marks the
 baseline Unknown and leaves that isolated path for the lead to inspect; the source worktree is never removed.
 The receipt exposes final log paths and the baseline record, and the one-line recap explains baseline-only stops.
+
+## Check sensitivity (experimental, default off)
+
+An existing suite can pass before and after a change without testing the new requirement. Enable
+`ccx config set check.sensitivity warn` to compare acceptance with the same clean dispatch-time tree even when
+the worker's check passes. `off` preserves the existing behavior: no extra baseline for a passing check.
+Without a supplied acceptance check, sensitivity does not capture a tree or run another command.
+This uses the snapshot, isolated clone and per-command cache above; retries do not rerun the same baseline.
+
+| `check.sensitivity` | Behavior |
+|---|---|
+| `off` (default) | Existing baseline/check policy, no sensitivity work |
+| `warn` | Record sensitivity and tell the lead when the check did not verify the requirement; no retry-policy change |
+| `escalate` | Also treat an insensitive cheap-first result as unverified and advance once to the originally requested rung, within existing pin, budget, authentication and escalation limits |
+
+`--no-escalate` keeps the original starting rung and returns the insensitive hint in `needs_lead`.
+Outside cheap-first dispatch, `escalate` has the same behavior as `warn`. A sensitive or unknown result does not
+create an extra escalation. Self-written failing checks retain the existing independence guard. With
+`baseline = "on_fail"`, existing failed-check policy remains intact except that an insensitive cheap first
+attempt may use the authorized sensitivity escalation. Restore with `ccx config set check.sensitivity off`.
+
+The run and compact receipt add `check.sensitivity`:
+
+| Value | Evidence |
+|---|---|
+| `sensitive` | Baseline fails and acceptance passes; with complete parsed pytest failure sets, at least one baseline failure no longer fails (`fixed_cases`) |
+| `insensitive` | Both baseline and acceptance pass, or complete before/after failure sets are identical |
+| `unknown` | Missing/unavailable baseline, broken/timed-out check, incomparable failed output, pass-to-fail regression, or only additional failing cases without an identified improvement |
+
+Complete failure lists use the existing pytest parser. If those lists cannot be parsed, an overall fail-to-pass
+transition still establishes sensitivity; two nonzero exits do not. `fixed_cases` is omitted when case evidence
+is unavailable. Disappearing failures do not prove coverage or independence: skipped, deselected, removed or
+rewritten tests need lead inspection, and the existing test-basis labels still apply. A sensitive check does not
+prove the task is correct. Sensitivity also requires the baseline import probe for passing Python commands;
+missing probe evidence or imports from the modified source make sensitivity unknown, without changing the
+legacy baseline verdict. Non-Python commands or Python `-I`/`-S` can therefore remain unknown.
+
+For `insensitive`, `hint` and `needs_lead` explain whether the check already passed before the change or the
+same cases still fail, and ask for a test of the new requirement. Check exit codes, `passed` and existing `kind`
+meanings are preserved. A pass-to-fail regression retains the normal failure output and retry path; identical
+baseline failures authorized to escalate also use the failure path, rather than a passing-unverified prompt.
+`run.json.checks` retains sensitivity for every actual attempt, and the final
+`run.json.check` / `ccx show` receipt exposes it. With this setting enabled, top-level `check_sensitivity`
+defaults to `unknown` when no check ran, and `check_sensitivity_mode` records the mode.
+`check.sensitivity_seconds` records the extra baseline wall time, including clone, execution and cleanup
+(zero when a cached baseline is reused); `check_baseline_seconds` exposes the total in run, receipt and ledger.
+No model call is made by baseline comparison. This feature has engineering checks only; real-model accuracy,
+cost and time effects remain **not run / Unknown**.
