@@ -59,6 +59,7 @@ class Request:
     caller: str = "unknown"
     resume_run: str | None = None   # earlier ccx run id to continue
     worktree: bool = False
+    worktree_base: str | None = None   # head | upstream; None = [worktree] base (default head)
     escalate: bool | None = None
     label: str = ""
     model: str | None = None        # explicit model/effort (from task-routing or --model/--effort);
@@ -535,13 +536,16 @@ def run(req: Request, p: Paths) -> dict:
     stale_base = None
     base_info = {}
     if req.worktree and req.mode == "write" and not prev:
-        try:              # a worktree starts from HEAD: say so when the project has work it will not see
+        try:              # a worktree starts from a commit: say so when the project has work it will not see
             from . import gitstate
             if gitstate.in_git(cwd) and not gitstate.clean(cwd):
                 stale_base = gitstate.BASE_NOTE
         except Exception:  # noqa: BLE001 — a note only; never stops the run
             stale_base = None
-        cwd = make_worktree(cwd, run_id, base_info=base_info)
+        cwd = make_worktree(cwd, run_id, base_info=base_info, base=req.worktree_base)
+        if stale_base and base_info.get("worktree_base") == "upstream":
+            # an upstream base lacks them too, and committing does not bring them in (local_ahead says so)
+            stale_base = f"base: {base_info.get('base_ref', 'upstream')}, uncommitted changes not included"
 
     from . import git_pending
     git_before = git_pending.inspect(cwd)

@@ -280,6 +280,17 @@ def worktree_fetch(cfg: dict) -> bool:
     return fetch
 
 
+WORKTREE_BASES = ("head", "upstream")
+
+
+def worktree_base(cfg: dict) -> str:
+    """What a new worktree starts from: head = the local HEAD (default), upstream = the current branch's @{upstream}."""
+    base = (cfg.get("worktree") or {}).get("base", "head")
+    if base not in WORKTREE_BASES:
+        raise ValueError("worktree.base must be head or upstream")
+    return base
+
+
 def worktree_fetch_timeout(cfg: dict) -> int:
     """Bound the optional network request without changing the local worktree base."""
     timeout = (cfg.get("worktree") or {}).get("fetch_timeout", 15)
@@ -392,6 +403,8 @@ SETTINGS = {   # key -> (type, help). Only these can be set with `ccx config set
     "worktree.fetch": (_bool, "true | false: fetch the current upstream before a new worktree (default true; "
                               "warn only, never pull or change the local base)"),
     "worktree.fetch_timeout": (int, "positive seconds to wait for the upstream fetch (default 15)"),
+    "worktree.base": (str, "head | upstream: a new worktree starts from the local HEAD (default) or from the current "
+                           "branch's upstream (falls back to HEAD with a note when there is none; ccx run --base)"),
     "defaults.timeout_sec": (int, "per-attempt timeout in seconds (default 1800; run/resume)"),
     "defaults.timeout_reminder": (_bool, "experimental: include the time limit and a partial-result reminder "
                                          "in every attempt's prompt (default false; no runtime injection)"),
@@ -500,6 +513,8 @@ def set_setting(p: Paths, key: str, raw: str) -> dict:
         raise ValueError("routing.small_self_by must be cost or files")
     if key == "run.max_usd" and not float(raw) >= 0:
         raise ValueError("run.max_usd must be 0 (no limit) or a positive amount")
+    if key == "worktree.base" and raw not in WORKTREE_BASES:
+        raise ValueError("worktree.base must be head or upstream")
     if key == "ui.lang" and raw not in ("zh", "en"):
         raise ValueError("ui.lang must be zh or en")
     try:
