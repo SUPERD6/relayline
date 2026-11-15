@@ -421,7 +421,8 @@ SETTINGS = {   # key -> (type, help). Only these can be set with `ccx config set
                            "task only asks for an answer (that sentence is left out); false = the text as before "
                            "(default true)"),
     "run.stall_minutes": (float, "experimental: stop an attempt whose CLI printed no event (stdout line) for this "
-                                 "many minutes, as a timeout marked stalled (default 0 = off)"),
+                                 "many minutes, as a timeout marked stalled (default 0 = off; keep it above the longest "
+                                 "quiet stretch: a long model step or a long tool command prints nothing)"),
     "run.max_usd": (float, "default --max-usd of ccx run / resume: stop the delegation (its attempts, review and fix "
                            "round together) once it has spent this many API-equivalent $ (0 = no limit, the default; "
                            "batch, q run, way and task resume do not read it)"),

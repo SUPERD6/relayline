@@ -66,16 +66,16 @@ class TestStallRun(V02):
         self.assertIn("timed out after 5s", rec["attempts"][0]["error"])
 
     def test_on_leaves_a_slow_but_talking_cli_alone(self):
-        # an event every 1 s for 6 s with a 3 s threshold: never quiet long enough, finishes normally
-        self.tiers("[defaults]\ntimeout_sec = 60\n[run]\nstall_minutes = 0.05\n")
+        # an event every 1 s for 8 s with a 6 s threshold (room for a cold start on a slow runner): finishes normally
+        self.tiers("[defaults]\ntimeout_sec = 60\n[run]\nstall_minutes = 0.1\n")
         out = self.run_json("run", "--from", "codex", "--to", "claude", "--tier", "T2", "--no-fallback", "--no-escalate", "slow job",
-                            env={"FAKE_STATUS": "trickle", "FAKE_HANG_S": "6"}, code=0)
+                            env={"FAKE_STATUS": "trickle", "FAKE_HANG_S": "8"}, code=0)
         self.assertEqual(out["status"], "done")
         rec = self.record(out["run_id"])
         self.assertNotIn("stalled", rec)
         self.assertEqual(rec["attempts"][0]["kind"], "ok")
         self.assertEqual(rec["attempts"][0]["agent"], "claude")   # the fake that trickles
-        self.assertGreater(rec["attempts"][0]["seconds"], 4)   # ran past the 3 s threshold
+        self.assertGreater(rec["attempts"][0]["seconds"], 6.5)   # ran past the 6 s threshold
 
     def test_config_set_accepts_fractions(self):
         r = self.ccx("config", "set", "run.stall_minutes", "0.5")

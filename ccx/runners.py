@@ -330,7 +330,7 @@ def execute(agent: str, inv: Invocation, timeout: int, env: dict, on_session=Non
     def _stall():
         while not done_ev.wait(min(1.0, stall_sec / 4)):
             quiet = time.monotonic() - last_event[0]
-            if quiet >= stall_sec and not fired and not stopped:
+            if quiet >= stall_sec and not fired and not stopped and not (stop_file and stop_file.exists()):
                 stopped.append(("stalled", f"stalled: no event from {agent} for {quiet:.0f}s "
                                            f"(run.stall_minutes = {stall_sec / 60:g})"))
                 _stop()
