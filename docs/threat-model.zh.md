@@ -47,7 +47,7 @@ worktree，改动落在自己的分支 `ccx/<run>`（`ccx/workspace.py:36-46`）
 - **自主度档位**：L0 只给建议，L1（默认）让主导在写入前停下等你批准，L2 自己派并可能合并小的、检查过的分支。这些约束的是
   照 ccx 输出办事的主导，挡不住被带偏的主导。`ccx autonomy set L0 --project 名字`；项目也可以在 `.ccx/autonomy.toml` 里把自己压低。
 - **`--mode read`**：只读沙箱 / 只读工具，用于审查和分析。
-- **`--worktree`**：改动落在仓库旁边的分支 `ccx/<run>`，不碰你的工作区。
+- **`--worktree`**：改动落在仓库旁边的分支 `ccx/<run>`，不碰你的工作区。改动保持未提交：即使 brief 要求提交，也会告诉子智能体不要提交；ccx 不把 Codex 的沙箱扩到 git 目录（worktree 的 git 目录在主仓库 `.git` 下，那里的 refs 包括你的其他分支）。回执里的 `commit` 列出未提交的文件由你提交，子智能体若仍然提交了也会标出来（#334）。
 - **`ccx undo <run_id> --apply`**：把原地写入的文件放回去；新文件挪到一边，不删除。（worktree 运行没有快照：删分支即可。）
 - **intake**：`intake.github` 只指向你自己的私有仓库；ccx 拒绝公开仓库。
 - **Codex 当主导**：`danger-full-access` 让主导每条命令都有你的全部权限；只用于你在自己键盘前也信得过的主导（[功能说明](features.zh.md)）。
