@@ -5,6 +5,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
@@ -309,6 +311,28 @@ def _finish(monkeypatch, rec0, reqs, checks=(), runs=()):
     fake = _Fake(monkeypatch, checks, runs)
     out = merge.finish(rec0, reqs, [{} for _ in reqs], Path("."), CFG)
     return out, fake
+
+
+@pytest.mark.parametrize("mode", ["warn", "escalate"])
+def test_review_fix_reuses_original_snapshot_for_passing_sensitivity_piece(tmp_path, monkeypatch, mode):
+    from ccx import check_baseline, config
+    fake = _Fake(monkeypatch, checks=[True], runs=[])
+    original = {"status": "ready", "head": "original"}
+    first = rec("first")
+    first["check_baseline_start"] = original
+    fake.records["first"] = first
+    fixed = rec("fixed")
+    fixed.update(review_of="first", check_baseline_start={"status": "Unknown", "reason": "fix tree is dirty"})
+    seen = []
+    def before(start, *args):
+        seen.append(start)
+        return {"status": "Fail", "seconds": 0.25, "check": {"exit": 1, "failed_cases": ["t::requirement"]}}
+    monkeypatch.setattr(check_baseline, "run_baseline", before)
+    out = merge.finish(fixed, [req("a", check="acceptance")], [{}], config.Paths(tmp_path),
+                       {"defaults": {}, "check": {"baseline": "off", "sensitivity": mode}})
+    assert seen == [original]
+    assert out["results"][0]["check"]["sensitivity"] == "sensitive"
+    assert not fake.started and len(fixed["check_baselines"]) == 1
 
 
 def test_a_review_turning_down_the_whole_diff_holds_for_every_piece(monkeypatch):

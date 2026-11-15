@@ -29,6 +29,9 @@ CLI 执行错误与超时可进入下一授权档，即使没有产生可续跑�
 `escalate` 把不敏感的首轮（包括与基线相同的失败）视为未验证，在已有升档限制和独立性约束内，
 进入原本请求的档位一次。`--no-escalate` 仍从原起始档执行，用 `needs_lead` 把不敏感结果交回主导。
 没有验收命令时不额外运行基线，收据记录基线耗时。
+重试提示要求对照任务原文验证。相同失败的重试会明确说明失败在修改前已存在，只列用例标识，
+并绕过 focused 失败修复；不要求修复无关的基线失败，也不要求代主导编写需求验收测试。
+运行临时学习记录时，未验证的便宜首轮与 `SELF_CHECKED` 一样按失败计入。
 
 `run.json`、`ccx show` 和 ledger 新增 `dispatch`：记录实际首档、原选定档、`attempted`、
 `escalated`、`escalation_rate`、`first_usd`、`escalation_usd`、`recovery_usd`（额度或模型恢复）。

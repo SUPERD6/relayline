@@ -1019,7 +1019,7 @@ def run(req: Request, p: Paths) -> dict:
             # "done" but ccx's own run of the check fails: that is a failure too, so climb while a rung is left.
             # Before, only blocked/failed escalated, and a cheap model that wrongly said done stopped there
             # (needed once tradeoff = save picks cheap models first, 2026-10-25)
-            if want_review and checks.start is None:  # baseline mode defers review until the check passes
+            if want_review and not checks.defer_review:
                 bg_review = _start_review(req, p, cfg, record, cwd, run_dir, oc.result)
             # did this attempt change anything: told before the check runs, so files the check writes don't count
             left = _left_unchanged(p, record) if req.mode == "write" else None
@@ -1035,12 +1035,14 @@ def run(req: Request, p: Paths) -> dict:
                     _finish_review(bg_review, record, p, keep=False)
                     bg_review = None
                 record["attempts"][-1]["check_sensitivity"] = "insensitive"
+                record["attempts"][-1]["kind"] = "check_failed"  # unverified first attempt counts as failed learning
                 _write_record(run_dir, record)
+                summary = dispatch.sensitivity_prompt(chk)
                 if plan[i + 1]["agent"] == to and session:
                     prompt = ESCALATE.format(run_id=run_id, status="unverified_check",
-                                             summary=chk["sensitivity_hint"])
+                                             summary=summary)
                 else:
-                    prompt, session = first_prompt + "\n" + chk["sensitivity_hint"], None
+                    prompt, session = first_prompt + "\n" + summary, None
                 dispatch_phase = "escalation"
                 i += 1
                 continue
@@ -1058,7 +1060,13 @@ def run(req: Request, p: Paths) -> dict:
                 retry_tail = chk.get("retry_tail", chk["tail"])
                 summary = f"you said done, but `{chk['cmd']}` failed (exit {chk['exit']}):\n{retry_tail[-400:]}"
                 nxt = plan[i + 1]
-                if nxt["agent"] == to and session and focused and agents.get(cli).can_resume:
+                if insensitive_retry and only_baseline(chk):
+                    summary = dispatch.sensitivity_prompt(chk)
+                    if nxt["agent"] == to and session:
+                        prompt = ESCALATE.format(run_id=run_id, status="check_failed", summary=summary)
+                    else:
+                        prompt, session = first_prompt + "\n" + summary, None
+                elif nxt["agent"] == to and session and focused and agents.get(cli).can_resume:
                     # [defaults] focused_retry: the same session, told what failed (~2000 characters of the check's
                     # output) and to fix only that; the ladder itself is unchanged (still the next rung)
                     same = (nxt["model"], nxt["effort"]) == (spec["model"], spec["effort"])
@@ -1139,7 +1147,7 @@ def run(req: Request, p: Paths) -> dict:
         record["check"], record["kind"], check_passed = nc_fail, "check_failed", False
     elif req.check and oc.ok and status in ("done", "partial"):
         reuse = early_check and early_check[0] == len(record["attempts"])    # already run on this very attempt
-        if not reuse and want_review and bg_review is None and checks.start is None:
+        if not reuse and want_review and bg_review is None and not checks.defer_review:
             # the review runs while ccx runs the check (it needs only the command, not its result); it counts
             # only if the check passes, and is stopped otherwise
             bg_review = _start_review(req, p, cfg, record, cwd, run_dir, oc.result)
@@ -1649,7 +1657,9 @@ def compact(record: dict) -> dict:
         out["needs_lead"] = f"review_failed: {first}"[:300]
     if "check_baseline" in record:
         out["check_baseline"] = record["check_baseline"]
-    for key in ("check_baseline_seconds", "check_sensitivity", "check_sensitivity_mode"):
+    if "check_sensitivity_mode" in record and "check_baseline_seconds" in record:
+        out["check_baseline_seconds"] = record["check_baseline_seconds"]
+    for key in ("check_sensitivity", "check_sensitivity_mode"):
         if key in record:
             out[key] = record[key]
     if record.get("check"):

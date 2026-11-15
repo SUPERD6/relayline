@@ -92,6 +92,17 @@ def unverified(cfg: dict, check: dict, active: bool, phase: str) -> bool:
     return check.get("passed") is True and sensitivity_retry(cfg, check, active, phase)
 
 
+def sensitivity_prompt(check: dict) -> str:
+    """Worker instructions concern the task, not authoring the lead's acceptance tests."""
+    if check.get("passed"):
+        return ("The existing check already passed before the change and did not verify the new requirement. "
+                "This result is unverified; verify the work against the task text.")
+    return ("This result is unverified: the listed failures already existed before the change. "
+            "They do not establish whether the new requirement is met. Verify the work against the task text; "
+            "do not treat these pre-existing failures as a request to repair unrelated code.\n"
+            + "\n".join(check.get("failed_cases") or []))
+
+
 def receipt(record: dict) -> None:
     """Add phase costs and a rate numerator/denominator without changing old fields."""
     if "dispatch" not in record:

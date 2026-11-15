@@ -241,7 +241,8 @@ def sensitivity(check: dict, baseline: dict) -> dict:
             out["sensitivity"] = "insensitive"
     if baseline["status"] == "Pass":
         out["sensitivity"] = "insensitive" if check.get("passed") else "unknown"
-    elif check.get("passed"):
+    elif check.get("passed") and before_check.get("exit", 1) == 1:
+        # Real run_check records always include exit. Preserve older summary-only callers.
         out["sensitivity"] = "sensitive"
     if out["sensitivity"] == "insensitive":
         why = ("the check already passed before the change" if baseline["status"] == "Pass" else
@@ -258,6 +259,7 @@ class Checks:
         self.timeout = int(cfg["defaults"].get("check_timeout_sec", 900))
         self.sensitivity = (cfg.get("check") or {}).get("sensitivity", "off")
         self.on_fail = (cfg.get("check") or {}).get("baseline") == "on_fail"
+        self.defer_review = self.on_fail or self.sensitivity == "escalate"
         self.start = ((start if start is not None else capture(cwd, run_dir))
                       if enabled and (self.on_fail or self.sensitivity != "off") else None)
         if self.sensitivity != "off":

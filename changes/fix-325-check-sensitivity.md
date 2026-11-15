@@ -3,5 +3,5 @@
   Record sensitivity, fixed cases and baseline wall time; insensitive receipts ask the lead for a requirement test.
   Opt-in `escalate` advances an unverified cheap-first result to the requested rung within existing limits;
   `--no-escalate` retains the original rung and returns the hint. Existing commands, options and defaults remain.
-  Pass-to-fail regressions stay unknown and retain failure output; only passing insensitive checks use the
-  unverified-pass prompt, while authorized identical-failure retries keep the normal failure prompt.
+  Pass-to-fail regressions stay unknown and retain failure output; unverified retries verify against the task text,
+  and identical-failure retries identify pre-existing cases without focused failure repair.

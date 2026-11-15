@@ -192,7 +192,7 @@ def line(res: dict) -> dict:
     if "git_pending" in res:
         out["git_pending"] = res["git_pending"]
     if "check_sensitivity_mode" in res:
-        for key in ("check_sensitivity_mode", "check_sensitivity", "check_baseline_seconds", "check_baseline"):
+        for key in ("check_sensitivity_mode", "check_sensitivity", "check_baseline_seconds"):
             if key in res:
                 out[key] = res[key]
     out["check"] = res["check"]       # as it was (cmd, passed, exit, covers): leads, scripts and the receipt read it

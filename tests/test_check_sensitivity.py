@@ -4,7 +4,7 @@ import sys
 
 import pytest
 
-from ccx import check_baseline as baseline, dispatch
+from ccx import check_baseline as baseline, dispatch, leadview
 from test_adapters import AdapterEnv
 from test_check_baseline import git, repository
 
@@ -103,6 +103,67 @@ def test_failed_insensitive_check_cannot_use_passing_unverified_branch():
     assert dispatch.may_escalate(check, insensitive=dispatch.sensitivity_retry(cfg, check, True, "first"))
 
 
+@pytest.mark.parametrize("code", [1, 2, 3, 4, 5])
+def test_unparsed_failure_requires_test_failure_exit(code):
+    result = baseline.sensitivity({"passed": True, "failed_cases": []},
+                                  {"status": "Fail", "check": {"exit": code, "failed_cases": None}})
+    assert result["sensitivity"] == ("sensitive" if code == 1 else "unknown")
+
+
+def test_sensitivity_line_view_keeps_only_small_baseline_metadata():
+    result = {"run_id": "r", "status": "done", "ok": True, "check": {"passed": True},
+              "check_sensitivity_mode": "warn", "check_sensitivity": "sensitive", "check_baseline_seconds": 1.25,
+              "check_baseline": {"status": "Fail", "import_origins": ["x" * 32768]}}
+    line = leadview.line(result)
+    assert "check_baseline" not in line
+    for key in ("check_sensitivity_mode", "check_sensitivity", "check_baseline_seconds"):
+        assert line[key] == result[key]
+    assert len(json.dumps(line)) < 1000
+
+
+@pytest.mark.parametrize("escalate", [False, True])
+def test_warn_starts_review_before_check_in_both_delegate_paths(monkeypatch, escalate):
+    import os
+    from unittest.mock import patch
+    from ccx import delegate
+    from ccx.config import Paths, set_setting
+    env = AdapterEnv()
+    env.setUp()
+    try:
+        repository(env.work)
+        (env.work / "acceptance.py").write_text(
+            "from pathlib import Path\nassert Path('state.txt').read_text() == 'fixed'\n",
+            encoding="utf-8", newline="")
+        git(env.work, "add", "acceptance.py")
+        git(env.work, "commit", "-qm", "independent acceptance")
+        paths = Paths(env.hub)
+        set_setting(paths, "check.sensitivity", "warn")
+        events = []
+        def start(*args):
+            events.append("review")
+            return object()
+        def finish(future, record, paths, keep=True):
+            record["review"] = {"verdict": "pass"}
+        def deferred(req, paths, cfg, record, *args):
+            events.append("review")
+            record["review"] = {"verdict": "pass"}
+        actual_check = baseline.Checks.__call__
+        def check(self, *args, **kwargs):
+            events.append("check")
+            return actual_check(self, *args, **kwargs)
+        monkeypatch.setattr(delegate, "_start_review", start)
+        monkeypatch.setattr(delegate, "_finish_review", finish)
+        monkeypatch.setattr(delegate, "_review", deferred)
+        monkeypatch.setattr(baseline.Checks, "__call__", check)
+        with patch.dict(os.environ, {**env.env, "FAKE_WRITE": "state.txt=fixed"}, clear=True):
+            delegate.run(delegate.Request(to="codex", caller="claude", brief="fix state.txt", cwd=env.work,
+                                          tier="T1", mode="write", review="on", fallback=False, escalate=escalate,
+                                          check=f'"{sys.executable}" acceptance.py'), paths)
+        assert events.index("review") < events.index("check")
+    finally:
+        env.tearDown()
+
+
 class TestSensitivityCLI(AdapterEnv):
     def setUp(self):
         super().setUp()
@@ -145,7 +206,7 @@ class TestSensitivityCLI(AdapterEnv):
         assert out["check"]["sensitivity"] == rec["check"]["sensitivity"] == "sensitive"
         assert out["check"]["fixed_cases"] == ["test_acceptance.py::test_requirement"]
         assert out["check"]["sensitivity_seconds"] == out["check_baseline_seconds"] >= 0
-        assert out["check_baseline"]["status"] == "Fail" and len(rec["attempts"]) == 1
+        assert self.j("show", out["run_id"])["check_baseline"]["status"] == "Fail" and len(rec["attempts"]) == 1
         assert self.j("show", out["run_id"])["check"]["sensitivity"] == "sensitive"
 
     def test_warn_passed_before_has_hint_without_escalation(self):
@@ -172,6 +233,9 @@ class TestSensitivityCLI(AdapterEnv):
         assert len(rec["check_baselines"]) == 1
         assert rec["checks"][1]["sensitivity_seconds"] == 0
         assert "did not verify the new requirement" in self.calls()[-1]["prompt"]
+        assert "add a test for the new requirement" not in self.calls()[-1]["prompt"]
+        assert "verify the work against the task text" in self.calls()[-1]["prompt"]
+        assert rec["attempts"][0]["kind"] == "check_failed"
 
     def test_escalate_same_failures_to_original_rung(self):
         out = self.checked("escalate", "same_failures", cheap=True)
@@ -186,6 +250,17 @@ class TestSensitivityCLI(AdapterEnv):
         assert rec["attempts"][0]["kind"] == "check_failed"
         prompt = self.calls()[-1]["prompt"]
         assert "test_existing" in prompt and "unverified_check" not in prompt
+        assert "unverified" in prompt and "already existed before the change" in prompt
+        assert rec["checks"][0]["tail"] not in prompt
+
+    def test_same_failures_do_not_use_focused_failure_repair(self):
+        self.j("config", "set", "defaults.focused_retry", "true")
+        out = self.checked("escalate", "same_failures", cheap=True)
+        prompt = self.calls()[-1]["prompt"]
+        assert "already existed before the change" in prompt and "unverified" in prompt
+        assert "fix only" not in prompt.lower()
+        assert "add a test for the new requirement" not in prompt
+        assert "retry" not in self.rec(out["run_id"])["attempts"][0]
 
     def test_regression_keeps_normal_failure_escalation_and_output(self):
         (self.work / "test_regression.py").write_text(
@@ -229,15 +304,39 @@ class TestSensitivityCLI(AdapterEnv):
         assert "fixed_cases" not in out["check"]
 
     def test_unobservable_passing_baseline_is_unknown(self):
-        out = self.checked(command=f'"{sys.executable}" -S -m unittest')
+        out = self.checked(command=f'"{sys.executable}" -S -c "pass"')
         assert out["check"]["passed"] and out["check"]["sensitivity"] == "unknown"
-        assert out["check_baseline"]["status"] == "Pass"
+        assert self.rec(out["run_id"])["check_baseline"]["status"] == "Pass"
 
     def test_unknown_dirty_baseline_does_not_force_escalation(self):
         out = self.checked("escalate", cheap=True, dirty=True)
         rec = self.rec(out["run_id"])
         assert out["check"]["sensitivity"] == "unknown" and len(rec["attempts"]) == 1
-        assert out.get("check_baseline", {}).get("status") == "Unknown", json.dumps(out)
+        assert rec.get("check_baseline", {}).get("status") == "Unknown", json.dumps(rec)
+
+    def test_off_cheap_first_failure_preserves_receipt_keys(self):
+        from ccx.delegate import compact
+        out = self.checked("off", "same_failures", cheap=True)
+        rec = self.rec(out["run_id"])
+        assert out["kind"] == "check_baseline_failed"
+        assert "check_baseline_seconds" in rec and "check_baseline_seconds" not in out
+        legacy = compact({key: value for key, value in rec.items() if key != "check_baseline_seconds"})
+        assert set(compact(rec)) == set(legacy)
+        assert "check_sensitivity" not in out and "check_sensitivity_mode" not in out
+
+    def test_baseline_collection_error_does_not_establish_sensitivity(self):
+        with (self.work / ".gitignore").open("a", encoding="utf-8", newline="") as saved:
+            saved.write("ignored_helper.py\n")
+        (self.work / "ignored_helper.py").write_text("value = 1\n", encoding="utf-8", newline="")
+        (self.work / "test_environment.py").write_text(
+            "from ignored_helper import value\ndef test_value():\n    assert value == 1\n",
+            encoding="utf-8", newline="")
+        git(self.work, "add", ".gitignore", "test_environment.py")
+        git(self.work, "commit", "-qm", "ignored dependency acceptance")
+        out = self.checked(command=f'"{sys.executable}" -m pytest -q -p no:cacheprovider test_environment.py')
+        rec = self.rec(out["run_id"])
+        assert out["check"]["passed"] and rec["check_baseline"]["check"]["exit"] == 2
+        assert out["check"]["sensitivity"] == "unknown"
 
     def test_no_check_does_not_run_baseline(self):
         self.j("config", "set", "check.sensitivity", "escalate")
