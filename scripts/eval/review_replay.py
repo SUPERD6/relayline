@@ -284,6 +284,7 @@ def run_job(c: dict, variant: str, rep: int, roots: dict, work: Path, timeout: i
     """One review in its own clean-room process. `extra` goes into the job as is (text, insert, model, effort)."""
     sys.path.insert(0, str(HERE))
     import preflight as PF
+    from common import run_tree
     key = f"{re.sub(r'[^A-Za-z0-9]+', '-', c['id'])}-{variant}-{rep}"
     hub = work / "hubs" / key
     hub.mkdir(parents=True, exist_ok=True)
@@ -295,8 +296,8 @@ def run_job(c: dict, variant: str, rep: int, roots: dict, work: Path, timeout: i
     jf.parent.mkdir(parents=True, exist_ok=True)
     jf.write_text(json.dumps(job), encoding="utf-8")
     try:
-        r = subprocess.run([sys.executable, str(Path(__file__).resolve()), "one", str(jf)], cwd=c["tree"], env=env,
-                           capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=timeout)
+        r = run_tree([sys.executable, str(Path(__file__).resolve()), "one", str(jf)], cwd=c["tree"], env=env,
+                     timeout=timeout)
         out = json.loads((r.stdout.strip().splitlines() or ["{}"])[-1])
         if not out:
             out = {"ok": False, "error": r.stderr[-500:]}

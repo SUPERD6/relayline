@@ -31,7 +31,7 @@ import tomllib
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from common import ROOT, append_jsonl, bin_argv, ccx_rows, lead_env, make_repo, read_jsonl, score  # noqa: E402
+from common import ROOT, append_jsonl, bin_argv, ccx_rows, lead_env, make_repo, read_jsonl, run_tree, score  # noqa: E402
 from ccx import ledger  # noqa: E402
 from ccx.config import Paths  # noqa: E402
 from tasks import PARALLEL_TASK, by_id  # noqa: E402
@@ -138,8 +138,7 @@ def sh(argv: list[str], cwd: Path, timeout: int = 900, env: dict | None = None) 
     env = env or lead_env()
     guard(env)
     try:
-        r = subprocess.run(argv, cwd=cwd, capture_output=True, text=True, encoding="utf-8", errors="replace",
-                           env=env, timeout=timeout)
+        r = run_tree(argv, cwd=cwd, env=env, timeout=timeout)
         return r.returncode, r.stdout, r.stderr
     except subprocess.TimeoutExpired:
         return -9, "", "timeout"
@@ -203,8 +202,7 @@ def check_codex_lead(a, work: Path) -> dict:
             "-C", str(repo), "-"]
     t0 = time.time()
     try:
-        r = subprocess.run(argv, input=prompt, cwd=repo, capture_output=True, text=True, encoding="utf-8",
-                           errors="replace", env=env, timeout=900)
+        r = run_tree(argv, input=prompt, cwd=repo, env=env, timeout=900)
         out, rc = r.stdout, r.returncode
     except subprocess.TimeoutExpired:
         out, rc = "", -9

@@ -23,7 +23,7 @@ import time
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from common import ROOT, append_jsonl, ccx_rows, lead_env, make_repo, run_lead  # noqa: E402
+from common import ROOT, append_jsonl, ccx_rows, lead_env, make_repo, run_lead, run_tree  # noqa: E402
 from tasks import PARALLEL_TASK  # noqa: E402
 
 from ccx.runners import _codex_kept_settings, bin_argv  # noqa: E402
@@ -55,8 +55,7 @@ def codex_lead(prompt: str, repo: Path, model: str, effort: str, timeout: int = 
             "-c", 'sandbox_mode="workspace-write"', "--skip-git-repo-check", *_codex_kept_settings(), "-C", str(repo), "-"]
     t0 = time.time()
     try:
-        r = subprocess.run(argv, input=prompt, cwd=repo, capture_output=True, text=True, encoding="utf-8",
-                           errors="replace", env=lead_env(), timeout=timeout)
+        r = run_tree(argv, input=prompt, cwd=repo, env=lead_env(), timeout=timeout)
         stdout, rc = r.stdout, r.returncode
     except subprocess.TimeoutExpired as e:      # --cut-after: the lead is stopped mid-work
         stdout = e.stdout.decode("utf-8", "replace") if isinstance(e.stdout, bytes) else (e.stdout or "")

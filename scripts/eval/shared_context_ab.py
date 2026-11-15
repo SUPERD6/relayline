@@ -30,7 +30,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from common import ROOT, append_jsonl, ccx_rows, lead_env, make_repo, read_jsonl, score  # noqa: E402
+from common import ROOT, append_jsonl, ccx_rows, lead_env, make_repo, read_jsonl, run_tree, score  # noqa: E402
 from seven_ab import mcnemar_p, wilson  # noqa: E402
 
 MODELS = {"codex": ("gpt-6-luna", "low"), "dsh": ("deepseek-flash", "low")}
@@ -169,8 +169,8 @@ def run_unit(u: dict, out: Path, lock: threading.Lock) -> dict:
             "--no-fallback", "--review", "off", "--no-subagents", "--label", f"sc-ab:{key}", "--cwd", str(work),
             task["brief"]]
     t0 = time.time()
-    r = subprocess.run(argv, capture_output=True, text=True, encoding="utf-8", errors="replace", env=env,
-                       timeout=1800)
+    r = run_tree(argv, env=env,
+                 timeout=1800)
     res = _last_json(r.stdout)
     first = score(work, task)
     row = {**u, "run_id": res.get("run_id"), "status": res.get("status"), "ok_first": first["ok"],
@@ -187,8 +187,8 @@ def run_unit(u: dict, out: Path, lock: threading.Lock) -> dict:
         hidden.unlink(missing_ok=True)
         fails = [ln for ln in t.stdout.splitlines() if ln.startswith(("E ", "FAILED"))][:6]
         msg = "The lead's acceptance check failed:\n" + "\n".join(fails) + "\nFix it."
-        r2 = subprocess.run([sys.executable, str(ROOT / "ccx.py"), "resume", res["run_id"], msg],
-                            capture_output=True, text=True, encoding="utf-8", errors="replace", env=env, timeout=1800)
+        r2 = run_tree([sys.executable, str(ROOT / "ccx.py"), "resume", res["run_id"], msg],
+                      env=env, timeout=1800)
         res2 = _last_json(r2.stdout)
         second = score(work, task)
         row.update(rework=True, ok_final=second["ok"], rework_run=res2.get("run_id"),

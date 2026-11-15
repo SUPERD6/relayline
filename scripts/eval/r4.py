@@ -45,7 +45,7 @@ import r2  # noqa: E402
 import r3  # noqa: E402
 import tasks_r2  # noqa: E402
 import tasks_r3  # noqa: E402
-from common import ROOT, append_jsonl, archive_hub, boot_ci, lead_env, make_repo, parse_stream, read_jsonl, score, sign_test  # noqa: E402
+from common import ROOT, append_jsonl, archive_hub, boot_ci, lead_env, make_repo, parse_stream, read_jsonl, run_tree, score, sign_test  # noqa: E402
 
 from ccx.runners import bin_argv  # noqa: E402
 
@@ -102,8 +102,7 @@ def calib_unit(u: dict, a, work: Path) -> dict:
                 "--exclude-dynamic-system-prompt-sections", "--disable-slash-commands", "--max-budget-usd", "0.8",
                 "--no-session-persistence"]
         try:
-            r = subprocess.run(argv, input=SONNET_PROMPT.format(brief=task["brief"]), cwd=repo, capture_output=True,
-                               text=True, encoding="utf-8", errors="replace", env=lead_env(), timeout=a.timeout)
+            r = run_tree(argv, input=SONNET_PROMPT.format(brief=task["brief"]), cwd=repo, env=lead_env(), timeout=a.timeout)
             out, rc = r.stdout, r.returncode
         except subprocess.TimeoutExpired as e:
             out = e.stdout.decode("utf-8", "replace") if isinstance(e.stdout, bytes) else (e.stdout or "")
@@ -215,8 +214,7 @@ def seed_session(work: Path, a, arm: str = "self") -> dict:
                 "--strict-mcp-config", "--exclude-dynamic-system-prompt-sections", "--disable-slash-commands",
                 "--max-budget-usd", "2", "--session-id", sid]
     t0 = time.time()
-    r = subprocess.run(argv, input=SEED_PROMPT, cwd=repo, capture_output=True, text=True, encoding="utf-8",
-                       errors="replace", env=lead_env(), timeout=a.timeout)
+    r = run_tree(argv, input=SEED_PROMPT, cwd=repo, env=lead_env(), timeout=a.timeout)
     res = parse_stream(r.stdout)
     info = {"session_id": sid, "usd": round(float(res.get("cost_usd") or 0), 6), "context_max": res.get("context_max"),
             "requests": res.get("requests"), "rc": r.returncode, "wall_s": round(time.time() - t0, 1),
@@ -239,8 +237,7 @@ def long_unit(u: dict, a, work: Path, seed: dict) -> dict:
         r3.lead_prompt(task, u["arm"], u["label"])
     t0 = time.time()
     try:
-        r = subprocess.run(argv, input=prompt, cwd=repo, capture_output=True, text=True, encoding="utf-8",
-                           errors="replace", env=env, timeout=a.timeout)
+        r = run_tree(argv, input=prompt, cwd=repo, env=env, timeout=a.timeout)
         out, rc = r.stdout, r.returncode
     except subprocess.TimeoutExpired as e:
         out = e.stdout.decode("utf-8", "replace") if isinstance(e.stdout, bytes) else (e.stdout or "")

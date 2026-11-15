@@ -31,7 +31,7 @@ import time
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from common import ROOT, append_jsonl, archive_hub, lead_env, make_repo, score  # noqa: E402
+from common import ROOT, append_jsonl, archive_hub, lead_env, make_repo, run_tree, score  # noqa: E402
 from seven_func import last_json, tree_hash  # noqa: E402
 from tasks import by_id  # noqa: E402
 
@@ -61,8 +61,7 @@ class Preflight:
 
     def ccx(self, *args: str, cwd: Path, timeout: int = 900) -> tuple[int, dict, str]:
         try:
-            r = subprocess.run([*CCX, *args], cwd=cwd, capture_output=True, text=True, encoding="utf-8",
-                               errors="replace", env=self.env, timeout=timeout)
+            r = run_tree([*CCX, *args], cwd=cwd, env=self.env, timeout=timeout)
         except subprocess.TimeoutExpired:
             return -9, {}, "timeout"
         return r.returncode, last_json(r.stdout), (r.stderr or "")[-400:]

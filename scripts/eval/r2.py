@@ -43,7 +43,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import seven_ab as S  # noqa: E402
-from common import HIDDEN, ROOT, append_jsonl, ccx_verify, git, lead_env, make_repo, read_jsonl, score  # noqa: E402
+from common import HIDDEN, ROOT, append_jsonl, ccx_verify, git, lead_env, make_repo, read_jsonl, run_tree, score  # noqa: E402
 from tasks_r2 import COMPOUND, PAR10, PIECES, QUEUE, TRAPS, TRAPS2, by_id, piece_brief  # noqa: E402
 
 from ccx import ledger  # noqa: E402
@@ -150,8 +150,7 @@ def make_hub(d: Path, state: Path | None = None) -> dict:
 def ccx(args: list[str], cwd: Path, hub: Path, timeout: int) -> tuple[dict, int, float, str]:
     t0 = time.time()
     try:
-        r = subprocess.run([sys.executable, str(ROOT / "ccx.py"), *args], cwd=cwd, capture_output=True, text=True,
-                           encoding="utf-8", errors="replace", env=env_for(hub), timeout=timeout)
+        r = run_tree([sys.executable, str(ROOT / "ccx.py"), *args], cwd=cwd, env=env_for(hub), timeout=timeout)
         out, rc, err = r.stdout, r.returncode, r.stderr
     except subprocess.TimeoutExpired:
         out, rc, err = "", -9, "timeout"

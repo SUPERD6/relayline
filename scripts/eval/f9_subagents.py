@@ -14,14 +14,13 @@ from __future__ import annotations
 
 import argparse
 import json
-import subprocess
 import sys
 import tempfile
 import time
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from common import ROOT, append_jsonl, ccx_rows, ccx_verify, lead_env, make_repo, read_jsonl, score  # noqa: E402
+from common import ROOT, append_jsonl, ccx_rows, ccx_verify, lead_env, make_repo, read_jsonl, run_tree, score  # noqa: E402
 from tasks import PARALLEL_TASK  # noqa: E402
 
 from ccx.config import codex_home  # noqa: E402
@@ -61,8 +60,7 @@ def run_one(arm: str, i: int, a, work: Path) -> dict:
             "--mode", "write", "--new", "--no-ab", "--review", "off", "--label", label, "--check", ACCEPT,
             "--cwd", str(repo), *(["--no-subagents"] if arm == "off" else []), brief]
     t0 = time.time()
-    r = subprocess.run(argv, cwd=repo, capture_output=True, text=True, encoding="utf-8", errors="replace",
-                       env=lead_env(), timeout=1800)
+    r = run_tree(argv, cwd=repo, env=lead_env(), timeout=1800)
     rows = ccx_rows(label)
     rec = rows[-1] if rows else {}
     sc = score(repo, PARALLEL_TASK)

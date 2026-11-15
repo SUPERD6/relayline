@@ -277,11 +277,12 @@ def replay(case: dict, base: Path, unit_cap: float, reviewer_model: str = "", re
     job = {"key": key, "tree": str(tree), "hub": str(hub), "evidence": str(work / "evidence"),
            "implementer": case["implementer"], "task_text": case["task_text"], "user_task": case.get("user_task"),
            "reviewer_model": reviewer_model, "reviewer_effort": reviewer_effort, "unit_cap": unit_cap}
+    from common import run_tree           # late: importing common loads this checkout's ccx
     f = work / "job.json"
     f.write_text(json.dumps(job), encoding="utf-8", newline="")
     try:
-        r = subprocess.run([sys.executable, "-X", "utf8", str(Path(__file__)), "--one", str(f)],
-                           cwd=tree, env=env, capture_output=True, text=True, encoding="utf-8", timeout=600)
+        r = run_tree([sys.executable, "-X", "utf8", str(Path(__file__)), "--one", str(f)],
+                     cwd=tree, env=env, errors="strict", timeout=600)
         (work / "worker-output.txt").write_text(r.stdout + r.stderr, encoding="utf-8", newline="")
         if r.returncode:
             raise ValueError("review worker failed")

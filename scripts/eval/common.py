@@ -17,7 +17,7 @@ sys.path.insert(0, str(ROOT))
 
 from ccx import ledger  # noqa: E402
 from ccx.config import Paths, paths  # noqa: E402
-from ccx.runners import bin_argv  # noqa: E402
+from ccx.runners import bin_argv, group_flags, kill_tree  # noqa: E402
 
 CCX = f'python "{ROOT.as_posix()}/ccx.py"'
 HIDDEN = "test_zz_hidden_eval.py"
@@ -27,6 +27,43 @@ PARENT_VARS = ("CLAUDECODE", "CLAUDE_CODE_SESSION_ID", "CLAUDE_CODE_REMOTE_SESSI
                "CLAUDE_CODE_EFFORT_LEVEL", "CLAUDE_CODE_ENTRYPOINT", "CLAUDE_CODE_CHILD_SESSION", "CLAUDE_PID", "CLAUDE_CODE_HOST_SESSION_ID",
                "CLAUDE_CODE_MESSAGING_SOCKET", "CLAUDE_CODE_MESSAGING_TOKEN", "CCX_LEAD_SESSION", "CCX_DEPTH",
                "CCX_ROLE", "CCX_PARENT_RUN")
+
+
+def run_tree(argv: list[str], *, timeout: float, cwd: Path | str | None = None, env: dict | None = None,
+             input: str | None = None, errors: str = "replace") -> subprocess.CompletedProcess:
+    """subprocess.run(capture_output=True, text=True, encoding="utf-8"), but a timeout (or Ctrl+C) ends the whole
+    process tree, not only the direct child (issues #329, #332: ccx and the CLI it started ran on after a timeout).
+    The child starts with ccx's group_flags() and is stopped with ccx's kill_tree(). On POSIX kill_tree() takes the
+    child's process group, and ccx starts its CLI in a group of its own, so the descendants are listed first and
+    killed too. The exception is raised again; a TimeoutExpired carries the output read so far as text in .stdout and
+    .stderr, as subprocess.run's does. stdin is `input` when given, else DEVNULL (subprocess.run inherited it; every
+    caller passes its prompt as an argument or as `input`)."""
+    proc = subprocess.Popen(argv, cwd=cwd, env=env, stdin=subprocess.PIPE if input is not None else subprocess.DEVNULL,
+                            stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, encoding="utf-8",
+                            errors=errors, **group_flags())
+    try:
+        out, err = proc.communicate(input, timeout=timeout)
+    except BaseException as exc:
+        procs = below = None                                    # Windows: taskkill /T walks the tree itself
+        if os.name != "nt":
+            import preflight as PF                              # preflight imports this module: import it late
+            procs = PF.snapshot()
+            if procs is None:
+                print(f"run_tree: could not list processes; descendants of pid {proc.pid} in a process group of "
+                      "their own (e.g. the CLI ccx started) may not have been killed", file=sys.stderr)
+            below = sorted(PF.family(procs, proc.pid)[1]) if procs else []
+        if not kill_tree(proc.pid):
+            proc.kill()
+        if below:
+            PF.kill(below)
+        try:
+            rest = proc.communicate(timeout=30)
+            if isinstance(exc, subprocess.TimeoutExpired):
+                exc.stdout, exc.stderr = rest
+        except (OSError, ValueError, subprocess.SubprocessError):
+            pass
+        raise
+    return subprocess.CompletedProcess(argv, proc.returncode, out, err)
 
 
 def git(cwd: Path, *args: str) -> str:
@@ -82,8 +119,7 @@ def run_lead(prompt: str, cwd: Path, model: str, effort: str, budget: float, tim
         argv.append("--no-session-persistence")
     t0 = time.time()
     try:
-        r = subprocess.run(argv, input=prompt, cwd=cwd, capture_output=True, text=True, encoding="utf-8",
-                           errors="replace", env=lead_env(), timeout=timeout)
+        r = run_tree(argv, input=prompt, cwd=cwd, env=lead_env(), timeout=timeout)
         out, rc = r.stdout, r.returncode
     except subprocess.TimeoutExpired as e:
         out, rc = (e.stdout or b"").decode("utf-8", "replace") if isinstance(e.stdout, bytes) else (e.stdout or ""), -9

@@ -45,6 +45,7 @@ sys.path.insert(0, str(ROOT))
 import fixround_replay as FR  # noqa: E402
 import preflight as PF  # noqa: E402
 import review_replay as RR  # noqa: E402
+from common import run_tree  # noqa: E402  (preflight already imports it)
 
 EST_MAX_USD = 0.05            # reserve per running review when checking the budget
 VARIANTS = ("full", "focus")
@@ -181,8 +182,8 @@ def run_job(c: dict, variant: str, work: Path, timeout: int) -> dict:
     jf.parent.mkdir(parents=True, exist_ok=True)
     jf.write_text(json.dumps(job), encoding="utf-8")
     try:
-        r = subprocess.run([sys.executable, str(Path(__file__).resolve()), "one", str(jf)], cwd=c["tree"], env=env,
-                           capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=timeout)
+        r = run_tree([sys.executable, str(Path(__file__).resolve()), "one", str(jf)], cwd=c["tree"], env=env,
+                     timeout=timeout)
         out = json.loads((r.stdout.strip().splitlines() or ["{}"])[-1])
         if not out:
             out = {"ok": False, "error": r.stderr[-500:]}

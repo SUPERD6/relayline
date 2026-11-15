@@ -39,7 +39,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import r2  # noqa: E402
 import seven_ab as S  # noqa: E402
-from common import ROOT, append_jsonl, archive_hub, boot_ci, lead_env, make_repo, parse_stream, read_jsonl, score, sign_test  # noqa: E402
+from common import ROOT, append_jsonl, archive_hub, boot_ci, lead_env, make_repo, parse_stream, read_jsonl, run_tree, score, sign_test  # noqa: E402
 from tasks_r3 import HARD, by_id  # noqa: E402
 
 from ccx import ledger  # noqa: E402
@@ -350,8 +350,7 @@ def run_unit(u: dict, a, work: Path) -> dict:
     prompt = lead_prompt(task, u["arm"], u["label"])
     t0 = time.time()
     try:
-        r = subprocess.run(lead_argv(u["arm"], a.lead_budget), input=prompt, cwd=repo, capture_output=True,
-                           text=True, encoding="utf-8", errors="replace", env=env, timeout=a.timeout)
+        r = run_tree(lead_argv(u["arm"], a.lead_budget), input=prompt, cwd=repo, env=env, timeout=a.timeout)
         out, rc = r.stdout, r.returncode
     except subprocess.TimeoutExpired as e:
         out = e.stdout.decode("utf-8", "replace") if isinstance(e.stdout, bytes) else (e.stdout or "")
