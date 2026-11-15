@@ -3,6 +3,7 @@ command line, its output, where its files are, what it can do) lives in ccx/agen
 from __future__ import annotations
 
 import json
+import locale
 import os
 import shutil
 import subprocess
@@ -24,6 +25,32 @@ def without_launcher_vars(env: Mapping[str, str]) -> dict[str, str]:
     Match case-insensitively on every platform because Windows treats environment names that way.
     """
     return {key: value for key, value in env.items() if key.upper() not in LAUNCHER_VARS}
+
+
+def decode_output(data: bytes) -> str:
+    """Text an agent CLI wrote (its stdout, stderr or an output file), without losing a character (#335).
+
+    UTF-8 first (what Codex, Claude and DeepSeek write). A line that is mostly UTF-8 with a stray bad byte stays
+    UTF-8; a line with more bad bytes than valid UTF-8 characters is tried in this machine's locale encoding
+    (cp936/GBK on a Chinese Windows, where a CLI that follows the code page writes it). Bytes still undecodable are
+    kept visible as \\xNN instead of becoming U+FFFD, which could never be turned back (best effort: a fragment of
+    such a line that happens to be valid UTF-8 is shown as that character). Newlines are normalised the way
+    text-mode pipes did (\\r\\n and \\r become \\n)."""
+    try:
+        text = data.decode("utf-8")
+    except UnicodeDecodeError:
+        loose = data.decode("utf-8", errors="surrogateescape")       # bad bytes become U+DC80..U+DCFF
+        bad = sum(1 for c in loose if "\udc80" <= c <= "\udcff")
+        good = sum(1 for c in loose if ord(c) > 127) - bad
+        text = None
+        if good <= bad:
+            try:
+                text = data.decode(locale.getpreferredencoding(False))
+            except (UnicodeDecodeError, LookupError):
+                pass
+        if text is None:
+            text = "".join(f"\\x{ord(c) - 0xDC00:02x}" if "\udc80" <= c <= "\udcff" else c for c in loose)
+    return text.replace("\r\n", "\n").replace("\r", "\n")
 
 
 AUTH_HINTS = ("401", "unauthorized", "not logged in", "login", "authenticate", "api key")
@@ -233,9 +260,10 @@ def execute(agent: str, inv: Invocation, timeout: int, env: dict, on_session=Non
     `on_start(pid)` gets the child's pid at once; `stop_file` appearing (`ccx stop`) stops the run the same way."""
     import threading
     try:
+        # bytes, decoded line by line with decode_output (#335): a text-mode pipe with errors="replace" turned any
+        # non-UTF-8 byte into U+FFFD for good
         proc = subprocess.Popen(inv.argv, cwd=str(inv.cwd), env=env, stdin=subprocess.PIPE,
-                                stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
-                                encoding="utf-8", errors="replace", **group_flags())
+                                stdout=subprocess.PIPE, stderr=subprocess.PIPE, **group_flags())
     except OSError as e:
         oc = Outcome(ok=False, error=f"could not start {agent}: {e}", kind="error")
         return oc, "", ""
@@ -245,10 +273,12 @@ def execute(agent: str, inv: Invocation, timeout: int, env: dict, on_session=Non
         except Exception:  # noqa: BLE001 — bookkeeping must never kill the run
             pass
     err_chunks: list[str] = []
-    t_err = threading.Thread(target=lambda: err_chunks.append(proc.stderr.read()), daemon=True)
+    t_err = threading.Thread(target=lambda: err_chunks.extend(decode_output(raw) for raw in proc.stderr),
+                             daemon=True)
     t_err.start()
     try:
-        proc.stdin.write(inv.stdin)
+        # UTF-8 with the platform's line ending, as the former text-mode pipe wrote it
+        proc.stdin.write(inv.stdin.replace("\n", os.linesep).encode("utf-8"))
         proc.stdin.close()
     except (BrokenPipeError, OSError):
         pass
@@ -292,7 +322,8 @@ def execute(agent: str, inv: Invocation, timeout: int, env: dict, on_session=Non
         threading.Thread(target=_watch, daemon=True).start()
     rc = -1
     try:
-        for line in proc.stdout:
+        for raw in proc.stdout:
+            line = decode_output(raw)
             out_lines.append(line)
             if not seen and on_session:
                 sid = _first_session_id(agent, line.strip())

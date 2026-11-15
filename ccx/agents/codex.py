@@ -9,7 +9,8 @@ import tomllib
 from pathlib import Path
 
 from ..config import RESULT_SCHEMA, codex_home
-from ..runners import AUTH_HINTS, Invocation, Outcome, _json_from_text, bin_argv, classify, match_hint, usage_dict
+from ..runners import (AUTH_HINTS, Invocation, Outcome, _json_from_text, bin_argv, classify, decode_output,
+                       match_hint, usage_dict)
 from .base import Adapter
 
 # Settings a lean start (--ignore-user-config) must still carry over from the user's config.toml.
@@ -133,7 +134,7 @@ def parse_codex(stdout: str, stderr: str, rc: int, last_file: Path | None) -> Ou
                            cached=usage["cached_input_tokens"], out=usage["output_tokens"])
     text = ""
     if last_file and last_file.exists():
-        text = last_file.read_text(encoding="utf-8", errors="replace").strip()
+        text = decode_output(last_file.read_bytes()).strip()     # UTF-8, else the locale's code page (#335)
     text = text or last_agent_msg
     out.raw_text = text
     out.result = _json_from_text(text)

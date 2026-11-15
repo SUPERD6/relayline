@@ -54,6 +54,8 @@ board (`ccx say`) for open sessions in one project. For a costly decision, `ccx 
 between models from different vendors (one proposes, one finds faults, one judges), passing only the points between
 turns; the lead asks you before starting one.
 
+**Chinese text in a run's JSON looks like `���`.** On a Chinese Windows, Python prints to a pipe in the code page (cp936/GBK), and a tool reading that pipe as UTF-8 shows `���`; the files ccx writes are UTF-8 and fine. Read them with `ccx show <run>`, or set `PYTHONUTF8=1` for the shell that runs your own Python one-liners. When ccx reads a sub-agent CLI's output (its stdout and stderr, Codex's last message) it tries UTF-8, then the machine's code page, and keeps undecodable bytes as `\xNN` rather than replacing them (#335).
+
 ## Similar projects
 
 Checked 2026-10-24 (stars and dates from the GitHub API; they change). Details, sources and what is unconfirmed:
