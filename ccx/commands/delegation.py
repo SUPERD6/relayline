@@ -117,7 +117,25 @@ def _without_wait(argv: list[str]) -> list[str]:
     return out
 
 
-def _bg_maybe_wait(argv: list[str], p, wait: float | None, *, brief_warnings: list | None = None) -> int:
+def _bg_base_preview(a) -> dict:
+    """`ccx run --bg --worktree`: the worktree is made in the detached child, whose warnings only reach its log. Say
+    here, before detaching, what it will start from and whether the local HEAD trails its upstream (local refs only;
+    the child fetches when [worktree] fetch is on and records the real distance)."""
+    if not a.worktree or apply_mode(_run_spec(a, _brief(a)))["mode"] != "write":
+        return {}
+    from ..workspace import BASE_TIP, base_preview
+    prev = base_preview(a.cwd or os.getcwd(), getattr(a, "base", None))
+    if prev.get("warning"):
+        print(f"ccx: warning: {prev['warning']}", file=sys.stderr, flush=True)
+        if prev.get("worktree_base") == "head":
+            print(BASE_TIP, file=sys.stderr, flush=True)
+    elif prev.get("note"):
+        print(f"ccx: note: --base upstream, but {prev['note']}", file=sys.stderr, flush=True)
+    return prev
+
+
+def _bg_maybe_wait(argv: list[str], p, wait: float | None, *, brief_warnings: list | None = None,
+                   base: dict | None = None) -> int:
     """`--bg`: detach and print the run id. `--bg --wait N` (one call instead of `--bg` then `ccx show --wait`):
     the id goes to stderr at once (flushed: a lead whose tool call is cut off still has it), then this process waits
     up to N s. Finished: the final compact result on stdout (exit 0 / 2 as a foreground run). Not finished:
@@ -128,6 +146,8 @@ def _bg_maybe_wait(argv: list[str], p, wait: float | None, *, brief_warnings: li
     bg = _background(argv, p, procs)
     if brief_warnings:
         bg["brief_warnings"] = brief_warnings
+    if base:
+        bg["base"] = base                        # what the worktree starts from, said before the sub-agent starts
     if wait is None:
         _out(bg)
         return 0
@@ -405,7 +425,8 @@ def _cmd_run(a) -> int:
             _preauth_for_run(p, cfg, a.proposal, _run_spec(a, _brief(a)))
         if not a.check and apply_mode(_run_spec(a, _brief(a)))["mode"] == "write":
             print(NO_CHECK_NUDGE, file=sys.stderr, flush=True)     # here, where the person sees it
-        return _bg_maybe_wait(sys.argv[1:], p, a.wait, brief_warnings=brief_warnings)
+        return _bg_maybe_wait(sys.argv[1:], p, a.wait, brief_warnings=brief_warnings,
+                              base=_bg_base_preview(a))
     text = _brief(a)
     user_task = (Path(a.user_task_file).read_text(encoding="utf-8")
                  if getattr(a, "user_task_file", None) else text)
@@ -472,7 +493,8 @@ def _cmd_run(a) -> int:
             _out(stop)
             return 0
         if a.bg:
-            return _bg_maybe_wait(sys.argv[1:], p, a.wait, brief_warnings=brief_warnings)
+            return _bg_maybe_wait(sys.argv[1:], p, a.wait, brief_warnings=brief_warnings,
+                                  base=_bg_base_preview(a))
     lead = lead_session_id(caller)
     cwd = Path(a.cwd or os.getcwd())
     if role and not a.brief_file:
@@ -490,7 +512,7 @@ def _cmd_run(a) -> int:
     if proj:
         text = f"{proj['header']}\n\n{text}"
     req = Request(brief=text, user_task=user_task, mode=mode["mode"], mode_source=mode["source"], mode_why=mode["why"], cwd=cwd, caller=caller,
-                  worktree=a.worktree, escalate=False if a.no_escalate else None,
+                  worktree=a.worktree, worktree_base=getattr(a, "base", None), escalate=False if a.no_escalate else None,
                   label=f"seat:{a.seat}" if a.seat else (a.label or ""),
                   fallback=not a.no_fallback, task=a.task, step=a.step, mcp=True if a.mcp else None,
                   lead_session=lead, resume_run=prev, continued=bool(prev), fork_lead=fork,
@@ -1497,6 +1519,9 @@ def register(sub) -> None:
                    "your whole conversation (full context, costs more per turn)")
     r.add_argument("--worktree", action="store_true", help="isolate write task in a git worktree")
     r.add_argument("--no-worktree", dest="worktree", action="store_false", help="override a role's worktree default")
+    r.add_argument("--base", choices=("head", "upstream"), help="with --worktree: start it from the local HEAD "
+                   "(default, or [worktree] base) or from the current branch's upstream (@{upstream}; no upstream = "
+                   "HEAD with a note). ccx fetches only that upstream first when [worktree] fetch is on (default)")
     adv.add_argument("--quota", action="append", metavar="AGENT=USED",
                    help="share of a subscription's quota already used (claude=0.8; default: read by ccx, "
                         "`ccx quota`); the fuller it is, the dearer that quota is priced, so pay-per-token "

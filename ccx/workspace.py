@@ -71,8 +71,10 @@ def _worktree_lock(root: Path) -> threading.Lock:
         return _WT_LOCKS.setdefault(key, threading.Lock())
 
 
-def _worktree_base_behind(root: Path, cfg: dict) -> int | None:
-    """Refresh just this upstream and report its distance; a fetch failure leaves the distance unknown."""
+def _upstream_state(root: Path, cfg: dict) -> dict | None:
+    """The current branch's upstream, refreshed when [worktree] fetch is on. None = detached HEAD, no upstream or not
+    a plain repository. `fetched` is False when the refresh failed: the upstream ref is then the last-fetched one and
+    its distance is not trusted (the caller prints `fetch_error`)."""
     from .config import worktree_fetch, worktree_fetch_timeout
     from .runners import group_flags, kill_tree
 
@@ -90,6 +92,7 @@ def _worktree_base_behind(root: Path, cfg: dict) -> int | None:
     rc, upstream = _git(root, "rev-parse", "--abbrev-ref", "--symbolic-full-name", upstream_ref)
     if rc != 0:
         return None
+    state = {"branch": branch, "upstream_ref": upstream_ref, "upstream": upstream, "fetched": True}
     if fetch:
         rc, remote = _git(root, "config", "--get", f"branch.{branch}.remote")
         merge_rc, merge = _git(root, "config", "--get", f"branch.{branch}.merge")
@@ -117,26 +120,101 @@ def _worktree_base_behind(root: Path, cfg: dict) -> int | None:
         except OSError as e:
             error = next(iter(str(e).splitlines()), type(e).__name__)
         if error:
-            print(f"ccx: warning: git fetch {remote} {remote_branch} failed: {error}; "
-                  "continuing from local HEAD", file=sys.stderr)
-            return None
-    rc, count = _git(root, "rev-list", "--count", f"HEAD..{upstream_ref}")
-    if rc != 0 or not count.isdigit():
-        return None
-    behind = int(count)
+            state["fetched"] = False
+            state["fetch_error"] = f"git fetch {remote} {remote_branch} failed: {error}"
+    return state
+
+
+def _count(root: Path, spec: str) -> int | None:
+    rc, out = _git(root, "rev-list", "--count", spec)
+    return int(out) if rc == 0 and out.isdigit() else None
+
+
+BASE_TIP = ("ccx: tip: --base upstream (or `ccx config set worktree.base upstream`) starts the worktree from the "
+            "upstream instead")
+
+
+def base_preview(cwd: str | Path, base: str | None = None) -> dict:
+    """What a worktree started now would be based on, from local refs only (no fetch): for the parent of
+    `ccx run --bg --worktree`, which tells the person before detaching (the detached child fetches and warns again,
+    in its log). {} when there is nothing to say."""
+    from .config import worktree_base
+    try:
+        rc, top = _git(canonical(cwd), "rev-parse", "--show-toplevel")
+        if rc != 0:
+            return {}
+        root = canonical(top)
+        cfg = load_config()
+        base = base or worktree_base(cfg)
+        state = _upstream_state(root, {**cfg, "worktree": {**(cfg.get("worktree") or {}), "fetch": False}})
+        if state is None:
+            return ({"worktree_base": "head", "note": "no upstream: the worktree will start from the local HEAD"}
+                    if base == "upstream" else {})
+        if base == "upstream":
+            out = {"worktree_base": "upstream", "base_ref": state["upstream"]}
+            ahead = _count(root, f"{state['upstream_ref']}..HEAD")
+            if ahead:
+                out["local_ahead"] = ahead
+                out["warning"] = (f"{state['branch']} has {ahead} local commit(s) not in {state['upstream']}; the "
+                                  "worktree starts without them")
+            return out
+        behind = _count(root, f"HEAD..{state['upstream_ref']}")
+    except Exception:  # noqa: BLE001 — a note only; never stops the run
+        return {}
+    if not behind:
+        return {}
+    return {"worktree_base": "head", "base_behind": behind,
+            "warning": f"{state['branch']} is {behind} commit(s) behind {state['upstream']} (as of the last fetch); "
+                       "the worktree starts from the local HEAD. Use --base upstream, or git pull first"}
+
+
+def _resolve_base(root: Path, cfg: dict, base: str) -> tuple[str | None, dict]:
+    """(start point for `git worktree add`, facts for the run record). Every warning is printed here, before the
+    sub-agent starts. head: start point None (git's default, HEAD), base_behind = how far HEAD trails the upstream.
+    upstream: the full upstream ref; no upstream falls back to head with a note, never an error."""
+    state = _upstream_state(root, cfg)
+    if base == "upstream":
+        if state is None:
+            print("ccx: note: --base upstream, but the current branch has no upstream (or HEAD is detached); "
+                  "the worktree starts from the local HEAD", file=sys.stderr)
+            return None, {"worktree_base": "head", "worktree_base_fallback": "no upstream"}
+        info = {"worktree_base": "upstream", "base_ref": state["upstream"]}
+        if state["fetched"]:
+            info["base_behind"] = 0
+        else:
+            print(f"ccx: warning: {state['fetch_error']}; continuing from the last-fetched {state['upstream']}",
+                  file=sys.stderr)
+        ahead = _count(root, f"{state['upstream_ref']}..HEAD")
+        if ahead:
+            info["local_ahead"] = ahead
+            print(f"ccx: warning: {state['branch']} has {ahead} local commit(s) not in {state['upstream']}; the "
+                  f"worktree starts from {state['upstream']} without them", file=sys.stderr)
+        return state["upstream_ref"], info
+    if state is None:
+        return None, {}
+    if not state["fetched"]:
+        print(f"ccx: warning: {state['fetch_error']}; continuing from local HEAD", file=sys.stderr)
+        return None, {}
+    behind = _count(root, f"HEAD..{state['upstream_ref']}")
+    if behind is None:
+        return None, {}
     if behind > 0:
-        print(f"ccx: warning: {branch} is {behind} commit(s) behind {upstream}; "
+        print(f"ccx: warning: {state['branch']} is {behind} commit(s) behind {state['upstream']}; "
               "the worktree starts from the local HEAD (git pull first if you want the newer base)",
               file=sys.stderr)
-    return behind
+        print(BASE_TIP, file=sys.stderr)
+    return None, {"base_behind": behind}
 
 
-def make_worktree(cwd: Path, run_id: str, tries: int = 3, *, base_info: dict | None = None) -> Path:
-    """A new worktree on branch ccx/<run_id> in the configured location (beside the repo by default).
+def make_worktree(cwd: Path, run_id: str, tries: int = 3, *, base_info: dict | None = None,
+                  base: str | None = None) -> Path:
+    """A new worktree on branch ccx/<run_id> in the configured location (beside the repo by default), started from
+    `base`: head = the local HEAD, upstream = the current branch's upstream; None = [worktree] base (default head).
     Threads of this process (the writers of one `ccx q run`
     or `ccx batch`) add theirs one at a time, so they never meet git's race above. Another process (a second ccx, a
     `ccx run --bg --worktree` beside it) still can: then this one tries again, up to `tries` times, on the branch git
     already made for it (deleting it first would read the worktrees again and meet the same race)."""
+    from .config import WORKTREE_BASES, worktree_base
     cwd = canonical(cwd)
     top = subprocess.run(["git", "rev-parse", "--show-toplevel"], cwd=cwd,
                          capture_output=True, text=True, encoding="utf-8", errors="replace")
@@ -145,9 +223,13 @@ def make_worktree(cwd: Path, run_id: str, tries: int = 3, *, base_info: dict | N
     root = canonical(top.stdout.strip())
     cfg = load_config()
     location = worktree_location(cfg)
-    behind = _worktree_base_behind(root, cfg)
-    if base_info is not None and behind is not None:
-        base_info["base_behind"] = behind
+    if base is None:
+        base = worktree_base(cfg)
+    elif base not in WORKTREE_BASES:
+        raise ValueError("--base must be head or upstream")
+    start, info = _resolve_base(root, cfg, base)
+    if base_info is not None:
+        base_info.update(info)
     wt = worktree_path(root, run_id, location)
     if location == "inside":
         if _git(root, "check-ignore", "-q", ".ccx/")[0] != 0:
@@ -157,7 +239,8 @@ def make_worktree(cwd: Path, run_id: str, tries: int = 3, *, base_info: dict | N
     wt.parent.mkdir(parents=True, exist_ok=True)
     branch = f"ccx/{run_id}"
     with _worktree_lock(root):
-        args = ["-b", branch, str(wt)]
+        # --no-track: a branch made from a remote-tracking ref would otherwise track it (branch.autoSetupMerge)
+        args = ["--no-track", "-b", branch, str(wt), start] if start else ["-b", branch, str(wt)]
         for n in range(tries):
             r = subprocess.run(["git", "worktree", "add", *args], cwd=root,
                                capture_output=True, text=True, encoding="utf-8", errors="replace")

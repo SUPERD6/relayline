@@ -59,6 +59,7 @@ class Request:
     caller: str = "unknown"
     resume_run: str | None = None   # earlier ccx run id to continue
     worktree: bool = False
+    worktree_base: str | None = None   # head | upstream; None = [worktree] base (default head)
     escalate: bool | None = None
     label: str = ""
     model: str | None = None        # explicit model/effort (from task-routing or --model/--effort);
@@ -541,7 +542,7 @@ def run(req: Request, p: Paths) -> dict:
                 stale_base = gitstate.BASE_NOTE
         except Exception:  # noqa: BLE001 — a note only; never stops the run
             stale_base = None
-        cwd = make_worktree(cwd, run_id, base_info=base_info)
+        cwd = make_worktree(cwd, run_id, base_info=base_info, base=req.worktree_base)
 
     from . import git_pending
     git_before = git_pending.inspect(cwd)

@@ -20,7 +20,9 @@ REAL_RUN = subprocess.run
 REAL_POPEN = subprocess.Popen
 
 
-class TestWorktreeFetch(StopEnv):
+class UpstreamRepo(StopEnv):
+    """A repo whose main tracks a local bare remote, and a second clone that can push ahead of it."""
+
     def setUp(self):
         super().setUp()
         self.work = workspace.canonical(self.work)
@@ -84,6 +86,7 @@ class TestWorktreeFetch(StopEnv):
             self.git("commit", "-qm", f"remote {i}", cwd=self.writer)
         self.git("push", "-q", "origin", branch, cwd=self.writer)
 
+class TestWorktreeFetch(UpstreamRepo):
     def test_behind_fetches_before_branching_and_records_in_results_and_full_show(self):
         base = self.git("rev-parse", "HEAD")
         self.advance(2)

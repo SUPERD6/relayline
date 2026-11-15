@@ -717,6 +717,15 @@ check; no improvement in task success or savings has been measured here.
   The run receipt records `base_behind` when the distance is known (including zero; omitted without an upstream
   or after a failed fetch), and results retain this field, including the lead's one-line output.
   When behind, the lead's recap adds `base: N behind upstream`, including `--bg --wait` and `ccx show <id> --wait`.
+  `ccx run --worktree --base upstream` (or `ccx config set worktree.base upstream`) starts the worktree from the
+  current branch's upstream instead (`git worktree add --no-track`, so the new branch does not track it); default
+  `--base head` / `[worktree] base = "head"` is unchanged. Without an upstream or on a detached HEAD it falls back
+  to HEAD with a note, never an error; after a failed fetch it uses the last-fetched upstream and records no
+  distance; local commits not in the upstream get a warning (`local_ahead`). The record gains `worktree_base`
+  (`base_ref`, `worktree_base_fallback`) only when `--base upstream` was asked for. Every warning comes before the
+  sub-agent starts; with `--bg`, the parent says it before detaching (stderr, and `base` in the receipt), from
+  local refs only, since the fetch happens in the detached child. ccx never fetches more than that one upstream
+  and never pulls.
   Both layouts are recognized in run results, queues and acceptance, lane commits, automatic merging, check-trust
   grouping and UI project grouping, even after the setting changes. Inside placement is experimental: checked
   with fake agent CLIs and Git, not yet with real agent CLIs or Codex project trust inheritance.
