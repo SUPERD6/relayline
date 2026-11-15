@@ -552,6 +552,28 @@ def diffstat(snap: dict | None) -> str | None:
     return "; ".join(parts) or "no changes"
 
 
+def commit_state(cwd: Path, snap: dict | None) -> dict | None:
+    """How a `--worktree` write run left its worktree's commits (#334): the files still uncommitted, which the lead
+    commits (ccx never asks a sub-agent to: a Codex workspace-write sandbox cannot write the worktree's git directory,
+    which lives under the main repository's .git), and whether the sub-agent committed anyway (HEAD moved).
+    None outside a ccx worktree or when git cannot answer."""
+    if worktree_repo(cwd) is None:
+        return None
+    rc, out = _git(cwd, "status", "--porcelain", "--untracked-files=all")
+    if rc != 0:
+        return None
+    files = []
+    for row in out.splitlines():
+        parts = row.strip().split(None, 1)              # "XY path" or "R  old -> new" (_git strips the 1st row)
+        if len(parts) == 2:
+            name = _unquote(parts[1].split(" -> ")[-1])
+            if not name.startswith(".ccx/"):
+                files.append(name)
+    _, head = _git(cwd, "rev-parse", "HEAD")
+    before = (snap or {}).get("head")
+    return {"uncommitted": files, "committed": bool(before and head and head != before)}
+
+
 def _unquote(name: str) -> str:
     """A path as `git ls-files` prints it (C-quoted when core.quotepath is on and the name is not ASCII) -> the real
     name. Unquoted names come back as they are."""

@@ -192,6 +192,67 @@ class TestWorktreeBase(Env):
         self.assertNotIn("base_note", rec)
 
 
+class TestWorktreeCommit(Env):
+    """#334: Codex's workspace-write sandbox cannot write a worktree's git directory, so ccx tells every sub-agent
+    not to commit (even when the brief says to) and its receipt lists what is left uncommitted for the lead."""
+
+    def setUp(self):
+        super().setUp()
+        subprocess.run(["git", "init", "-q"], cwd=self.work, check=True)
+        (self.work / "a.py").write_text("x = 1\n", encoding="utf-8")
+        subprocess.run([*G, "add", "a.py"], cwd=self.work, check=True)
+        subprocess.run([*G, "commit", "-qm", "init"], cwd=self.work, check=True)
+
+    def go(self, brief="change x to 2 in a.py and commit it", **env):
+        log = self.work.parent / "codex-log.jsonl"
+        r = self.ccx("run", "--to", "codex", "--model", "gpt-6-luna", "--effort", "low", "--mode", "write",
+                     "--no-fallback", "--review", "off", "--worktree", brief,
+                     env={"FAKE_WRITE": "a.py=x = 2\n;new.py=y = 1\n", "FAKE_LOG": str(log), **env})
+        self.assertIn(r.returncode, (0, 2), r.stderr)
+        out = json.loads(r.stdout)
+        rec = json.loads((Paths(self.hub).runs / out["run_id"] / "run.json").read_text(encoding="utf-8"))
+        calls = [json.loads(x) for x in log.read_text(encoding="utf-8").splitlines()]
+        return out, rec, calls
+
+    def test_prompt_says_not_to_commit_and_no_writable_root_is_added(self):
+        out, rec, calls = self.go()
+        first = calls[0]
+        self.assertIn("do not commit, push or switch branches, even if the task says to", first["prompt"])
+        self.assertIn("leave your changes uncommitted", first["prompt"])
+        argv = " ".join(first["argv"])
+        self.assertNotIn("--add-dir", argv)                    # option B: the sandbox is not widened to .git
+        self.assertNotIn("writable_roots", argv)
+        self.assertNotIn("danger-full-access", argv)
+
+    def test_receipt_lists_uncommitted_files(self):
+        out, rec, _ = self.go()
+        c = out["commit"]
+        self.assertEqual(c["state"], "uncommitted", out)
+        self.assertEqual(sorted(c["files"]), ["a.py", "new.py"])
+        self.assertIn("git -C", c["next"])
+        self.assertIn(f"ccx autonomy merge {out['run_id']}", c["next"])
+        self.assertNotIn("note", c)
+        self.assertEqual(sorted(rec["commit_state"]["uncommitted"]), ["a.py", "new.py"])
+        self.assertFalse(rec["commit_state"]["committed"])
+        wt = Path(out["worktree"])                              # ccx itself committed nothing
+        log = subprocess.run(["git", "log", "--oneline"], cwd=wt, capture_output=True, text=True).stdout
+        self.assertEqual(len(log.splitlines()), 1, log)
+
+    def test_a_sub_agent_that_commits_anyway_is_flagged(self):
+        out, rec, _ = self.go(FAKE_COMMIT="sub-agent commit")
+        c = out["commit"]
+        self.assertEqual((c["state"], c["files"]), ("committed", []), out)
+        self.assertIn("although told not to", c["note"])
+        self.assertTrue(rec["commit_state"]["committed"])
+
+    def test_no_commit_entry_outside_a_worktree(self):
+        r = self.ccx("run", "--to", "codex", "--model", "gpt-6-luna", "--effort", "low", "--mode", "write",
+                     "--no-fallback", "--review", "off", "change x to 2 in a.py", env={"FAKE_WRITE": "a.py=x = 2\n"})
+        out = json.loads(r.stdout)
+        self.assertNotIn("commit", out)
+        self.assertNotIn("worktree", out)
+
+
 class TestQueueNoChanges(QEnv):
     def test_dependent_does_not_start_on_work_never_made(self):
         self.git_init()
