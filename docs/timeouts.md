@@ -43,3 +43,28 @@ compliance with the reminder is **Unknown**. A CLI killed before emitting any as
 
 Evidence: **engineering check** only, using fake CLIs with a one-second limit; no real-agent run or measured benefit.
 All commands/options and existing timeout classification rules are retained.
+
+## Stall detection (experimental, off by default)
+
+```sh
+ccx config set run.stall_minutes 5
+# Restore the default (off):
+ccx config set run.stall_minutes 0
+```
+
+`run.stall_minutes` (default **0 = off**; fractions allowed) stops an attempt whose CLI printed **no event** — no line
+on its stdout JSON stream — for that many minutes. ccx ends the whole process tree the same way as a timeout or
+`ccx stop` (`kill_tree`). The attempt and the run are recorded as kind **`timeout`** with `"stalled": true`, and the
+error reads `stalled: no event from <agent> for Ns`. Reusing `timeout` is deliberate: every existing timeout rule applies
+unchanged — no climb to a stronger rung, no fallback, not learned as the model's failure, `timeout_context` and partial
+usage recovery, and `ccx resume <run_id>` continues the same session.
+
+With 0 (the default) nothing new runs and receipts are exactly as before.
+
+Limits: the only signal watched is the CLI's stdout event stream (all adapters stream JSON events). Session files
+(e.g. Codex's rollout) are not watched; in the case that motivated this (#330) they had stopped too. A model that thinks
+for a long time without emitting an event looks the same as a stalled one, so pick a threshold well above the longest
+quiet stretch you expect (a high-effort reasoning step can take minutes).
+
+Evidence: **engineering check** only, using fake CLIs with a three-second threshold; no real-agent run, no measured
+rate of false stops. Do not turn it on by default before such a measurement.

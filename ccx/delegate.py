@@ -213,6 +213,15 @@ def _finish_review(bg: dict, record: dict, p: Paths, keep: bool, wait: float = 1
         t.join(0.5)
 
 
+def stall_seconds(cfg: dict) -> float:
+    """run.stall_minutes in seconds (experimental; 0, missing or unreadable = off, exactly as before)."""
+    try:
+        minutes = float((cfg.get("run") or {}).get("stall_minutes") or 0)
+    except (TypeError, ValueError):
+        return 0.0
+    return minutes * 60 if minutes > 0 else 0.0
+
+
 def depth_guard(cfg: dict) -> None:
     depth = int(os.environ.get("CCX_DEPTH", "0") or 0)
     if depth >= int(cfg["defaults"].get("max_depth", 1)):
@@ -486,6 +495,7 @@ def run(req: Request, p: Paths) -> dict:
     escalate = cfg["defaults"].get("auto_escalate", True) if req.escalate is None else req.escalate
     max_esc = int(cfg["defaults"].get("max_escalations", 1)) if escalate else 0
     timeout = int(cfg["defaults"].get("timeout_sec", 1800))
+    stall_sec = stall_seconds(cfg)
 
     prev = ledger.load_run(p, req.resume_run) if req.resume_run else None
     if prev:
@@ -846,7 +856,7 @@ def run(req: Request, p: Paths) -> dict:
                                                                            req.budget_usd, cwd)
                                  if req.allow_subagents else None,
                                  watch_every=float((cfg.get("subagents") or {}).get("watch_every_sec", 20)),
-                                 on_start=on_start, stop_file=stop_file)
+                                 on_start=on_start, stop_file=stop_file, stall_sec=stall_sec)
         except BaseException:
             # Ctrl+C or a crash in ccx itself (execute has killed the tree): count what was spent, keep it resumable
             hb.close()
@@ -906,6 +916,7 @@ def run(req: Request, p: Paths) -> dict:
             "agent": to, "tier": spec.get("tier"), "rung": spec["rung"], "model": spec["model"],
             "effort": spec["effort"], "ok": oc.ok, "kind": oc.kind, "seconds": dt, "usage": oc.usage,
             **({"timeout_context": timeout_detail} if timeout_detail is not None else {}),
+            **({"stalled": True} if oc.stalled else {}),
             # through a provider the CLI still prices with its own vendor's table: only ccx's price is right
             "cost_usd": None if extra else oc.cost_usd, "ae_usd": round(ae, 6) if ae is not None else None,
             "error": oc.error, "auth_problem": oc.auth_problem, "retry_after": oc.retry_after,
@@ -1132,6 +1143,8 @@ def run(req: Request, p: Paths) -> dict:
                   state="stopped" if oc.kind == "user_stopped" else "finished")
     if oc.kind == "timeout" and record["attempts"]:
         record["timeout_context"] = record["attempts"][-1]["timeout_context"]
+        if oc.stalled:
+            record["stalled"] = True
     if stop_file.exists():
         record["stop_requested"] = True
     check_passed = None
@@ -1563,6 +1576,8 @@ def compact(record: dict) -> dict:
         out["diffstat"] = record["diffstat"]          # `git diff --shortstat` since the run's undo snapshot
     if record.get("kind") == "timeout" and "timeout_context" in record:
         out["timeout_context"] = record["timeout_context"]
+    if record.get("kind") == "timeout" and record.get("stalled"):
+        out["stalled"] = True
     if "base_behind" in record:
         out["base_behind"] = record["base_behind"]
     if record.get("quota_fallback"):
@@ -1637,7 +1652,8 @@ def compact(record: dict) -> dict:
                                  "could not start a process here") + "; tell the person, and only after they fixed it "
                                  f"`ccx resume {record['run_id']} --env-fixed`")
         if record["kind"] in ("quota", "capacity", "timeout", "user_stopped", "interrupted"):
-            why = "ccx stop" if record["kind"] == "user_stopped" else record["kind"]
+            why = ("ccx stop" if record["kind"] == "user_stopped" else
+                   "stall detection (no event for run.stall_minutes)" if record.get("stalled") else record["kind"])
             out["hint"] = f"stopped by {why}; continue later with `ccx resume {record['run_id']}`"
             ra = last.get("retry_after")
             if ra:
