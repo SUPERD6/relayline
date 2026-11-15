@@ -93,6 +93,7 @@ def walk(lane: list, step: Callable, lim: dict, n: int = 0) -> list[dict]:
             sha = commit_block(rec)
             if sha:
                 res["commit"] = sha
+                res.pop("commit_state", None)       # the receipt's "left uncommitted" no longer holds
         ok = bool(rec and rec.get("ok") and (rec.get("result") or {}).get("status") == "done"
                   and (rec.get("kind") or "ok") not in BAD_KINDS and rec.get("session_id"))
         if not ok:

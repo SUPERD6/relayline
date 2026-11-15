@@ -50,7 +50,12 @@ repo (`tests/test_repo_hygiene.py`, `.github/workflows/hygiene.yml`).
 - **Autonomy level**: L0 only suggests, L1 (default) has the lead stop before a write run until you approve it, L2
   dispatches and may merge small checked branches. These bind a lead that follows ccx's output, not a steered one. `ccx autonomy set L0 --project NAME`; a project can pin itself lower in `.ccx/autonomy.toml`.
 - **`--mode read`**: read-only sandbox / tool list, for review and analysis.
-- **`--worktree`**: edits land on a branch `ccx/<run>` beside the repo, not in your working tree.
+- **`--worktree`**: edits land on a branch `ccx/<run>` beside the repo, not in your working tree. The
+  sub-agent is told not to commit even if the brief says to, and ccx does not widen Codex's sandbox to the git
+  directory (a worktree's lives under the main repository's `.git`; committing would need its shared objects and
+  `refs/heads/ccx/` writable). A single `ccx run --worktree` leaves the work uncommitted: the receipt's `commit_state`
+  lists the files for you to commit and flags a sub-agent that committed anyway. `ccx q` and batch lanes commit each
+  piece in the worktree themselves (#334).
 - **`ccx undo <run_id> --apply`**: puts back an in-place write run's files; new files are moved aside, not deleted.
   (Worktree runs have no snapshot: drop the branch instead.)
 - **Intake**: point `intake.github` only at a private repository of your own; ccx refuses a public one.

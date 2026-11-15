@@ -43,8 +43,8 @@ from .merge import REVIEW_LINE
 from .review import review_run as _review  # noqa: F401
 from .verdicts import (REASONS, SOFT_AFTER_H, _hard_verdict, _soft_verdict, soft_verdicts, verify,  # noqa: F401
                        verify_builtin)
-from .workspace import (_git, chain_snapshot, diffstat, make_worktree, mark_run_end, run_check,  # noqa: F401
-                        run_snapshot, undo, undo_snapshot, worktree_repo, write_end_tree)
+from .workspace import (_git, chain_snapshot, commit_state, diffstat, make_worktree, mark_run_end,  # noqa: F401
+                        run_check, run_snapshot, undo, undo_snapshot, worktree_repo, write_end_tree)
 
 AGENTS = DELEGATE_AGENTS
 
@@ -1220,6 +1220,12 @@ def run(req: Request, p: Paths) -> dict:
             ds = None
         if ds:
             record["diffstat"] = ds
+        try:                               # #334: a worktree run's work is left uncommitted for the lead to commit
+            cs = commit_state(cwd, snap)
+        except Exception:  # noqa: BLE001 — a missing git never fails the run
+            cs = None
+        if cs and (cs["uncommitted"] or cs["committed"]):
+            record["commit_state"] = cs
         mark_run_end(run_dir, cwd)           # the tree as this run left it: a resume inherits only if still so
         chk = record.get("check") or {}
         want_cov = bool(chk.get("cmd")) and chk.get("reason") != "namecheck"
@@ -1696,6 +1702,9 @@ def compact(record: dict) -> dict:
         out["edited_tests"] = record["edited_tests"]
     if worktree_repo(record["cwd"]) is not None:
         out["worktree"] = record["cwd"]
+        cs = record.get("commit_state")
+        if cs:      # not "commit": batch lanes put the sha of ccx's own per-piece commit there (lanes.walk)
+            out["commit_state"] = commit_note(cs.get("root") or record["cwd"], cs)
     if record.get("base_note"):                     # --worktree on a dirty project: its check ran on HEAD's code
         out["base"] = record["base_note"]
     if record.get("auth_problem"):
@@ -1726,6 +1735,22 @@ def compact(record: dict) -> dict:
     status = receipt_status(out)
     if status != out["status"]:
         out["reported_status"], out["status"] = out["status"], status
+    return out
+
+
+def commit_note(wt: str, cs: dict) -> dict:
+    """The receipt's `commit_state` for a --worktree run (#334), as the run left the worktree: sub-agents are told
+    not to commit and a single `ccx run` commits nothing, so the lead sees what is left and how to commit it.
+    (`ccx q` and batch lanes then commit each piece themselves: lanes.commit_block.)"""
+    files = cs.get("uncommitted") or []
+    out = {"state": "uncommitted" if files else "committed", "as_of": "run end", "files": files[:20]}
+    if len(files) > 20:
+        out["more"] = len(files) - 20
+    if files:
+        out["next"] = f"not committed: review, then `git -C \"{wt}\" add <paths>` and `git -C \"{wt}\" commit`"
+    if cs.get("committed"):
+        out["note"] = ("a sub-agent of this run (or of the run it continued) committed in the worktree although told "
+                       "not to: check `git log` there")
     return out
 
 
