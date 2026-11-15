@@ -1019,7 +1019,7 @@ def run(req: Request, p: Paths) -> dict:
             # "done" but ccx's own run of the check fails: that is a failure too, so climb while a rung is left.
             # Before, only blocked/failed escalated, and a cheap model that wrongly said done stopped there
             # (needed once tradeoff = save picks cheap models first, 2026-10-25)
-            if want_review and checks.start is None:  # baseline mode defers review until the check passes
+            if want_review and not checks.defer_review:
                 bg_review = _start_review(req, p, cfg, record, cwd, run_dir, oc.result)
             # did this attempt change anything: told before the check runs, so files the check writes don't count
             left = _left_unchanged(p, record) if req.mode == "write" else None
@@ -1027,8 +1027,28 @@ def run(req: Request, p: Paths) -> dict:
             chk = (_namecheck(req, p, cfg, record, cwd)         # mode fail + a hit: the command is not run
                    or checks(req.check, **({"tail_chars": CHECK_TAIL_CHARS} if focused else {})))
             early_check = (len(record["attempts"]), chk, left)
-            if (not chk["passed"] and not chk.get("broken") and not only_baseline(chk)
-                    and (not cheap_dispatch or dispatch.may_escalate(chk, _self_checked_now(p, record, cwd, chk)))):
+            insensitive_retry = (dispatch.sensitivity_retry(cfg, chk, cheap_dispatch, dispatch_phase)
+                                 and spec["rung"] != requested["rung"])
+            if (dispatch.unverified(cfg, chk, cheap_dispatch, dispatch_phase) and spec["rung"] != requested["rung"]
+                    and not _self_checked_now(p, record, cwd, chk)):
+                if bg_review is not None:
+                    _finish_review(bg_review, record, p, keep=False)
+                    bg_review = None
+                record["attempts"][-1]["check_sensitivity"] = "insensitive"
+                record["attempts"][-1]["kind"] = "check_unverified"  # check passed, but did not verify the change
+                _write_record(run_dir, record)
+                summary = dispatch.sensitivity_prompt(chk)
+                if plan[i + 1]["agent"] == to and session:
+                    prompt = ESCALATE.format(run_id=run_id, status="unverified_check",
+                                             summary=summary)
+                else:
+                    prompt, session = first_prompt + "\n" + summary, None
+                dispatch_phase = "escalation"
+                i += 1
+                continue
+            if (not chk["passed"] and not chk.get("broken") and (not only_baseline(chk) or insensitive_retry)
+                    and (not cheap_dispatch or dispatch.may_escalate(
+                        chk, _self_checked_now(p, record, cwd, chk), insensitive=insensitive_retry))):
                 if bg_review is not None:
                     _finish_review(bg_review, record, p, keep=False)
                     bg_review = None
@@ -1040,7 +1060,13 @@ def run(req: Request, p: Paths) -> dict:
                 retry_tail = chk.get("retry_tail", chk["tail"])
                 summary = f"you said done, but `{chk['cmd']}` failed (exit {chk['exit']}):\n{retry_tail[-400:]}"
                 nxt = plan[i + 1]
-                if nxt["agent"] == to and session and focused and agents.get(cli).can_resume:
+                if insensitive_retry and only_baseline(chk):
+                    summary = dispatch.sensitivity_prompt(chk)
+                    if nxt["agent"] == to and session:
+                        prompt = ESCALATE.format(run_id=run_id, status="check_failed", summary=summary)
+                    else:
+                        prompt, session = first_prompt + "\n" + summary, None
+                elif nxt["agent"] == to and session and focused and agents.get(cli).can_resume:
                     # [defaults] focused_retry: the same session, told what failed (~2000 characters of the check's
                     # output) and to fix only that; the ladder itself is unchanged (still the next rung)
                     same = (nxt["model"], nxt["effort"]) == (spec["model"], spec["effort"])
@@ -1121,7 +1147,7 @@ def run(req: Request, p: Paths) -> dict:
         record["check"], record["kind"], check_passed = nc_fail, "check_failed", False
     elif req.check and oc.ok and status in ("done", "partial"):
         reuse = early_check and early_check[0] == len(record["attempts"])    # already run on this very attempt
-        if not reuse and want_review and bg_review is None and checks.start is None:
+        if not reuse and want_review and bg_review is None and not checks.defer_review:
             # the review runs while ccx runs the check (it needs only the command, not its result); it counts
             # only if the check passes, and is stopped otherwise
             bg_review = _start_review(req, p, cfg, record, cwd, run_dir, oc.result)
@@ -1631,15 +1657,24 @@ def compact(record: dict) -> dict:
         out["needs_lead"] = f"review_failed: {first}"[:300]
     if "check_baseline" in record:
         out["check_baseline"] = record["check_baseline"]
+    if "check_sensitivity_mode" in record and "check_baseline_seconds" in record:
+        out["check_baseline_seconds"] = record["check_baseline_seconds"]
+    for key in ("check_sensitivity", "check_sensitivity_mode"):
+        if key in record:
+            out[key] = record[key]
     if record.get("check"):
         c = record["check"]
         out["check"] = {"cmd": c["cmd"], "passed": c["passed"], "exit": c["exit"],
                         **({"weak": c["weak"], "note": c["note"]} if c.get("weak") else {}),
                         **({"status": "check_broken"} if c.get("broken") else {})}
         for key in ("stdout_path", "stderr_path", "stdout_truncated", "stderr_truncated",
-                    "baseline_comparison", "new_failures"):
+                    "baseline_comparison", "new_failures", "sensitivity", "fixed_cases", "sensitivity_seconds"):
             if key in c:
                 out["check"][key] = c[key]
+        if c.get("sensitivity") == "insensitive":
+            hint = c["sensitivity_hint"]
+            out["needs_lead"] = ((out["needs_lead"] + "; ") if out.get("needs_lead") else "") + hint
+            out["hint"] = ((out["hint"] + "; ") if out.get("hint") else "") + hint
         if c.get("covers"):                         # P1-10: what it ran, and whether the run changed its yardstick
             from .coverage import text
             out["check"]["covers"] = text(c["covers"])

@@ -49,6 +49,7 @@ measurement shows right answers do not drop, and the decision gets a row in [DEC
 
 | Key | Default | What turning it on does | Why it is off | `config set` |
 |---|---|---|---|---|
+| `check.sensitivity` | `"off"` | `"warn"` compares checks with the clean dispatch tree; `"escalate"` also advances an insensitive cheap first result to the requested rung ([details](check-baseline.md)) | engineering checks only; extra baseline time and real-model effects unmeasured | yes |
 | `defaults.focused_retry` | `false` | after a failed `--check`, the retry continues the same session with the failing command and its output | "fix only what fails" narrows what the retry re-checks, so it cannot be argued that right answers never drop; waits for a measured round (the motive: in r6a the old-style retries took a median 389 s) | yes |
 | `defaults.namecheck` | `"warn"` | `"fail"` makes an undefined name in changed code fail the run | `warn` had 0 false alarms offline; `fail` waits for its before / after (r6a ran the `ccx2nc` arm; its result is not published yet) | no (`ccx run --namecheck` per run) |
 | `lanes.default` | `0` | `ccx batch` / `ccx q run` continue a few warm sessions instead of one per piece | about 40 % cheaper than a fresh session per piece, but slower and still dearer than one run ([warm lanes](research/2026-10-25-warm-lanes.md)); to be decided by a confirmation run | yes |

@@ -191,6 +191,10 @@ def line(res: dict) -> dict:
         out["base_behind"] = res["base_behind"]
     if "git_pending" in res:
         out["git_pending"] = res["git_pending"]
+    if "check_sensitivity_mode" in res:
+        for key in ("check_sensitivity_mode", "check_sensitivity", "check_baseline_seconds"):
+            if key in res:
+                out[key] = res[key]
     out["check"] = res["check"]       # as it was (cmd, passed, exit, covers): leads, scripts and the receipt read it
     if res.get("review"):
         out["review"] = {k: res["review"][k] for k in ("verdict", "by") if res["review"].get(k)}

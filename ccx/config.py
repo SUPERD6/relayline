@@ -333,6 +333,7 @@ SETTINGS = {   # key -> (type, help). Only these can be set with `ccx config set
     "security.credential_dirs": (path_list, "additional credential directories, separated by ';'"),
     "dispatch.cheap_first": (_bool, "experimental: cheap first attempt with independent --check; default false"),
     "check.baseline": (str, "off (default) | on_fail: experimental clean-dispatch-tree failure comparison"),
+    "check.sensitivity": (str, "off (default) | warn | escalate: experimental dispatch-tree check sensitivity"),
     "review.mode": (str, "read (default) | tests (experimental task-derived tests); legacy auto/on/off remain valid"),
     "review.tests_model": (str, "test reviewer model or vendor:model[:effort]; empty keeps the cross-vendor candidate"),
     "review.tests_effort": (str, "task-derived test reviewer effort; empty keeps the selected candidate's effort"),
@@ -465,6 +466,8 @@ def set_setting(p: Paths, key: str, raw: str) -> dict:
     typ = SETTINGS[key][0]
     if key == "check.baseline" and raw not in ("off", "on_fail"):
         raise ValueError("check.baseline must be off or on_fail")
+    if key == "check.sensitivity" and raw not in ("off", "warn", "escalate"):
+        raise ValueError("check.sensitivity must be off, warn or escalate")
     if key == "billing.mode" and raw not in ("api", "subscription"):
         raise ValueError("billing.mode must be api or subscription")
     if key == "review.mode" and raw not in ("read", "tests", "auto", "on", "off"):

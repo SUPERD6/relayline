@@ -43,6 +43,7 @@ namecheck = "warn"        # 写入运行后，静态查改动过的函数里有�
 
 [check]
 baseline = "off"         # experimental: on_fail reruns a failed check on the clean dispatch-time Git tree
+sensitivity = "off"      # experimental: off | warn | escalate; compare passing checks too (one baseline per command)
 
 [git]
 auto_stage_resolved = false # experimental: parent stages marker-free resolved conflicts; never commits

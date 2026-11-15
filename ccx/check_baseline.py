@@ -221,14 +221,49 @@ def only_baseline(check: dict) -> bool:
     return check.get("baseline_comparison") == "baseline_only"
 
 
+def sensitivity(check: dict, baseline: dict) -> dict:
+    """Compare complete pytest failure sets, falling back to an overall fail-to-pass transition.
+
+    A disappeared failure is evidence only within this same command's parsed case lists;
+    it does not establish that the command covers every requirement or uses independent tests.
+    """
+    out = {"sensitivity": "unknown"}
+    before_check = baseline.get("check") or {}
+    if ("passed" not in check or check.get("broken") or before_check.get("broken") or check.get("exit") == -1
+            or before_check.get("exit") == -1 or baseline.get("status") not in ("Pass", "Fail")):
+        return out
+    before, after = before_check.get("failed_cases"), check.get("failed_cases")
+    if before is not None and after is not None:
+        out["fixed_cases"] = sorted(set(before) - set(after))
+        if out["fixed_cases"]:
+            out["sensitivity"] = "sensitive"
+        elif set(before) == set(after):
+            out["sensitivity"] = "insensitive"
+    if baseline["status"] == "Pass":
+        out["sensitivity"] = "insensitive" if check.get("passed") else "unknown"
+    elif check.get("passed") and before_check.get("exit", 1) == 1:
+        # Real run_check records always include exit. Preserve older summary-only callers.
+        out["sensitivity"] = "sensitive"
+    if out["sensitivity"] == "insensitive":
+        why = ("the check already passed before the change" if baseline["status"] == "Pass" else
+               "the same failing cases occur before and after the change")
+        out["sensitivity_hint"] = why + "; it did not verify the new requirement; add a test for the new requirement"
+    return out
+
+
 class Checks:
     """One baseline per distinct command; each actual attempt retains its own check and log paths."""
     def __init__(self, cfg: dict, cwd: Path, run_dir: Path, record: dict, runner, enabled: bool, *,
                  start: dict | None = None, mark_attempt: bool = True):
         self.cwd, self.run_dir, self.record, self.runner = cwd, run_dir, record, runner
         self.timeout = int(cfg["defaults"].get("check_timeout_sec", 900))
+        self.sensitivity = (cfg.get("check") or {}).get("sensitivity", "off")
+        self.on_fail = (cfg.get("check") or {}).get("baseline") == "on_fail"
+        self.defer_review = self.on_fail or self.sensitivity == "escalate"
         self.start = ((start if start is not None else capture(cwd, run_dir))
-                      if enabled and (cfg.get("check") or {}).get("baseline") == "on_fail" else None)
+                      if enabled and (self.on_fail or self.sensitivity != "off") else None)
+        if self.sensitivity != "off":
+            record.update(check_sensitivity="unknown", check_sensitivity_mode=self.sensitivity)
         self.mark_attempt = mark_attempt
         self.baselines = {b["cmd"]: b for b in record.get("check_baselines", [])}
         if self.start is not None:
@@ -242,8 +277,13 @@ class Checks:
         # With baseline mode off, delegate retains its original failure-only timing field.
         if self.start is not None and self.mark_attempt and self.record.get("attempts"):
             self.record["attempts"][-1]["check_seconds"] = check.get("seconds")
-        if self.start is None or check["passed"] or check.get("broken"):
+        if self.sensitivity != "off":
+            check.update(sensitivity="unknown", sensitivity_seconds=0)
+            self.record["check_sensitivity"] = "unknown"
+        if (self.start is None or check.get("broken")
+                or (check["passed"] and self.sensitivity == "off")):
             return check
+        extra_seconds = 0
         if cmd not in self.baselines:
             name = "check.baseline" + (f".{len(self.baselines) + 1}" if self.baselines else "")
             baseline = {"cmd": cmd, **run_baseline(self.start, cmd, self.run_dir, self.timeout, self.runner, name)}
@@ -251,7 +291,21 @@ class Checks:
             self.record.setdefault("check_baseline", baseline)
             self.record["check_baselines"] = list(self.baselines.values())
             self.record["check_baseline_seconds"] = round(sum(b["seconds"] for b in self.baselines.values()), 3)
+            extra_seconds = baseline["seconds"]
         baseline = self.baselines[cmd]
+        if self.sensitivity != "off":
+            evidence = baseline
+            # The older failure comparison accepts a passing baseline without Python import evidence.
+            # Sensitivity must not call a pass from the modified source tree a clean-baseline pass.
+            if baseline.get("status") == "Pass" and (not baseline.get("import_origins") or any(
+                    Path(p).resolve().is_relative_to(Path(self.start["repo"]).resolve())
+                    for p in baseline["import_origins"])):
+                evidence = {"status": "Unknown"}
+            check.update(sensitivity(check, evidence), sensitivity_seconds=extra_seconds)
+            self.record["check_sensitivity"] = check["sensitivity"]
+        # Sensitivity alone reports evidence; only the existing baseline mode changes failed-check policy.
+        if check["passed"] or not self.on_fail:
+            return check
         check["baseline_comparison"] = "Unknown"
         if baseline["status"] == "Pass":
             check["baseline_comparison"] = "baseline_passed"
@@ -270,4 +324,5 @@ class Checks:
 
 def log_fields(check: dict) -> dict:
     return {k: check[k] for k in ("stdout_path", "stderr_path", "stdout_truncated", "stderr_truncated",
-                                "baseline_comparison", "new_failures") if k in check}
+                                "baseline_comparison", "new_failures", "sensitivity", "fixed_cases",
+                                "sensitivity_seconds", "sensitivity_hint") if k in check}

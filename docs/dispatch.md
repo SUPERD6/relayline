@@ -25,8 +25,8 @@ also cannot establish independence: a passing cheap attempt climbs once in those
 cases. The ordinary dispatch path retains its existing treatment of unknown bases.
 
 The opt-in path uses [`check.baseline = "on_fail"`](check-baseline.md) for that run,
-even when the hub keeps baseline checking off. A baseline-only failure never
-escalates. A passing baseline permits the check's failure output; otherwise only
+even when the hub keeps baseline checking off. A baseline-only failure does not
+escalate under the default policy. A passing baseline permits the check's failure output; otherwise only
 identified new failing cases are sent to the stronger attempt when comparison is known.
 An unavailable or ambiguous baseline stays Unknown and permits the ordinary retry
 with the current failure output; it is not relabeled as a confirmed new failure. Existing
@@ -36,6 +36,18 @@ Review selection and repair limits remain unchanged.
 CLI execution errors and timeouts may advance to the next authorized rung, even
 when no resumable session was produced. Authentication failures and stop/budget
 conditions retain their existing behavior.
+
+Experimental [`check.sensitivity`](check-baseline.md#check-sensitivity-experimental-default-off) defaults to
+`off`. `warn` also runs a baseline for a passing check and reports `sensitive`, `insensitive` or `unknown`.
+`escalate` treats an insensitive first result (including identical baseline failures) as unverified and advances
+once to the originally requested rung, using the existing limits and independence guard. `--no-escalate` still
+starts at the ordinary rung and hands an insensitive result to the lead through `needs_lead`. No extra baseline
+runs without an acceptance command; baseline wall time is included in the receipt.
+Worker retries ask for verification against the task text. Identical-failure retries explicitly identify those
+failures as pre-existing, list only case IDs, and bypass focused failure repair; they do not request fixing
+unrelated baseline failures or authoring the lead's requirement tests. A passing but unverified cheap attempt
+uses kind `check_unverified`. Eligible non-final attempts already count as unsuccessful in provisional learning;
+changing this label leaves that rule unchanged.
 
 `run.json`, `ccx show` and the ledger gain a `dispatch` object. It records the actual
 first rung and originally selected rung, `attempted`, `escalated`, `escalation_rate`,

@@ -266,7 +266,9 @@ def finish(rec: dict, reqs: list, tasks: list[dict], p, cfg: dict) -> dict:
     cwd = Path(rec["cwd"])
     first = rec.get("review_of") or rec["run_id"]       # run() hands back a review fix round's record
     start = rec.get("check_baseline_start")
-    if first != rec["run_id"] and (cfg.get("check") or {}).get("baseline") == "on_fail":
+    check_cfg = cfg.get("check") or {}
+    if first != rec["run_id"] and (check_cfg.get("baseline") == "on_fail"
+                                   or check_cfg.get("sensitivity", "off") != "off"):
         try:
             start = ledger.load_run(p, first).get("check_baseline_start") or start
         except (OSError, ValueError):
