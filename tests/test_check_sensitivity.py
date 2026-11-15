@@ -235,7 +235,8 @@ class TestSensitivityCLI(AdapterEnv):
         assert "did not verify the new requirement" in self.calls()[-1]["prompt"]
         assert "add a test for the new requirement" not in self.calls()[-1]["prompt"]
         assert "verify the work against the task text" in self.calls()[-1]["prompt"]
-        assert rec["attempts"][0]["kind"] == "check_failed"
+        assert rec["attempts"][0]["kind"] == "check_unverified"
+        assert rec["checks"][0]["passed"] is True
 
     def test_escalate_same_failures_to_original_rung(self):
         out = self.checked("escalate", "same_failures", cheap=True)

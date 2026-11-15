@@ -1035,7 +1035,7 @@ def run(req: Request, p: Paths) -> dict:
                     _finish_review(bg_review, record, p, keep=False)
                     bg_review = None
                 record["attempts"][-1]["check_sensitivity"] = "insensitive"
-                record["attempts"][-1]["kind"] = "check_failed"  # unverified first attempt counts as failed learning
+                record["attempts"][-1]["kind"] = "check_unverified"  # check passed, but did not verify the change
                 _write_record(run_dir, record)
                 summary = dispatch.sensitivity_prompt(chk)
                 if plan[i + 1]["agent"] == to and session:

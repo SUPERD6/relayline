@@ -98,8 +98,9 @@ create an extra escalation. Self-written failing checks retain the existing inde
 `baseline = "on_fail"`, existing failed-check policy remains intact except that an insensitive cheap first
 attempt may use the authorized sensitivity escalation. Restore with `ccx config set check.sensitivity off`.
 `warn` alone (with `baseline = "off"`) retains parallel review/check startup; `on_fail` and `escalate` defer review
-until the check finishes. Under `escalate`, an unverified cheap attempt is recorded as `check_failed`; when
-provisional learning runs, earlier attempts count as failed rungs, as with `SELF_CHECKED`. This records missing
+until the check finishes. Under `escalate`, a passing but unverified cheap attempt is recorded as
+`check_unverified`; `check_failed` remains reserved for failed checks. Among attempts eligible for provisional
+learning, each non-final attempt already counts as unsuccessful; changing this label does not change that rule. It records missing
 verification, not proof that the implementation is wrong.
 
 The run and compact receipt add `check.sensitivity`:

@@ -45,8 +45,9 @@ starts at the ordinary rung and hands an insensitive result to the lead through 
 runs without an acceptance command; baseline wall time is included in the receipt.
 Worker retries ask for verification against the task text. Identical-failure retries explicitly identify those
 failures as pre-existing, list only case IDs, and bypass focused failure repair; they do not request fixing
-unrelated baseline failures or authoring the lead's requirement tests. The unverified cheap attempt is recorded
-as failed for provisional learning when learning runs, as with `SELF_CHECKED`.
+unrelated baseline failures or authoring the lead's requirement tests. A passing but unverified cheap attempt
+uses kind `check_unverified`. Eligible non-final attempts already count as unsuccessful in provisional learning;
+changing this label leaves that rule unchanged.
 
 `run.json`, `ccx show` and the ledger gain a `dispatch` object. It records the actual
 first rung and originally selected rung, `attempted`, `escalated`, `escalation_rate`,

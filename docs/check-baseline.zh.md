@@ -83,8 +83,9 @@ blocked，等待修基线，不记为任务完成。清理失败会记录 `clean
 子智能体自写且失败的检查仍受已有独立性约束。`baseline = "on_fail"` 的原失败策略保留，
 只有不敏感的便宜首轮可以使用已授权的敏感性升档。恢复：`ccx config set check.sensitivity off`。
 单独开启 `warn`（`baseline = "off"`）保留审查与检查并行启动；`on_fail` 和 `escalate` 等检查结束后再审查。
-`escalate` 下，未验证的便宜首轮记为 `check_failed`；运行临时学习记录时，较早的尝试按失败档位计入，
-与 `SELF_CHECKED` 相同。这表示缺少验证，不代表已证明实现错误。
+`escalate` 下，检查通过但未验证的便宜首轮记为 `check_unverified`；`check_failed` 仍表示检查失败。
+参与临时学习记录的尝试中，非最后一次尝试原本就按未成功计入；此次标签修改不改变这条学习规则。
+这表示缺少验证，不代表已证明实现错误。
 
 运行记录和紧凑收据增加 `check.sensitivity`：
 

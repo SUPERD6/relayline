@@ -31,7 +31,8 @@ CLI 执行错误与超时可进入下一授权档，即使没有产生可续跑�
 没有验收命令时不额外运行基线，收据记录基线耗时。
 重试提示要求对照任务原文验证。相同失败的重试会明确说明失败在修改前已存在，只列用例标识，
 并绕过 focused 失败修复；不要求修复无关的基线失败，也不要求代主导编写需求验收测试。
-运行临时学习记录时，未验证的便宜首轮与 `SELF_CHECKED` 一样按失败计入。
+检查通过但未验证的便宜首轮使用 kind `check_unverified`。
+参与临时学习记录的非最后一次尝试原本就按未成功计入；此次标签修改不改变这条规则。
 
 `run.json`、`ccx show` 和 ledger 新增 `dispatch`：记录实际首档、原选定档、`attempted`、
 `escalated`、`escalation_rate`、`first_usd`、`escalation_usd`、`recovery_usd`（额度或模型恢复）。
