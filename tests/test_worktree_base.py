@@ -38,6 +38,7 @@ class TestWorktreeBase(UpstreamRepo):
         self.assertEqual(self.head_of(wt), self.git("rev-parse", "origin/main"))
         self.assertTrue((wt / "upstream.txt").is_file())
         self.assertEqual((rec["worktree_base"], rec["base_ref"], rec["base_behind"]), ("upstream", "origin/main", 0))
+        self.assertEqual(rec["base_sha"], self.git("rev-parse", "origin/main"))
         self.assertNotIn("behind upstream", out["recap"])
         self.assertNotIn("ccx: warning:", r.stderr)
         branch = self.git("rev-parse", "--abbrev-ref", "HEAD", cwd=wt)
@@ -63,7 +64,7 @@ class TestWorktreeBase(UpstreamRepo):
         _, rec, r = self.completed("--base", "upstream")
         self.assertEqual(self.head_of(rec["cwd"]), base)
         self.assertEqual((rec["worktree_base"], rec["worktree_base_fallback"]), ("head", "no upstream"))
-        self.assertIn("ccx: note: --base upstream, but the current branch has no upstream", r.stderr)
+        self.assertIn("ccx: note: base = upstream, but the current branch has no usable upstream", r.stderr)
         self.assertNotIn("ccx: warning:", r.stderr)
         self.assertNotIn("base_behind", rec)
 
@@ -102,7 +103,7 @@ class TestWorktreeBase(UpstreamRepo):
             workspace.make_worktree(self.work, "direct-head", base="head")
         adds = [i for i, (kind, _) in enumerate(order) if kind == "add"]
         self.assertEqual(order[adds[0]][1][3:6], ["--no-track", "-b", "ccx/direct-upstream"])
-        self.assertEqual(order[adds[0]][1][-1], "refs/remotes/origin/main")
+        self.assertEqual(order[adds[0]][1][-1], self.git("rev-parse", "origin/main"))   # the commit, not the ref
         warned = next(i for i, (kind, s) in enumerate(order) if kind == "stderr" and "commit(s) behind" in s)
         self.assertLess(adds[0], warned)              # upstream run: no behind warning; the head run's comes ...
         self.assertLess(warned, adds[1])              # ... before its own worktree (and so before any sub-agent)
@@ -124,7 +125,7 @@ class TestWorktreeBase(UpstreamRepo):
                 bg = json.loads(r.stdout)
                 try:
                     self.assertEqual(bg["state"], "started")
-                    self.assertEqual({k: bg["base"][k] for k in want}, want)
+                    self.assertEqual({k: bg["base_preview"][k] for k in want}, want)
                     if flags:
                         self.assertNotIn("ccx: warning:", r.stderr)
                     else:
@@ -133,6 +134,21 @@ class TestWorktreeBase(UpstreamRepo):
                     self.assertTrue(wait_for(lambda: self.record(bg["run_id"]).get("state") == "finished", 60))
                 finally:
                     self.reap(bg["run_id"])
+
+    def test_dirty_project_note_names_the_upstream_base(self):
+        (self.work / "a.txt").write_text("uncommitted\n", encoding="utf-8")
+        out, rec, _ = self.completed("--base", "upstream")
+        self.assertEqual(rec["base_note"], "base: origin/main, uncommitted changes not included")
+        self.assertEqual(out["base"], rec["base_note"])
+        _, rec, _ = self.completed()
+        self.assertEqual(rec["base_note"], "base: HEAD, uncommitted changes not included: commit first")
+
+    def test_base_without_worktree_is_noted_and_ignored(self):
+        r = self.ccx("run", "--from", "user", "--to", "codex", "--tier", "T1", "--mode", "read",
+                     "--cwd", str(self.work), "--review", "off", "--no-escalate", "--no-fallback", "--no-ab",
+                     "--base", "upstream", "look at a.txt")
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertIn("ccx: note: --base only applies to a write run with --worktree; ignored", r.stderr)
 
     def test_configuration_default_and_validation(self):
         self.assertEqual(worktree_base({}), "head")

@@ -492,9 +492,10 @@ UI 数据原有 `quota` 数组补充 `freshness`、`projected_at_reset`，用量
   `ccx run --worktree --base upstream`（或 `ccx config set worktree.base upstream`）改为从当前分支的 upstream 切出
   （`git worktree add --no-track`，新分支不跟踪它）；默认 `--base head` / `[worktree] base = "head"` 不变。
   没有 upstream 或 HEAD 游离时回退到 HEAD 并提示一行，不报错；fetch 失败时用上次 fetch 到的 upstream，不记录距离；
-  本地有 upstream 里没有的提交时警告（`local_ahead`）。只有要了 `--base upstream` 的运行记录才多出 `worktree_base`
-  （及 `base_ref`、`worktree_base_fallback`）。所有提示都在子智能体启动前给出；`--bg` 时父进程在分离前就提示
-  （stderr，回执里的 `base`），只看本地引用，因为 fetch 在分离出的子进程里做。ccx 只 fetch 这一个 upstream，从不 pull。
+  本地有 upstream 里没有的提交时警告（`local_ahead`）。worktree 从 upstream 当时指向的提交切出，记为 `base_sha`
+  （旁边是 `base_ref`）。只有要了 upstream（命令行或配置）的运行记录才多出 `worktree_base`（回退时还有
+  `worktree_base_fallback`）。所有提示都在子智能体启动前给出；`--bg` 时父进程在分离前就提示
+  （stderr，回执里的 `base_preview`），只看本地引用，因为 fetch 在分离出的子进程里做。ccx 只 fetch 这一个 upstream，从不 pull。
   运行结果、队列跟踪与接收、lane 提交、自动合并、验收可信度分组和 UI 项目归类同时识别两种布局，改设置后也能识别已有运行。
   inside 仍为实验性：已用假智能体 CLI 和 Git 验证，尚未用真实智能体 CLI 或 Codex 项目信任继承验证。
 - 子智能体不能再派子智能体（`CCX_DEPTH`）。

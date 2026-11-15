@@ -122,7 +122,7 @@ def _bg_base_preview(a) -> dict:
     here, before detaching, what it will start from and whether the local HEAD trails its upstream (local refs only;
     the child fetches when [worktree] fetch is on and records the real distance)."""
     if not a.worktree or apply_mode(_run_spec(a, _brief(a)))["mode"] != "write":
-        return {}
+        return {}            # (--base alone was noted in _cmd_run)
     from ..workspace import BASE_TIP, base_preview
     prev = base_preview(a.cwd or os.getcwd(), getattr(a, "base", None))
     if prev.get("warning"):
@@ -130,7 +130,7 @@ def _bg_base_preview(a) -> dict:
         if prev.get("worktree_base") == "head":
             print(BASE_TIP, file=sys.stderr, flush=True)
     elif prev.get("note"):
-        print(f"ccx: note: --base upstream, but {prev['note']}", file=sys.stderr, flush=True)
+        print(f"ccx: note: base = upstream, but {prev['note']}", file=sys.stderr, flush=True)
     return prev
 
 
@@ -147,7 +147,7 @@ def _bg_maybe_wait(argv: list[str], p, wait: float | None, *, brief_warnings: li
     if brief_warnings:
         bg["brief_warnings"] = brief_warnings
     if base:
-        bg["base"] = base                        # what the worktree starts from, said before the sub-agent starts
+        bg["base_preview"] = base                # what the worktree starts from, said before the sub-agent starts
     if wait is None:
         _out(bg)
         return 0
@@ -397,6 +397,8 @@ def _cmd_run(a) -> int:
     text = _brief(a)
     # Cache stdin too; check the caller's task before role/project/context wrapping and before detaching.
     a.brief = [text]
+    if getattr(a, "base", None) and not os.environ.get("CCX_RUN_ID") and not (a.worktree and apply_mode(_run_spec(a, _brief(a)))["mode"] == "write"):
+        print("ccx: note: --base only applies to a write run with --worktree; ignored", file=sys.stderr, flush=True)
     brief_warnings = briefcheck.check(text, apply_mode(_run_spec(a, text))["mode"],
                                      Path(a.cwd or os.getcwd()), a.check)
     # The foreground dispatcher already printed these; keep them in the detached child's record only.

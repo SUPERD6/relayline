@@ -139,16 +139,16 @@ def base_preview(cwd: str | Path, base: str | None = None) -> dict:
     `ccx run --bg --worktree`, which tells the person before detaching (the detached child fetches and warns again,
     in its log). {} when there is nothing to say."""
     from .config import worktree_base
+    cfg = load_config()
+    base = base or worktree_base(cfg)    # a bad [worktree] base fails here, before detaching, not in the child's log
     try:
         rc, top = _git(canonical(cwd), "rev-parse", "--show-toplevel")
         if rc != 0:
             return {}
         root = canonical(top)
-        cfg = load_config()
-        base = base or worktree_base(cfg)
         state = _upstream_state(root, {**cfg, "worktree": {**(cfg.get("worktree") or {}), "fetch": False}})
         if state is None:
-            return ({"worktree_base": "head", "note": "no upstream: the worktree will start from the local HEAD"}
+            return ({"worktree_base": "head", "note": "no usable upstream: the worktree will start from the local HEAD"}
                     if base == "upstream" else {})
         if base == "upstream":
             out = {"worktree_base": "upstream", "base_ref": state["upstream"]}
@@ -175,21 +175,28 @@ def _resolve_base(root: Path, cfg: dict, base: str) -> tuple[str | None, dict]:
     state = _upstream_state(root, cfg)
     if base == "upstream":
         if state is None:
-            print("ccx: note: --base upstream, but the current branch has no upstream (or HEAD is detached); "
-                  "the worktree starts from the local HEAD", file=sys.stderr)
+            print("ccx: note: base = upstream, but the current branch has no usable upstream (none set, its "
+                  "remote-tracking ref is gone, or HEAD is detached); the worktree starts from the local HEAD",
+                  file=sys.stderr)
             return None, {"worktree_base": "head", "worktree_base_fallback": "no upstream"}
-        info = {"worktree_base": "upstream", "base_ref": state["upstream"]}
+        # the commit, not the ref name: a fetch elsewhere between here and `git worktree add` cannot move the base
+        rc, sha = _git(root, "rev-parse", "--verify", "--quiet", state["upstream_ref"] + "^{commit}")
+        if rc != 0 or not sha:
+            print(f"ccx: note: base = upstream, but {state['upstream']} does not resolve to a commit; the worktree "
+                  "starts from the local HEAD", file=sys.stderr)
+            return None, {"worktree_base": "head", "worktree_base_fallback": "no upstream"}
+        info = {"worktree_base": "upstream", "base_ref": state["upstream"], "base_sha": sha}
         if state["fetched"]:
             info["base_behind"] = 0
         else:
             print(f"ccx: warning: {state['fetch_error']}; continuing from the last-fetched {state['upstream']}",
                   file=sys.stderr)
-        ahead = _count(root, f"{state['upstream_ref']}..HEAD")
+        ahead = _count(root, f"{sha}..HEAD")
         if ahead:
             info["local_ahead"] = ahead
             print(f"ccx: warning: {state['branch']} has {ahead} local commit(s) not in {state['upstream']}; the "
                   f"worktree starts from {state['upstream']} without them", file=sys.stderr)
-        return state["upstream_ref"], info
+        return sha, info
     if state is None:
         return None, {}
     if not state["fetched"]:
@@ -239,7 +246,7 @@ def make_worktree(cwd: Path, run_id: str, tries: int = 3, *, base_info: dict | N
     wt.parent.mkdir(parents=True, exist_ok=True)
     branch = f"ccx/{run_id}"
     with _worktree_lock(root):
-        # --no-track: a branch made from a remote-tracking ref would otherwise track it (branch.autoSetupMerge)
+        # start is a commit, which never sets up tracking; --no-track stays as a guard (branch.autoSetupMerge)
         args = ["--no-track", "-b", branch, str(wt), start] if start else ["-b", branch, str(wt)]
         for n in range(tries):
             r = subprocess.run(["git", "worktree", "add", *args], cwd=root,

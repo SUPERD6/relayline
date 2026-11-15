@@ -721,9 +721,10 @@ check; no improvement in task success or savings has been measured here.
   current branch's upstream instead (`git worktree add --no-track`, so the new branch does not track it); default
   `--base head` / `[worktree] base = "head"` is unchanged. Without an upstream or on a detached HEAD it falls back
   to HEAD with a note, never an error; after a failed fetch it uses the last-fetched upstream and records no
-  distance; local commits not in the upstream get a warning (`local_ahead`). The record gains `worktree_base`
-  (`base_ref`, `worktree_base_fallback`) only when `--base upstream` was asked for. Every warning comes before the
-  sub-agent starts; with `--bg`, the parent says it before detaching (stderr, and `base` in the receipt), from
+  distance; local commits not in the upstream get a warning (`local_ahead`). The worktree starts from the
+  upstream's commit, recorded as `base_sha` beside `base_ref`. The record gains `worktree_base` (and
+  `worktree_base_fallback` on a fallback) only when upstream was asked for (flag or config). Every warning comes
+  before the sub-agent starts; with `--bg`, the parent says it before detaching (stderr, and `base_preview` in the receipt), from
   local refs only, since the fetch happens in the detached child. ccx never fetches more than that one upstream
   and never pulls.
   Both layouts are recognized in run results, queues and acceptance, lane commits, automatic merging, check-trust
