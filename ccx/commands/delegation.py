@@ -80,7 +80,8 @@ EFFORT_ALONE_NOTE = ("ccx: --effort is used only together with --model (or --pro
                      "model and its effort. To set the effort, name the model too (--model <m> --effort <e>), or pick "
                      "a tier (--tier T0..T4)")
 NO_CHECK_NUDGE = ("ccx: tip: this run may edit files and has no --check; add --check \"<test command>\" so ccx re-runs "
-                  "it and the result is checked, not only reported")
+                  "it and the result is checked, not only reported (best: a test of the new requirement that fails "
+                  "before the change)")
 
 
 def _background(argv: list[str], p, procs: list | None = None) -> dict:
@@ -1504,7 +1505,9 @@ def register(sub) -> None:
     adv.add_argument("--seat", metavar="NAME", help="a named long-lived role (e.g. reviewer): its sub-session is "
                    "kept for a week and reused by the next --seat NAME task here; --new starts it over")
     r.add_argument("--check", metavar="CMD", help="acceptance command (e.g. 'python -m pytest -q tests/test_x.py'): "
-                   "the sub-agent runs it before finishing, then ccx runs it again; a failure counts as a failure")
+                   "the sub-agent runs it before finishing, then ccx runs it again; a failure counts as a failure. It "
+                   "should fail before the change: test the new requirement, since the existing suite already passes "
+                   "and cannot see it")
     adv.add_argument("--allow-subagents", action="store_true", help="(the default) the sub-agent may use its own "
                    "sub-agents: one level, counted, stopped over the budget")
     adv.add_argument("--no-subagents", action="store_true", help="the sub-agent may not start its own sub-agents "
