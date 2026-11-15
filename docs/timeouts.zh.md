@@ -39,3 +39,25 @@ CLI 如果在输出 assistant 文本前被切断，就没有可恢复的消息�
 
 证据等级：仅 **engineering check**，使用一秒时限和假 CLI；未真跑智能体，未测出收益。
 保留所有命令、选项和原超时判定规则。
+
+## 卡住检测（实验性，默认关）
+
+```sh
+ccx config set run.stall_minutes 5
+# 恢复默认（关）：
+ccx config set run.stall_minutes 0
+```
+
+`run.stall_minutes`（默认 **0 = 关**，可写小数）：子 CLI 这么多分钟**没有任何事件**（stdout JSON 事件流里没有新的一行），
+就判定卡住，用与超时、`ccx stop` 相同的方式（`kill_tree`）结束整棵进程树。该次尝试和运行记为 kind **`timeout`**，
+并带 `"stalled": true`，错误信息为 `stalled: no event from <agent> for Ns`。特意复用 `timeout`：现有超时规则全部照旧——
+通常不升档（`dispatch.cheap_first` 下超时可能换下一档，卡住也一样）、不 fallback、不当作模型失败记入学习，照常留 `timeout_context` 并回收已花用量，`ccx resume <run_id>` 续接同一会话。
+
+设为 0（默认）时不启动任何新逻辑，收据与以前完全一样。
+
+限制：只看子 CLI 的 stdout 事件流（各适配器都输出 JSON 事件流），不看会话文件（如 Codex 的 rollout）；
+促成本功能的那次（#330）会话文件也停了。模型长时间思考、一直不出事件，看起来和卡住一样，
+所以阈值要明显大于预期的最长静默（高 effort 的一步推理可能要几分钟）。一条很长的工具命令（构建、跑整套测试）
+在结束前也不出事件，阈值还要大于任务可能跑的最长命令。`ccx ui` 对卡住的运行仍显示通用的超时文案。
+
+证据等级：仅 **engineering check**，使用三秒阈值和假 CLI；未真跑智能体，未测误停率。测出之前不要默认打开。

@@ -155,6 +155,7 @@ class Outcome:
     kind: str = "ok"            # ok | quota | auth | error | timeout
     retry_after: str | None = None
     permission_denials: int | None = None   # tool calls the CLI refused (Claude's result event); None: not reported
+    stalled: bool = False       # kind "timeout" because no stdout line came for stall_sec (run.stall_minutes)
 
 
 # Usage is normalized to the same four buckets for every agent (billing differs per bucket):
@@ -254,11 +255,15 @@ def pid_alive(pid: int | None) -> bool:
 
 
 def execute(agent: str, inv: Invocation, timeout: int, env: dict, on_session=None, watch=None,
-            watch_every: float = 20.0, on_start=None, stop_file: Path | None = None) -> tuple[Outcome, str, str]:
+            watch_every: float = 20.0, on_start=None, stop_file: Path | None = None,
+            stall_sec: float = 0) -> tuple[Outcome, str, str]:
     """Run the sub-agent, streaming stdout so the session id is persisted the moment it appears. `watch()` is
     asked every `watch_every` seconds while it runs; a reason it returns stops the run (e.g. a spending cap).
-    `on_start(pid)` gets the child's pid at once; `stop_file` appearing (`ccx stop`) stops the run the same way."""
+    `on_start(pid)` gets the child's pid at once; `stop_file` appearing (`ccx stop`) stops the run the same way.
+    `stall_sec` > 0 (experimental, run.stall_minutes): no stdout line for that long stops the tree too, as a
+    timeout marked `stalled`; 0 leaves the run exactly as before."""
     import threading
+    import time
     try:
         # bytes, decoded line by line with decode_output (#335): a text-mode pipe with errors="replace" turned any
         # non-UTF-8 byte into U+FFFD for good
@@ -320,9 +325,22 @@ def execute(agent: str, inv: Invocation, timeout: int, env: dict, on_session=Non
                 return
     if watch or stop_file:
         threading.Thread(target=_watch, daemon=True).start()
+    last_event = [time.monotonic()]          # the last stdout line (each is one event of the CLI's JSON stream)
+
+    def _stall():
+        while not done_ev.wait(min(1.0, stall_sec / 4)):
+            quiet = time.monotonic() - last_event[0]
+            if quiet >= stall_sec and not fired and not stopped and not (stop_file and stop_file.exists()):
+                stopped.append(("stalled", f"stalled: no event from {agent} for {quiet:.0f}s "
+                                           f"(run.stall_minutes = {stall_sec / 60:g})"))
+                _stop()
+                return
+    if stall_sec and stall_sec > 0:
+        threading.Thread(target=_stall, daemon=True).start()
     rc = -1
     try:
         for raw in proc.stdout:
+            last_event[0] = time.monotonic()
             line = decode_output(raw)
             out_lines.append(line)
             if not seen and on_session:
@@ -348,9 +366,13 @@ def execute(agent: str, inv: Invocation, timeout: int, env: dict, on_session=Non
         oc.error, oc.kind = f"timed out after {timeout}s", "timeout"
     if not stopped and stop_file and stop_file.exists() and not oc.ok:
         stopped.append(("user_stopped", "stopped by `ccx stop`"))   # `ccx stop` killed the tree itself
-    if stopped and not (stopped[0][0] == "user_stopped" and oc.ok):
+    if stopped and not (stopped[0][0] in ("user_stopped", "stalled") and oc.ok):
         # a stop that came as the sub-agent finished keeps its finished result: nothing done is thrown away
         oc.ok, oc.kind, oc.error = False, *stopped[0]
+        if oc.kind == "stalled":
+            # kept as a timeout: every rule for a timeout (no climb, resumable, not learned as the model's
+            # failure, ccx resume / ui / lanes / merge) applies unchanged; `stalled` says which kind of timeout
+            oc.kind, oc.stalled = "timeout", True
     return oc, so, se
 
 

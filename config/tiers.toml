@@ -310,6 +310,10 @@ slim = true
 # 每次可用 ccx run/resume --max-usd 覆盖（只有 run/resume 读它）。正在跑的那一步不会被中途掐断：在两步之间检查，
 # 所以最多超出一步（一趟尝试，或一次审查）。
 max_usd = 0
+# Experimental: stop an attempt whose CLI printed no event (stdout line) for this many minutes; 0 = off (default).
+# 实验性：子 CLI 这么多分钟没有任何事件（stdout 行）就判定卡住、结束进程树，记为 timeout 并标 stalled；
+# 0 = 关（默认，行为与以前完全一样）。可写小数。见 docs/timeouts.zh.md。
+stall_minutes = 0
 
 [wake]
 # 后台派活（ccx run --bg）跑完时主动告诉主导一行结论，主导不用轮询（ccx/wake.py）：Claude Code 主导走它自己的收件箱
