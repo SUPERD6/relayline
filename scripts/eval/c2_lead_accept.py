@@ -111,6 +111,7 @@ def notes_injected(hub: Path) -> bool:
 
 def generate(tasks: list[str], tests: Path, model: str, budget: float, work: Path) -> list[dict]:  # pragma: no cover
     import r5
+    from common import run_tree           # late, with r5 (which imports common)
     tests.mkdir(parents=True, exist_ok=True)
     out, spent = [], 0.0
     for t in tasks:
@@ -119,10 +120,9 @@ def generate(tasks: list[str], tests: Path, model: str, budget: float, work: Pat
         env, d, hub = clean_env(t, work)
         (d / "BRIEF.md").write_text(r5.by_id(t)["brief"] + "\n", encoding="utf-8")
         subprocess.run(["git", "init", "-q"], cwd=d, env=env)
-        r = subprocess.run([sys.executable, str(ROOT / "ccx.py"), "run", "--to", "claude", "--model", model,
-                            "--mode", "write", "--no-ab", "--review", "off", "--label", f"c2-accept:{t}",
-                            WRITE.format(task=t)], cwd=d, env=env, capture_output=True, text=True,
-                           encoding="utf-8", errors="replace", timeout=1200)
+        r = run_tree([sys.executable, str(ROOT / "ccx.py"), "run", "--to", "claude", "--model", model,
+                      "--mode", "write", "--no-ab", "--review", "off", "--label", f"c2-accept:{t}",
+                      WRITE.format(task=t)], cwd=d, env=env, timeout=1200)
         try:
             rec = json.loads(r.stdout[r.stdout.find("{"):])
         except ValueError:

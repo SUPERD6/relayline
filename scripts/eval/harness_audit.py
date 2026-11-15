@@ -1302,9 +1302,12 @@ def rubric_cost(prompts: list[dict]) -> dict:
 def claude_rubric_runner(prompt: str, bin_: str = "claude", timeout: int = 180) -> str:
     """One rubric call: Claude Code 2.1.309 `-p --model haiku --output-format json --tools "" --no-session-persistence`
     (flags checked against `claude --help`, 2026-10-28), the prompt on stdin, no tools."""
-    p = subprocess.run([bin_, "-p", "--model", RUBRIC_MODEL, "--output-format", "json", "--tools", "",
-                        "--no-session-persistence"], input=prompt, capture_output=True, text=True,
-                       encoding="utf-8", errors="replace", timeout=timeout)
+    here = str(Path(__file__).resolve().parent)
+    if here not in sys.path:
+        sys.path.insert(0, here)
+    from common import run_tree           # late, as _r5(): the module stays import-light
+    p = run_tree([bin_, "-p", "--model", RUBRIC_MODEL, "--output-format", "json", "--tools", "",
+                  "--no-session-persistence"], input=prompt, timeout=timeout)
     try:
         return str(json.loads(p.stdout).get("result") or "")
     except ValueError:

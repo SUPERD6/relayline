@@ -3,20 +3,18 @@ from __future__ import annotations
 
 import json
 import math
-import os
 from pathlib import Path
 import subprocess
 import sys
 import time
 
-from common import ROOT, append_jsonl, lead_env, make_repo, score
+from common import ROOT, append_jsonl, lead_env, make_repo, run_tree, score  # run_tree: issues #329, #332
 from l5_memory import CASES, DISTRACTORS
 from shared_context_ab import TASKS, lead_transcript
 from seven_func import ccx_run, check_env, last_json
 import preflight as PF
 from ccx import ledger
 from ccx.config import Paths
-from ccx.runners import group_flags, kill_tree
 
 CCX_RUN_TIMEOUT_S = 300       # one `ccx run` per unit; past this the unit is TimeoutExpired, cost Unknown
 
@@ -28,36 +26,6 @@ def unit_cost(hub: Path) -> float | None:
                           not math.isfinite(x) or x < 0 for x in amounts):
         return None
     return round(sum(amounts), 8)
-
-
-def run_tree(argv: list[str], *, cwd: Path, env: dict, timeout: float) -> subprocess.CompletedProcess:
-    """subprocess.run(capture_output=True, text=True), but a timeout (or Ctrl+C) ends the whole process tree, not
-    only the direct child (issue #329: ccx and its codex.exe ran on after a 300 s timeout). The child starts with
-    ccx's group_flags() and is stopped with ccx's kill_tree(). On POSIX kill_tree() takes the child's process group,
-    and ccx starts its CLI in a group of its own, so the descendants are listed first and killed too. The
-    TimeoutExpired is raised again, so the row still says error: TimeoutExpired. stdin is DEVNULL (subprocess.run
-    inherited it): the brief is an argument, so ccx never reads stdin here."""
-    proc = subprocess.Popen(argv, cwd=cwd, env=env, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
-                            stderr=subprocess.PIPE, text=True, encoding="utf-8", errors="replace", **group_flags())
-    try:
-        out, err = proc.communicate(timeout=timeout)
-    except BaseException:
-        procs = None                                            # Windows: taskkill /T walks the tree itself
-        if os.name != "nt":
-            procs = PF.snapshot()
-            if procs is None:
-                print(f"strength_runner: could not list processes; descendants of pid {proc.pid} in a process group "
-                      "of their own (e.g. the CLI ccx started) may not have been killed", file=sys.stderr)
-        below = sorted(PF.family(procs, proc.pid)[1]) if procs else []
-        if not kill_tree(proc.pid):
-            proc.kill()
-        PF.kill(below)
-        try:
-            proc.communicate(timeout=30)
-        except (OSError, ValueError, subprocess.SubprocessError):
-            pass
-        raise
-    return subprocess.CompletedProcess(argv, proc.returncode, out, err)
 
 
 def needs_codex_home(units) -> bool:

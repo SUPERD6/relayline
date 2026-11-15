@@ -9,7 +9,9 @@ import shutil
 import statistics
 import subprocess
 import sys
+import threading
 import time
+from concurrent.futures import wait
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -17,7 +19,7 @@ sys.path.insert(0, str(ROOT))
 
 from ccx import ledger  # noqa: E402
 from ccx.config import Paths, paths  # noqa: E402
-from ccx.runners import bin_argv  # noqa: E402
+from ccx.runners import bin_argv, group_flags, kill_tree  # noqa: E402
 
 CCX = f'python "{ROOT.as_posix()}/ccx.py"'
 HIDDEN = "test_zz_hidden_eval.py"
@@ -27,6 +29,109 @@ PARENT_VARS = ("CLAUDECODE", "CLAUDE_CODE_SESSION_ID", "CLAUDE_CODE_REMOTE_SESSI
                "CLAUDE_CODE_EFFORT_LEVEL", "CLAUDE_CODE_ENTRYPOINT", "CLAUDE_CODE_CHILD_SESSION", "CLAUDE_PID", "CLAUDE_CODE_HOST_SESSION_ID",
                "CLAUDE_CODE_MESSAGING_SOCKET", "CLAUDE_CODE_MESSAGING_TOKEN", "CCX_LEAD_SESSION", "CCX_DEPTH",
                "CCX_ROLE", "CCX_PARENT_RUN")
+
+
+_LIVE: set[subprocess.Popen] = set()        # run_tree children still running (any thread)
+_LIVE_LOCK = threading.Lock()
+_STOPPING = threading.Event()                # set by stop_running(): no run_tree starts or returns normally after it
+
+
+def _preflight():
+    """preflight lists and kills processes on POSIX; it imports this module, so it is imported when first needed
+    (before a child starts, so the cleanup path never fails on an import)."""
+    import preflight
+    return preflight
+
+
+def _end_tree(proc: subprocess.Popen, PF) -> None:
+    """Kill proc and everything under it. On POSIX the descendants are listed first: kill_tree() takes the child's
+    process group, and ccx starts its CLI in a group of its own. Windows: taskkill /T walks the tree itself."""
+    below = None
+    if PF is not None:
+        procs = PF.snapshot()
+        if procs is None:
+            print(f"run_tree: could not list processes; descendants of pid {proc.pid} in a process group of "
+                  "their own (e.g. the CLI ccx started) may not have been killed", file=sys.stderr)
+        below = sorted(PF.family(procs, proc.pid)[1]) if procs else []
+    if not kill_tree(proc.pid):
+        proc.kill()
+    if below:
+        PF.kill(below)
+
+
+def run_tree(argv: list[str], *, timeout: float, cwd: Path | str | None = None, env: dict | None = None,
+             input: str | None = None, errors: str = "replace") -> subprocess.CompletedProcess:
+    """subprocess.run(capture_output=True, text=True, encoding="utf-8"), but a timeout (or Ctrl+C) ends the whole
+    process tree, not only the direct child (issues #329, #332: ccx and the CLI it started ran on after a timeout).
+    The child starts with ccx's group_flags() and is stopped with ccx's kill_tree() (see _end_tree). The exception is
+    raised again; a TimeoutExpired carries the output read so far as text in .stdout and .stderr, as subprocess.run's
+    does (None or bytes if a descendant that escaped the kill still holds the pipes after 30 s; callers accept all
+    three). stdin is `input` when given, else DEVNULL (subprocess.run inherited it; every caller passes its prompt as
+    an argument or as `input`). The child no longer gets the terminal's Ctrl+C (its own group): a run_tree in a worker
+    thread is ended by stop_running(), which map_stopping() calls on Ctrl+C; a call that finishes just as
+    stop_running() runs raises KeyboardInterrupt too, so its result is not recorded."""
+    if _STOPPING.is_set():
+        raise KeyboardInterrupt("run_tree: stopped")
+    PF = _preflight() if os.name != "nt" else None
+    proc = subprocess.Popen(argv, cwd=cwd, env=env, stdin=subprocess.PIPE if input is not None else subprocess.DEVNULL,
+                            stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, encoding="utf-8",
+                            errors=errors, **group_flags())
+    with _LIVE_LOCK:
+        _LIVE.add(proc)
+    try:
+        if _STOPPING.is_set():                  # stop_running() came between the check above and the add
+            raise KeyboardInterrupt("run_tree: stopped")
+        out, err = proc.communicate(input, timeout=timeout)
+        if _STOPPING.is_set():                  # ended by stop_running(): not a normal result
+            raise KeyboardInterrupt("run_tree: stopped")
+    except BaseException as exc:
+        if not (_STOPPING.is_set() and proc.returncode is not None):    # else stop_running() ended it: the pid is
+            _end_tree(proc, PF)                                          # reaped, POSIX may already reuse it
+        try:
+            rest = proc.communicate(timeout=30)
+            if isinstance(exc, subprocess.TimeoutExpired):
+                exc.stdout, exc.stderr = rest
+        except (OSError, ValueError, subprocess.SubprocessError):
+            pass
+        raise
+    finally:
+        with _LIVE_LOCK:
+            _LIVE.discard(proc)
+    return subprocess.CompletedProcess(argv, proc.returncode, out, err)
+
+
+def stop_running() -> int:
+    """End every run_tree tree still running, in any thread, and make later run_tree calls raise KeyboardInterrupt.
+    Returns how many trees were ended."""
+    _STOPPING.set()
+    with _LIVE_LOCK:
+        procs = list(_LIVE)
+    PF = _preflight() if os.name != "nt" else None
+    for proc in procs:
+        _end_tree(proc, PF)
+    return len(procs)
+
+
+def map_stopping(ex, fn, items) -> list:
+    """list(ex.map(fn, items)) for a ThreadPoolExecutor whose workers call run_tree: on Ctrl+C the queued items are
+    dropped and the running trees ended (stop_running), so leaving the `with` block does not wait for them. Their
+    children run in groups of their own and no longer get the terminal's Ctrl+C (issue #332 review)."""
+    futures = [ex.submit(fn, x) for x in items]
+    try:
+        out = []
+        for f in futures:                       # in order, the first error raised first, as ex.map
+            while not f.done():                 # timed waits: on Windows an untimed one lets no Ctrl+C through
+                wait([f], timeout=.5)
+            out.append(f.result())
+        return out
+    except KeyboardInterrupt:
+        ex.shutdown(wait=False, cancel_futures=True)
+        stop_running()
+        raise
+    except BaseException:
+        for f in futures:                       # as ex.map: the ones not started yet are dropped
+            f.cancel()
+        raise
 
 
 def git(cwd: Path, *args: str) -> str:
@@ -82,8 +187,7 @@ def run_lead(prompt: str, cwd: Path, model: str, effort: str, budget: float, tim
         argv.append("--no-session-persistence")
     t0 = time.time()
     try:
-        r = subprocess.run(argv, input=prompt, cwd=cwd, capture_output=True, text=True, encoding="utf-8",
-                           errors="replace", env=lead_env(), timeout=timeout)
+        r = run_tree(argv, input=prompt, cwd=cwd, env=lead_env(), timeout=timeout)
         out, rc = r.stdout, r.returncode
     except subprocess.TimeoutExpired as e:
         out, rc = (e.stdout or b"").decode("utf-8", "replace") if isinstance(e.stdout, bytes) else (e.stdout or ""), -9

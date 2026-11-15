@@ -42,7 +42,7 @@ from datetime import datetime
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from common import ROOT, append_jsonl, git, lead_env, read_jsonl  # noqa: E402
+from common import ROOT, append_jsonl, git, lead_env, read_jsonl, run_tree  # noqa: E402
 
 from ccx import learn, ledger  # noqa: E402
 from ccx.config import paths  # noqa: E402
@@ -123,8 +123,7 @@ def cmd_tasks(a) -> int:
                     "Read Grep Glob Bash(git:*) Bash(ls:*) Bash(cat:*) Bash(python:*)",
                     "--no-session-persistence", "--max-budget-usd", str(a.lead_budget)]
             t0 = time.time()
-            r = subprocess.run(argv, input=prompt, cwd=clone, capture_output=True, text=True, encoding="utf-8",
-                               errors="replace", env=lead_env(), timeout=900)
+            r = run_tree(argv, input=prompt, cwd=clone, env=lead_env(), timeout=900)
             rows, final = per_request(r.stdout)
             answer = str(final.get("result", ""))
             row = {"tag": tag, "ref": a.ref, "commit": commit, "task": task, "rep": rep, "model": a.model,

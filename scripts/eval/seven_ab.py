@@ -42,7 +42,7 @@ from types import SimpleNamespace
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from common import (ROOT, append_jsonl, archive_hub, boot_ci, ccx_rows, ccx_verify, git, lead_env, make_repo,  # noqa: E402
-                    read_jsonl, score, sign_test)
+                    read_jsonl, run_tree, score, sign_test)
 from tasks import MEDIUM, MEMORY, by_id as _by_id  # noqa: E402
 
 OUT = ROOT / ".ccx" / "eval" / "seven"
@@ -165,8 +165,7 @@ def run_direct(u: dict, a, work: Path, ccx: list[str], rows_for=ccx_rows, verify
     label = u["label"]
     t0 = time.time()
     try:
-        r = subprocess.run(ccx_argv(u["exp"], u["arm"], task, label, a, ccx), cwd=repo, capture_output=True,
-                           text=True, encoding="utf-8", errors="replace", env=env, timeout=a.timeout)
+        r = run_tree(ccx_argv(u["exp"], u["arm"], task, label, a, ccx), cwd=repo, env=env, timeout=a.timeout)
         out, rc = r.stdout, r.returncode
     except subprocess.TimeoutExpired:
         out, rc = "", -9
