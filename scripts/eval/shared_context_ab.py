@@ -30,7 +30,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from common import ROOT, append_jsonl, ccx_rows, lead_env, make_repo, read_jsonl, run_tree, score  # noqa: E402
+from common import ROOT, append_jsonl, ccx_rows, lead_env, make_repo, map_stopping, read_jsonl, run_tree, score  # noqa: E402
 from seven_ab import mcnemar_p, wilson  # noqa: E402
 
 MODELS = {"codex": ("gpt-6-luna", "low"), "dsh": ("deepseek-flash", "low")}
@@ -169,8 +169,7 @@ def run_unit(u: dict, out: Path, lock: threading.Lock) -> dict:
             "--no-fallback", "--review", "off", "--no-subagents", "--label", f"sc-ab:{key}", "--cwd", str(work),
             task["brief"]]
     t0 = time.time()
-    r = run_tree(argv, env=env,
-                 timeout=1800)
+    r = run_tree(argv, env=env, timeout=1800)
     res = _last_json(r.stdout)
     first = score(work, task)
     row = {**u, "run_id": res.get("run_id"), "status": res.get("status"), "ok_first": first["ok"],
@@ -213,7 +212,7 @@ def cmd_run(a) -> int:
     print(f"{len(units)} unit(s) to run", flush=True)
     lock = threading.Lock()
     with ThreadPoolExecutor(a.jobs) as ex:
-        list(ex.map(lambda u: run_unit(u, out, lock), units))
+        map_stopping(ex, lambda u: run_unit(u, out, lock), units)
     return 0
 
 

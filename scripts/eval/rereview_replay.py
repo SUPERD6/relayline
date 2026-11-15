@@ -45,7 +45,7 @@ sys.path.insert(0, str(ROOT))
 import fixround_replay as FR  # noqa: E402
 import preflight as PF  # noqa: E402
 import review_replay as RR  # noqa: E402
-from common import run_tree  # noqa: E402  (preflight already imports it)
+from common import map_stopping, run_tree  # noqa: E402  (preflight already imports it)
 
 EST_MAX_USD = 0.05            # reserve per running review when checking the budget
 VARIANTS = ("full", "focus")
@@ -306,7 +306,7 @@ def cmd_run(a) -> None:
 
     save()
     with ThreadPoolExecutor(max_workers=a.workers) as ex:
-        list(ex.map(go, jobs))
+        map_stopping(ex, go, jobs)
     save()
     print(json.dumps(summary(out_file, rows=Path(a.rows) if a.rows else None), indent=1, ensure_ascii=False))
 

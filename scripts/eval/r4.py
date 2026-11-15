@@ -45,7 +45,7 @@ import r2  # noqa: E402
 import r3  # noqa: E402
 import tasks_r2  # noqa: E402
 import tasks_r3  # noqa: E402
-from common import ROOT, append_jsonl, archive_hub, boot_ci, lead_env, make_repo, parse_stream, read_jsonl, run_tree, score, sign_test  # noqa: E402
+from common import ROOT, append_jsonl, archive_hub, boot_ci, lead_env, make_repo, map_stopping, parse_stream, read_jsonl, run_tree, score, sign_test  # noqa: E402
 
 from ccx.runners import bin_argv  # noqa: E402
 
@@ -181,7 +181,7 @@ def cmd_calib(a) -> int:
                   f"{row.get('wall_s')}s total=${spent(out)}", flush=True)
 
     with ThreadPoolExecutor(max_workers=a.jobs) as ex:
-        list(ex.map(one, todo))
+        map_stopping(ex, one, todo)
     return 0
 
 

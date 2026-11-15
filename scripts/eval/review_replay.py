@@ -355,8 +355,9 @@ def cmd_run(a) -> None:
               f"(spent ${spent[0]:.3f})", file=sys.stderr)
         return res
 
+    from common import map_stopping       # late, as in run_job
     with ThreadPoolExecutor(max_workers=a.workers) as ex:
-        list(ex.map(go, jobs))
+        map_stopping(ex, go, jobs)
     summary(out_file)
 
 
