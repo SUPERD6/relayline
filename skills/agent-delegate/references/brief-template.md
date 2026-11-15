@@ -4,8 +4,13 @@
 Request (verbatim): <the person's own words: interfaces, names, exact strings, numbers unchanged>
 Look at: <paths you already know; the sub-agent finds and reads the rest itself>
 Constraints: <don't touch X; keep API Y; don't commit (the lead commits); paths: follow the target project's path conventions>
-Done when: <the acceptance command, e.g. `pytest tests/test_io.py -q` passes>
+Done when: <the acceptance command, e.g. `pytest tests/test_io.py -q` passes, including a test of the new requirement that fails today>
 ```
+
+For a task that adds or fixes behaviour, the acceptance command should fail before the change: write at least one
+test (or a checkable command) for the new requirement yourself, see it fail, commit it, and give concrete inputs
+and expected outputs in the brief. The existing suite already passes, so it cannot tell whether the new requirement
+was met. (A refactor that keeps behaviour is the exception: its check passes before and after.)
 
 Only for work in the relayline (ccx) repository itself, add
 `paths: compare and assert through workspace.canonical()` to Constraints. Other projects use their own path conventions.
@@ -13,9 +18,10 @@ Only for work in the relayline (ccx) repository itself, add
 Good
 ```
 Request (verbatim): "make load_csv() accept a `delimiter` argument, default ','"
+Example (the lead's, from its new test): load_csv("a;b\n1;2\n", delimiter=";") returns [{"a": "1", "b": "2"}]; without delimiter, "," is used.
 Look at: src/io/loader.py, tests/test_loader.py
-Constraints: no new dependencies; keep the public signature otherwise unchanged; don't commit.
-Done when: a new test for ";" passes with `pytest tests/test_loader.py -q`.
+Constraints: no new dependencies; keep the public signature otherwise unchanged; don't touch test_semicolon; don't commit.
+Done when: `pytest tests/test_loader.py -q` passes, including test_semicolon (written by the lead; it fails today).
 ```
 Pass the same command as `--check` so ccx runs it again.
 

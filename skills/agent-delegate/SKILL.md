@@ -91,6 +91,20 @@ sub-agent. The extra requests came from the habits below.
   Only for work in the relayline (ccx) repository itself, add
   `paths: compare and assert through workspace.canonical()` to the constraints; use it for compared, printed
   and recorded paths and test expectations, not raw `tmp_path` values. Other projects use their own path conventions.
+- **A write task: write a failing check first.** Before you send a piece that adds or fixes behaviour, turn the
+  request into at least one test (or a command whose output you can check) aimed at the new requirement, run it to
+  see it fail now, and pass it as `--check`; put the concrete inputs and expected outputs in the brief, and tell the
+  sub-agent not to edit that test (if it does, the result shows `edited_tests` / `check.basis_changed`). Read only
+  the interface the test needs, not the code base. The existing test suite passes before the change, so as a check
+  it cannot see the new requirement: in the 2026-11 unified test a cheap first rung missed exactly the cases the
+  hidden tests checked, and that check let it through. Example: brief "`FilePerms.from_int(0o007).to_int()`
+  returns `0o007` (the other-bits group survives)", with
+  `--check "python -m pytest -q tests/test_perms.py::test_other_bits"` (a test you wrote that fails today).
+  Commit the test before dispatching: `--worktree` and `ccx q run` worktrees start from HEAD without your
+  uncommitted files. A refactor that keeps behaviour is the exception: its check should pass before and after.
+  Not sure the check would catch wrong work? The experimental `ccx config set check.sensitivity warn` (default
+  off) reports a check that passes before the change as `insensitive`, but only from a clean tree (uncommitted
+  changes make it `unknown`).
 - **Long or multi-file work: one call,** `ccx run ... --bg --wait 540` with your shell tool's timeout at 600000 ms
   (Claude Code's Bash limit is 10 minutes; a Codex or DeepSeek lead sets `--wait` about a minute under its own
   tool-call timeout). It prints the run_id at once (stderr) and the final result in the same call, like a plain
@@ -144,6 +158,7 @@ ccx stop <run_id>                # stop a running delegation (its whole process 
 ccx run ... --task <id> --step <n>   # session id saved into task-checkpoint at once
 ccx run ... --mode read          # analysis only (without --mode, ccx infers read/write from the brief; follow it)
 ccx run ... --check "CMD"        # acceptance command: the sub-agent runs it, ccx runs it again (failure = failure)
+                                 # it should fail before the change (section 2, failing check first)
 ccx run ... --risk visible       # user-facing / critical work: another vendor's cheap model reviews the diff
 ccx run ... --max-usd 0.5        # start no further rung, review or fix round once $0.5 is spent (needs_lead)
 ccx run ... --review on|off      # force or skip it; default auto (risk, 50+ code lines, unsure, claims vs diff,
