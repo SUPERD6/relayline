@@ -570,8 +570,9 @@ def commit_state(cwd: Path, snap: dict | None) -> dict | None:
             if not name.startswith(".ccx/"):
                 files.append(name)
     _, head = _git(cwd, "rev-parse", "HEAD")
+    _, root = _git(cwd, "rev-parse", "--show-toplevel")    # porcelain paths are relative to it, not to cwd
     before = (snap or {}).get("head")
-    return {"uncommitted": files, "committed": bool(before and head and head != before)}
+    return {"uncommitted": files, "committed": bool(before and head and head != before), "root": root or str(cwd)}
 
 
 def _unquote(name: str) -> str:

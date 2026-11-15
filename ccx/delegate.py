@@ -1703,8 +1703,8 @@ def compact(record: dict) -> dict:
     if worktree_repo(record["cwd"]) is not None:
         out["worktree"] = record["cwd"]
         cs = record.get("commit_state")
-        if cs:
-            out["commit"] = commit_note(record["run_id"], record["cwd"], cs)
+        if cs:      # not "commit": batch lanes put the sha of ccx's own per-piece commit there (lanes.walk)
+            out["commit_state"] = commit_note(cs.get("root") or record["cwd"], cs)
     if record.get("base_note"):                     # --worktree on a dirty project: its check ran on HEAD's code
         out["base"] = record["base_note"]
     if record.get("auth_problem"):
@@ -1738,18 +1738,19 @@ def compact(record: dict) -> dict:
     return out
 
 
-def commit_note(run_id: str, wt: str, cs: dict) -> dict:
-    """The receipt's `commit` entry for a --worktree run (#334): ccx commits nothing itself and tells the sub-agent
-    not to, so the lead sees here what is left uncommitted and how to commit it."""
+def commit_note(wt: str, cs: dict) -> dict:
+    """The receipt's `commit_state` for a --worktree run (#334), as the run left the worktree: sub-agents are told
+    not to commit and a single `ccx run` commits nothing, so the lead sees what is left and how to commit it.
+    (`ccx q` and batch lanes then commit each piece themselves: lanes.commit_block.)"""
     files = cs.get("uncommitted") or []
-    out = {"state": "uncommitted" if files else "committed", "files": files[:20]}
+    out = {"state": "uncommitted" if files else "committed", "as_of": "run end", "files": files[:20]}
     if len(files) > 20:
         out["more"] = len(files) - 20
     if files:
-        out["next"] = (f"not committed by ccx or the sub-agent: review, then `git -C \"{wt}\" add <paths>` and commit, "
-                       f"or `ccx autonomy merge {run_id}` (a dry run; merging needs autonomy L2)")
+        out["next"] = f"not committed: review, then `git -C \"{wt}\" add <paths>` and `git -C \"{wt}\" commit`"
     if cs.get("committed"):
-        out["note"] = "the sub-agent committed in the worktree although told not to: check `git log` there"
+        out["note"] = ("a sub-agent of this run (or of the run it continued) committed in the worktree although told "
+                       "not to: check `git log` there")
     return out
 
 

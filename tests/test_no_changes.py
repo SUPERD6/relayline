@@ -226,12 +226,13 @@ class TestWorktreeCommit(Env):
 
     def test_receipt_lists_uncommitted_files(self):
         out, rec, _ = self.go()
-        c = out["commit"]
-        self.assertEqual(c["state"], "uncommitted", out)
+        c = out["commit_state"]
+        self.assertEqual((c["state"], c["as_of"]), ("uncommitted", "run end"), out)
         self.assertEqual(sorted(c["files"]), ["a.py", "new.py"])
         self.assertIn("git -C", c["next"])
-        self.assertIn(f"ccx autonomy merge {out['run_id']}", c["next"])
+        self.assertNotIn("autonomy", c["next"])
         self.assertNotIn("note", c)
+        self.assertNotIn("commit", out)                         # lanes' sha key stays free
         self.assertEqual(sorted(rec["commit_state"]["uncommitted"]), ["a.py", "new.py"])
         self.assertFalse(rec["commit_state"]["committed"])
         wt = Path(out["worktree"])                              # ccx itself committed nothing
@@ -240,7 +241,7 @@ class TestWorktreeCommit(Env):
 
     def test_a_sub_agent_that_commits_anyway_is_flagged(self):
         out, rec, _ = self.go(FAKE_COMMIT="sub-agent commit")
-        c = out["commit"]
+        c = out["commit_state"]
         self.assertEqual((c["state"], c["files"]), ("committed", []), out)
         self.assertIn("although told not to", c["note"])
         self.assertTrue(rec["commit_state"]["committed"])
@@ -249,8 +250,54 @@ class TestWorktreeCommit(Env):
         r = self.ccx("run", "--to", "codex", "--model", "gpt-6-luna", "--effort", "low", "--mode", "write",
                      "--no-fallback", "--review", "off", "change x to 2 in a.py", env={"FAKE_WRITE": "a.py=x = 2\n"})
         out = json.loads(r.stdout)
-        self.assertNotIn("commit", out)
+        self.assertNotIn("commit_state", out)
         self.assertNotIn("worktree", out)
+
+
+class TestCommitStateUnits(unittest.TestCase):
+    """#334 review: commit_state's parsing, the receipt's cap, and batch lanes dropping it once ccx committed."""
+
+    def setUp(self):
+        import tempfile
+        self.tmp = Path(tempfile.mkdtemp())
+        self.wt = self.tmp / "proj" / ".ccx" / "worktrees" / "r1"      # the "inside" layout
+        self.wt.mkdir(parents=True)
+        subprocess.run(["git", "init", "-q"], cwd=self.wt, check=True)
+        (self.wt / "old name.py").write_text("x = 1\n", encoding="utf-8")
+        subprocess.run([*G, "add", "-A"], cwd=self.wt, check=True)
+        subprocess.run([*G, "commit", "-qm", "init"], cwd=self.wt, check=True)
+
+    def tearDown(self):
+        import shutil
+        shutil.rmtree(self.tmp, ignore_errors=True)
+
+    def test_parsing(self):
+        from ccx.workspace import commit_state
+        subprocess.run(["git", "mv", "old name.py", "new name.py"], cwd=self.wt, check=True)
+        (self.wt / "sub").mkdir()
+        (self.wt / "sub" / "b.py").write_text("y\n", encoding="utf-8")
+        (self.wt / "中.py").write_text("z\n", encoding="utf-8")
+        (self.wt / ".ccx").mkdir()
+        (self.wt / ".ccx" / "x.json").write_text("{}", encoding="utf-8")
+        cs = commit_state(self.wt / "sub", None)          # from a subdirectory: paths and root are the worktree's
+        self.assertEqual(sorted(cs["uncommitted"]), ["new name.py", "sub/b.py", "中.py"])
+        self.assertFalse(cs["committed"])
+        self.assertEqual(Path(cs["root"]).resolve(), self.wt.resolve())
+
+    def test_receipt_caps_files(self):
+        from ccx.delegate import commit_note
+        c = commit_note("W", {"uncommitted": [f"f{i}.py" for i in range(25)], "committed": False})
+        self.assertEqual((len(c["files"]), c["more"]), (20, 5))
+
+    def test_lanes_drop_commit_state_after_their_own_commit(self):
+        from ccx import lanes
+        (self.wt / "c.py").write_text("c\n", encoding="utf-8")
+        rec = {"run_id": "r1", "cwd": str(self.wt), "mode": "write", "ok": True, "kind": "ok",
+               "result": {"status": "done"}}
+        res = lanes.walk([{"id": "a"}], lambda it, warm: ({"commit_state": {"state": "uncommitted"}}, rec),
+                         {"max_blocks": 5, "max_tokens": 10 ** 9})
+        self.assertTrue(res[0]["commit"])
+        self.assertNotIn("commit_state", res[0])
 
 
 class TestQueueNoChanges(QEnv):
