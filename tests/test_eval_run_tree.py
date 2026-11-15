@@ -2,10 +2,11 @@
 Only Python child processes; no real CLI is started."""
 from pathlib import Path
 import subprocess
+from concurrent.futures import ThreadPoolExecutor
+import signal
 import sys
 import threading
 import time
-from unittest import mock
 
 import pytest
 
@@ -96,21 +97,44 @@ def test_stop_running_ends_trees_in_worker_threads(tmp_path):
         worker.join(60)
 
 
-def test_map_stopping_on_ctrl_c_drops_the_queue_and_stops_the_trees(monkeypatch):
-    stopped, ex = [], mock.Mock()
-    ex.map.side_effect = KeyboardInterrupt
+def test_map_stopping_returns_and_raises_as_ex_map(monkeypatch):
+    stopped = []
     monkeypatch.setattr(common, "stop_running", lambda: stopped.append(1))
-    with pytest.raises(KeyboardInterrupt):
-        common.map_stopping(ex, str, [1, 2])
-    ex.shutdown.assert_called_once_with(wait=False, cancel_futures=True)
-    assert stopped == [1]
-    ex = mock.Mock()
-    ex.map.side_effect = ValueError("a worker failed")      # other errors: as list(ex.map(...)), nothing stopped
-    with pytest.raises(ValueError):
-        common.map_stopping(ex, str, [1])
-    assert stopped == [1] and not ex.shutdown.called
-    ex.map.side_effect, ex.map.return_value = None, iter(["1", "2"])
-    assert common.map_stopping(ex, str, [1, 2]) == ["1", "2"]
+    def slow_str(x):
+        time.sleep(.05 * (3 - x))               # finish out of order: results still come back in order
+        return str(x)
+    with ThreadPoolExecutor(3) as ex:
+        assert common.map_stopping(ex, slow_str, [0, 1, 2]) == ["0", "1", "2"]
+    def fail(x):
+        if x:
+            raise ValueError(x)
+        return x
+    with ThreadPoolExecutor(2) as ex:           # other errors: raised as list(ex.map(...)) would, nothing stopped
+        with pytest.raises(ValueError):
+            common.map_stopping(ex, fail, [0, 1])
+    assert stopped == []
+
+
+def test_map_stopping_gets_ctrl_c_while_workers_run(monkeypatch):
+    """Review of #332: on Windows an untimed wait on a future lets no Ctrl+C through until that work item ends; with
+    timed waits the KeyboardInterrupt comes at once, the queue is dropped and stop_running() is called."""
+    stopped, started = [], []
+    monkeypatch.setattr(common, "stop_running", lambda: stopped.append(time.monotonic()))
+    def hang(x):
+        started.append(x)
+        time.sleep(8)
+    ex = ThreadPoolExecutor(2)
+    timer = threading.Timer(1, signal.raise_signal, (signal.SIGINT,))
+    t0 = time.monotonic()
+    try:
+        timer.start()
+        with pytest.raises(KeyboardInterrupt):
+            common.map_stopping(ex, hang, range(6))
+        assert stopped and stopped[0] - t0 < 5, "Ctrl+C was held until a work item ended"
+    finally:
+        timer.cancel()
+        ex.shutdown(wait=True)
+    assert len(started) == 2                    # the 4 queued items were dropped
 
 
 def test_eval_scripts_use_run_tree_for_their_timed_calls():

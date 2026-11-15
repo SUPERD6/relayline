@@ -11,6 +11,7 @@ import subprocess
 import sys
 import threading
 import time
+from concurrent.futures import wait
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -67,7 +68,8 @@ def run_tree(argv: list[str], *, timeout: float, cwd: Path | str | None = None, 
     does (None or bytes if a descendant that escaped the kill still holds the pipes after 30 s; callers accept all
     three). stdin is `input` when given, else DEVNULL (subprocess.run inherited it; every caller passes its prompt as
     an argument or as `input`). The child no longer gets the terminal's Ctrl+C (its own group): a run_tree in a worker
-    thread is ended by stop_running(), which map_stopping() calls on Ctrl+C."""
+    thread is ended by stop_running(), which map_stopping() calls on Ctrl+C; a call that finishes just as
+    stop_running() runs raises KeyboardInterrupt too, so its result is not recorded."""
     if _STOPPING.is_set():
         raise KeyboardInterrupt("run_tree: stopped")
     PF = _preflight() if os.name != "nt" else None
@@ -83,7 +85,8 @@ def run_tree(argv: list[str], *, timeout: float, cwd: Path | str | None = None, 
         if _STOPPING.is_set():                  # ended by stop_running(): not a normal result
             raise KeyboardInterrupt("run_tree: stopped")
     except BaseException as exc:
-        _end_tree(proc, PF)
+        if not (_STOPPING.is_set() and proc.returncode is not None):    # else stop_running() ended it: the pid is
+            _end_tree(proc, PF)                                          # reaped, POSIX may already reuse it
         try:
             rest = proc.communicate(timeout=30)
             if isinstance(exc, subprocess.TimeoutExpired):
@@ -113,11 +116,21 @@ def map_stopping(ex, fn, items) -> list:
     """list(ex.map(fn, items)) for a ThreadPoolExecutor whose workers call run_tree: on Ctrl+C the queued items are
     dropped and the running trees ended (stop_running), so leaving the `with` block does not wait for them. Their
     children run in groups of their own and no longer get the terminal's Ctrl+C (issue #332 review)."""
+    futures = [ex.submit(fn, x) for x in items]
     try:
-        return list(ex.map(fn, items))
+        out = []
+        for f in futures:                       # in order, the first error raised first, as ex.map
+            while not f.done():                 # timed waits: on Windows an untimed one lets no Ctrl+C through
+                wait([f], timeout=.5)
+            out.append(f.result())
+        return out
     except KeyboardInterrupt:
         ex.shutdown(wait=False, cancel_futures=True)
         stop_running()
+        raise
+    except BaseException:
+        for f in futures:                       # as ex.map: the ones not started yet are dropped
+            f.cancel()
         raise
 
 
