@@ -1505,9 +1505,9 @@ def register(sub) -> None:
     adv.add_argument("--seat", metavar="NAME", help="a named long-lived role (e.g. reviewer): its sub-session is "
                    "kept for a week and reused by the next --seat NAME task here; --new starts it over")
     r.add_argument("--check", metavar="CMD", help="acceptance command (e.g. 'python -m pytest -q tests/test_x.py'): "
-                   "the sub-agent runs it before finishing, then ccx runs it again; a failure counts as a failure. It "
-                   "should fail before the change: test the new requirement, since the existing suite already passes "
-                   "and cannot see it")
+                   "the sub-agent runs it before finishing, then ccx runs it again; a failure counts as a failure. For a "
+                   "task that adds or fixes behaviour it should fail before the change: test the new requirement, "
+                   "since the existing suite already passes and cannot see it")
     adv.add_argument("--allow-subagents", action="store_true", help="(the default) the sub-agent may use its own "
                    "sub-agents: one level, counted, stopped over the budget")
     adv.add_argument("--no-subagents", action="store_true", help="the sub-agent may not start its own sub-agents "
