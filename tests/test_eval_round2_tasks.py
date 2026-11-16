@@ -46,7 +46,7 @@ def fake_cache(tmp_path_factory):
     c0 = _commit(work, {"pkg/__init__.py": "", "pkg/mod.py": "def base():\n    return 1\n",
                         "tests/test_mod.py": ok_test}, "2026-01-01T00:00:00+00:00", "base")
     _commit(work, {"README": "old\n"}, "2026-02-01T00:00:00+00:00", "old commit before the date limit")
-    c1 = _commit(work, {"pkg/new.py": _bulk(31, "n") + "def new():\n    return 7\n",
+    c1 = _commit(work, {"pkg/new.py": _bulk(31, "n") + "def new():\n    return 7\n", "tests/__init__.py": "",
                         "tests/test_new.py": "from pkg.new import new\n\ndef test_new():\n    assert new() == 7\n"},
                  "2026-08-01T00:00:00+00:00", "add new")
     c2 = _commit(work, {"pkg/more.py": _bulk(31, "m"),
@@ -56,10 +56,17 @@ def fake_cache(tmp_path_factory):
     c4 = _commit(work, {"pkg/x.py": _bulk(31, "x") + "def x():\n    return 3\n",
                         "tests/test_x.py": "from pkg.x import x\n\ndef test_x():\n    assert x() == 3\n"},
                  "2026-08-04T00:00:00+00:00", "add x on broken parent")
+    c5 = _commit(work, {"pkg/y.py": _bulk(31, "y"), "tests/conftest.py": "import pytest\n",
+                        "tests/test_y.py": "from pkg.y import y_1\n\ndef test_y():\n    assert y_1() == 1\n"},
+                 "2026-08-05T00:00:00+00:00", "change test support file")
+    (work / "tests/test_more.py").unlink()
+    c6 = _commit(work, {"pkg/z.py": _bulk(31, "z"),
+                        "tests/test_z.py": "from pkg.z import z_1\n\ndef test_z():\n    assert z_1() == 1\n"},
+                 "2026-08-06T00:00:00+00:00", "delete a test file")
     cache = root / "cache"
     cache.mkdir()
     _git(root, "clone", "-q", "--bare", str(work), str(cache / "fakepkg.git"))
-    return {"cache": cache, "c0": c0, "c1": c1, "c2": c2, "c3": c3, "c4": c4}
+    return {"cache": cache, "c0": c0, "c1": c1, "c2": c2, "c3": c3, "c4": c4, "c5": c5, "c6": c6}
 
 
 def test_upstream_selection_on_fake_repository(fake_cache, tmp_path):
@@ -70,6 +77,9 @@ def test_upstream_selection_on_fake_repository(fake_cache, tmp_path):
     assert "existing suite does not pass on parent" in reasons[fake_cache["c4"]]
     assert "no hidden test fails on parent" in reasons[fake_cache["c2"]]
     assert reasons[fake_cache["c3"]] == "no test file added or changed"
+    assert reasons[fake_cache["c5"]] == "changes test support files: tests/conftest.py"
+    assert reasons[fake_cache["c6"]] == "deletes or renames a test file: tests/test_more.py"
+    assert out["B"][0]["src_layout"] is False
     assert reasons["boltons"] == "repository used in an earlier evaluation"
     before = [e for e in out["exclusions"] if e["reason"].startswith("commit before")]
     assert before == [{"repo": "fakepkg", "reason": "commit before 2026-07-01", "count": 1}]
@@ -81,6 +91,8 @@ def test_groups_caps_and_size_rules(monkeypatch):
     monkeypatch.setattr(R, "C_TAKE", 1)
     monkeypatch.setattr(R, "B_CAP", 1)
     monkeypatch.setattr(R, "compiled_files", lambda cache, repo: [])
+    monkeypatch.setattr(R, "test_changes", lambda cache, repo, sha: None)
+    monkeypatch.setattr(R, "src_layout", lambda cache, repo, sha: False)
 
     def row(sha, ts, lines, files=1):
         return {"commit": sha * 40, "timestamp": ts, "tests": ["tests/test_a.py"], "code_lines": lines,
@@ -215,11 +227,28 @@ def test_prepare_installs_dependencies_but_not_the_package(tmp_path, monkeypatch
             for name in ("my_pkg-2.0-py3-none-any.whl", "attrs-25.1.0-py3-none-any.whl"):
                 (d / name).write_bytes(b"")
         return subprocess.CompletedProcess(cmd, 0, "", "")
-    rows = R.prepare([{"repo": "my-pkg", "project": "my-pkg", "url": "u"}], tmp_path / "c", tmp_path / "w", "py", run)
+    rows = R.prepare([{"repo": "my-pkg", "project": "my-pkg", "url": "u"}, {"repo": "attrs", "project": "attrs", "url": "u"}],
+                     tmp_path / "c", tmp_path / "w", "py", run)
+    installs = [c for c in calls if "install" in c]
+    assert installs == []  # attrs is itself a kept repository: neither package is installed for any task
+    assert rows[0]["skipped_kept_packages"] == ["attrs", "my-pkg"] and rows[0]["cloned"]
+    calls.clear()
+    rows = R.prepare([{"repo": "my-pkg", "project": "my-pkg", "url": "u"}], tmp_path / "c", tmp_path / "w2", "py", run)
     install = next(c for c in calls if "install" in c)
     assert "--no-index" in install and any(a.endswith("attrs-25.1.0-py3-none-any.whl") for a in install)
     assert not any("my_pkg" in a for a in install)
-    assert rows[0]["cloned"] and rows[0]["installed"]
+    assert rows[0]["installed"]
+
+
+def test_src_layout_only_for_round2_validation(tmp_path, monkeypatch):
+    (tmp_path / "src").mkdir()
+    assert R.LE.environment(tmp_path, sys.executable, tmp_path / "t")["PYTHONPATH"] == str(tmp_path)
+    seen = {}
+    monkeypatch.setattr(R.LE, "validate_task", lambda *a: seen.setdefault(
+        "path", R.LE.environment(tmp_path, sys.executable, tmp_path / "t")["PYTHONPATH"]))
+    R._validate(tmp_path, sys.executable, {}, None)
+    assert seen["path"].split(os.pathsep) == [str(tmp_path / "src"), str(tmp_path)]
+    assert R.LE.SRC_ON_PATH is False
 
 
 def test_manifest_hash_is_stable(tmp_path):
