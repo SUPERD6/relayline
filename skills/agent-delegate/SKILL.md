@@ -100,11 +100,14 @@ sub-agent. The extra requests came from the habits below.
   hidden tests checked, and that check let it through. Example: brief "`FilePerms.from_int(0o007).to_int()`
   returns `0o007` (the other-bits group survives)", with
   `--check "python -m pytest -q tests/test_perms.py::test_other_bits"` (a test you wrote that fails today).
-  Commit the test before dispatching: `--worktree` and `ccx q run` worktrees start from HEAD without your
-  uncommitted files. A refactor that keeps behaviour is the exception: its check should pass before and after.
+  Commit the test before dispatching: `--worktree` and `ccx q run` worktrees start from the local HEAD by default,
+  without your uncommitted files. With `[worktree] base = "upstream"` (or `--base upstream`) they start from
+  `@{upstream}`, which lacks a test you committed but did not push: push it first, or use `--base head` for this
+  run. A refactor that keeps behaviour is the exception: its check should pass before and after.
   Not sure the check would catch wrong work? The experimental `ccx config set check.sensitivity warn` (default
-  off) reports a check that passes before the change as `insensitive`, but only from a clean tree (uncommitted
-  changes make it `unknown`).
+  off) reports a check that passes before the change as `insensitive`, but only when the tree the dispatch runs in is
+  clean (uncommitted changes there make it `unknown`); with `--worktree` that is the new worktree, not your main
+  directory.
 - **Long or multi-file work: one call,** `ccx run ... --bg --wait 540` with your shell tool's timeout at 600000 ms
   (Claude Code's Bash limit is 10 minutes; a Codex or DeepSeek lead sets `--wait` about a minute under its own
   tool-call timeout). It prints the run_id at once (stderr) and the final result in the same call, like a plain
@@ -205,7 +208,8 @@ A printed result with a `run_id` means that delegation ran: do not send the same
 - `no_changes` = a write run said done/partial but changed nothing (no edit, no commit; its check ran on the
   unchanged tree; `ccx q` marks the piece failed, so its dependents wait): accept only if the task was already
   met, else resume it. `base` on a `--worktree` run: it
-  started from HEAD without your uncommitted changes, so its check did not test them. `commit_state` on a `--worktree`
+  started from the point `base` shows (the local HEAD by default, `@{upstream}` with `base = upstream`) without your
+  uncommitted changes, so its check did not test them. `commit_state` on a `--worktree`
   run: the files it left uncommitted (sub-agents never commit; Codex's sandbox cannot write the git directory): review
   and commit them yourself; `note` there means a sub-agent committed anyway.
 - `env` = the machine, not the model: the sub-agent's CLI could not start a process (e.g. Codex's Windows sandbox
