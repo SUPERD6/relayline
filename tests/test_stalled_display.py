@@ -27,6 +27,7 @@ def test_stalled_run_gets_its_own_words():
 def test_stalled_flag_on_another_kind_changes_nothing():
     act = _act(_rec(kind="quota", stalled=True), None, 0, None)
     assert act["what"] == "a_quota"
+    assert hist_of_run(_rec(kind="quota", stalled=True), "task")[-1]["k"] == "h_quota"
 
 
 @pytest.mark.parametrize("language", ["zh", "en"])
