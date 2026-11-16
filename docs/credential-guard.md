@@ -42,31 +42,37 @@ OS isolation when these paths must be inaccessible to every process.
 Codex (since #289) runs under a **permission profile** instead of its legacy sandbox mode: ccx replaces its
 own `-c sandbox_mode="read-only"` / `"workspace-write"` with `-c default_permissions="ccx-credential-guard"` and
 an inline `-c permissions.ccx-credential-guard={extends=":read-only"|":workspace", filesystem={<target>="deny", ...}}`
-for the same targets as Claude. Nothing is written to the user's Codex config; `exec resume` gets the same arguments.
+for the same targets as Claude, plus `--ignore-rules`: execpolicy `allow` rules run commands outside the sandbox, where the deny does not apply (this also drops `forbidden` rules for the run). Nothing is written to the user's Codex config; `exec resume` gets the same arguments.
 Launch is refused (configuration error, no attempt) when the arguments cannot be inspected or would defeat the
 profile: `--sandbox`/`-s`, `--dangerously-bypass-approvals-and-sandbox`, `--approve-for-me`, `-p/--profile`,
-`sandbox_mode="danger-full-access"`, an existing `default_permissions`/`permissions.*`/`sandbox_workspace_write`
-override, a `--config=` spelling, an unparseable Codex config file, or, on Windows, the **unelevated** sandbox
-(`windows.sandbox` from a later `-c` or the first config file that sets it). Measured (below): the unelevated
+`--full-auto`, `--yolo` (also as `--flag=value` or glued `-sVALUE`), `sandbox_mode="danger-full-access"`, an existing
+`default_permissions`/`permissions*`/`profile`/`profiles*`/`sandbox_workspace_write` override, a whole `-c windows=`
+table, a `--config=` spelling, an unparseable or oddly typed Codex config file, a protected path containing
+`[ ] ? { }` (Codex reads those as glob syntax), or, on Windows, any sandbox other than **elevated** (unelevated,
+unset or anything else; `windows.sandbox` from the last `-c`, else the last config file that sets it). With the guard
+on, a Claude-to-Codex fallback on such a machine therefore stops the run with exit 3 instead of running unguarded. Measured (below): the unelevated
 sandbox refuses to start any thread with deny-read entries, and the **elevated** sandbox enforces them by adding
-`CodexSandboxUsers:(DENY)(R)` ACEs to the matching files and directories. **Those ACEs stay after the run**; they
-affect only Codex's sandbox accounts, not you or the Codex process itself, and `icacls <path> /remove:d CodexSandboxUsers`
+`CodexSandboxUsers:(DENY)(R)` ACEs to the matching files and directories. **Those ACEs stay after the run** and
+apply to every later Codex sandbox command on the machine (other projects, your own Codex sessions, runs with the
+guard switched off); they affect only Codex's sandbox accounts, not you or the Codex process itself, and `icacls <path> /remove:d CodexSandboxUsers`
 removes them. Codex's permission profiles are **beta**. Not covered: MCP servers, Codex's in-process tools (for
 example image viewing), and reads by the Codex process itself. Codex docs say a `sandbox_mode` in any loaded config
 file selects the legacy sandbox instead of a profile; codex-cli 0.164.0 still applied the `-c` profile when checked,
-so ccx does not refuse but records `config_sets_sandbox_mode: true` and says so in the warning. Config files checked:
-`CODEX_HOME/config.toml` (unless `--ignore-user-config`) and `.codex/config.toml` from the task directory up to its
-repository root. Managed (`requirements`) config is not inspected. Linux/macOS enforcement (bubblewrap / Seatbelt per
+so ccx does not refuse but records `config_sets_sandbox_mode: true` and says so in the warning. Config files checked, in Codex's layering
+order (later wins): `CODEX_HOME/config.toml` (unless `--ignore-user-config`), then `.codex/config.toml` from the repository
+root down to the task directory (read even if Codex would not trust the project; that can only add refusals). Managed (`requirements`) config is not inspected. Linux/macOS enforcement (bubblewrap / Seatbelt per
 Codex docs) was **not** run here.
 
-Codex records `credential_guard: {status: "Unknown", mechanism: "codex-permission-profile", rules_added: true}`,
-plus `windows_sandbox` (`elevated`, `default` when unset, ...) on Windows. Other adapters emit a warning **before launch**
+Codex records `credential_guard: {status: "Unknown", mechanism: "codex-permission-profile", rules_added: true,
+execpolicy_rules: "ignored"}`, plus `windows_sandbox: "elevated"` on Windows. Off Windows the warning says ccx did
+not measure enforcement there. Other adapters emit a warning **before launch**
 and add `{status: "Unknown", mechanism: "unverified"}`; their sandbox arguments are preserved.
 Claude records `status: "Unknown"` and `mechanism: "claude-permissions-deny"`: injected rules do not prove isolation.
 `rules_added` means only that rules were injected into the launch settings.
 Observed refusals are counted after each attempt: Codex `access_denied_commands` = shell commands that exited non-zero
 with an access-denied message (`Access is denied`, `Permission denied`, `Operation not permitted`, ...); Claude
-`refused_tool_calls` = the CLI's own `permission_denials` count. Both count refusals **whatever caused them** (the
+`refused_tool_calls` = the CLI's own `permission_denials` count (the same number as the attempt's existing
+`permission_denials`). Both count refusals **whatever caused them** (the
 guard, the sandbox, the allow-list): they are not attributed to the guard alone, and a read through a non-shell tool
 is not seen. The top-level values are run totals. No credential contents or protected path list is added to the
 record or warning.

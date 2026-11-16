@@ -1,5 +1,6 @@
 """Per-attempt credential guard receipts, using fake CLI subprocesses only."""
 import json
+from pathlib import Path
 
 import pytest
 
@@ -12,6 +13,8 @@ from test_ccx import FAKES
 class TestGuardAttempts(AdapterEnv):
     def run_switch(self, enabled):
         self.env.update(HOME=str(self.work / "home"), USERPROFILE=str(self.work / "home"))
+        (Path(self.env["CODEX_HOME"]) / "config.toml").write_text('[windows]\nsandbox = "elevated"\n',
+                                                                  encoding="utf-8")
         self.j("config", "set", "security.credential_guard", str(enabled).lower())
         self.env["CCX_CLAUDE_BIN"] = str(FAKES / "fake_claude_capacity.py")
         out = self.j("run", "--from", "user", "--to", "claude", "--tier", "T1", "--mode", "read",
@@ -25,7 +28,8 @@ class TestGuardAttempts(AdapterEnv):
             ("claude", "capacity"), ("codex", "ok")]
         guards = [a["credential_guard"] for a in rec["attempts"]]
         codex = {"status": "Unknown", "mechanism": "codex-permission-profile", "rules_added": True,
-                 **({"windows_sandbox": "default"} if credential_guard.IS_WINDOWS else {}),
+                 "execpolicy_rules": "ignored",
+                 **({"windows_sandbox": "elevated"} if credential_guard.IS_WINDOWS else {}),
                  "access_denied_commands": 0}
         assert guards == [
             {"status": "Unknown", "mechanism": "claude-permissions-deny", "rules_added": True}, codex]

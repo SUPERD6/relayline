@@ -1,5 +1,6 @@
 """Credential guard warnings must survive the lead's line-output preference."""
 import json
+from pathlib import Path
 
 import pytest
 
@@ -40,6 +41,8 @@ class TestGuardLeadOutput(AdapterEnv):
     def test_capacity_fallback_warning_reaches_lead_with_line_preference(self):
         self.env.update(CCX_LEAD_VIEW="line", HOME=str(self.work / "home"), USERPROFILE=str(self.work / "home"))
         self.env["CCX_CLAUDE_BIN"] = str(FAKES / "fake_claude_capacity.py")
+        (Path(self.env["CODEX_HOME"]) / "config.toml").write_text('[windows]\nsandbox = "elevated"\n',
+                                                                  encoding="utf-8")
         self.j("config", "set", "security.credential_guard", "true")
         result = self.ccx("run", "--from", "user", "--to", "claude", "--tier", "T1", "--new",
                           "--context", "off", "--no-ab", "--review", "off", "--no-escalate",

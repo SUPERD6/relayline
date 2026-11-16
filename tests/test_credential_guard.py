@@ -122,6 +122,7 @@ def test_run_command_from_outside_repo_applies_guard(tmp_path, monkeypatch, cli)
     Paths(hub).user_tiers.write_text('[security]\ncredential_guard = true\n', encoding="utf-8")
     brief = tmp_path / "brief.md"
     brief.write_text("Return done", encoding="utf-8")
+    (Path(os.environ["CODEX_HOME"]) / "config.toml").write_text('[windows]\nsandbox = "elevated"\n', encoding="utf-8")  # the guard needs the elevated Windows sandbox
     log = tmp_path / "fake.jsonl"
     inherited = {k: v for k, v in os.environ.items() if not k.startswith("FAKE_") and
                  k not in ("CCX_CLAUDE_SETTINGS", "CCX_CLAUDE_SETTING_SOURCES", "CCX_CODEX_ISOLATE")}

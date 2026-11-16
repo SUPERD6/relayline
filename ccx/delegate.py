@@ -872,6 +872,8 @@ def run(req: Request, p: Paths) -> dict:
             hb.close()
         dt = round(time.time() - t0, 1)
         from .credential_guard import note_denials, observed_denials
+        # counts go on `guard` (appended below) and the run totals; an exception before that append leaves totals
+        # one attempt ahead of a recovered attempt's copy (rare; recover.close_dead keeps the launch evidence)
         note_denials(record, guard, observed_denials(cli, so, oc.permission_denials) if guard is not None else {})
         from . import capacity
         capacity_signal = (None if env_failure((oc.result or {}).get("status"), oc.ok, oc.kind, se, oc.error)

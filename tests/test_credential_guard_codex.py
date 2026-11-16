@@ -26,6 +26,7 @@ def codex(tmp_path, monkeypatch):
     for key in ("HOME", "USERPROFILE"):
         monkeypatch.setenv(key, str(home))
     monkeypatch.setenv("CODEX_HOME", str(chome))
+    monkeypatch.setattr(credential_guard, "IS_WINDOWS", False)   # Windows-only checks opt in per test
     work = tmp_path / "work"
     work.mkdir()
     (work / ".git").mkdir()                       # project config lookup stops at the repository root
@@ -48,10 +49,12 @@ def profile_of(argv):
 def test_profile_replaces_sandbox_mode_with_deny_entries(codex, mode, base, monkeypatch):
     monkeypatch.setattr(credential_guard, "IS_WINDOWS", True)
     build, chome, work = codex
+    (chome / "config.toml").write_text('[windows]\nsandbox = "elevated"\n', encoding="utf-8")
     inv, cfg, env = build(mode, cfg_extra={"credential_dirs": ["secrets"]})
     guard = protect("codex", inv, cfg, work, env)
     assert guard == {"status": "Unknown", "mechanism": "codex-permission-profile", "rules_added": True,
-                     "windows_sandbox": "default"}
+                     "execpolicy_rules": "ignored", "windows_sandbox": "elevated"}
+    assert inv.argv.count("--ignore-rules") == 1          # allow rules would run commands outside the sandbox
     assert not any(x.startswith("sandbox_mode=") for x in inv.argv)
     assert 'default_permissions="ccx-credential-guard"' in inv.argv
     prof = profile_of(inv.argv)                      # the value Codex parses is valid TOML
@@ -76,6 +79,15 @@ def test_resume_gets_the_profile_too(codex):
 
 @pytest.mark.parametrize("extra, match", [
     (["--sandbox", "read-only"], "--sandbox"),
+    (["--sandbox=danger-full-access"], "--sandbox"),
+    (["-sdanger-full-access"], "-s"),
+    (["--profile=x"], "--profile"),
+    (["-pwork"], "-p"),
+    (["--full-auto"], "--full-auto"),
+    (["-c", 'profile="lead"'], "existing Codex permission"),
+    (["-c", "profiles.lead.sandbox_mode=\"danger-full-access\""], "existing Codex permission"),
+    (["-c", "windows={sandbox=\"unelevated\"}"], "whole"),
+    (["-c", "sandbox_mode=[1]"], "sandbox_mode"),
     (["--dangerously-bypass-approvals-and-sandbox"], "bypass"),
     (["-p", "work"], "-p"),
     (["-c", 'default_permissions="mine"'], "existing Codex permission"),
@@ -85,7 +97,7 @@ def test_resume_gets_the_profile_too(codex):
 def test_uninspectable_or_bypassing_argv_fails_closed(codex, extra, match):
     build, _, work = codex
     inv, cfg, env = build()
-    inv.argv[1:1] = extra
+    inv.argv[-1:-1] = extra                     # after ccx's own -c sandbox_mode: the last one wins
     before = list(inv.argv)
     with pytest.raises(ValueError, match=match):
         protect("codex", inv, cfg, work, env)
@@ -104,13 +116,19 @@ def test_full_access_and_missing_sandbox_mode_fail_closed(codex):
         protect("codex", inv, cfg, work, env)
 
 
-@pytest.mark.parametrize("where", ["home", "argv"])
+@pytest.mark.parametrize("where", ["home", "argv", "unset", "project"])
 def test_unelevated_windows_sandbox_is_refused_before_launch(codex, monkeypatch, where):
     monkeypatch.setattr(credential_guard, "IS_WINDOWS", True)
     build, chome, work = codex
     inv, cfg, env = build()
     if where == "home":
         (chome / "config.toml").write_text('[windows]\nsandbox = "unelevated"\n', encoding="utf-8")
+    elif where == "unset":
+        pass                                                   # not measured: fails closed too
+    elif where == "project":                                   # project config is layered over the user's
+        (chome / "config.toml").write_text('[windows]\nsandbox = "elevated"\n', encoding="utf-8")
+        (work / ".codex").mkdir()
+        (work / ".codex" / "config.toml").write_text('[windows]\nsandbox = "unelevated"\n', encoding="utf-8")
     else:
         (chome / "config.toml").write_text('[windows]\nsandbox = "elevated"\n', encoding="utf-8")
         inv.argv[1:1] = ["-c", 'windows.sandbox="unelevated"']       # a later -c wins, as in Codex
@@ -220,6 +238,7 @@ def test_run_records_the_profile_and_the_denied_read(tmp_path):
     Paths(hub).user_tiers.write_text('[security]\ncredential_guard = true\n', encoding="utf-8")
     brief = tmp_path / "brief.md"
     brief.write_text("Print .env", encoding="utf-8")
+    (Path(os.environ["CODEX_HOME"]) / "config.toml").write_text('[windows]\nsandbox = "elevated"\n', encoding="utf-8")
     log = tmp_path / "fake.jsonl"
     inherited = {k: v for k, v in os.environ.items() if not k.startswith("FAKE_") and
                  k not in ("CCX_CLAUDE_SETTINGS", "CCX_CLAUDE_SETTING_SOURCES", "CCX_CODEX_ISOLATE")}
@@ -239,3 +258,60 @@ def test_run_records_the_profile_and_the_denied_read(tmp_path):
                 if c.get("agent") == "codex" and "exec" in c.get("argv", []))
     assert profile_of(argv)["extends"] == ":read-only"
     assert not any(x.startswith("sandbox_mode=") for x in argv)
+
+
+def test_project_elevated_over_user_unelevated_is_accepted(codex, monkeypatch):
+    monkeypatch.setattr(credential_guard, "IS_WINDOWS", True)
+    build, chome, work = codex
+    (chome / "config.toml").write_text('[windows]\nsandbox = "unelevated"\n', encoding="utf-8")
+    (work / ".codex").mkdir()
+    (work / ".codex" / "config.toml").write_text('[windows]\nsandbox = "elevated"\n', encoding="utf-8")
+    inv, cfg, env = build()
+    assert protect("codex", inv, cfg, work, env)["windows_sandbox"] == "elevated"
+
+
+@pytest.mark.parametrize("text", ['profile = ["x"]\n', 'windows = "x"\n', 'profiles = "x"\nprofile = "x"\n'])
+def test_odd_config_types_are_configuration_errors(codex, text):
+    build, chome, work = codex
+    (chome / "config.toml").write_text(text, encoding="utf-8")
+    inv, cfg, env = build()
+    with pytest.raises(ValueError, match="unexpected"):
+        protect("codex", inv, cfg, work, env)
+
+
+def test_relative_codex_home_resolves_against_the_task_directory(codex):
+    build, _, work = codex
+    (work / "rel-home").mkdir()
+    (work / "rel-home" / "config.toml").write_text('sandbox_mode = "read-only"\n', encoding="utf-8")
+    inv, cfg, env = build()
+    env["CODEX_HOME"] = "rel-home"
+    assert protect("codex", inv, cfg, work, env)["config_sets_sandbox_mode"] is True
+
+
+@pytest.mark.parametrize("bad", ["sec[1]", "a?b", "x{y}"])
+def test_glob_characters_in_a_protected_path_fail_closed(codex, bad):
+    build, _, work = codex
+    inv, cfg, env = build(cfg_extra={"credential_dirs": [bad]})
+    with pytest.raises(ValueError, match="glob"):
+        protect("codex", inv, cfg, work, env)
+
+
+def test_unusual_path_characters_still_give_valid_toml(codex):
+    build, _, work = codex
+    inv, cfg, env = build(cfg_extra={"credential_dirs": ['we"ird\\x 中文\x7fdel', "tab\there"]})
+    protect("codex", inv, cfg, work, env)
+    fs = profile_of(inv.argv)["filesystem"]
+    assert any(p.endswith("中文\x7fdel") for p in fs) and any("tab\there" in p for p in fs)
+
+
+def test_existing_ignore_rules_is_not_repeated(codex):
+    build, _, work = codex
+    inv, cfg, env = build()
+    inv.argv[1:1] = ["--ignore-rules"]
+    protect("codex", inv, cfg, work, env)
+    assert inv.argv.count("--ignore-rules") == 1
+
+
+def test_observed_denials_skip_items_that_are_not_objects():
+    line = json.dumps({"type": "item.completed", "item": "command_execution"})
+    assert observed_denials("codex", line, None) == {"access_denied_commands": 0}

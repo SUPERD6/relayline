@@ -18,8 +18,12 @@ CODEX_PROFILE = "ccx-credential-guard"
 # legacy sandbox_mode -> the built-in permission profile it extends (Codex permissions docs, checked 2026-11-16)
 CODEX_BASES = {"read-only": ":read-only", "workspace-write": ":workspace"}
 # codex-cli 0.164.0 flags that select the legacy sandbox, bypass it or layer an uninspected config file
-CODEX_REFUSED = ("-s", "--sandbox", "--dangerously-bypass-approvals-and-sandbox", "--approve-for-me",
-                 "-p", "--profile")
+# (--full-auto / --yolo are not in 0.164.0's help; refused in case an older or newer CLI has them)
+CODEX_REFUSED = ("--sandbox", "--dangerously-bypass-approvals-and-sandbox", "--approve-for-me", "--profile",
+                 "--full-auto", "--yolo")
+CODEX_REFUSED_SHORT = ("-s", "-p")             # also glued to their value: -sread-only, -pwork
+# characters Codex treats as glob syntax in deny keys: a literal path containing them would match something else
+GLOB_CHARS = set("[]?{}")
 # What a refused read looks like in a command's output (Windows ACL, POSIX errno, PowerShell exception)
 DENIED_TEXT = ("access is denied", "permission denied", "operation not permitted", "unauthorizedaccessexception",
                "拒绝访问")
@@ -29,8 +33,10 @@ def launch_warning(cli: str) -> str:
     if cli == "codex":
         return ("ccx warning: credential guard for codex (status Unknown): runs Codex under a permission profile with filesystem deny "
                 "entries (beta in Codex). On Windows only the elevated sandbox enforces it, by adding DENY "
-                "ACLs for the CodexSandboxUsers group that stay on those files after the run; MCP servers and "
-                "Codex's own in-process tools are not covered.")
+                "ACLs for the CodexSandboxUsers group that stay on those files after the run and apply to every "
+                "later Codex sandbox command on this machine; execpolicy .rules are ignored for the run; MCP servers "
+                "and Codex's own in-process tools are not covered." + ("" if IS_WINDOWS else
+                " Enforcement on this platform was not measured by ccx."))
     if cli != "claude":
         return (f"ccx warning: credential guard for {cli}: Unknown; no verified per-directory read deny. "
                 "The existing sandbox is unchanged; use external isolation for sensitive tasks.")
@@ -51,6 +57,8 @@ def observed_denials(cli: str, stdout: str, permission_denials: int | None) -> d
         try:
             item = json.loads(line).get("item") or {}
         except (ValueError, AttributeError):
+            continue
+        if not isinstance(item, dict):
             continue
         if (item.get("type") == "command_execution" and item.get("exit_code") not in (0, None)
                 and any(t in str(item.get("aggregated_output") or "").lower() for t in DENIED_TEXT)):
@@ -227,6 +235,8 @@ def protect(cli: str, inv, cfg: dict, project: Path, env: dict) -> dict | None:
 # sandbox refused to start the thread ("cannot enforce deny-read restrictions directly"). Profiles do not compose
 # with the legacy settings, so ccx replaces its own `-c sandbox_mode=...` with the profile (see _protect_codex).
 
+IGNORE_RULES = "--ignore-rules"   # codex-cli 0.164.0 exec / exec resume: do not load execpolicy .rules files
+
 LEGACY_NOTE = (" A loaded Codex config also sets sandbox_mode: Codex docs say that selects the legacy sandbox; "
                "codex-cli 0.164.0 still applied this run's profile when checked.")
 
@@ -263,12 +273,15 @@ def _codex_config_files(argv: list[str], cwd: Path, env: dict) -> list[Path]:
     # project-scoped .codex/config.toml from cwd up to the repository root (or cwd alone outside a repository)
     chain = [cwd, *cwd.parents]
     root = next((d for d in chain if (d / ".git").exists()), None)
-    files += [d / ".codex" / "config.toml" for d in (chain[:chain.index(root) + 1] if root else [cwd])]
+    project = chain[:chain.index(root) + 1] if root else [cwd]
+    # Codex layers user config, then project config nearer cwd on top: keep that order, later files win
+    files += [d / ".codex" / "config.toml" for d in reversed(project)]
     return list(dict.fromkeys(files))
 
 
 def _codex_loaded(argv: list[str], cwd: Path, env: dict) -> tuple[str | None, bool]:
-    """(windows.sandbox from the first config file that sets it, whether any file selects the legacy sandbox)."""
+    """(windows.sandbox from the last config file that sets it, whether any file selects the legacy sandbox).
+    Project configs are read even when Codex would not trust the project: conservative, it can only refuse."""
     backend, legacy = None, False
     for path in _codex_config_files(argv, cwd, env):
         try:
@@ -281,30 +294,33 @@ def _codex_loaded(argv: list[str], cwd: Path, env: dict) -> tuple[str | None, bo
             data = tomllib.loads(text)
         except tomllib.TOMLDecodeError as e:
             raise ValueError(f"credential guard cannot parse Codex config {path}") from e
-        profile = (data.get("profiles") or {}).get(data.get("profile")) if data.get("profile") else None
+        profiles, name, windows = data.get("profiles", {}), data.get("profile"), data.get("windows", {})
+        if not isinstance(profiles, dict) or not isinstance(windows, dict) or not isinstance(name, (str, type(None))):
+            raise ValueError(f"credential guard cannot inspect Codex config {path}: unexpected profile/windows types")
+        profile = profiles.get(name) if name else None
         if any(k in data for k in ("sandbox_mode", "sandbox_workspace_write")) or (
                 isinstance(profile, dict) and any(k in profile for k in ("sandbox_mode", "sandbox_workspace_write"))):
             legacy = True
-        value = (data.get("windows") or {}).get("sandbox")
-        if backend is None and isinstance(value, str):
-            backend = value
+        if "sandbox" in windows:
+            backend = windows["sandbox"]
     return backend, legacy
 
 
 def _protect_codex(inv, project: Path, env: dict, extra: list[str]) -> dict:
     argv = inv.argv
-    refused = [x for x in argv if x in CODEX_REFUSED]
+    refused = [x for x in argv if x in CODEX_REFUSED or x.startswith(tuple(f + "=" for f in CODEX_REFUSED))
+               or (len(x) >= 2 and x[:2] in CODEX_REFUSED_SHORT)]
     if refused:
         raise ValueError(f"credential guard cannot run Codex with {refused[0]}: it selects the legacy sandbox, "
                          "bypasses it or layers an uninspected config profile")
     overrides = _overrides(argv)
-    if any(key == "default_permissions" or key.startswith(("permissions.", "sandbox_workspace_write"))
-           for _, key, _ in overrides):
+    if any(key in ("default_permissions", "profile", "permissions", "profiles") or
+           key.startswith(("permissions.", "profiles.", "sandbox_workspace_write")) for _, key, _ in overrides):
         raise ValueError("credential guard cannot combine with existing Codex permission or sandbox settings")
     modes = [(i, _toml_value(raw)) for i, key, raw in overrides if key == "sandbox_mode"]
     if not modes:
         raise ValueError("credential guard needs ccx's Codex `-c sandbox_mode=...` permission to replace")
-    base = CODEX_BASES.get(modes[-1][1])
+    base = CODEX_BASES.get(modes[-1][1]) if isinstance(modes[-1][1], str) else None
     if base is None:
         raise ValueError(f"credential guard cannot run Codex with sandbox_mode={modes[-1][1]!r}")
     # Codex docs: a loaded sandbox_mode selects the legacy sandbox instead of a profile. Measured on codex-cli
@@ -314,13 +330,25 @@ def _protect_codex(inv, project: Path, env: dict, extra: list[str]) -> dict:
     for _, key, raw in overrides:
         if key == "windows.sandbox":
             backend = _toml_value(raw)              # a later -c wins over config files
-    if IS_WINDOWS and backend == "unelevated":
-        raise ValueError("credential guard needs Codex's elevated Windows sandbox: the unelevated sandbox refuses "
-                         "to start with deny-read entries (codex-cli 0.164.0)")
-    entries = ", ".join(f'{json.dumps(p, ensure_ascii=False)}="deny"'
-                        for p in protected_dirs(project, inv.cwd, env, extra))
-    profile = ["-c", f'default_permissions="{CODEX_PROFILE}"',
-               "-c", f'permissions.{CODEX_PROFILE}={{extends="{base}", filesystem={{{entries}}}}}']
+        elif key == "windows":
+            raise ValueError("credential guard cannot inspect a whole `-c windows=...` table")
+    # Only the elevated backend was measured to enforce deny-read; unelevated refuses to start (codex-cli 0.164.0);
+    # an unset or other value was not measured, so it fails closed here rather than trusting Codex to.
+    if IS_WINDOWS and backend != "elevated":
+        raise ValueError('credential guard needs Codex\'s elevated Windows sandbox (windows.sandbox = "elevated"); '
+                         f"found {backend!r}: unelevated refuses deny-read entries and other values were not measured")
+    paths = protected_dirs(project, inv.cwd, env, extra)
+    if any(GLOB_CHARS & set(p) for p in paths):
+        raise ValueError("credential guard: a protected path contains [ ] ? { or }, which Codex reads as glob syntax")
+    # JSON leaves DEL (0x7f) raw, which TOML forbids: escape it
+    entries = ", ".join(f'{json.dumps(p, ensure_ascii=False)}="deny"' for p in paths).replace("\x7f", "\\u007f")
+    value = f'{{extends="{base}", filesystem={{{entries}}}}}'
+    try:                                            # Codex takes invalid TOML as a literal string: never send one
+        tomllib.loads(f"v = {value}")
+    except tomllib.TOMLDecodeError as e:
+        raise ValueError("credential guard could not build a valid Codex profile for the protected paths") from e
+    profile = ["-c", f'default_permissions="{CODEX_PROFILE}"', "-c", f"permissions.{CODEX_PROFILE}={value}",
+               *([] if IGNORE_RULES in argv else [IGNORE_RULES])]
     drop = {j for i, _ in modes for j in (i, i + 1)}
     first = modes[0][0]
     new = [*[x for j, x in enumerate(argv[:first]) if j not in drop], *profile,
@@ -331,5 +359,5 @@ def _protect_codex(inv, project: Path, env: dict, extra: list[str]) -> dict:
     inv.argv[:] = new
     print(launch_warning("codex") + (LEGACY_NOTE if legacy else ""), file=sys.stderr, flush=True)
     return {"status": "Unknown", "mechanism": "codex-permission-profile", "rules_added": True,
-            **({"windows_sandbox": backend or "default"} if IS_WINDOWS else {}),
+            "execpolicy_rules": "ignored", **({"windows_sandbox": backend} if IS_WINDOWS else {}),
             **({"config_sets_sandbox_mode": True} if legacy else {})}

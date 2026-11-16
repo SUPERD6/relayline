@@ -29,28 +29,30 @@ Read 使用官方说明的 `//c/...` 盘符归一化；不能据此声称所有�
 Codex（#289 起）改用 **permission profile** 运行，不再用旧的沙箱模式：ccx 把自己传的
 `-c sandbox_mode="read-only"` / `"workspace-write"` 换成 `-c default_permissions="ccx-credential-guard"` 和内联的
 `-c permissions.ccx-credential-guard={extends=":read-only"|":workspace", filesystem={<目标>="deny", ...}}`，
-禁读目标与 Claude 相同。不写用户的 Codex 配置文件；`exec resume` 用同样的参数。
+禁读目标与 Claude 相同，并加 `--ignore-rules`：execpolicy 的 `allow` 规则会让命令在沙箱外运行，deny 管不到（这也让本次运行的 `forbidden` 规则失效）。不写用户的 Codex 配置文件；`exec resume` 用同样的参数。
 参数无法检查或会让 profile 失效时，启动前拒绝（配置错误，不产生尝试）：`--sandbox`/`-s`、
-`--dangerously-bypass-approvals-and-sandbox`、`--approve-for-me`、`-p/--profile`、`sandbox_mode="danger-full-access"`、
-已有 `default_permissions`/`permissions.*`/`sandbox_workspace_write` 覆盖、`--config=` 写法、无法解析的 Codex 配置文件，
-以及 Windows 上的 **unelevated** 沙箱（`windows.sandbox` 取后面的 `-c` 或第一个设置它的配置文件）。
+`--dangerously-bypass-approvals-and-sandbox`、`--approve-for-me`、`-p/--profile`、`--full-auto`、`--yolo`（含 `--参数=值` 和连写的 `-s值`）、
+`sandbox_mode="danger-full-access"`、已有 `default_permissions`/`permissions*`/`profile`/`profiles*`/`sandbox_workspace_write` 覆盖、
+整个 `-c windows=` 表、`--config=` 写法、无法解析或类型异常的 Codex 配置文件、含 `[ ] ? { }` 的禁读路径（Codex 会当通配），
+以及 Windows 上 **elevated 以外**的任何沙箱（unelevated、未设置或其他值；`windows.sandbox` 取最后一个 `-c`，否则取最后一个设置它的配置文件）。
+开着禁读时，这类机器上 Claude 换到 Codex 的回退会以退出码 3 结束运行，而不是不受保护地继续跑。
 实测（见下）：unelevated 沙箱遇到禁读条目直接拒绝启动会话；**elevated** 沙箱给匹配的文件和目录加
-`CodexSandboxUsers:(DENY)(R)` ACL 来执行禁读，**运行结束后这些 ACL 仍然保留**。它们只影响 Codex 的沙箱账户，
+`CodexSandboxUsers:(DENY)(R)` ACL 来执行禁读，**运行结束后这些 ACL 仍然保留**，并作用于这台机器之后所有 Codex 沙箱命令（其他项目、你自己的 Codex 会话、关掉禁读后的运行）。它们只影响 Codex 的沙箱账户，
 不影响你本人和 Codex 主进程，可用 `icacls <路径> /remove:d CodexSandboxUsers` 去掉。Codex 的 permission profile 仍是 **beta**。
 不覆盖：MCP 服务器、Codex 进程内的工具（如看图）以及 Codex 主进程自己的读取。Codex 文档说任何已加载配置文件里的
 `sandbox_mode` 会让它改用旧沙箱；实测 codex-cli 0.164.0 仍按 `-c` 的 profile 执行，所以 ccx 不拒绝，但记录
-`config_sets_sandbox_mode: true` 并在警告里说明。检查的配置文件：`CODEX_HOME/config.toml`（`--ignore-user-config` 时跳过）
-和从任务目录到仓库根的 `.codex/config.toml`；不检查托管（`requirements`）配置。Linux/macOS 的执行效果
+`config_sets_sandbox_mode: true` 并在警告里说明。检查的配置文件按 Codex 的分层顺序（后面的优先）：`CODEX_HOME/config.toml`（`--ignore-user-config` 时跳过），
+然后是从仓库根到任务目录的 `.codex/config.toml`（Codex 不信任该项目时也读，只会多拒绝）；不检查托管（`requirements`）配置。Linux/macOS 的执行效果
 （按 Codex 文档是 bubblewrap / Seatbelt）**未在本机实测**。
 
-Codex 记录 `credential_guard: {status: "Unknown", mechanism: "codex-permission-profile", rules_added: true}`，
-Windows 上另记 `windows_sandbox`（`elevated`、未设置时为 `default` 等）。其他适配器在**启动前**警告，并记录
+Codex 记录 `credential_guard: {status: "Unknown", mechanism: "codex-permission-profile", rules_added: true,
+execpolicy_rules: "ignored"}`，Windows 上另记 `windows_sandbox: "elevated"`。非 Windows 平台的警告会说明 ccx 没在该平台实测。其他适配器在**启动前**警告，并记录
 `{status: "Unknown", mechanism: "unverified"}`，保留现有沙箱参数。
 Claude 记录 `status: "Unknown"`、`mechanism: "claude-permissions-deny"`，不把注入规则当作已验证隔离。
 `rules_added` 仅表示规则已注入启动设置。
 每次尝试结束后统计看到的拒绝：Codex `access_denied_commands` = 非零退出且输出含拒绝访问信息
 （`Access is denied`、`Permission denied`、`Operation not permitted` 等）的 shell 命令数；Claude `refused_tool_calls`
-= CLI 自己的 `permission_denials` 计数。两者**不区分拒绝原因**（禁读、沙箱、允许列表都算），不归因于禁读本身；
+= CLI 自己的 `permission_denials` 计数（与该尝试已有的 `permission_denials` 是同一个数）。两者**不区分拒绝原因**（禁读、沙箱、允许列表都算），不归因于禁读本身；
 不经 shell 的读取看不到。顶层数值是整次运行的合计。记录和警告不添加凭据内容或目录清单。
 CLI 自身的认证和启动配置加载不属于工具规则保护范围。
 
