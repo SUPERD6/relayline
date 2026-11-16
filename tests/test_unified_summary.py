@@ -80,7 +80,8 @@ def test_strength_pairs_agent_keys_and_invalid_side_excluded():
     rows.append({"task": "t1-empty-mean", "agent": "codex", "rep": 11, "arm": "off", "ok": True, "usd": .1})
     pair = U.strength(rows, ("off", "on"))["pair"]
     assert pair == {"a": "off", "b_arm": "on", "keys": ["task", "agent", "rep"],
-                    "n_pairs": 7, "b": 6, "c": 0, "mcnemar_p": .03125, "usd_per_success_ratio": None}
+                    "n_pairs": 7, "b": 6, "c": 0, "mcnemar_p": .03125, "usd_per_success_ratio": None,
+                    "effect_rate": 6 / 7}   # #347 adds effect_rate = (b - c) / n_pairs; the rest is unchanged
     reverse = U.strength(rows, ("on", "off"))["pair"]
     assert (reverse["b"], reverse["c"], reverse["mcnemar_p"]) == (0, 6, .03125)
 
