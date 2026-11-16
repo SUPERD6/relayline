@@ -26,9 +26,19 @@ def workspace_write(args: list[str]) -> bool:
     return args[:1] == ["exec"] and mode == "workspace-write"
 
 
+def web_search_args(args: list[str], env) -> list[str]:
+    """Opt-in (CCX_EVAL_CODEX_WEB_SEARCH=disabled, #346): `-c web_search="disabled"` on every `codex exec` and
+    `exec resume`, reviewers included. Codex web search is not limited by the sandbox's network setting, and ccx
+    adds this key only with lean tools. Placed where ccx puts its own -c keys (after `resume <id>`)."""
+    if env.get("CCX_EVAL_CODEX_WEB_SEARCH") != "disabled" or args[:1] != ["exec"]:
+        return args
+    at = 3 if args[1:2] == ["resume"] and len(args) > 2 else 1
+    return [*args[:at], "-c", 'web_search="disabled"', *args[at:]]
+
+
 def main() -> int:
     argv = json.loads(os.environ["CCX_EVAL_CODEX_ARGV"])
-    args = sys.argv[1:]
+    args = web_search_args(sys.argv[1:], os.environ)
     if not workspace_write(args):
         return subprocess.call([*argv, *args])
     # ccx sets both cwd and -C; retain the latter's semantics for direct evaluation invocations as well.

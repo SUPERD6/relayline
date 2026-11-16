@@ -35,6 +35,10 @@ from common import ROOT, append_jsonl, read_jsonl
 
 ARMS = ("self", "ccxlong")
 N = 4
+# Round 2 (#346): frozen task files of any size; invalid rows continue (up to a limit) instead of stopping.
+ROUND2 = ("r2b", "r2c")
+TASK_FIELDS = ("repo", "commit", "brief", "tests", "code")
+WEB_TOOLS = ("WebFetch", "WebSearch")
 LIMITATION = "Delegation and one-line acceptance change together; their effects are not separated."
 USAGE_COUNTERS = {"input_tokens": "inputTokens", "output_tokens": "outputTokens",
                   "cache_read_input_tokens": "cacheReadInputTokens",
@@ -107,15 +111,17 @@ def pin_refused(requested: str, actual: str) -> bool:
     return True
 
 
-def schedule(tasks: list[dict], rounds: int = 1, arms=ARMS) -> list[dict]:
-    if DE.ARM in arms:
+def schedule(tasks: list[dict], rounds: int = 1, arms=ARMS, episode_size: int = N) -> list[dict]:
+    """episode_size 1 (#346): each task in its own new lead session, so tasks stay independent."""
+    if set(DE.ARMS) & set(arms):
         return DE.schedule(tasks, rounds, arms)
-    if len(tasks) % N:
-        raise ValueError("episodes must contain exactly four tasks")
+    if episode_size < 1 or len(tasks) % episode_size:
+        raise ValueError("episodes must contain exactly four tasks" if episode_size == N
+                         else f"task count must be a multiple of the episode size {episode_size}")
     result = []
     for rd in range(1, rounds + 1):
-        for ep, start in enumerate(range(0, len(tasks), N), 1):
-            group = tasks[start:start + N]
+        for ep, start in enumerate(range(0, len(tasks), episode_size), 1):
+            group = tasks[start:start + episode_size]
             if len({t["repo"] for t in group}) != 1:
                 raise ValueError("an episode must use one repository")
             for turn, task in enumerate(group, 1):
@@ -128,12 +134,13 @@ def schedule(tasks: list[dict], rounds: int = 1, arms=ARMS) -> list[dict]:
     return result
 
 
-def estimate(units: list[dict], arms=ARMS) -> dict:
+def estimate(units: list[dict], arms=ARMS, tasks: list[dict] | None = None) -> dict:
     # Historical r5 tasks were about 40 changed code lines. Scale by the
     # frozen task's actual implementation size, not documentation/type stubs.
     details = []
+    known = {t["id"]: t for t in tasks or []}
     for u in units:
-        task = TASKS.by_id(u["task"])
+        task = known.get(u["task"]) or TASKS.by_id(u["task"])
         lines, files = task.get("code_lines", 40), len(task["code"])
         scale = max(1, lines / 40, files / 2)
         base = r5.UNIT_USD["self" if u["arm"] == "self" else "ccx2"]
@@ -153,15 +160,22 @@ def task_caps(a, arm: str) -> tuple[float, float]:
     legacy = getattr(a, "task_cap", None)
     if legacy is not None:
         return (legacy, 0.0) if arm == "self" else (legacy / 2, legacy / 2)
+    if arm == "self" and getattr(a, "self_lead_budget", None) is not None:
+        # #346: self's lead cap can equal a ccx arm's lead + delegation caps (equal per-task allowances).
+        return float(a.self_lead_budget), 0.0
     return float(getattr(a, "lead_budget", 1.5)), (float(getattr(a, "child_budget", 1.5)) if arm != "self" else 0.0)
 
 
 def budget_envelope(a) -> dict:
     lead, child = task_caps(a, "ccxlong")
-    return {"budget_usd": a.budget, "lead_allowance_usd": lead, "child_allowance_usd": child,
-            "max_task_reservation_usd": lead + child, "overrun_allowance_usd": lead + child,
-            "operational_upper_usd": a.budget + lead + child, "absolute_hard_cap": False,
-            "basis": "reserve lead+child before each task; allow one final overrun allowance per role; CLI caps are step-boundary checks, not a provider billing guarantee"}
+    reserve = max(lead + child, sum(task_caps(a, "self")))
+    out = {"budget_usd": a.budget, "lead_allowance_usd": lead, "child_allowance_usd": child,
+           "max_task_reservation_usd": reserve, "overrun_allowance_usd": reserve,
+           "operational_upper_usd": a.budget + reserve, "absolute_hard_cap": False,
+           "basis": "reserve lead+child before each task; allow one final overrun allowance per role; CLI caps are step-boundary checks, not a provider billing guarantee"}
+    if getattr(a, "self_lead_budget", None) is not None and getattr(a, "task_cap", None) is None:
+        out["self_lead_allowance_usd"] = float(a.self_lead_budget)
+    return out
 
 
 @dataclass
@@ -180,8 +194,41 @@ class Budget:
             self.spent += amount
 
 
+def prompt_v2(task: dict, child_cap: float, receipt: Path | None, agent: str) -> str:
+    """ccxcheapfirst2 (#346): the shipped #326/#338 delegation guidance, which the evaluation lead does not load as
+    a skill: write a test for the new requirement, see it fail, commit it (check.sensitivity needs a clean tree),
+    pass it as --check, and give concrete inputs and expected outputs in the brief."""
+    ccx = f'python "{(receipt or Path(__file__).with_name("p4_receipt.py")).as_posix()}"'
+    return ("The repository has been reset to a different historical parent for this task. "
+            "Earlier code changes are intentionally absent; conversation context is preserved. "
+            "Implement only the request below. Do not fetch history or packages, or inspect other sessions, "
+            "grading files, or evaluation artifacts. Do not change existing tests.\n\n"
+            + task["brief"] + "\n\n"
+            "Do not edit implementation code yourself. Delegate the work to " + agent.capitalize() + " through ccx, "
+            "writing a failing check first:\n"
+            "1. Turn the request into at least one new test aimed at the new requirement, in a new file under tests/. "
+            "Read only the interface the test needs, not the whole code base.\n"
+            "2. Run it with PYTHONPATH=. python -m pytest -q -o addopts= -p no:cacheprovider <that test file> and see it "
+            "fail before the change. If it passes, it cannot see the new requirement: fix the test until it fails.\n"
+            "3. Commit only that test file (git add <that test file>; git commit -m \"failing check\"), so the tree is "
+            "clean when ccx compares the check before and after the change (git status --porcelain must print "
+            "nothing). Make no other commit.\n"
+            "4. Dispatch with that test as --check. In the brief, state the request with concrete inputs and expected "
+            "outputs, and tell the sub-agent not to edit that test. Use the shipped default tradeoff (omit "
+            "--tradeoff), review and routing; run synchronously:\n"
+            f'{ccx} run --to {agent} --mode write --context auto --new --no-ab --max-usd {child_cap:g} '
+            '--check "python -m pytest -q -o addopts= -p no:cacheprovider <that test file>" "<brief>"\n'
+            "CCX_LEAD_VIEW=line enables the existing compact receipt. If receipt ok=true, accept that one "
+            "line and finish: do not read files, diff, full result, or rerun checks. Only if receipt ok is not "
+            "true may you use ccx show <run_id> and ccx resume <run_id> to diagnose or request a repair; "
+            "any repair shares the remaining delegation allowance, never increase it. Do not use another "
+            "delegation path or run in the background.\nFinish with one line DONE: <summary>.")
+
+
 def prompt(task: dict, arm: str, child_cap: float, receipt: Path | None = None,
-           check_command=None, focused=False) -> str:
+           check_command=None, focused=False, child_agent: str = "codex") -> str:
+    if arm == DE.ARM2:
+        return prompt_v2(task, child_cap, receipt, child_agent)
     common = ("The repository has been reset to a different historical parent for this task. "
               "Earlier code changes are intentionally absent; conversation context is preserved. "
               "Implement only the request below. Do not fetch history or packages, commit, or inspect other "
@@ -238,7 +285,7 @@ def telemetry(stream: str) -> dict:
             "lead_usage": r5.TL.lead_stream(stream)["usage"]}
 
 
-def reset_repo(repo: Path, tree: bytes, native=False) -> None:
+def reset_repo(repo: Path, tree: bytes, native=False, caches=False) -> None:
     # Owned, disposable episode directory only; never git reset the source checkout.
     PF.rmtree(repo)
     E.repo_from_tar(tree, {"stubs": []}, repo)
@@ -247,6 +294,9 @@ def reset_repo(repo: Path, tree: bytes, native=False) -> None:
     exclude = repo / ".git" / "info" / "exclude"
     with exclude.open("a", encoding="utf-8", newline="") as f:
         f.write("\n/.ccx-eval-tmp-*/\n")
+        if caches:
+            # ccxcheapfirst2: the lead runs its failing test before dispatching; check.sensitivity needs a clean tree.
+            f.write(".pytest_cache/\n__pycache__/\n")
 
 
 def score(repo: Path, task: dict, material: dict, python: str, native=False) -> dict:
@@ -287,7 +337,8 @@ class Episode:
         self.iso = PF.Unit(key, a.work, a.work / ("repo-" + key), a.work / ("hub-" + key),
                            claude=getattr(a, "claude_isolation", "flags"), codex_home=Path(a.codex_home), codex_workspace_tmp=True,
                            hidden=(a.ext_cache, a.artifacts, *other_roots, *grade_files),
-                           deny=("WebFetch", "WebSearch", *(f"Read({PF._rule_path(p)})" for p in grade_files)),
+                           # The same settings file reaches ccx's Claude sub-agents (CCX_CLAUDE_SETTINGS).
+                           deny=(*WEB_TOOLS, *(f"Read({PF._rule_path(p)})" for p in grade_files)),
                            flags=(*r5.EXT_FLAGS, r"git\s+(?:fetch|clone|pull)"))
         self.before, self.job = PF.snapshot(), PF.Job()
         self.wall = 0.0
@@ -303,9 +354,13 @@ class Episode:
         self.streams = []
         self.artifacts = a.artifacts
         self.native = native_checkout(a)
-        reset_repo(self.iso.repo, material["tar"], self.native)
+        reset_repo(self.iso.repo, material["tar"], self.native, key.endswith("-" + DE.ARM2))
         (self.iso.hub / "ccx").mkdir(parents=True)
-        DE.configure(self.iso.hub, key.endswith("-" + DE.ARM))
+        self.arm = key.rsplit("-", 1)[-1]
+        if self.arm in DE.ARMS:
+            DE.configure(self.iso.hub, True, self.arm)
+        self.child_agent = child_agent(a, self.arm)
+        self.default_rung = first_rung(self.iso.hub, self.child_agent) if self.arm in DE.ARMS else None
         # Fresh hub, shipped settings: unlike r3.make_hub, no model holdbacks.
         self.memory_empty = PF.hub_memory_empty(self.iso.hub)
         # Prepare once per episode. In flags mode native transcripts live in
@@ -325,9 +380,14 @@ class Episode:
         self.env["PATH"] = str(Path(a.ext_python).parent) + os.pathsep + self.env["PATH"]
         if self.native:
             self.env["PYTHONDONTWRITEBYTECODE"] = "1"
+        if self.arm == DE.ARM2:
+            self.env["PYTHONDONTWRITEBYTECODE"] = "1"   # keep the tree clean for check.sensitivity
+        if getattr(a, "codex_web_search", "default") == "disabled":
+            # Every Codex exec (sub-agent and reviewer) goes through codex_tmp.py in p4 (codex_workspace_tmp).
+            self.env["CCX_EVAL_CODEX_WEB_SEARCH"] = "disabled"
 
     def step(self, u: dict, task: dict, material: dict, a, cap: float) -> dict:
-        reset_repo(self.iso.repo, material["tar"], self.native)
+        reset_repo(self.iso.repo, material["tar"], self.native, self.arm == DE.ARM2)
         row = {**u, "session_id": self.sid, "reference_commit": task["commit"], "repo": task["repo"],
                "env_clean": False, "ok": None, "usd": None, "cost_complete": False,
                "evidence": getattr(a, "evidence", "not run"),
@@ -363,7 +423,8 @@ class Episode:
         t0 = time.monotonic()
         out, err, rc, _ = PF.run(lead_argv(self.iso, self.sid, u["turn"], lead_cap),
                                   input=prompt(task, u["arm"], child_cap, self.receipt,
-                                               self.env.get("CCX_P4_CHECK_COMMAND"), getattr(a, "focused_context", False)), cwd=self.iso.repo, env=self.env,
+                                               self.env.get("CCX_P4_CHECK_COMMAND"), getattr(a, "focused_context", False),
+                                               self.child_agent), cwd=self.iso.repo, env=self.env,
                                   timeout=a.timeout, job=self.job)
         row["wall_s"] = round(time.monotonic() - t0, 3)
         self.wall += row["wall_s"]
@@ -389,8 +450,34 @@ class Episode:
                               ("run_id", "label", "vendor", "model", "rungs", "ae_usd", "dispatch") if k in entry}
                              for entry in ledger[self.side_ledger_count:] if not entry.get("type")]
         self.side_ledger_count = len(ledger)
-        if u["arm"] == DE.ARM:
+        if u["arm"] in DE.ARMS:
             row["dispatch_observed"] = any(e.get("dispatch", {}).get("cheap_first") for e in row["side_ledger"])
+        round2 = getattr(a, "max_invalid_rows", None) is not None
+        records = []
+        if u["arm"] != "self" and (round2 or u["arm"] == DE.ARM2):
+            # Sub-agent runs only: a review run's record has no result of its own (as r5.ccx_check_reason).
+            records = [rec for rec in (r5.r2.record(self.iso.hub, rid) for rid in row["ccx_run_ids"])
+                       if not str(rec.get("label") or "").startswith("review:")]
+            # The receipt's status, as ccx builds it (ledger.slim / delegate result): result.status, else "error".
+            row["receipt_error"] = any((rec.get("result") or {}).get("status", "error") == "error" for rec in records)
+            # ccx --max-usd stop: record["max_usd"] is written only when the cap stopped a step (delegate._capped);
+            # p4_receipt refuses a new attempt once the task's child allowance is spent.
+            row["child_cap_hit"] = (any(rec.get("kind") == "over_budget" or rec.get("max_usd") for rec in records)
+                                    or "child allowance exhausted" in out)
+        if u["arm"] == DE.ARM2:
+            row["lead_check_commands"] = list(dict.fromkeys(r["check_cmd"] for r in records if r.get("check_cmd")))
+            # From the sensitivity receipt: "sensitive" = the check failed before the change.
+            row["check_sensitivity"] = [r.get("check_sensitivity") for r in records if "check_sensitivity" in r]
+            row["default_first_rung"] = self.default_rung
+            row["first_rungs"] = [e["dispatch"].get("first_rung") for e in row["side_ledger"]
+                                  if e.get("dispatch", {}).get("cheap_first")]
+            row["first_rung_matches_default"] = (all(r == self.default_rung for r in row["first_rungs"])
+                                                 if row["first_rungs"] else None)
+            row["child_agent"] = self.child_agent
+        if round2:
+            row["lead_cap_hit"] = fin.get("subtype") == "error_max_budget_usd"
+            row["cap_hit"] = row["lead_cap_hit"] or bool(row.get("child_cap_hit"))
+            row["timed_out"] = rc == -9
         row.update(P5.costs(row))
         row["known_usd"] = row["ccx_usd"] + (lead or 0)
         if lead is not None:
@@ -421,6 +508,11 @@ class Episode:
         scoring_start = time.monotonic()
         sc = (score(self.iso.repo, task, material, self.python, True) if self.native else
               score(self.iso.repo, task, material, self.python))
+        if round2 and sc["rc"] == 2:
+            # Round 2 (#346): hidden tests that fail to import/collect (e.g. the arm never added the function) are the
+            # arm's own failure, a valid ok=False row; the task set checks they collect on the reference (#348).
+            sc = {**sc, "environment_error": False}
+            row["score_collection_error"] = True
         row.update({"ok": sc["ok"], "pytest": sc["summary"], "score_rc": sc["rc"],
                     "environment_error": sc["environment_error"] or not row["session_match"],
                     "score_wall_s": time.monotonic() - scoring_start})
@@ -472,7 +564,8 @@ def arm_summary(rs: list[dict]) -> dict:
     return result
 
 
-def summary(rows: list[dict], expected: int, limits: dict | None = None, gates: str = "p4") -> dict:
+def summary(rows: list[dict], expected: int, limits: dict | None = None, gates: str = "p4",
+            max_escalation_rate=.3) -> dict:
     evidence = {r.get("evidence", "not run") for r in rows}
     result = {"evidence": next(iter(evidence)) if len(evidence) == 1 else "not run",
               "limitation": LIMITATION}
@@ -507,6 +600,16 @@ def summary(rows: list[dict], expected: int, limits: dict | None = None, gates: 
                              for arm in P5A.ARMS}
     if any(r.get("arm") == DE.ARM for r in rows):
         result["dispatch"] = DE.comparison(rows, expected)
+    if any(r.get("arm") == DE.ARM2 for r in rows):
+        # Escalation rate always recorded (metrics); the verdict is the round-1 point rule, the preregistered
+        # round-2 analysis is unified_summary's.
+        result["dispatch2"] = DE.comparison(rows, expected, DE.ARM2, max_escalation_rate)
+    if any("invalid_reason" in r for r in rows):
+        reasons = [r.get("invalid_reason") for r in rows]
+        result["invalid_rows"] = {"total": sum(x is not None for x in reasons),
+                                  "by_reason": {x: reasons.count(x) for x in sorted(set(filter(None, reasons)))},
+                                  "cap_hit_by_arm": {arm: sum(bool(r.get("cap_hit")) for r in rows if r.get("arm") == arm)
+                                                     for arm in dict.fromkeys(r.get("arm") for r in rows)}}
     return result
 
 
@@ -560,9 +663,28 @@ def parser():
     p.add_argument("--native-checkout", action="store_true", help="experimental, default off except p5: native Git EOL checkout plus baseline gate")
     p.add_argument("--focused-retry", action="store_true", help="experimental, default off: enable existing defaults.focused_retry in each isolated ccx hub")
     p.add_argument("--artifacts-root", type=Path, help="explicit artifact run directory for legacy --recompute receipts")
-    p.add_argument("--split", choices=("dev", "final", "all", "p5", "dispatch"), default="all")
+    p.add_argument("--split", choices=("dev", "final", "all", "p5", "dispatch", *ROUND2), default="all",
+                   help="r2b / r2c (round 2, #346): tasks from --tasks-file, checked against --tasks-sha256")
+    p.add_argument("--tasks-file", type=Path, help="r2b/r2c only: frozen selection JSON {\"accepted\": [...]}, any number of tasks")
+    p.add_argument("--tasks-sha256", help="r2b/r2c only: required SHA-256 of --tasks-file")
+    p.add_argument("--max-tasks", type=int, help="optional: refuse a task file with more tasks than this")
     p.add_argument("--gates", choices=("p4", "p5"), default="p4", help="opt-in Stage 5 gates; Stage 4 verdicts unchanged")
-    p.add_argument("--arms", default=",".join(ARMS), help="opt-in ccxlongcheap / ccxcheapfirst; defaults remain self,ccxlong")
+    p.add_argument("--arms", default=",".join(ARMS), help="opt-in ccxlongcheap / ccxcheapfirst / ccxcheapfirst2; defaults remain self,ccxlong")
+    p.add_argument("--child-agent", choices=("claude", "codex"),
+                   help="ccxcheapfirst2 only: sub-agent it delegates to (default claude); other ccx arms keep codex")
+    p.add_argument("--episode-size", type=int, default=N,
+                   help="tasks per lead session (default 4); 1 gives every task its own new session (cheap-first arms always 1)")
+    p.add_argument("--self-lead-budget", type=float, default=None,
+                   help="self arm's Claude --max-budget-usd per task (default: --lead-budget); set it to lead + child budget for equal caps")
+    p.add_argument("--max-escalation-rate", default="0.3",
+                   help="stop a cheap-first group when its escalation rate exceeds this (default 0.3); 'none' never stops on it; always recorded")
+    p.add_argument("--max-invalid-rows", type=int, default=None,
+                   help="keep invalid rows and continue until more than N cost-unknown or N no-dispatch-evidence rows "
+                        "(default 3 for r2b/r2c, else round-1 rules: the first stops)")
+    p.add_argument("--codex-web-search", choices=("default", "disabled"), default=None,
+                   help="'disabled' adds -c web_search=\"disabled\" to every Codex exec (default: disabled for r2b/r2c, else Codex's default)")
+    p.add_argument("--max-operational-usd", type=float, default=None,
+                   help="optional: refuse a --run whose operational envelope (budget + one reservation) exceeds this")
     p.add_argument("--focused-context", action="store_true", help="experimental, default off: concise delegated brief and implementation file pointers; use a separate tag")
     p.add_argument("--rounds", type=int, default=1)
     p.add_argument("--budget", type=float, default=None, help="must be explicit with --run; dry-run defaults to $12")
@@ -582,12 +704,39 @@ def parser():
     return p
 
 
+def resolve_options(a) -> None:
+    """#346 options: refuse combinations that would silently mean something else, fill split-dependent defaults."""
+    round2 = a.split in ROUND2
+    if round2 and (not a.tasks_file or not a.tasks_sha256):
+        raise SystemExit(f"--split {a.split} requires --tasks-file and --tasks-sha256; no model called")
+    if not round2 and (a.tasks_file or a.tasks_sha256):
+        raise SystemExit("--tasks-file / --tasks-sha256 are only for --split r2b / r2c; no model called")
+    raw = str(a.max_escalation_rate).strip().lower()
+    try:
+        a.max_escalation_rate = None if raw == "none" else float(raw)
+    except ValueError:
+        raise SystemExit("--max-escalation-rate must be a number in [0, 1] or none") from None
+    if a.max_escalation_rate is not None and not 0 <= a.max_escalation_rate <= 1:
+        raise SystemExit("--max-escalation-rate must be a number in [0, 1] or none")
+    if a.max_invalid_rows is None and round2:
+        a.max_invalid_rows = 3
+    if a.max_invalid_rows is not None and a.max_invalid_rows < 0:
+        raise SystemExit("--max-invalid-rows must be >= 0")
+    if a.codex_web_search is None:
+        a.codex_web_search = "disabled" if round2 else "default"
+    if a.episode_size < 1 or (a.max_tasks is not None and a.max_tasks < 1):
+        raise SystemExit("--episode-size and --max-tasks must be positive")
+    if a.self_lead_budget is not None and (not math.isfinite(a.self_lead_budget) or a.self_lead_budget <= 0):
+        raise SystemExit("--self-lead-budget must be positive")
+
+
 def main(argv=None) -> int:
     a = parser().parse_args(argv)
+    resolve_options(a)
     if a.validate_native:
         if not native_checkout(a) or not a.ext_cache:
             raise SystemExit("--validate-native requires --native-checkout (or --split p5) and --ext-cache; no model called")
-        tasks = selected_tasks(a.split)
+        tasks = load_tasks(a)
         if not tasks:
             raise SystemExit("empty native validation is Unknown; no model called")
         audit = LE.audit(tasks, a.ext_cache, a.ext_python)
@@ -600,8 +749,11 @@ def main(argv=None) -> int:
     if a.recompute:
         rows = recompute_rows(read_jsonl(a.recompute), a.artifacts_root)
         selected = [r for r in rows if r.get("tag") == a.tag and
-                    (a.split == "all" or r.get("task") in {t["id"] for t in selected_tasks(a.split)})]
-        print(json.dumps({"rows": selected, "summary": summary(selected, expected_count(a), gates=a.gates)}, indent=2))
+                    (a.split == "all" or r.get("task") in {t["id"] for t in load_tasks(a)})]
+        if a.split in ROUND2:
+            a.task_count = len(load_tasks(a))
+        print(json.dumps({"rows": selected, "summary": summary(selected, expected_count(a), gates=a.gates,
+                                                               max_escalation_rate=a.max_escalation_rate)}, indent=2))
         return 0
     explicit_budget = a.budget is not None
     a.budget = (8.0 if a.split == "dispatch" else 12.0) if a.budget is None else a.budget
@@ -612,29 +764,50 @@ def main(argv=None) -> int:
             or (a.task_cap is not None and (not math.isfinite(a.task_cap) or a.task_cap <= 0))
             or a.rounds < 1 or not math.isfinite(a.wait_quiet) or a.wait_quiet < 0):
         raise SystemExit("budget, task-cap and rounds must be positive; wait-quiet must be finite and nonnegative")
-    tasks = selected_tasks(a.split)
+    tasks = load_tasks(a)
+    a.task_count = len(tasks)
+    if a.max_tasks is not None and len(tasks) > a.max_tasks:
+        raise SystemExit(f"{len(tasks)} tasks exceed --max-tasks {a.max_tasks}; no model called")
     arms = tuple(a.arms.split(","))
-    if len(set(arms)) != len(arms) or not arms or set(arms)-set((*P5A.ARMS, DE.ARM)):
+    if len(set(arms)) != len(arms) or not arms or set(arms)-set((*P5A.ARMS, *DE.ARMS)):
         raise SystemExit("unknown or duplicate arm")
     if a.split == "dispatch" or DE.ARM in arms:
         if a.split != "dispatch" or set(arms) != {"self", DE.ARM} or a.rounds != 1 or a.budget > 8:
             raise SystemExit("cheap-first requires --split dispatch --arms self,ccxcheapfirst --rounds 1 and budget <= $8")
         if a.run and budget_envelope(a)["operational_upper_usd"] > 8:
             raise SystemExit("cheap-first operational budget envelope must be <= $8; reduce budget/task allowances; no model called")
-    units = schedule(tasks, a.rounds, arms)
+    if DE.ARM2 in arms:
+        if a.split not in ROUND2 or set(arms) != {"self", DE.ARM2}:
+            raise SystemExit("ccxcheapfirst2 requires --split r2b/r2c and --arms self,ccxcheapfirst2; no model called")
+        if native_checkout(a):
+            # The native acceptance command would replace the lead's own failing check (p4_receipt pins --check).
+            raise SystemExit("ccxcheapfirst2 cannot use --native-checkout: the lead's own --check must reach ccx")
+        if a.focused_retry or a.focused_context:
+            # focused_retry rewrites the hub settings (dropping cheap_first/sensitivity); focused_context has no v2 prompt.
+            raise SystemExit("ccxcheapfirst2 cannot use --focused-retry or --focused-context; no model called")
+    elif a.child_agent:
+        raise SystemExit("--child-agent applies only to the ccxcheapfirst2 arm; other ccx arms keep codex")
+    if set(DE.ARMS) & set(arms) and a.episode_size != N:
+        raise SystemExit("cheap-first arms always run one task per session; drop --episode-size")
+    if a.run and a.max_operational_usd is not None and budget_envelope(a)["operational_upper_usd"] > a.max_operational_usd:
+        raise SystemExit(f"operational budget envelope exceeds --max-operational-usd {a.max_operational_usd:g}; no model called")
+    try:
+        units = schedule(tasks, a.rounds, arms, a.episode_size)
+    except ValueError as exc:
+        raise SystemExit(f"{exc}; no model called") from None
     previous = [r for r in read_jsonl(a.out) if r.get("tag") == a.tag]
     if a.summary:
         ids = {t["id"] for t in tasks}
         selected = [r for r in previous if r.get("task") in ids]
         limits = budget_envelope(a) if explicit_budget or not selected else None
-        print(json.dumps(summary(selected, expected_count(a), limits, a.gates), indent=2))
+        print(json.dumps(summary(selected, expected_count(a), limits, a.gates, a.max_escalation_rate), indent=2))
         return 0
     head = r5.git(ROOT, "rev-parse", "HEAD").strip()
     if pin_refused(a.pin_commit, head):
         return 2
     if previous:
         raise SystemExit("tag already has attempts; use a new tag (never silently restart a lost long session)")
-    plan = {"units": units, "estimate": estimate(units, arms), "budget_usd": a.budget,
+    plan = {"units": units, "estimate": estimate(units, arms, tasks), "budget_usd": a.budget,
             "budget_envelope": budget_envelope(a), "available_tasks": len(tasks), "target_tasks": expected_count(a) // a.rounds,
             "pinned_commit": head, "tasks_sha256": PF.sha256_file(Path(TASKS.__file__)),
             "selection_sha256": PF.sha256_file(TASKS.P5_SELECTION_FILE if a.split == "p5" else TASKS.SELECTION_FILE),
@@ -646,8 +819,13 @@ def main(argv=None) -> int:
             "budget_semantics": "before a task: spent + lead allowance + child allowance <= budget; unknown accounting stops; operational overrun envelope is not an absolute provider hard cap; Claude Code 2.1.316 --help: --max-budget-usd resume scope (invocation vs session) Unknown"}
     if DE.ARM in arms:
         plan["dispatch"] = {"cheap_first": True, "tasks": 6, "selection": "first six validated P4 tasks in frozen order; reused dev/final, not unseen",
-                            "stop_escalation_rate_above": .3, "maximum_operational_envelope_usd": 8,
+                            "stop_escalation_rate_above": a.max_escalation_rate, "maximum_operational_envelope_usd": 8,
                             "evidence": "not run", "policy": "independent check only; check.baseline on_fail; new failures only"}
+    if a.split in ROUND2:
+        digest = PF.sha256_file(Path(a.tasks_file))
+        plan.update(tasks_file=str(a.tasks_file), tasks_file_sha256=digest, selection_sha256=digest)
+    if a.split in ROUND2 or set(DE.ARMS) & set(arms):
+        plan.update(plan_settings(a, arms))
     if a.split == "p5" and len(tasks) != 8:
         plan["selection_status"] = "Unknown: incomplete eligible episodes; selected estimate is not a full experiment price"
         if len(TASKS.P5_AUDITED_T) == 8:
@@ -668,12 +846,139 @@ def selected_tasks(split):
     return list(TASKS.P5_T) if split == "p5" else [t for t in TASKS.T if split == "all" or t["split"] == split]
 
 
+def load_task_file(path: Path, sha256: str, split: str) -> list[dict]:
+    """A frozen round-2 selection (#346): {"accepted": [{repo, commit, brief, tests, code, ...}]}, any count, its
+    SHA-256 given on the command line and checked before anything else reads it."""
+    data = Path(path).read_bytes()
+    import hashlib
+    actual = hashlib.sha256(data).hexdigest()
+    if not re.fullmatch(r"[0-9a-f]{64}", (sha256 or "").lower()) or actual != sha256.lower():
+        raise SystemExit(f"--tasks-file SHA-256 mismatch: expected {sha256} actual {actual}; no model called")
+    try:
+        rows = json.loads(data.decode("utf-8"))["accepted"]
+    except (ValueError, KeyError, TypeError) as exc:
+        raise SystemExit(f"--tasks-file has no accepted task list: {exc}; no model called") from None
+    tasks = []
+    for i, row in enumerate(rows):
+        missing = [k for k in TASK_FIELDS if not row.get(k)]
+        if (missing or not re.fullmatch(r"[0-9a-f]{40}", str(row.get("commit", "")))
+                or not isinstance(row["tests"], list) or not isinstance(row["code"], list)):
+            raise SystemExit(f"--tasks-file task {i}: needs {', '.join(TASK_FIELDS)} (full 40-hex commit, list tests/code); "
+                             f"missing {missing}; no model called")
+        tasks.append({**row, "id": row.get("id") or f"{split}-{row['commit'][:12]}", "split": split})
+    if not tasks or len({t["id"] for t in tasks}) != len(tasks):
+        raise SystemExit("--tasks-file needs at least one task and unique ids; no model called")
+    return tasks
+
+
+def load_tasks(a) -> list[dict]:
+    if getattr(a, "split", None) in ROUND2:
+        return load_task_file(a.tasks_file, a.tasks_sha256, a.split)
+    return selected_tasks(a.split)
+
+
+def child_agent(a, arm: str) -> str | None:
+    """Only ccxcheapfirst2 chooses its sub-agent (default Claude, #346); every other ccx arm keeps Codex."""
+    if arm == "self":
+        return None
+    return (getattr(a, "child_agent", None) or "claude") if arm == DE.ARM2 else "codex"
+
+
+def arm_config(arm: str) -> dict:
+    """The configuration a fresh episode hub of this arm loads (shipped defaults plus its settings)."""
+    from ccx.config import Paths, load_config
+    with tempfile.TemporaryDirectory(prefix="p4-arm-") as tmp:
+        hub = Path(tmp)
+        (hub / "ccx").mkdir()
+        if arm in DE.ARMS:
+            DE.configure(hub, True, arm)
+        return load_config(Paths(hub))
+
+
+def first_rung(hub_or_cfg, agent: str) -> str:
+    """The rung ccx's cheap-first dispatch starts on: dispatch.prepare uses tier_spec(cfg, "T1", agent)."""
+    from ccx.config import Paths, load_config, tier_spec
+    cfg = hub_or_cfg if isinstance(hub_or_cfg, dict) else load_config(Paths(Path(hub_or_cfg)))
+    spec = tier_spec(cfg, "T1", agent)
+    return f"{agent}:{spec['model']}:{spec['effort']}"
+
+
+def reviewer_rungs(cfg: dict, agent: str) -> list[str]:
+    """Review candidates ccx tries first for this worker, assuming Claude Code and Codex are both installed and ready
+    (readiness is not probed in a dry run; routing's learned pick, tried after these, is not included)."""
+    from ccx import review
+    cfg = {**cfg, "routing": {**(cfg.get("routing") or {}), "require_ready": False}}
+    return [":".join(r) for r in review.reviewers(cfg, agent, lambda name: name in ("claude", "codex"), cheapest=True)]
+
+
+def plan_settings(a, arms) -> dict:
+    """What a dry run prints for round-2 and cheap-first plans (#346): effective settings per arm, the default first
+    rung, reviewers, network and stop rules, so the report copies them from here instead of from memory."""
+    out = {"arm_settings": {}, "default_first_rung": {}, "reviewers": {}}
+    for arm in arms:
+        cfg = arm_config(arm)
+        agent = child_agent(a, arm)
+        lead, child = task_caps(a, arm)
+        out["arm_settings"][arm] = {
+            "cheap_first": (cfg.get("dispatch") or {}).get("cheap_first") is True,
+            "check_sensitivity": (cfg.get("check") or {}).get("sensitivity", "off"),
+            "child_agent": agent, "lead_budget_usd": lead, "child_budget_usd": child,
+            "lead_prompt": "failing-check-first (#326/#338)" if arm == DE.ARM2 else "p4 legacy"}
+        if agent:
+            out["reviewers"][arm] = reviewer_rungs(cfg, agent)
+        if arm in DE.ARMS:
+            rung = first_rung(cfg, agent)
+            _, model, effort = rung.split(":", 2)
+            from ccx.config import tier_spec
+            asked = tier_spec(cfg, "T2", agent)
+            out["default_first_rung"][arm] = {"agent": agent, "model": model, "effort": effort, "rung": rung,
+                                              "source": "ccx.config.tier_spec(T1) on this arm's fresh hub (dispatch.prepare)",
+                                              "requested_rung": f"{agent}:{asked['model']}:{asked['effort']}",
+                                              "requested_source": "Request default tier T2; routing may pick another at "
+                                                                  "run time, the ledger's dispatch.requested_rung is authoritative"}
+    web = getattr(a, "codex_web_search", "default")
+    out["network"] = {"lead_deny": list(WEB_TOOLS), "claude_subagent_deny": list(WEB_TOOLS),
+                      "claude_subagent_basis": "CCX_CLAUDE_SETTINGS = the unit's settings file, same deny list as the lead",
+                      "codex_web_search": web,
+                      "codex_flag": '-c web_search="disabled" on every codex exec via codex_tmp.py' if web == "disabled"
+                      else "none added (Codex default; ccx adds it only with lean tools)"}
+    rate = getattr(a, "max_escalation_rate", .3)
+    limit = getattr(a, "max_invalid_rows", None)
+    out["stop_rules"] = {"max_escalation_rate": rate, "max_invalid_rows": limit,
+                         "invalid_row": ("environment error, receipt status error, cost unknown, or missing dispatch evidence "
+                                         "(kept, group continues); an arm's own timeout, cap or hidden-test collection error "
+                                         "with known cost is a valid row with ok=false" if limit is not None else
+                                         "round-1 rules: the first error, cost-unknown row or missing dispatch evidence stops the group"),
+                         "unknown_cost": ("charged at the task reservation; the group stops past max_invalid_rows such rows"
+                                          if limit is not None else "stops the group (round-1 rule)")}
+    out["episode_size"] = 1 if set(DE.ARMS) & set(arms) else getattr(a, "episode_size", N)
+    return out
+
+
+def invalid_reason(row: dict) -> str | None:
+    """Round-2 invalid rows (#346): kept and counted; the group continues until a limit is passed."""
+    if row.get("receipt_error"):
+        return "receipt_error"
+    if not row.get("cost_complete"):
+        return "cost_unknown"
+    if row.get("environment_error"):
+        return "environment_error"
+    if row.get("arm") in DE.ARMS:
+        if row.get("dispatch_observed") is not True:
+            return "dispatch_evidence_unknown"
+        if DE.metrics([row], row["arm"])["first_usd"] is None or DE.metrics([row], row["arm"])["escalation_usd"] is None:
+            return "dispatch_cost_unknown"
+    return None
+
+
 def native_checkout(a):
     return getattr(a, "split", None) == "p5" or bool(getattr(a, "native_checkout", False))
 
 
 def expected_count(a, fallback: int = 0) -> int:
     split = getattr(a, "split", None)
+    if split in ROUND2:
+        return getattr(a, "task_count", fallback) * a.rounds
     return {"dev": 4, "final": 8, "all": 12, "p5": 8, "dispatch": 6}[split] * a.rounds if split else fallback
 
 
@@ -718,6 +1023,12 @@ def run_experiment(a, tasks: list[dict], units: list[dict]) -> int:
     between = []
     stopped = None
     not_started = None
+    # Round-2 rules (#346): invalid rows are kept and the group goes on; it stops only past this many cost-unknown
+    # rows (each charged at its reservation) or rows without dispatch evidence. None: round-1 rules (first stops).
+    max_invalid = getattr(a, "max_invalid_rows", None)
+    max_rate = getattr(a, "max_escalation_rate", .3)
+    cheap_arms = [arm for arm in DE.ARMS if any(u["arm"] == arm for u in units)]
+    unknown_cost_rows = missing_evidence_rows = 0
     try:
         for u in units:
             lead_cap, child_cap = task_caps(a, u["arm"])
@@ -751,14 +1062,40 @@ def run_experiment(a, tasks: list[dict], units: list[dict]) -> int:
                         session.rows.append(row)
                 row.update({"ok": None, "env_clean": False, "error": type(exc).__name__, "environment_error": True})
                 row["known_usd"] = row.get("known_usd", 0) + max(0, child["usd"] - (session.child_total if session else 0))
-                stopped = "interrupted_or_error"
+                if max_invalid is None or isinstance(exc, KeyboardInterrupt):
+                    stopped = "interrupted_or_error"
+                else:
+                    # Invalid row, group continues. A later turn of a multi-task episode resumes this session,
+                    # whose lead accounting has failed closed, so those rows are cost-unknown too.
+                    row["cost_complete"], row["usd"] = False, None
+                    if session is not None:
+                        session.lead_cost.failed = True
             row.update(P5.costs(row))
             rows.append(row)
-            if any(u["arm"] == DE.ARM for u in units):
-                stopped = stopped or DE.stop_reason(rows)
-            budget.charge(row.get("usd"))
-            if row.get("usd") is None:
-                budget.spent += row.get("known_usd", 0)
+            if max_invalid is None:
+                if any(u["arm"] == DE.ARM for u in units):
+                    stopped = stopped or DE.stop_reason(rows, max_rate=max_rate)
+                budget.charge(row.get("usd"))
+                if row.get("usd") is None:
+                    budget.spent += row.get("known_usd", 0)
+            else:
+                row["invalid_reason"] = invalid_reason(row)
+                row["reservation_usd"] = row.get("reservation_usd", lead_cap + child_cap)
+                if (row.get("usd") is None or not row.get("cost_complete")
+                        or row["invalid_reason"] == "dispatch_cost_unknown"):
+                    # Unknown cost (including a dispatch phase whose cost is unknown): charge the reservation.
+                    unknown_cost_rows += 1
+                    budget.spent += max(row.get("usd") or row.get("known_usd") or 0, lead_cap + child_cap)
+                else:
+                    budget.charge(row["usd"])
+                if row.get("arm") in DE.ARMS and row.get("dispatch_observed") is not True:
+                    missing_evidence_rows += 1
+                for arm in cheap_arms:
+                    stopped = stopped or DE.stop_reason(rows, arm, max_rate, evidence=False)
+                if unknown_cost_rows > max_invalid:
+                    stopped = stopped or "cost_unknown_over_limit"
+                if missing_evidence_rows > max_invalid:
+                    stopped = stopped or "dispatch_evidence_unknown"
             # Journal outside every agent's allowed roots; never inject a grade
             # into the session, ccx verify, shared memory, or the live repo.
             append_jsonl(a.out.with_suffix(".pending.jsonl"), row)
@@ -778,10 +1115,15 @@ def run_experiment(a, tasks: list[dict], units: list[dict]) -> int:
             append_jsonl(a.out, row)
         limits = {**budget_envelope(a), "spent_known_usd": budget.spent, "cost_unknown": budget.unknown,
                   "observed_overspend_usd": max(0, budget.spent - budget.cap)}
-        append_jsonl(a.out.with_suffix(".events.jsonl"), {"event": "stop" if stopped else "complete", "reason": stopped,
-                     "spent_known_usd": budget.spent, "cost_unknown": budget.unknown, "budget_usd": budget.cap,
-                     "budget_envelope": limits, "not_started": not_started})
-    print(json.dumps(summary(rows, expected_count(a, len(units) // 2), limits, getattr(a, "gates", "p4")), indent=2))
+        event = {"event": "stop" if stopped else "complete", "reason": stopped,
+                 "spent_known_usd": budget.spent, "cost_unknown": budget.unknown, "budget_usd": budget.cap,
+                 "budget_envelope": limits, "not_started": not_started}
+        if max_invalid is not None:
+            event.update(cost_unknown_rows=unknown_cost_rows, missing_dispatch_evidence_rows=missing_evidence_rows,
+                         max_invalid_rows=max_invalid, unknown_cost_charged_at="reservation")
+        append_jsonl(a.out.with_suffix(".events.jsonl"), event)
+    print(json.dumps(summary(rows, expected_count(a, len(units) // 2), limits, getattr(a, "gates", "p4"),
+                             max_rate), indent=2))
     if stopped:
         print(f"P4 stopped: {stopped}; known_spend=${budget.spent:g} budget=${budget.cap:g}", file=sys.stderr)
         for problem in between:
