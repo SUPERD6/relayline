@@ -1,1 +1,0 @@
-| 2026-11-14 | Keep check sensitivity opt-in; reuse dispatch baselines and escalate only an unverified cheap first result | 检查敏感性默认关；复用派活基线，只对未验证的便宜首轮升档 | Passing an existing check does not establish coverage of a new requirement / 已有检查通过不能证明测到新要求 | #325; `docs/check-baseline.md`; `check.sensitivity` |

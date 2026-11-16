@@ -1,2 +1,0 @@
-- Fix integration note formatting and explicitly decode retest Git subprocess output as UTF-8 with replacement.
-- Keep README quick start first, retain bilingual comparison and eight-layer evidence, and check their content independently of section order.
