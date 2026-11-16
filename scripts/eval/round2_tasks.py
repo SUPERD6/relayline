@@ -387,7 +387,8 @@ def test_changes(cache: Path, repo: str, sha: str) -> str | None:
     conftest.py, helpers or data under a tests folder would leave the agent without them; a deleted or renamed
     test file cannot be read at the commit."""
     bare = LCand.bare_path(cache, repo)
-    out = E._git(None, f"--git-dir={bare}", "diff-tree", "--no-commit-id", "-r", "--name-status", "-M", sha)
+    out = E._git(None, "-c", "core.quotepath=false", f"--git-dir={bare}", "diff-tree", "--no-commit-id", "-r",
+                 "--name-status", "-M", sha)
     support, gone = [], []
     for line in out.splitlines():
         parts = line.split("\t")
@@ -397,7 +398,7 @@ def test_changes(cache: Path, repo: str, sha: str) -> str | None:
                 continue
             if status[0] in "DR":
                 gone.append(name)
-            elif not (name.endswith(".py") and Path(name).name.startswith("test")):
+            elif not (name.endswith(".py") and Path(name).name.startswith("test")) and Path(name).name != "__init__.py":
                 support.append(name)
     if gone:
         return "deletes or renames a test file: " + ", ".join(sorted(set(gone))[:3])
@@ -407,11 +408,17 @@ def test_changes(cache: Path, repo: str, sha: str) -> str | None:
 
 
 def _validate(cache, python, task, raw_dir):
-    LE.SRC_ON_PATH = True  # src-layout packages import from src/, as long_check.check_tree does
+    previous, LE.SRC_ON_PATH = LE.SRC_ON_PATH, True  # src-layout packages import from src/, as long_check does
     try:
         return LE.validate_task(cache, python, task, raw_dir, SUITE_TIMEOUT)
     finally:
-        LE.SRC_ON_PATH = False
+        LE.SRC_ON_PATH = previous
+
+
+def src_layout(cache: Path, repo: str, sha: str) -> bool:
+    """The parent tree has a top-level src/ folder; the evaluation run must then put src/ on PYTHONPATH too."""
+    bare = LCand.bare_path(cache, repo)
+    return bool(E._git(None, f"--git-dir={bare}", "ls-tree", "-d", "--name-only", f"{sha}^", "src").strip())
 
 
 def _why_invalid(result: dict) -> str:
@@ -454,8 +461,6 @@ def select_upstream(cache: Path, repos: list[dict], python: str, used: set[str],
             reason = None
             if not row["tests"]:
                 reason = "no test file added or changed"
-            elif reason := test_changes(cache, repo, row["commit"]):
-                pass
             elif not row["code"] or not _size_ok(row, B_SIZE):
                 reason = f"implementation change below {B_SIZE[0]} lines and {B_SIZE[1]} code files"
             elif group == "C" and not _size_ok(row, C_SIZE):
@@ -464,6 +469,11 @@ def select_upstream(cache: Path, repos: list[dict], python: str, used: set[str],
                 reason = f"repository cap (B: {B_CAP})"
             elif group == "C" and per_c[repo] >= C_CAP:
                 reason = f"repository cap (C: {C_CAP})"
+            if not reason:
+                try:
+                    reason = test_changes(cache, repo, row["commit"])
+                except RuntimeError as exc:
+                    reason = f"cannot read the commit's changed files ({exc})"[:300]
             if reason:
                 exclusions.append({"repo": repo, "commit": row["commit"], "reason": reason})
                 continue
@@ -479,6 +489,7 @@ def select_upstream(cache: Path, repos: list[dict], python: str, used: set[str],
                 why = result.get("error") or _why_invalid(result)
                 exclusions.append({"repo": repo, "commit": row["commit"], "reason": why})
                 continue
+            task["src_layout"] = src_layout(cache, repo, row["commit"])
             (b if group == "B" else c).append(task)
             (per_b if group == "B" else per_c)[repo] += 1
     return {"about": "Round 2 upstream selection (#348); rules fixed in the pre-registration before running",
@@ -488,7 +499,8 @@ def select_upstream(cache: Path, repos: list[dict], python: str, used: set[str],
                      "caps": "B and C caps counted separately (pre-registration: at most 6 per repository, C: 4)",
                      "notes": ["commits before the date limit are recorded as one count per repository",
                                "pure Python is checked on the repository HEAD (no .c/.pyx/.rs/... file anywhere)",
-                               "pytest plugins are not autoloaded; PYTHONPATH is src/ (if present) then the root",
+                               "pytest plugins are not autoloaded; PYTHONPATH is src/ (if present) then the root; "
+                               "a task's src_layout tells the evaluation run to do the same",
                                "commits changing test support files or deleting/renaming tests are excluded"],
                      "hidden": "commit's added/changed test files: parent fails (rc 1/2), commit passes, "
                                "parent's existing suite passes"},
