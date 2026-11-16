@@ -339,6 +339,7 @@ class TestStrings(unittest.TestCase):
         used |= {f"a_q_{s}" for s in ("needs_write", "blocked", "failed")} | {f"w_q_{s}" for s in ("needs_write", "blocked", "failed")}
         used |= {f"h_review_{v}" for v in ("pass", "issues", "unclear")} | {f"rv_{v}" for v in ("pass", "issues", "unclear")}
         used |= {f"h_{k}" for k in ("needs_write", "check_failed", "review_failed", "quota", "timeout", "over_budget")}
+        used |= {f"{x}_stalled" for x in ("a", "w", "h")}    # "a_" + name: stalled timeout (#343)
         used |= {f"r_{r}_note" for r in ("unfinished", "wrong", "overreach", "other")}
         for mod in ("queue.py", "context.py", "commands/memory.py"):
             used |= set(re.findall(r'say\("(hint_\w+)"', (Path(ui.__file__).parent / mod).read_text(encoding="utf-8")))

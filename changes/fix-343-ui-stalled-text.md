@@ -1,0 +1,1 @@
+- `ccx ui` now names a run stopped by stall detection (`run.stall_minutes`, kind `timeout` + `stalled`) as stalled in its card and history line, in English and Chinese, instead of "ran past the time limit" (#343). Display only: the kind, the detection and its default (off) are unchanged.
