@@ -18,6 +18,7 @@ import os
 
 SUMMARY_CHARS = 300
 COMMIT_FILES = 5     # a --worktree run's uncommitted files kept in the one line (#350); the rest as a count
+NOTE_CHARS = 200     # its note is cut to this; `next` is a command with the worktree path and stays whole
 # any of these in a result means the lead has something to look at: the whole result goes out
 ATTENTION = ("needs_lead", "hint", "kind", "edited_tests", "namecheck", "policy_blocked", "cost_chain_error",
              "base", "retry_after", "open_questions", "next_step", "brief_warnings", "credential_guard_warnings",
@@ -215,15 +216,25 @@ def line(res: dict) -> dict:
     return out
 
 
-def compact_commit_state(cs: dict) -> tuple[dict, int]:
-    """(the receipt's commit_state cut to state, next, note and the first files, number of uncommitted files)."""
-    files = cs.get("files") or []
-    total = len(files) + (cs.get("more") or 0)
-    out = {k: cs[k] for k in ("state", "next", "note") if cs.get(k)}
-    if files:
-        out["files"] = files[:COMMIT_FILES]
-        if total > COMMIT_FILES:
-            out["more"] = total - COMMIT_FILES
+def compact_commit_state(cs) -> tuple[dict, int]:
+    """(the receipt's commit_state cut to state, next, note and the first files, number of uncommitted files).
+    On every clean receipt's path: a malformed value is read as empty rather than raised."""
+    if not isinstance(cs, dict):
+        return {}, 0
+    files = cs.get("files")
+    files = files if isinstance(files, list) else []
+    more = cs.get("more")
+    more = more if isinstance(more, int) and not isinstance(more, bool) and more > 0 else 0
+    total = len(files) + more
+    out = {k: cs[k] for k in ("state", "next") if isinstance(cs.get(k), str) and cs[k]}
+    note = cs.get("note")
+    if isinstance(note, str) and note:
+        out["note"] = note if len(note) <= NOTE_CHARS else note[: NOTE_CHARS - 3] + "..."
+    shown = [f for f in files if isinstance(f, str)][:COMMIT_FILES]
+    if shown:
+        out["files"] = shown
+    if total > len(shown) and (shown or total):
+        out["more"] = total - len(shown)
     return out, total
 
 

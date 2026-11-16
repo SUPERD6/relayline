@@ -135,6 +135,65 @@ def test_line_view_commit_state_stays_compact():
     done = leadview.line({**result, "commit_state": {"state": "committed", "as_of": "run end", "files": []}})
     assert done["commit_state"] == {"state": "committed"} and "uncommitted" not in done["recap"]
 
+LINE_BASE = {"run_id": "r", "status": "done", "ok": True, "check": {"passed": True}, "recap": "ccx run r"}
+
+
+@pytest.mark.parametrize("count,kept,more", [(5, 5, None), (6, 5, 1)])
+def test_line_view_commit_state_file_boundary(count, kept, more):
+    files = [f"f{i}.py" for i in range(count)]
+    line = leadview.line({**LINE_BASE, "commit_state": {"state": "uncommitted", "files": files, "next": "n"}})
+    c = line["commit_state"]
+    assert c["files"] == files[:kept] and c.get("more") == more
+    assert f"{count} files uncommitted" in line["recap"]
+
+
+def test_line_view_committed_with_note_keeps_the_note():
+    from ccx.delegate import commit_note
+    cs = commit_note("/w", {"uncommitted": [], "committed": True})
+    line = leadview.line({**LINE_BASE, "commit_state": cs})
+    assert line["commit_state"] == {"state": "committed", "note": cs["note"]}
+    assert "uncommitted" not in line["recap"]
+
+
+@pytest.mark.parametrize("files,more,count", [
+    ("a.py", 3, 3), ({"a.py": 1}, None, 0), (None, "7", 0), (["a.py"], "7", 1), (["a.py"], 2.5, 1),
+    ([1, None, "b.py"], None, 3),
+])
+def test_line_view_commit_state_with_odd_types_never_raises(files, more, count):
+    # line() is on every clean receipt's path: a malformed commit_state must not lose the whole receipt
+    cs = {"state": "uncommitted", "files": files, "next": "n"}
+    if more is not None:
+        cs["more"] = more
+    line = leadview.line({**LINE_BASE, "commit_state": cs})
+    c = line["commit_state"]
+    assert c["state"] == "uncommitted" and c["next"] == "n"
+    assert all(isinstance(f, str) for f in c.get("files", []))
+    assert (f"{count} file" in line["recap"]) if count else ("uncommitted" not in line["recap"])
+    json.dumps(line)
+
+
+@pytest.mark.parametrize("wt,name,limit", [
+    ("C:\\Users\\someone\\projects\\my-project\\.claude\\worktrees\\agent-0123456789abcdef0", "module", 1000),
+    # 220-character path, escaped 3 times in JSON (worktree, twice in next), 76-character file names
+    ("C:\\Users\\someone\\" + "\\".join(["deeply-nested-project-folder"] * 5)
+     + "\\.claude\\worktrees\\agent-0123456789abcdef0123", "m" * 60, 2000),
+])
+def test_line_view_with_a_real_long_windows_worktree_path_stays_short(wt, name, limit):
+    from ccx.delegate import commit_note
+    files = [f"src/package_{i:02}/{name}.py" for i in range(30)]
+    cs = commit_note(wt, {"uncommitted": files, "committed": True})
+    line = leadview.line({**LINE_BASE, "worktree": wt, "commit_state": cs})
+    c = line["commit_state"]
+    assert c["next"] == cs["next"] and wt in c["next"]            # the command stays whole and usable
+    assert len(c["note"]) <= leadview.NOTE_CHARS
+    assert len(json.dumps(line, ensure_ascii=False)) < limit
+
+
+def test_line_view_cuts_a_long_note():
+    line = leadview.line({**LINE_BASE, "commit_state": {"state": "committed", "note": "n" * 500}})
+    assert len(line["commit_state"]["note"]) == leadview.NOTE_CHARS
+    assert line["commit_state"]["note"].endswith("...")
+
 
 @pytest.mark.parametrize("escalate", [False, True])
 def test_warn_starts_review_before_check_in_both_delegate_paths(monkeypatch, escalate):

@@ -173,7 +173,8 @@ ccx resume <run_id> "follow-up"  # same sub-session: no re-briefing, cache stays
 ```
 Result JSON: status, summary, files_changed, diffstat, check, verification, open_questions, next_step, tokens.
 When the check passed, the review passed (or none ran) and nothing needs you, it is one line (`"view": "line"`:
-summary, files, diffstat, check, recap); `ccx show <run_id>` has the rest, only if you need it.
+summary, files, diffstat, check, recap; after `--worktree` also a short `commit_state` with the commit command in
+`next`, and "N files uncommitted, see commit_state.next" in the recap); `ccx show <run_id>` has the rest, only if you need it.
 A quota/rate-limit stop retries once on the other agent (`--no-fallback` to stop instead);
 a timeout, crash or `ccx stop` keeps the session id — `ccx resume <run_id>` continues where it stopped.
 
