@@ -121,6 +121,21 @@ def test_sensitivity_line_view_keeps_only_small_baseline_metadata():
     assert len(json.dumps(line)) < 1000
 
 
+def test_line_view_commit_state_stays_compact():
+    files = [f"pkg/module_{i:03}/" + "x" * 60 + ".py" for i in range(20)]
+    result = {"run_id": "r", "status": "done", "ok": True, "check": {"passed": True}, "recap": "ccx run r",
+              "worktree": "/w", "commit_state": {"state": "uncommitted", "as_of": "run end", "files": files,
+                                                 "more": 30, "next": "not committed: review, then `git add`"}}
+    line = leadview.line(result)
+    c = line["commit_state"]
+    assert c["state"] == "uncommitted" and c["next"] == result["commit_state"]["next"]
+    assert c["files"] == files[:leadview.COMMIT_FILES] and c["more"] == 50 - leadview.COMMIT_FILES
+    assert "50 files uncommitted" in line["recap"] and list(line)[-1] == "recap"
+    assert len(json.dumps(line)) < 1000
+    done = leadview.line({**result, "commit_state": {"state": "committed", "as_of": "run end", "files": []}})
+    assert done["commit_state"] == {"state": "committed"} and "uncommitted" not in done["recap"]
+
+
 @pytest.mark.parametrize("escalate", [False, True])
 def test_warn_starts_review_before_check_in_both_delegate_paths(monkeypatch, escalate):
     import os
@@ -199,6 +214,18 @@ class TestSensitivityCLI(AdapterEnv):
         assert out["check"]["passed"] and len(rec["checks"]) == 1
         assert "check_baseline_start" not in rec and "check_baseline" not in rec
         assert "sensitivity" not in out["check"]
+
+    def test_worktree_line_view_keeps_commit_state(self):
+        # #350: a clean --worktree run with a passing --check gets the one-line view; the lead must still see
+        # that the change is uncommitted and how to commit it
+        for mode in ("off", "warn"):
+            out = self.checked(mode, "sensitive", "--worktree")
+            assert out["view"] == "line", out
+            c = out["commit_state"]
+            assert c["state"] == "uncommitted" and "git -C" in c["next"], c
+            assert "state.txt" in c["files"]
+            assert "1 file uncommitted" in out["recap"]
+            assert self.rec(out["run_id"])["commit_state"]["uncommitted"] == ["state.txt"]
 
     def test_warn_fail_before_pass_after_and_receipt_time(self):
         out = self.checked("warn", "sensitive")
