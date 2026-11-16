@@ -28,11 +28,13 @@ class AcceptEnv(QEnv):
         git(self.work, "commit", "-qm", "base")
         git(self.work, "checkout", "-q", "-b", "work")
 
-    def piece(self, title, files, deps=(), check="python -c \"print(1)\"", record=None, status="done"):
+    def piece(self, title, files, deps=(), check="python -c \"print(1)\"", record=None, status="done", base=None):
         """A queue item whose run worked in its own worktree and committed `files` there ({name: text})."""
         it = wq.add(self.work, title, title, deps=list(deps))
         run_id = f"20261029-1200{len(wq.load(self.work)['order']):02d}-{it['id']}"
-        wt = make_worktree(self.work, run_id)
+        info: dict = {}
+        wt = make_worktree(self.work, run_id, base=base, base_info=info)
+        record = {**info, **(record or {})}
         for name, text in files.items():
             (wt / name).write_text(text, encoding="utf-8")
         if files:
@@ -257,6 +259,30 @@ class TestAccept(AcceptEnv):
         (self.work / "shared.txt").write_text("edited\n", encoding="utf-8")
         out = self.accept(q1, code=2)
         self.assertIn("uncommitted", out["refused"][0]["why"])
+
+    def test_upstream_based_piece_is_not_landed_on_a_branch_that_trails_the_upstream(self):
+        """#349: merging it would also bring in the upstream's commits, a pull nobody asked for."""
+        self.repo()
+        remote, other = self.work.parent / "remote.git", self.work.parent / "other"
+        git(self.work.parent, "init", "-q", "--bare", str(remote))
+        git(self.work, "remote", "add", "origin", str(remote))
+        git(self.work, "push", "-qu", "origin", "work")
+        git(self.work.parent, "clone", "-q", "-b", "work", str(remote), str(other))
+        (other / "up.txt").write_text("someone else's\n", encoding="utf-8")
+        git(other, "add", "up.txt")
+        git(other, "commit", "-qm", "upstream work")
+        git(other, "push", "-q", "origin", "work")
+        q1 = self.piece("on upstream", {"a.txt": "a\n"}, base="upstream")
+        before = git(self.work, "rev-parse", "HEAD")
+        out = self.accept(q1, code=2)
+        self.assertIn("work is 1 commit(s) behind origin/work", out["refused"][0]["why"])
+        self.assertIn("pull", out["refused"][0]["why"])
+        self.assertEqual(git(self.work, "rev-parse", "HEAD"), before)
+        self.assertFalse((self.work / "up.txt").exists())
+        git(self.work, "merge", "-q", "--ff-only", "origin/work")          # the person pulls; now it lands
+        out = self.accept(q1)
+        self.assertEqual([x["id"] for x in out["accepted"]], [q1])
+        self.assertTrue((self.work / "a.txt").exists())
 
 
 class TestPipelineEndToEnd(AcceptEnv):

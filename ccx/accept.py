@@ -108,6 +108,12 @@ def why_not(p, q: dict, it: dict | None, joint: bool, root: Path) -> str | None:
         return "its review is still running: wait for it"
     if not Path(it["worktree"]).exists() or autonomy._git(Path(it["worktree"]), "rev-parse", "HEAD")[0] != 0:
         return f"its worktree is gone ({it['worktree']})"
+    start = autonomy.upstream_start(p, rec)
+    if start:                               # #349: a --base upstream piece on a branch that trails that upstream
+        rc, here = autonomy._git(root, "symbolic-ref", "--short", "HEAD")
+        behind = autonomy.behind_start(root, here if rc == 0 and here else "HEAD", start)
+        if behind:
+            return behind
     if not joint and not evidence(rec):
         return ("not verified: no check passed, no review passed and no verdict of yours; look at the diff and "
                 f"`ccx verify {rec['run_id']} --ok 1 --note \"...\"`, or give --check here")

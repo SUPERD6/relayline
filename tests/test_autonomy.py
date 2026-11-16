@@ -200,3 +200,55 @@ def test_autonomy_merge_command_is_a_dry_run_by_default(tmp_path):
     code, out = run_ccx({**os.environ}, "autonomy", "merge", run_id)
     assert code == 2 and out["autonomy"]["level"] == "L1" and not out["merged"]   # default level: no merge
     assert out["into"] == "work"
+
+
+def repo_behind_upstream(tmp_path):
+    """#349: the project's `work` trails origin/work by one commit (up1..up3.txt, 200 lines each); a
+    `--base upstream` worktree run starts from origin/work and adds 3 lines to a.py, left uncommitted."""
+    remote, repo, other = tmp_path / "remote.git", tmp_path / "proj", tmp_path / "other"
+    git(tmp_path, "init", "-q", "--bare", str(remote))
+    repo.mkdir()
+    git(repo, "init", "-q", "-b", "main")
+    (repo / "a.py").write_text("x = 1\n", encoding="utf-8")
+    git(repo, "add", ".")
+    git(repo, "commit", "-qm", "init")
+    git(repo, "checkout", "-qb", "work")
+    git(repo, "remote", "add", "origin", str(remote))
+    git(repo, "push", "-qu", "origin", "work")
+    git(tmp_path, "clone", "-q", "-b", "work", str(remote), str(other))
+    for n in (1, 2, 3):
+        (other / f"up{n}.txt").write_text("".join(f"{i}\n" for i in range(200)), encoding="utf-8")
+    git(other, "add", ".")
+    git(other, "commit", "-qm", "someone else's work")
+    git(other, "push", "-q", "origin", "work")
+    run_id = "20261116-000000-up01"
+    info: dict = {}
+    wt = make_worktree(repo, run_id, base="upstream", base_info=info)    # fetches origin/work first
+    assert info["worktree_base"] == "upstream" and (wt / "up1.txt").is_file()
+    (wt / "a.py").write_text("x = 1\n" + "".join(f"y{i} = {i}\n" for i in range(3)), encoding="utf-8")
+    p = paths()
+    (p.runs / run_id).mkdir(parents=True)
+    rec = {"run_id": run_id, "ok": True, "kind": None, "state": "done", "cwd": str(wt), "label": "add ys",
+           "check": {"cmd": "true", "passed": True, "exit": 0}, "review": {"verdict": "pass"}, **info}
+    (p.runs / run_id / "run.json").write_text(json.dumps(rec), encoding="utf-8")
+    return repo, run_id
+
+
+def test_upstream_based_run_counts_only_the_sub_agents_change(tmp_path):
+    repo, run_id = repo_behind_upstream(tmp_path)
+    out = autonomy.merge(paths(), run_id, L2)
+    assert out["lines"] == 3 and out["files"] == ["a.py"], out          # not up1..up3.txt's 600 lines
+    assert not any("too big" in x for x in out["why_not"]), out
+
+
+def test_upstream_based_run_is_not_merged_into_a_branch_that_trails_the_upstream(tmp_path):
+    repo, run_id = repo_behind_upstream(tmp_path)
+    before = git(repo, "rev-parse", "HEAD")
+    out = autonomy.merge(paths(), run_id, L2, apply=True)
+    assert not out["merged"] and not out["can_merge"], out
+    assert any("1 commit(s) behind origin/work" in x and "pull" in x for x in out["why_not"]), out
+    assert git(repo, "rev-parse", "HEAD") == before and not (repo / "up1.txt").exists()   # no silent pull
+    git(repo, "merge", "-q", "--ff-only", "origin/work")                # the person pulls; now it merges
+    done = autonomy.merge(paths(), run_id, L2, apply=True)
+    assert done["merged"] and done["lines"] == 3 and done["files"] == ["a.py"], done
+    assert "y2 = 2" in (repo / "a.py").read_text(encoding="utf-8")
