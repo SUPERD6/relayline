@@ -2,6 +2,11 @@
 import statistics
 
 ARM = "ccxcheapfirst"
+# Round 2 (#346): cheap first plus check.sensitivity = "escalate"; the lead writes a failing check first.
+ARM2 = "ccxcheapfirst2"
+ARMS = (ARM, ARM2)
+SETTINGS = {ARM: "[dispatch]\ncheap_first = true\n",
+            ARM2: '[dispatch]\ncheap_first = true\n\n[check]\nsensitivity = "escalate"\n'}
 
 
 def schedule(tasks, rounds, arms):
@@ -10,8 +15,8 @@ def schedule(tasks, rounds, arms):
             for arm in (arms if i % 2 else arms[::-1])]
 
 
-def metrics(rows):
-    selected = [r for r in rows if r.get("arm") == ARM]
+def metrics(rows, arm=ARM):
+    selected = [r for r in rows if r.get("arm") == arm]
     records = [entry["dispatch"] for r in selected for entry in r.get("side_ledger", [])
                if entry.get("dispatch", {}).get("cheap_first")]
     attempted = sum(d.get("attempted", 0) for d in records)
@@ -25,27 +30,33 @@ def metrics(rows):
             "status": "Pass" if complete and attempted else "Unknown"}
 
 
-def stop_reason(rows):
-    result = metrics(rows)
-    if result["escalation_rate"] is not None and result["escalation_rate"] > .3:
-        return "escalation_rate_above_30_percent"
-    if any(r.get("arm") == ARM and r.get("dispatch_observed") is not True for r in rows):
+def stop_reason(rows, arm=ARM, max_rate=.3, evidence=True):
+    """max_rate None: no escalation stop (escalate retries more by design). evidence=False: missing dispatch
+    evidence or dispatch cost is an invalid row the caller counts, not an immediate stop."""
+    result = metrics(rows, arm)
+    if max_rate is not None and result["escalation_rate"] is not None and result["escalation_rate"] > max_rate:
+        return "escalation_rate_above_30_percent" if max_rate == .3 else "escalation_rate_above_limit"
+    if not evidence:
+        return None
+    if any(r.get("arm") == arm and r.get("dispatch_observed") is not True for r in rows):
         return "dispatch_evidence_unknown"
-    if any(r.get("arm") == ARM for r in rows) and (result["first_usd"] is None or result["escalation_usd"] is None):
+    if any(r.get("arm") == arm for r in rows) and (result["first_usd"] is None or result["escalation_usd"] is None):
         return "dispatch_cost_unknown"
     return None
 
 
-def configure(hub, active):
-    # Each arm has its own fresh hub; only the experimental arm changes this key.
+def configure(hub, active, arm=ARM):
+    # Each arm has its own fresh hub; only the experimental arm changes these keys.
     if active:
-        (hub / "ccx" / "settings.toml").write_text("[dispatch]\ncheap_first = true\n", encoding="utf-8", newline="")
+        (hub / "ccx" / "settings.toml").write_text(SETTINGS[arm], encoding="utf-8", newline="")
 
 
-def comparison(rows, expected):
-    result = {"metrics": metrics(rows), "evidence": "not run" if not rows else rows[0].get("evidence", "not run")}
+def comparison(rows, expected, arm=ARM, max_rate=.3):
+    """arm=ARM keeps the round-1 rules (six tasks); ARM2 takes any expected count and its own escalation limit."""
+    candidate = arm
+    result = {"metrics": metrics(rows, candidate), "evidence": "not run" if not rows else rows[0].get("evidence", "not run")}
     for name, subset in (("all", rows), ("env_clean", [r for r in rows if r.get("env_clean") is True])):
-        groups = {arm: [r for r in subset if r.get("arm") == arm] for arm in ("self", ARM)}
+        groups = {arm: [r for r in subset if r.get("arm") == arm] for arm in ("self", candidate)}
         stats = {}
         for arm, group in groups.items():
             wall = [r["wall_s"] for r in group if r.get("wall_s") is not None]
@@ -54,11 +65,12 @@ def comparison(rows, expected):
                           "cost_unknown": sum(not r.get("cost_complete") for r in group),
                           "wall_total_s": sum(wall), "wall_median_s": statistics.median(wall) if wall else None}
         keys = [{(r.get("round"), r.get("episode"), r.get("task")) for r in groups[a]} for a in groups]
-        s, c = stats["self"], stats[ARM]
-        complete = (expected == 6 and keys[0] == keys[1] and len(keys[0]) == expected
+        s, c = stats["self"], stats[candidate]
+        complete = ((expected == 6 or candidate != ARM) and keys[0] == keys[1] and len(keys[0]) == expected
                     and all(v["attempted"] == expected and not v["cost_unknown"] and v["wall_median_s"] is not None for v in stats.values())
                     and all(type(r.get("ok")) is bool and not r.get("environment_error") for r in subset)
-                    and metrics(subset)["status"] == "Pass" and stop_reason(subset) is None)
+                    and metrics(subset, candidate)["status"] == "Pass"
+                    and stop_reason(subset, candidate, max_rate) is None)
         passed = (c["right"] >= s["right"] and c["known_usd"] <= .8 * s["known_usd"]
                   and c["wall_median_s"] is not None and s["wall_median_s"] is not None
                   and c["wall_median_s"] <= 2 * s["wall_median_s"])
