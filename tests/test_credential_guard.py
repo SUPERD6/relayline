@@ -69,7 +69,7 @@ def test_effective_child_and_original_home_credentials_and_worktree_are_protecte
     assert str(project.parent / ".ccx" / "eval-codex-home").replace("\\", "/") in paths
 
 
-@pytest.mark.parametrize("cli", ["codex", "dsh", "gemini"])
+@pytest.mark.parametrize("cli", ["dsh", "gemini"])
 def test_unsupported_warns_before_launch_without_claiming_isolation(launch, capsys, cli):
     inv, cfg, env = launch
     before = list(inv.argv)
@@ -122,6 +122,7 @@ def test_run_command_from_outside_repo_applies_guard(tmp_path, monkeypatch, cli)
     Paths(hub).user_tiers.write_text('[security]\ncredential_guard = true\n', encoding="utf-8")
     brief = tmp_path / "brief.md"
     brief.write_text("Return done", encoding="utf-8")
+    (Path(os.environ["CODEX_HOME"]) / "config.toml").write_text('[windows]\nsandbox = "elevated"\n', encoding="utf-8")  # the guard needs the elevated Windows sandbox
     log = tmp_path / "fake.jsonl"
     inherited = {k: v for k, v in os.environ.items() if not k.startswith("FAKE_") and
                  k not in ("CCX_CLAUDE_SETTINGS", "CCX_CLAUDE_SETTING_SOURCES", "CCX_CODEX_ISOLATE")}
@@ -139,7 +140,8 @@ def test_run_command_from_outside_repo_applies_guard(tmp_path, monkeypatch, cli)
     records = list((hub / "ccx/runs").glob("*/run.json"))
     assert len(records) == 1
     record = json.loads(records[0].read_text(encoding="utf-8"))
-    assert record["credential_guard"]["mechanism"] == ("claude-permissions-deny" if cli == "claude" else "unverified")
+    assert record["credential_guard"]["mechanism"] == ("claude-permissions-deny" if cli == "claude"
+                                                       else "codex-permission-profile")
     calls = [json.loads(line) for line in log.read_text(encoding="utf-8").splitlines()]
     argv = next(call["argv"] for call in calls if call["agent"] == cli and
                 ("-p" in call["argv"] if cli == "claude" else "exec" in call["argv"]))
@@ -148,4 +150,7 @@ def test_run_command_from_outside_repo_applies_guard(tmp_path, monkeypatch, cli)
         assert any("eval-codex-home/**)" in rule for rule in rules)
         assert any(rule.startswith("Bash(*") for rule in rules)
     else:
-        assert 'sandbox_mode="read-only"' in argv
+        assert 'sandbox_mode="read-only"' not in argv
+        assert 'default_permissions="ccx-credential-guard"' in argv
+        profile = next(x for x in argv if x.startswith("permissions.ccx-credential-guard="))
+        assert "eval-codex-home" in profile and '"deny"' in profile

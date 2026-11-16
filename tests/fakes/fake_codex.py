@@ -182,6 +182,12 @@ if mode == "cmd_1223_then_done" and not resuming:
                                                          "exit_code": 1, "status": "failed"}}))
     print('ERROR codex_core::tools::router: error=exec_command failed: CreateProcess { message: "program not '
           'found: rg" }', file=sys.stderr)
+if os.environ.get("FAKE_DENIED_READ"):
+    # codex-cli 0.164.0, elevated Windows sandbox with a deny entry (2026-11-16): the read fails with the ACL's message
+    print(json.dumps({"type": "item.completed", "item": {"id": "c2", "type": "command_execution",
+                                                         "command": "\"powershell.exe\" -Command 'Get-Content .env'",
+                                                         "aggregated_output": "Get-Content : Access is denied.",
+                                                         "exit_code": 1, "status": "failed"}}))
 if mode == "policy" or (mode == "policy_then_done" and not resuming):   # as codex-cli 0.164 on Windows
     status = "blocked"
     print('ERROR codex_core::tools::router: error=exec_command failed: CreateProcess { message: "Rejected('

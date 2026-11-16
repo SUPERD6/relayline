@@ -1,5 +1,6 @@
 """Per-attempt credential guard receipts, using fake CLI subprocesses only."""
 import json
+from pathlib import Path
 
 import pytest
 
@@ -12,6 +13,8 @@ from test_ccx import FAKES
 class TestGuardAttempts(AdapterEnv):
     def run_switch(self, enabled):
         self.env.update(HOME=str(self.work / "home"), USERPROFILE=str(self.work / "home"))
+        (Path(self.env["CODEX_HOME"]) / "config.toml").write_text('[windows]\nsandbox = "elevated"\n',
+                                                                  encoding="utf-8")
         self.j("config", "set", "security.credential_guard", str(enabled).lower())
         self.env["CCX_CLAUDE_BIN"] = str(FAKES / "fake_claude_capacity.py")
         out = self.j("run", "--from", "user", "--to", "claude", "--tier", "T1", "--mode", "read",
@@ -24,12 +27,16 @@ class TestGuardAttempts(AdapterEnv):
         assert [(a["agent"], a["kind"]) for a in rec["attempts"]] == [
             ("claude", "capacity"), ("codex", "ok")]
         guards = [a["credential_guard"] for a in rec["attempts"]]
+        codex = {"status": "Unknown", "mechanism": "codex-permission-profile", "rules_added": True,
+                 "execpolicy_rules": "ignored",
+                 **({"windows_sandbox": "elevated"} if credential_guard.IS_WINDOWS else {}),
+                 "access_denied_commands": 0}
         assert guards == [
-            {"status": "Unknown", "mechanism": "claude-permissions-deny", "rules_added": True},
-            {"status": "Unknown", "mechanism": "unverified"}]
+            {"status": "Unknown", "mechanism": "claude-permissions-deny", "rules_added": True}, codex]
         assert rec["credential_guard"]["status"] == "Unknown"
-        assert rec["credential_guard"]["mechanism"] == "unverified"
-        assert "rules_added" not in rec["credential_guard"]
+        # both attempts carry injected rules: the earliest weakest one names the mechanism; counts are run totals
+        assert rec["credential_guard"]["mechanism"] == "claude-permissions-deny"
+        assert rec["credential_guard"]["access_denied_commands"] == 0
         assert rec["credential_guard"]["attempts"] == [
             {"n": n, "agent": a["agent"], "model": a["model"], **guards[n]}
             for n, a in enumerate(rec["attempts"])]

@@ -232,7 +232,8 @@ dsh    = { model = "deepseek-v4-pro", effort = "max" }
 
 # 权限：read = 只读分析；write = 可以改文件。
 [security]
-# Experimental tool denies, not OS isolation. Codex per-directory read denial is Unknown.
+# Experimental. Claude: tool denies, not OS isolation. Codex: a permission profile with filesystem deny (beta;
+# on Windows only the elevated sandbox enforces it, with DENY ACLs that stay). See docs/credential-guard.md.
 credential_guard = false
 credential_dirs = []  # additional directories; relative paths use the task's project
 

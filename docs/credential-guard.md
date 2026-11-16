@@ -39,14 +39,43 @@ paths use Claude's documented `//c/...` drive normalization; this is not a claim
 that every tool matcher is case insensitive. A warning precedes launch. Use external
 OS isolation when these paths must be inaccessible to every process.
 
-Codex and other adapters currently emit a warning **before launch** and add
-`credential_guard: {status: "Unknown", mechanism: "unverified"}` to the run record.
-Their existing sandbox arguments are preserved. Claude records `status: "Unknown"`
-and `mechanism: "claude-permissions-deny"`: injected rules do not prove isolation.
-`rules_added` means only that rules were injected into the launch settings. The
-guard does **not** count refusals or attribute existing CLI denial counters to
-these rules. Codex is **not protected by this guard**. No credential contents or
-protected path list is added to the record or warning.
+Codex (since #289) runs under a **permission profile** instead of its legacy sandbox mode: ccx replaces its
+own `-c sandbox_mode="read-only"` / `"workspace-write"` with `-c default_permissions="ccx-credential-guard"` and
+an inline `-c permissions.ccx-credential-guard={extends=":read-only"|":workspace", filesystem={<target>="deny", ...}}`
+for the same targets as Claude, plus `--ignore-rules`: execpolicy `allow` rules run commands outside the sandbox, where the deny does not apply (this also drops `forbidden` rules for the run). Nothing is written to the user's Codex config; `exec resume` gets the same arguments.
+Launch is refused (configuration error, no attempt) when the arguments cannot be inspected or would defeat the
+profile: `--sandbox`/`-s`, `--dangerously-bypass-approvals-and-sandbox`, `--approve-for-me`, `-p/--profile`,
+`--full-auto`, `--yolo` (also as `--flag=value` or glued `-sVALUE`), `sandbox_mode="danger-full-access"`, an existing
+`default_permissions`/`permissions*`/`profile`/`profiles*`/`sandbox_workspace_write` override, a whole `-c windows=`
+table, a `--config=` spelling, an unparseable or oddly typed Codex config file, a protected path containing
+`[ ] ? { }` (Codex reads those as glob syntax), or, on Windows, any sandbox other than **elevated** (unelevated,
+unset or anything else; `windows.sandbox` from the last `-c`, else the last config file that sets it). With the guard
+on, a Claude-to-Codex fallback on such a machine therefore stops the run with exit 3 instead of running unguarded. Measured (below): the unelevated
+sandbox refuses to start any thread with deny-read entries, and the **elevated** sandbox enforces them by adding
+`CodexSandboxUsers:(DENY)(R)` ACEs to the matching files and directories. **Those ACEs stay after the run** and
+apply to every later Codex sandbox command on the machine (other projects, your own Codex sessions, runs with the
+guard switched off); they affect only Codex's sandbox accounts, not you or the Codex process itself, and `icacls <path> /remove:d CodexSandboxUsers`
+removes them. Codex's permission profiles are **beta**. Not covered: MCP servers, Codex's in-process tools (for
+example image viewing), and reads by the Codex process itself. Codex docs say a `sandbox_mode` in any loaded config
+file selects the legacy sandbox instead of a profile; codex-cli 0.164.0 still applied the `-c` profile when checked,
+so ccx does not refuse but records `config_sets_sandbox_mode: true` and says so in the warning. Config files checked, in Codex's layering
+order (later wins): `CODEX_HOME/config.toml` (unless `--ignore-user-config`), then `.codex/config.toml` from the repository
+root down to the task directory (read even if Codex would not trust the project; that can only add refusals). Managed (`requirements`) config is not inspected. Linux/macOS enforcement (bubblewrap / Seatbelt per
+Codex docs) was **not** run here.
+
+Codex records `credential_guard: {status: "Unknown", mechanism: "codex-permission-profile", rules_added: true,
+execpolicy_rules: "ignored"}`, plus `windows_sandbox: "elevated"` on Windows. Off Windows the warning says ccx did
+not measure enforcement there. Other adapters emit a warning **before launch**
+and add `{status: "Unknown", mechanism: "unverified"}`; their sandbox arguments are preserved.
+Claude records `status: "Unknown"` and `mechanism: "claude-permissions-deny"`: injected rules do not prove isolation.
+`rules_added` means only that rules were injected into the launch settings.
+Observed refusals are counted after each attempt: Codex `access_denied_commands` = shell commands that exited non-zero
+with an access-denied message (`Access is denied`, `Permission denied`, `Operation not permitted`, ...); Claude
+`refused_tool_calls` = the CLI's own `permission_denials` count (the same number as the attempt's existing
+`permission_denials`). Both count refusals **whatever caused them** (the
+guard, the sandbox, the allow-list): they are not attributed to the guard alone, and a read through a non-shell tool
+is not seen. The top-level values are run totals. No credential contents or protected path list is added to the
+record or warning.
 CLI authentication and startup configuration loading are outside tool-level denies.
 
 When enabled, each `attempts[n].credential_guard` preserves that attempt's launch
@@ -56,7 +85,7 @@ with an `attempts` summary containing zero-based `n`, agent, model and guard evi
 At equal status, `unverified` is weaker than injected rules. Its existing mechanism
 and `rules_added` fields describe that weakest attempt, not the whole run; summaries
 retain the others. For individual launch evidence, use `attempts[].credential_guard`.
-Both current adapters still report `Unknown`; Claude's injected rules do not imply `Pass`.
+Claude and Codex both report `Unknown`; injected rules or profiles do not imply `Pass`.
 Launch warnings also appear in the run's `credential_guard_warnings` list with zero-based `attempt`,
 agent and message. Compact `run`/`show` receipts include the aggregate and warnings.
 With the lead's `line` preference, guard warnings or a non-`Pass` guard status keep
@@ -70,14 +99,26 @@ Excessive rules/settings fail before launch, without truncating away protection.
 Invalid guard configuration uses the existing configuration-error exit (3) and a
 finished `error` record, not an interrupted/killed attempt; no CLI attempt is begun.
 
-## CLI evidence (2026-11-05)
+## CLI evidence (2026-11-05, Codex updated 2026-11-16)
 
-- Checked local `codex-cli 0.164.0 --help`: `-c key=value`, read-only/workspace-write
-  sandbox modes; these modes alone do not establish per-directory read denial.
-- [Official Codex permission profiles](https://learn.chatgpt.com/docs/permissions)
-  document filesystem `deny` and profile inheritance. Support and enforcement for
-  those beta profiles on the checked CLI version/platform were **not established**.
-  ccx does not pass speculative config keys or silently replace sandbox defaults.
+- 2026-11-16 (#289): `codex-cli 0.164.0` on Windows 11. `codex exec --help` has `-c key=value`, `-p/--profile`
+  (a config-file layer), `--sandbox`, `--ignore-user-config`; `codex sandbox --help` has `-P/--permission-profile`.
+  [Official Codex permissions](https://learn.chatgpt.com/docs/permissions) (beta): `[permissions.<name>]` with
+  `extends` and `filesystem` entries `read`/`write`/`deny`, selected by `default_permissions`; deny also blocks reads;
+  globs supported; profiles do not compose with `sandbox_mode`; Windows `unelevated` refuses policies it cannot enforce.
+- Measured with fake files only (`FAKE-TOKEN-FOR-TEST`), no model call: `codex sandbox -c permissions.g={...} -P g -- cmd /c type <file>`
+  on the elevated backend refused denied files, a denied directory, absolute `auth*` / `*.sqlite*` globs and a
+  `:workspace_roots` glob ("Access is denied."), left other files readable, and accepted missing paths; `icacls`
+  then showed persistent `CodexSandboxUsers:(DENY)(R)` ACEs. The same on the unelevated backend failed every command
+  ("Restricted read-only access requires the elevated Windows sandbox backend").
+- Measured `codex exec` with the exact `-c default_permissions=... -c permissions.ccx-credential-guard={...}` arguments:
+  unelevated home -> the thread did not start ("windows unelevated restricted-token sandbox cannot enforce deny-read
+  restrictions directly; refusing to run unsandboxed"), no tokens spent; with the guard off the same task printed
+  the fake token. A scratch home whose config also set `sandbox_mode = "danger-full-access"` gave the same refusal,
+  i.e. the `-c` profile still applied.
+- `ccx run --to codex` (scratch hub, eval home, fake `.env`): guard off -> the summary was `FAKE-TOKEN-FOR-TEST`;
+  guard on -> refused before launch (exit 3, unelevated sandbox), no attempt. **Not measured:** a full `ccx run`
+  on the elevated sandbox (the only elevated, logged-in home was the user's own, which was left untouched).
 - [Official Claude permissions](https://code.claude.com/docs/en/permissions)
   document deny precedence, absolute `//` Read patterns (Windows drive normalization),
   Bash `*` wildcards anywhere in a command pattern (including `Bash(*...*)`) and
@@ -85,5 +126,6 @@ finished `error` record, not an interrupted/killed attempt; no CLI attempt is be
   Claude Code 2.1.309; no real Claude/model invocation was performed for this change.
 
 Tests use temporary stand-in homes and `tests/fakes` only. They check path
-construction, settings preservation, warnings and the `ccx run` launch wiring
-from outside the repository. They do not establish real CLI or OS enforcement.
+construction, settings preservation, the Codex profile arguments and refusals, warnings,
+refusal counts and the `ccx run` launch wiring from outside the repository. They do not
+establish real CLI or OS enforcement; the measurements above do, for the stated version and platform only.
