@@ -7,4 +7,4 @@
   repository-cluster bootstrap, C long tasks to a cross-vendor (Codex) sub-agent, diagnostic.
   Lead-vendor spend is a secondary metric; conclusions are for a Claude lead only; the default first rung must come
   from the dry-run and match the ledgers.
-  Remaining script work is tracked in #345, #347 and #367 (`docs/research/prereg/2026-11-16-round2.md`).
+  Remaining script work is tracked in #345, #347, #367 and #371 (`docs/research/prereg/2026-11-16-round2.md`).
