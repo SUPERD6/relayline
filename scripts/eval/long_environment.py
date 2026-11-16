@@ -61,12 +61,12 @@ def environment(repo: Path, python: str, tmp: Path):
             "PIP_NO_INDEX": "1", **{k: str(tmp) for k in ("TMP", "TEMP", "TMPDIR")}}
 
 
-def baseline(repo: Path, python: str, tmp: Path, raw: Path | None = None):
+def baseline(repo: Path, python: str, tmp: Path, raw: Path | None = None, timeout: int = 180):
     """Exactly the unit acceptance command, original parent tests, no hidden test injection."""
     env = environment(repo, python, tmp)
     cmd = command(python)
     try:
-        r = subprocess.run(cmd, shell=True, cwd=repo, env=env, capture_output=True, timeout=180)
+        r = subprocess.run(cmd, shell=True, cwd=repo, env=env, capture_output=True, timeout=timeout)
         output = LC.normalize_output((r.stdout + r.stderr).decode("utf-8", "replace"), repo)
         result = {"rc": r.returncode, "summary": output.strip().splitlines()[-1] if output.strip() else "empty",
                   "errors": [s for s in output.splitlines() if s.startswith(("E   ", "FAILED ", "ERROR "))][:12]}
@@ -83,7 +83,7 @@ def baseline(repo: Path, python: str, tmp: Path, raw: Path | None = None):
     return result
 
 
-def validate_task(cache: Path, python: str, task: dict, raw_dir: Path | None = None):
+def validate_task(cache: Path, python: str, task: dict, raw_dir: Path | None = None, baseline_timeout: int = 180):
     m = LC.material(cache, task)
     with tempfile.TemporaryDirectory(prefix="p5-native-") as tmp:
         root = Path(tmp)
@@ -91,7 +91,7 @@ def validate_task(cache: Path, python: str, task: dict, raw_dir: Path | None = N
         policy = build(m["tar"], repo)
         stem = task["commit"]
         base = baseline(repo, python, repo / ".ccx-eval-tmp-acceptance",
-                        raw_dir / (stem + "-baseline.txt") if raw_dir else None)
+                        raw_dir / (stem + "-baseline.txt") if raw_dir else None, baseline_timeout)
         # Remove all generated baseline state; hidden validation uses fresh identical checkouts.
         checks = {}
         if base["rc"] == 0:

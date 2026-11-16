@@ -28,7 +28,8 @@ def bare_path(cache: Path, repo: str) -> Path:
     raise FileNotFoundError(f"cache has no repository {repo}")
 
 
-def candidates(cache: Path, repo: str) -> list[dict]:
+def history(cache: Path, repo: str) -> list[dict]:
+    """Every single-parent, non-merge commit with its numstat split into code, other and test files; unfiltered."""
     bare = bare_path(cache, repo)
     log = E._git(None, f"--git-dir={bare}", "log", "--no-merges", "--min-parents=1",
                  "--format=%H%x09%ct%x09%s", "--numstat")
@@ -52,6 +53,11 @@ def candidates(cache: Path, repo: str) -> list[dict]:
                 if is_code(name):
                     current["code"].append(name)
                     current["code_lines"] += int(parts[0]) + int(parts[1])
+    return rows
+
+
+def candidates(cache: Path, repo: str) -> list[dict]:
+    rows = history(cache, repo)
     used = [t["commit"] for t in tasks_holdout.T + tasks_holdout.DROPPED if t.get("repo") == repo]
     return sorted([r for r in rows if r["tests"] and r["code"] and
                    (r["code_lines"] >= 60 or len(r["code"]) >= 3) and
