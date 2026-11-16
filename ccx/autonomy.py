@@ -233,10 +233,20 @@ def merge(p: Paths, run_id: str, info: dict, cfg: dict | None = None, rules: lis
     _, dirty = _git(repo, "status", "--porcelain", "--untracked-files=no")
     if dirty:
         no.append("the project has uncommitted changes")
-    rc, base = _git(repo, "merge-base", target or "HEAD", branch)
+    start = upstream_start(p, rec)
+    if start and start.get("unknown"):   # #349: never fall back to the merge-base, which counts the upstream too
+        rc, base = 1, ""
+        no.append(unknown_start(start))
+    elif start:    # #349: a --base upstream run is measured from where its worktree started, not the merge-base
+        rc, base = 0, start["sha"]
+        why = behind_start(repo, target or "HEAD", start)
+        if why:
+            no.append(why)
+    else:
+        rc, base = _git(repo, "merge-base", target or "HEAD", branch)
     lines, files = _numstat(wt, base) if rc == 0 else (0, [])
     out.update(lines=lines, files=files)
-    if not files:
+    if not files and not (start and start.get("unknown")):
         no.append("nothing changed")
     if lines > int(st["max_lines"]) or len(files) > int(st["max_files"]):
         no.append(f"too big for a merge without the person: {lines} lines in {len(files)} files "
@@ -263,6 +273,60 @@ def merge(p: Paths, run_id: str, info: dict, cfg: dict | None = None, rules: lis
 
 
 # ---------------------------------------------------------------- merge steps shared with `ccx q accept`
+def upstream_start(p: Paths, rec: dict, hops: int = 20) -> dict | None:
+    """Where a `--base upstream` run's worktree started (#341): {sha, ref} from its record, or from the run it
+    resumed (a resume works in the same worktree but records no base of its own). None = a head-based run (its own
+    record, or the first one up the resume chain, says head or nothing), whose merge-base with the project's branch
+    is its start point as before. {unknown: why} = the chain breaks before saying (a record missing or unreadable, a
+    loop, more than `hops` resumes, an upstream run without base_sha): the caller refuses instead of guessing head."""
+    seen: set = set()
+    while True:
+        rid = rec.get("run_id")
+        if rec.get("worktree_base") == "upstream":
+            if rec.get("base_sha"):
+                return {"sha": rec["base_sha"], "ref": rec.get("base_ref") or "the upstream"}
+            return {"unknown": f"run {rid} started from the upstream but records no base_sha"}
+        if rec.get("worktree_base") or not rec.get("resumed_from"):
+            return None
+        seen.add(rid)
+        parent = rec["resumed_from"]
+        if parent in seen:
+            return {"unknown": f"the resume chain loops back to run {parent}"}
+        if len(seen) > hops:
+            return {"unknown": f"the resume chain is too long (over {hops} runs)"}
+        try:
+            rec = ledger.load_run(p, parent)
+        except FileNotFoundError:
+            return {"unknown": f"the record of run {parent}, which it resumed, is missing"}
+        except (OSError, ValueError) as e:
+            return {"unknown": f"the record of run {parent}, which it resumed, cannot be read ({type(e).__name__})"}
+        if not isinstance(rec, dict):
+            return {"unknown": f"the record of run {parent}, which it resumed, cannot be read (not an object)"}
+
+
+def unknown_start(start: dict) -> str:
+    return f"cannot tell where this run started ({start['unknown']}): the person merges it"
+
+
+def behind_start(repo: Path, target: str, start: dict) -> str | None:
+    """#349: merging an upstream-based branch into a branch that lacks the commit it started from would bring the
+    commits up to that one in too: a pull nobody asked for. -> why not, or None when `target` has the start point.
+    N counts the commits of the run's start point (base_sha) that `target` lacks, not the upstream as it is now."""
+    sha = start["sha"]
+    rc, n = _git(repo, "rev-list", "--count", f"{target}..{sha}")
+    if rc != 0:
+        return f"cannot tell whether {target} has {sha[:12]} ({start['ref']}), where this run started"
+    if not n.isdigit() or int(n) == 0:
+        return None
+    head = (f"{target} is missing {n} commit(s) that this run started from ({start['ref']} at {sha[:12]}): merging "
+            "would bring them in too; ")
+    rc, mine = _git(repo, "rev-list", "--count", f"{sha}..{target}")
+    if rc == 0 and mine.isdigit() and int(mine) > 0:
+        return head + (f"{target} and {start['ref']} have diverged ({mine} local commit(s) not in it): bring "
+                       f"{start['ref']} into {target} yourself (`git pull --rebase` or `git pull`), then merge")
+    return head + "pull first (`git pull`), then merge"
+
+
 def _ident(repo: Path) -> list[str]:
     """`-c user.name/-c user.email` for a merge commit only where git has no identity (a fresh CI machine);
     otherwise the person's own identity signs it."""

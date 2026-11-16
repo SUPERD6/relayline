@@ -496,6 +496,11 @@ UI 数据原有 `quota` 数组补充 `freshness`、`projected_at_reset`，用量
   （旁边是 `base_ref`）。只有要了 upstream（命令行或配置）的运行记录才多出 `worktree_base`（回退时还有
   `worktree_base_fallback`）。所有提示都在子智能体启动前给出；`--bg` 时父进程在分离前就提示
   （stderr，回执里的 `base_preview`），只看本地引用，因为 fetch 在分离出的子进程里做。ccx 只 fetch 这一个 upstream，从不 pull。
+  把这种运行合回来（`ccx autonomy merge`、`ccx q accept`）时，行数和文件数从 `base_sha` 算起，只量子智能体的改动；
+  本地分支还没有这个提交时拒绝合并（`<branch> is missing N commit(s) that this run started from ... pull first`；
+  本地已和它分叉时，提示改为用 `git pull --rebase` 或 `git pull` 自己把 upstream 合进来），否则合并会把这些提交
+  一起带进来，等于隐式 pull。续跑的运行沿用它所接续那次运行的起点；续跑链断了（记录缺失或读不了、成环、超过
+  20 次续跑）时拒绝合并并说明 `cannot tell where this run started`，不退回 merge-base 算法。
   运行结果、队列跟踪与接收、lane 提交、自动合并、验收可信度分组和 UI 项目归类同时识别两种布局，改设置后也能识别已有运行。
   inside 仍为实验性：已用假智能体 CLI 和 Git 验证，尚未用真实智能体 CLI 或 Codex 项目信任继承验证。
 - 子智能体不能再派子智能体（`CCX_DEPTH`）。

@@ -111,6 +111,12 @@ def why_not(p, q: dict, it: dict | None, joint: bool, root: Path) -> str | None:
     if not joint and not evidence(rec):
         return ("not verified: no check passed, no review passed and no verdict of yours; look at the diff and "
                 f"`ccx verify {rec['run_id']} --ok 1 --note \"...\"`, or give --check here")
+    start = autonomy.upstream_start(p, rec)
+    if start and start.get("unknown"):      # #349: never guess head for a chain that breaks
+        return autonomy.unknown_start(start)
+    if start:                               # #349: a --base upstream piece on a branch that lacks where it started
+        rc, here = autonomy._git(root, "symbolic-ref", "--short", "HEAD")
+        return autonomy.behind_start(root, here if rc == 0 and here else "HEAD", start)
     return None
 
 
