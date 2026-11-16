@@ -516,8 +516,10 @@ def _act(rec: dict, verdict: dict | None, now: float, beat: float | None) -> dic
                 "buttons": [show, _btn("b_fix_check", ["ccx", "resume", rid, "the check fails: fix it"], "primary")]}
     if kind in ("quota", "capacity", "timeout"):
         ra = ((rec.get("attempts") or [{}])[-1]).get("retry_after")
-        return {"kind": "decide", "what": "a_" + kind,
-                "why": ["w_" + kind, {"at": ra}],
+        # a stalled run (run.stall_minutes, #339) is kept as kind "timeout": named as what stopped it (#343)
+        name = "stalled" if kind == "timeout" and rec.get("stalled") else kind
+        return {"kind": "decide", "what": "a_" + name,
+                "why": ["w_" + name, {"at": ra}],
                 "buttons": [_btn("b_resume", ["ccx", "resume", rid], "primary"), show]}
     if kind == "over_budget":
         return {"kind": "decide", "what": "a_over_budget", "why": ["w_over_budget", {}],
@@ -778,6 +780,8 @@ def hist_of_run(rec: dict, title: str) -> list[dict]:
         key = ("h_" + k) if k in ("needs_write", "check_failed", "check_broken", "review_failed", "quota", "capacity", "timeout",
                                   "over_budget", "no_changes", "env", "ok_self_checked") \
             else "h_done" if rec.get("ok") and st in ("done", "partial") else "h_failed"
+        if key == "h_timeout" and rec.get("stalled"):
+            key = "h_stalled"
         out.append({"ts": t, "k": key, "p": {"t": title},
                     "tone": "ok" if key == "h_done" else "" if key == "h_ok_self_checked" else "bad"})
     v = rec.get("verdict") or {}
