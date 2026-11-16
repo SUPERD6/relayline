@@ -84,7 +84,9 @@ Claude 生成的 settings 上限为 22,000 字符，完整引用后的命令上�
   unelevated home 下会话没有启动（"windows unelevated restricted-token sandbox cannot enforce deny-read restrictions
   directly; refusing to run unsandboxed"），不花 token；关掉禁读时同一任务读出了假 token。配置里另设
   `sandbox_mode = "danger-full-access"` 的临时 home 得到同样的拒绝，说明 `-c` 的 profile 仍生效。
-  `ccx run --to codex` 的实测见 PR。
+- `ccx run --to codex`（临时 hub、评测 home、假 `.env`）：关闭禁读时 summary 为 `FAKE-TOKEN-FOR-TEST`；
+  开启时启动前拒绝（退出码 3，unelevated 沙箱），不产生尝试。**未实测：** elevated 沙箱下完整的 `ccx run`
+  （唯一已登录的 elevated home 是用户本人的，未动）。
 - [Claude 官方权限文档](https://code.claude.com/docs/en/permissions) 说明 deny 优先级、绝对路径 `//`、
   Windows 盘符归一化、Bash 命令模式任意位置的 `*`（含 `Bash(*...*)`）和任意程序绕过限制。
   官方文档核对日期 2026-11-05，现有适配器核对基线为 Claude Code 2.1.309；

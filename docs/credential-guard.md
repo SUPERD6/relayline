@@ -109,7 +109,10 @@ finished `error` record, not an interrupted/killed attempt; no CLI attempt is be
   unelevated home -> the thread did not start ("windows unelevated restricted-token sandbox cannot enforce deny-read
   restrictions directly; refusing to run unsandboxed"), no tokens spent; with the guard off the same task printed
   the fake token. A scratch home whose config also set `sandbox_mode = "danger-full-access"` gave the same refusal,
-  i.e. the `-c` profile still applied. See the PR for the `ccx run --to codex` runs.
+  i.e. the `-c` profile still applied.
+- `ccx run --to codex` (scratch hub, eval home, fake `.env`): guard off -> the summary was `FAKE-TOKEN-FOR-TEST`;
+  guard on -> refused before launch (exit 3, unelevated sandbox), no attempt. **Not measured:** a full `ccx run`
+  on the elevated sandbox (the only elevated, logged-in home was the user's own, which was left untouched).
 - [Official Claude permissions](https://code.claude.com/docs/en/permissions)
   document deny precedence, absolute `//` Read patterns (Windows drive normalization),
   Bash `*` wildcards anywhere in a command pattern (including `Bash(*...*)`) and
