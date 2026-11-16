@@ -16,7 +16,12 @@ second arm); it is null if either value is null or the denominator is zero,
 including when B has zero successes.
 
 --subset settled uses shared_context_ab.TASKS' existing neutral flags: the
-known non-neutral tasks, excluding t7-neutral and unknown task IDs. P4 ratios
+known non-neutral tasks, excluding t7-neutral and unknown task IDs. A row
+that carries its own boolean "neutral" (rows of a frozen --tasks file, issue
+#345) is classified by that flag instead; --subset neutral is the complement
+(neutral tasks only). A row with a boolean "invalid" (the runner's own
+classification under --on-invalid continue) is valid when invalid is false,
+ok is not None and usd is known. P4 ratios
 are B/A of known costs and median wall times, for all and env_clean separately;
 cost_unknown remains visible, so a partial cost ratio is not a complete-cost claim.
 This script reports observations only, without deciding preregistered gates.
@@ -41,6 +46,14 @@ from shared_context_ab import TASKS
 VALID_DEFINITION = ("no error, ccx receipt status is not \"error\", ok is not None, "
                     "usd is known (finite nonnegative number, not bool)")
 SETTLED_TASKS = {task["id"] for task in TASKS if not task["neutral"]}
+NEUTRAL_TASKS = {task["id"] for task in TASKS if task["neutral"]}
+
+
+def in_subset(row: dict, subset: str) -> bool:
+    """A row's own boolean "neutral" (a frozen task file's flag, #345) wins; else the built-in TASKS flags."""
+    if type(row.get("neutral")) is bool:
+        return row["neutral"] is (subset == "neutral")
+    return row.get("task") in (NEUTRAL_TASKS if subset == "neutral" else SETTLED_TASKS)
 
 
 def read_rows(path: Path) -> list[dict]:
@@ -62,6 +75,10 @@ def strength_rows(out: Path) -> list[dict]:
 
 
 def valid(row: dict) -> bool:
+    if type(row.get("invalid")) is bool:
+        # A row the runner classified itself (--on-invalid continue, #345): a sub-agent's own timeout/cap with a
+        # known cost is valid with ok false although its receipt status is "error"
+        return not row["invalid"] and row.get("ok") is not None and money(row.get("usd")) is not None
     return (not row.get("error") and row.get("status") != "error" and row.get("ok") is not None
             and money(row.get("usd")) is not None)
 
@@ -74,10 +91,10 @@ def check_outcomes(rows: list[dict], scope: str) -> None:
 
 
 def strength(rows: list[dict], pair: tuple[str, str] | None = None, subset: str | None = None) -> dict:
-    if subset not in (None, "settled"):
+    if subset not in (None, "settled", "neutral"):
         raise ValueError("unknown strength subset")
     check_outcomes(rows, "strength")
-    selected = [row for row in rows if subset is None or row.get("task") in SETTLED_TASKS]
+    selected = [row for row in rows if subset is None or in_subset(row, subset)]
     arms = {}
     for arm in sorted({row["arm"] for row in selected} | set(pair or ())):
         group = [row for row in selected if row["arm"] == arm]
@@ -195,7 +212,7 @@ def main(argv=None) -> int:
     s = sub.add_parser("strength")
     s.add_argument("out_dir", type=Path)
     s.add_argument("--pair", type=parse_pair)
-    s.add_argument("--subset", choices=("settled",))
+    s.add_argument("--subset", choices=("settled", "neutral"))
     p = sub.add_parser("p4")
     p.add_argument("--tag", required=True)
     p.add_argument("--out", type=Path, default=P4.parser().get_default("out"), help="results directory or JSONL file; default: P4 results.jsonl")
