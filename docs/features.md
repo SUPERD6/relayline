@@ -297,7 +297,9 @@ In Claude Code you say: "make `loader.py` accept a custom delimiter and add test
 4. **Return a summary.** Codex must answer in a JSON schema (`status / summary / files_changed / verification / …`).
    When the check passed, the review passed (or none ran) and nothing needs the lead (no hint, open question, next step, review
    note, L2 merge or project answer, weak or unknown-coverage check, ...), the lead is handed one JSON line (summary,
-   files, diffstat, check, recap; `"view": "line"`) instead of the whole result, which it re-reads on every later
+   files, diffstat, check, recap; `"view": "line"`; after a `--worktree` run also a short `commit_state`: state,
+   the commit command in `next`, the first 5 uncommitted files and a count, with "N files uncommitted, see
+   commit_state.next" at the end of the recap) instead of the whole result, which it re-reads on every later
    turn; `ccx show <run_id>` gives the whole one, and `ccx config set output.lead full` restores it everywhere.
    By default, serialized one-line JSON starts with the new additive `headline` field, for example
    `{"headline":"DONE",...}`. `CHECK_FAILED` / `CHECK_BROKEN` take precedence over completion; other cues

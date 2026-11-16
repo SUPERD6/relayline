@@ -6,7 +6,7 @@ the check passed and the review passed (or none ran) and nothing asks for the le
 edited tests, namecheck hits, policy blocks, open questions, next step, review notes, L2 merge or project answer,
 a fix round;
 no weak, unchanged-tree, unknown-coverage or changed-yardstick check), the lead gets one JSON line:
-what was done (summary, files, diffstat), the check as it was (cmd, passed, exit, what it covers), and the recap (status, check, review, cost, `ccx show <id>` for the rest).
+what was done (summary, files, diffstat, a --worktree run's commit state cut short), the check as it was (cmd, passed, exit, what it covers), and the recap (status, check, review, cost, `ccx show <id>` for the rest).
 Everything else is as before, whole. `ccx show <id>` always gives the whole result.
 
 Back to the whole result every time: `ccx config set output.lead full` (or CCX_LEAD_VIEW=full for one command).
@@ -17,6 +17,8 @@ import json
 import os
 
 SUMMARY_CHARS = 300
+COMMIT_FILES = 5     # a --worktree run's uncommitted files kept in the one line (#350); the rest as a count
+NOTE_CHARS = 200     # its note is cut to this; `next` is a command with the worktree path and stays whole
 # any of these in a result means the lead has something to look at: the whole result goes out
 ATTENTION = ("needs_lead", "hint", "kind", "edited_tests", "namecheck", "policy_blocked", "cost_chain_error",
              "base", "retry_after", "open_questions", "next_step", "brief_warnings", "credential_guard_warnings",
@@ -200,12 +202,40 @@ def line(res: dict) -> dict:
         out["review"] = {k: res["review"][k] for k in ("verdict", "by") if res["review"].get(k)}
     if (res.get("route") or {}).get("role_effort_reason") or (res.get("route") or {}).get("self_first"):
         out["route"] = res["route"]
+    notes = receipt_notes(res)
+    cs = res.get("commit_state")
+    if cs:                            # #350: a --worktree run leaves its work uncommitted; say so and how to commit
+        out["commit_state"], uncommitted = compact_commit_state(cs)
+        if uncommitted:
+            notes.append(f"{uncommitted} file{'s' if uncommitted != 1 else ''} uncommitted, see commit_state.next")
     out["view"] = "line"              # the rest: `ccx show <run_id>`
     out["recap"] = res.get("recap", "")
-    for note in receipt_notes(res):
+    for note in notes:
         if note not in out["recap"]:
             out["recap"] += ("; " if out["recap"] else "") + note
     return out
+
+
+def compact_commit_state(cs) -> tuple[dict, int]:
+    """(the receipt's commit_state cut to state, next, note and the first files, number of uncommitted files).
+    On every clean receipt's path: a malformed value is read as empty rather than raised."""
+    if not isinstance(cs, dict):
+        return {}, 0
+    files = cs.get("files")
+    files = files if isinstance(files, list) else []
+    more = cs.get("more")
+    more = more if isinstance(more, int) and not isinstance(more, bool) and more > 0 else 0
+    total = len(files) + more
+    out = {k: cs[k] for k in ("state", "next") if isinstance(cs.get(k), str) and cs[k]}
+    note = cs.get("note")
+    if isinstance(note, str) and note:
+        out["note"] = note if len(note) <= NOTE_CHARS else note[: NOTE_CHARS - 3] + "..."
+    shown = [f for f in files if isinstance(f, str)][:COMMIT_FILES]
+    if shown:
+        out["files"] = shown
+    if total > len(shown) and (shown or total):
+        out["more"] = total - len(shown)
+    return out, total
 
 
 def render(res: dict, cfg: dict) -> tuple[dict, bool]:
