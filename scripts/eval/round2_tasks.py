@@ -49,6 +49,8 @@ LICENSES = (("mit",), ("bsd",), ("apache",), ("isc",), ("psf", "python software 
 COMPILED = (".c", ".cc", ".cpp", ".cxx", ".pyx", ".pxd", ".rs", ".f", ".f90", ".go", ".zig")
 SIMILAR, LISTED = 0.6, 0.4
 TEST_EXTRAS = ("test", "tests", "testing")
+# task text: `brief` always; the other keys only when long enough to be a task statement, not an id
+BRIEF_KEYS = ("brief", "prompt", "task", "instruction", "instructions")
 
 
 def norm_name(name: str) -> str:
@@ -79,7 +81,7 @@ def corpus_files(root: Path = ROOT, exclude=()) -> list[Path]:
 
 def _records(obj, out: list) -> None:
     if isinstance(obj, dict):
-        if any(k in obj for k in ("id", "commit", "brief", "repo", "url")):
+        if any(k in obj for k in ("id", "commit", "repo", "url", *BRIEF_KEYS)):
             out.append(obj)
         for v in obj.values():
             _records(v, out)
@@ -150,8 +152,10 @@ def corpus(root: Path = ROOT, exclude=()) -> dict:
         url = r.get("url")
         if isinstance(url, str) and "github.com/" in url:
             repos.add(norm_name(url))
-        if isinstance(r.get("brief"), str) and r["brief"].strip():
-            briefs.append({"source": rel, "id": r.get("id"), "brief": r["brief"]})
+        for key in BRIEF_KEYS:
+            text = r.get(key)
+            if isinstance(text, str) and (key == "brief" and text.strip() or len(text.strip()) >= 40):
+                briefs.append({"source": rel, "id": r.get("id"), "brief": text})
     # repository names that only appear as dict keys (tasks_holdout.REPOS)
     for rel, r in records:
         for key, value in r.items():
@@ -257,6 +261,14 @@ def brief_checks(brief: str, hidden: dict[str, str], trace: list[dict]) -> dict:
     checks = [a for rel, src in sorted(hidden.items()) for a in assertions(rel, src)]
     overlap = [{"assertion": a["id"], "literal": lit if not isinstance(lit, bytes) else lit.decode("utf-8", "replace")}
                for a in checks for lit in a["literals"] if _suspicious(lit, brief)]
+    seen = {(o["assertion"].split("::")[0], repr(o["literal"])) for o in overlap}
+    for rel, src in sorted(hidden.items()):
+        for c in ast.walk(ast.parse(src)):
+            if (isinstance(c, ast.Constant) and not isinstance(c.value, bool) and c.value is not None
+                    and (rel, repr(c.value)) not in seen and _suspicious(c.value, brief)):
+                lit = c.value.decode("utf-8", "replace") if isinstance(c.value, bytes) else c.value
+                overlap.append({"assertion": f"{rel}:{c.lineno} (outside an assert)", "literal": lit})
+                seen.add((rel, repr(c.value)))
     known = {a["id"] for a in checks}
     mapped = {}
     for row in trace or []:
@@ -370,8 +382,36 @@ def _size_ok(row, size) -> bool:
     return row["code_lines"] >= size[0] or len(row["code"]) >= size[1]
 
 
+def test_changes(cache: Path, repo: str, sha: str) -> str | None:
+    """A reason to exclude, or None. Only `test*.py` files become hidden tests, so a commit that also changes
+    conftest.py, helpers or data under a tests folder would leave the agent without them; a deleted or renamed
+    test file cannot be read at the commit."""
+    bare = LCand.bare_path(cache, repo)
+    out = E._git(None, f"--git-dir={bare}", "diff-tree", "--no-commit-id", "-r", "--name-status", "-M", sha)
+    support, gone = [], []
+    for line in out.splitlines():
+        parts = line.split("\t")
+        status, names = parts[0], parts[1:]
+        for name in names:
+            if not LCand.is_test(name):
+                continue
+            if status[0] in "DR":
+                gone.append(name)
+            elif not (name.endswith(".py") and Path(name).name.startswith("test")):
+                support.append(name)
+    if gone:
+        return "deletes or renames a test file: " + ", ".join(sorted(set(gone))[:3])
+    if support:
+        return "changes test support files: " + ", ".join(sorted(set(support))[:3])
+    return None
+
+
 def _validate(cache, python, task, raw_dir):
-    return LE.validate_task(cache, python, task, raw_dir, SUITE_TIMEOUT)
+    LE.SRC_ON_PATH = True  # src-layout packages import from src/, as long_check.check_tree does
+    try:
+        return LE.validate_task(cache, python, task, raw_dir, SUITE_TIMEOUT)
+    finally:
+        LE.SRC_ON_PATH = False
 
 
 def _why_invalid(result: dict) -> str:
@@ -414,6 +454,8 @@ def select_upstream(cache: Path, repos: list[dict], python: str, used: set[str],
             reason = None
             if not row["tests"]:
                 reason = "no test file added or changed"
+            elif reason := test_changes(cache, repo, row["commit"]):
+                pass
             elif not row["code"] or not _size_ok(row, B_SIZE):
                 reason = f"implementation change below {B_SIZE[0]} lines and {B_SIZE[1]} code files"
             elif group == "C" and not _size_ok(row, C_SIZE):
@@ -443,6 +485,11 @@ def select_upstream(cache: Path, repos: list[dict], python: str, used: set[str],
             "rule": {"since": since, "b_size": B_SIZE, "c_size": C_SIZE, "b_take": B_TAKE, "c_take": C_TAKE,
                      "b_cap_per_repo": B_CAP, "c_cap_per_repo": C_CAP, "suite_timeout_s": SUITE_TIMEOUT,
                      "order": "repositories in rank order; commits by time descending, full SHA ascending",
+                     "caps": "B and C caps counted separately (pre-registration: at most 6 per repository, C: 4)",
+                     "notes": ["commits before the date limit are recorded as one count per repository",
+                               "pure Python is checked on the repository HEAD (no .c/.pyx/.rs/... file anywhere)",
+                               "pytest plugins are not autoloaded; PYTHONPATH is src/ (if present) then the root",
+                               "commits changing test support files or deleting/renaming tests are excluded"],
                      "hidden": "commit's added/changed test files: parent fails (rc 1/2), commit passes, "
                                "parent's existing suite passes"},
             "models_called": False, "B": b, "C": c, "b_shortfall": B_TAKE - len(b), "c_shortfall": C_TAKE - len(c),
@@ -506,8 +553,11 @@ def fetch_meta(snapshot: dict, out: Path, limit: int, get=None) -> list[str]:
 
 def prepare(repos: list[dict], cache: Path, wheels: Path, python: str, run=subprocess.run) -> list[dict]:
     """Clone each kept repository; download the latest release with test extras and install every wheel except
-    the package itself, so the task's own code never sits in --ext-python. Filled from the list, not by hand."""
+    the kept packages themselves (its own and every other kept one), so no task's code sits in --ext-python.
+    A repository whose suite then lacks a dependency fails its parent baseline and is excluded with that reason.
+    Filled from the list, not by hand."""
     rows = []
+    kept = {norm_name(r["project"]) for r in repos}
     for spec in repos:
         row = {"repo": spec["repo"], "project": spec["project"]}
         try:
@@ -521,7 +571,8 @@ def prepare(repos: list[dict], cache: Path, wheels: Path, python: str, run=subpr
                 capture_output=True, text=True, encoding="utf-8", errors="replace")
         row["downloaded"] = d.returncode == 0
         files = sorted(p for p in target.glob("*") if p.is_file()) if target.is_dir() else []
-        deps = [str(p) for p in files if norm_name(re.split(r"-\d", p.name, maxsplit=1)[0]) != norm_name(spec["project"])]
+        deps = [str(p) for p in files if norm_name(re.split(r"-\d", p.name, maxsplit=1)[0]) not in kept]
+        row["skipped_kept_packages"] = sorted({norm_name(re.split(r"-\d", p.name, maxsplit=1)[0]) for p in files} & kept)
         if deps:
             i = run([python, "-m", "pip", "install", "--quiet", "--no-index", "--no-deps", *deps],
                     capture_output=True, text=True, encoding="utf-8", errors="replace")
@@ -543,7 +594,9 @@ def manifest(paths: list[Path], root: Path) -> dict:
     files = []
     for p in paths:
         p = Path(p)
-        for f in sorted(x for x in p.rglob("*") if x.is_file()) if p.is_dir() else [p]:
+        found = (sorted(x for x in p.rglob("*") if x.is_file() and not {".git", "__pycache__"} & set(x.parts))
+                 if p.is_dir() else [p])
+        for f in found:
             files.append({"path": f.resolve().relative_to(root.resolve()).as_posix(), "sha256": file_digest(f)})
     files.sort(key=lambda r: r["path"])
     canon = json.dumps(files, sort_keys=True, separators=(",", ":")).encode("utf-8")
@@ -584,7 +637,7 @@ def main(argv=None) -> int:
         print(f"metadata missing for {len(missing)} project(s)")
         return 0
     if a.cmd == "repos":
-        data = repo_list(read_json(a.snapshot), a.pypi_meta, corpus()["repos"])
+        data = repo_list(read_json(a.snapshot), a.pypi_meta, corpus(exclude=[a.out])["repos"])
         write_json(a.out, data)
         print(f"kept {len(data['kept'])}, excluded {len(data['excluded'])}")
         return 0
@@ -595,7 +648,8 @@ def main(argv=None) -> int:
     if a.cmd == "select":
         if not a.ext_cache.is_dir():
             ap.error("--ext-cache must exist (run prepare first)")
-        data = select_upstream(a.ext_cache, read_json(a.repos_json)["kept"], a.ext_python, corpus()["repos"],
+        data = select_upstream(a.ext_cache, read_json(a.repos_json)["kept"], a.ext_python,
+                               corpus(exclude=[a.out, a.repos_json])["repos"],
                                raw_dir=a.raw_dir)
         write_json(a.out, data)
         print(f"B {len(data['B'])}/{B_TAKE}, C {len(data['C'])}/{C_TAKE}")

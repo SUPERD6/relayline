@@ -15,6 +15,7 @@ import ext_repo as E
 import long_check as LC
 
 POLICY = "native-git-checkout-v2"
+SRC_ON_PATH = False  # round2_tasks turns this on for its own validation; P4/P5 keep the root only
 CHECK = "-m pytest -q -o addopts="
 
 
@@ -57,7 +58,8 @@ def command(python: str) -> str:
 def environment(repo: Path, python: str, tmp: Path):
     tmp.mkdir(parents=True, exist_ok=True)
     return {**os.environ, "PATH": str(Path(python).resolve().parent) + os.pathsep + os.environ.get("PATH", ""),
-            "PYTHONPATH": str(repo), "PYTEST_DISABLE_PLUGIN_AUTOLOAD": "1", "PYTHONDONTWRITEBYTECODE": "1",
+            "PYTHONPATH": (str(repo / "src") + os.pathsep if SRC_ON_PATH and (repo / "src").is_dir() else "") + str(repo),
+            "PYTEST_DISABLE_PLUGIN_AUTOLOAD": "1", "PYTHONDONTWRITEBYTECODE": "1",
             "PIP_NO_INDEX": "1", **{k: str(tmp) for k in ("TMP", "TEMP", "TMPDIR")}}
 
 
