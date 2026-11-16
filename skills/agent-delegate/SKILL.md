@@ -208,7 +208,8 @@ A printed result with a `run_id` means that delegation ran: do not send the same
 - `no_changes` = a write run said done/partial but changed nothing (no edit, no commit; its check ran on the
   unchanged tree; `ccx q` marks the piece failed, so its dependents wait): accept only if the task was already
   met, else resume it. `base` on a `--worktree` run: it
-  started from HEAD without your uncommitted changes, so its check did not test them. `commit_state` on a `--worktree`
+  started from the point `base` shows (the local HEAD by default, `@{upstream}` with `base = upstream`) without your
+  uncommitted changes, so its check did not test them. `commit_state` on a `--worktree`
   run: the files it left uncommitted (sub-agents never commit; Codex's sandbox cannot write the git directory): review
   and commit them yourself; `note` there means a sub-agent committed anyway.
 - `env` = the machine, not the model: the sub-agent's CLI could not start a process (e.g. Codex's Windows sandbox
