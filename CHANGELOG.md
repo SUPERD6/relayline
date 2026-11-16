@@ -2,6 +2,319 @@
 
 ## Unreleased
 
+## 0.7.0 — 2026-11-16 (receipts that say what was verified, safer defaults, opt-in experiments)
+- Keep baseline entrypoint provenance when CPython 3.13 removes `__main__.__file__` before exit callbacks,
+  using the retained file loader; source-tree entrypoints still yield Unknown.
+  See CPython's [`_PyRun_SimpleFile`](https://github.com/python/cpython/blob/3.13/Python/pythonrun.c).
+- Normalize the frozen eligibility source to UTF-8/LF before hashing so Windows and Linux checkouts agree.
+  Refresh only that fingerprint in the second-split manifest; exercises, ordering, thresholds, commands and options are unchanged.
+- Docs: the relay "one-minute desktop check" no longer asks for `/hooks` in a desktop Code session (the tab does not
+  support it); it now says to run `/hooks` in a terminal `claude` or read `hooks.StopFailure` in
+  `~/.claude/settings.json`, and records the 2026-11-10 simulated-event result. No code or default changed (#318).
+- `scripts/eval/strength_retest.py execute` takes `--codex-home DIR`, a Codex home you logged in to yourself; Codex
+  units use it as `CODEX_HOME` instead of a fresh empty folder (every Codex unit got 401). A run with Codex units and
+  no usable `--codex-home` stops before the first unit; the folder is checked like `p4_long_session.py`'s (#320).
+- Strength runs stop the group when a unit's ccx receipt has `status: "error"` (e.g. `kind: auth`), not only on a
+  Python exception; `scripts/eval/unified_summary.py` counts such rows as invalid (Unknown) instead of a task failure,
+  and says so in its valid definition. P4 rows have no top-level status and are judged as before (#321).
+- `--worktree` write runs: sub-agents are told not to commit "even if the task says to" and to leave their changes
+  uncommitted (first prompt and same-session continue). Codex's workspace-write sandbox cannot write a worktree's git
+  directory (`index.lock` refused), so a brief asking it to commit used to end with a dirty worktree and a sub-agent
+  asking the lead to commit (#334). The receipt now has `commit_state`, as the run left the worktree: `state`
+  (uncommitted / committed), the uncommitted `files` (up to 20, then `more`; `.ccx/` left out) and `next` (the
+  `git -C` lines to commit them); `note` flags a sub-agent that committed anyway. Not named `commit`: batch lanes put
+  the sha of ccx's own per-piece commit there, and drop `commit_state` once they committed. Codex's sandbox is not
+  widened (no `--add-dir`, no `writable_roots`). Kept: every command and option; `ccx q` / batch lanes still commit
+  each worktree piece themselves and `ccx autonomy merge` still commits before merging (`tests/test_merge.py`
+  unchanged and passing).
+- Add experimental `routing.default = auto | self_first` (default `auto`): prefer self unless lead quota is
+  tight, context is large, delegation is explicitly assigned, or independent parallel work is declared.
+  Preserve existing policies, commands, options and verdicts; expose condition evidence in routing receipts.
+  Fixed-model role assignments qualify explicitly; internal sizing overrides do not report a user `--force`.
+  Use a separate `--independent-parts` signal for task parallelism; keep `--parallel` for child sub-agents.
+  Expose missing quota windows and reuse context only from explicit input or lead-session readings.
+  Recognize user force only through a positive CLI marker; queue pieces report explicit requests from queue.
+  Audit all five internal routing force sites and cover each without misreporting a user override.
+- Add experimental `[check] baseline = "on_fail"` (default `"off"`): compare complete failing case lists against a
+  clean dispatch-time Git checkout with saved original file bytes (including LF/CRLF), stop check repair/escalation
+  for baseline-only failures, and restrict repair
+  prompts to new cases. Unknown comparisons keep existing behavior; no commands, options or default verdicts removed.
+- Retain bounded stdout/stderr paths for every acceptance check and baseline check, plus baseline elapsed time in
+  run records and baseline details in receipts, including merged batches' per-piece checks. Validated with fake
+  CLIs and temporary Git repositories only.
+- Add default-on check output retention even with baseline comparison off: `stdout_path`, `stderr_path`,
+  `stdout_truncated`, `stderr_truncated`, and `failed_cases` are additive fields. Each check writes up to
+  2 × 256 KiB (stdout and stderr); `tail` is unchanged. Receipts also add the default `headline` display field.
+- Preserve full bracket-paired parametrized case IDs and reject unbalanced IDs as Unknown. Remove source-tree
+  PYTHONPATH entries from baseline checks and record actual Python `import_origins`; unobservable imports or
+  imports from the source tree cannot establish baseline-only failures.
+- Document that `check_baseline_failed`, like `check_failed`, has `ok=true` and CLI exit code 0: scripts must
+  inspect acceptance fields rather than rely on process exit alone.
+- Add fake-CLI subprocess regressions for original-task files through test review, repair and explicit resume overrides; retained wording snapshots and source metadata; a core run/show/verify/resume/stop/undo/UI-export chain; and hook-triggered archival completion after a controlled delay.
+- Verify that independent test review receives saved original wording when only `--user-words-file` is supplied; remove the expected-failure marker now that the wording is forwarded. All commands and options are preserved.
+- Document long-term engineering standards for evidence, metrics, evaluations, compatibility, delivery and file hygiene.
+- Add a staged optimization plan with proposed gates and a $60 hard cap; preserve existing defaults and negative results.
+- Tests: fake reviewers no longer rewrite files while ccx's check runs, avoiding intermittent Windows failures in
+  `test_downgrade_keeps_the_run_out_of_a_fix_round` and `test_confirm_asks_a_stronger_reviewer_once`.
+- Add experimental `check.sensitivity = "off" | "warn" | "escalate"` (default off), reusing dispatch-time baseline
+  snapshots to detect checks that already passed before the change or retain identical pytest failures.
+  Record sensitivity, fixed cases and baseline wall time; insensitive receipts ask the lead for a requirement test.
+  Opt-in `escalate` advances an unverified cheap-first result to the requested rung within existing limits;
+  `--no-escalate` retains the original rung and returns the hint. Existing commands, options and defaults remain.
+  Pass-to-fail regressions stay unknown and retain failure output; unverified retries verify against the task text,
+  and identical-failure retries identify pre-existing cases without focused failure repair.
+- Delegation guidance: before sending a write task, the lead writes at least one test (or checkable command) for the
+  new requirement, sees it fail, passes it as `--check`, and puts concrete inputs and expected outputs in the brief
+  (agent-delegate skill, its Chinese README and brief template; `ccx run -h --check` and the no-check tip say the
+  check should fail before the change). The existing suite passes before the change and cannot see a new
+  requirement; in the 2026-11 unified test (G3/G4) that let a cheap first rung's wrong work through. Text only: no
+  default or option changed (#326).
+- `scripts/eval/strength_runner.py`: a Codex unit's `TMP`/`TEMP`/`TMPDIR` is an existing `tmp/` folder in the unit,
+  and Codex runs through `codex_tmp.py`, so each workspace-write `codex exec` gets a private temp folder inside its
+  working directory, as in `p4_long_session.py`. Under Windows' unelevated sandbox the system `%TEMP%` is not
+  writable and PowerShell hung until the unit timed out (#327). The shared part is now
+  `preflight.codex_workspace_tmp_env()`, also used by `prepare()`.
+- Unified test preregistration: change log for 2026-11-12. G1 run 2 is Unknown (PowerShell hang, #327); G1 and G2
+  move to `PIN3`, the main commit after this fix; G1 writes to `unified-g1r2`.
+- Eval: the strength runner (`scripts/eval/strength_runner.py`) now ends the whole process tree when a `ccx run`
+  (or a setup `ccx` call) times out, not only the direct child: it starts the child with `ccx.runners.group_flags()`
+  and stops it with `ccx.runners.kill_tree()`; on POSIX the descendants (ccx starts its CLI in a group of its own)
+  are listed with `preflight.snapshot()`/`family()` first and killed with `preflight.kill()`. The row still says
+  `error: "TimeoutExpired"` with Unknown cost, and the group still stops (#329). The child's stdin is now
+  `DEVNULL` instead of inherited (the brief is an argument, so ccx does not read stdin here). If processes cannot be
+  listed on POSIX, a line on stderr says descendants in their own process group may not have been killed.
+- Unified preregistration: 2026-11-13 change-log entry (G1 run 3 valid on PIN3 `e69b892e…`; G2 run 1 Unknown at
+  unit 51/72; G2 reruns on `PIN4`, output `unified-g2r`).
+- Experimental stall detection, off by default (#330): `run.stall_minutes` (0 = off) stops an attempt whose sub-CLI
+  printed no stdout event for that many minutes, ending its process tree like a timeout. It is recorded as kind
+  `timeout` with `"stalled": true`, so every timeout rule (no climb, resumable, not learned) applies unchanged.
+  See docs/timeouts.md.
+- Evaluation scripts end the whole process tree on a timeout (#332): `strength_runner.run_tree()` (#329) moves to
+  `scripts/eval/common.py`, and the 20 timed `subprocess.run` calls in 15 more scripts (`ccx run`/`resume`, the real
+  CLIs, the review replay workers) use it. Results are as before (returncode/stdout/stderr; a TimeoutExpired carries
+  the output read so far); the child's stdin is the `input` or DEVNULL. Its children no longer get the terminal's
+  Ctrl+C, so the four threaded scripts (`shared_context_ab`, `r4`, `review_replay`, `rereview_replay`) map through
+  `common.map_stopping()`, which on Ctrl+C drops the queue and ends the running trees (`common.stop_running()`).
+  Evaluation logic, gates and outputs are unchanged.
+- A sub-agent CLI's stdout and stderr, and Codex's `-o` last message, are read as bytes and decoded as UTF-8; a line
+  that is not UTF-8 falls back to the machine's code page (cp936/GBK on a Chinese Windows), and bytes neither can
+  decode stay visible as `\xNN` instead of becoming U+FFFD. A lone `\r` inside a line no longer splits it. Defensive:
+  the garbled Chinese in #335 came from reading correct UTF-8 files with Python printing to a pipe in cp936; the FAQ
+  now says to use `ccx show` or `PYTHONUTF8=1` (#335).
+- `ccx run --worktree --base head|upstream` and `[worktree] base = "head"` (#336): `upstream` starts the worktree
+  from the current branch's `@{upstream}` (`--no-track`); no upstream or a detached HEAD falls back to HEAD with a
+  note. Default unchanged (`head`). When HEAD trails the upstream, the warning now also names `--base upstream`;
+  `ccx run --bg --worktree` says it before detaching (stderr and `base_preview` in the receipt), not only in the log and the
+  later recap. Records of `--base upstream` runs add `worktree_base` / `base_ref` / `base_sha` (`local_ahead` when local commits
+  are left out). No option removed; no new network request (the existing `[worktree] fetch` refresh is reused).
+- `ccx ui` now names a run stopped by stall detection (`run.stall_minutes`, kind `timeout` + `stalled`) as stalled in its card and history line, in English and Chinese, instead of "ran past the time limit" (#343). Display only: the kind, the detection and its default (off) are unchanged.
+- Fix Windows acceptance checks using Bash syntax: select Git Bash when available and report missing or
+  disappeared Bash executables as `check_broken`, preserving native cmd.exe commands, other OS errors, and
+  existing test-failure verdicts. Preserve the full remedy in lead receipts, exclude WSL launchers, support
+  nested Git/Scoop layouts, and warn about backslash paths in Bash checks.
+- Fix model-capacity errors retrying the same model at another effort: use the remaining ladder or existing
+  cross-vendor fallback, with at most two switches and explicit capacity evidence/reasons in receipts.
+  This bug fix is enabled by default; `defaults.capacity_fallback=false` restores legacy behavior.
+  Preserve commands, options, exit codes, quota handling and budget checks; fake-CLI engineering checks only.
+- Use only the final CLI error for capacity evidence, preserve higher-priority failure verdicts and resume context,
+  mark tier upgrades in recovery receipts, and exclude capacity stops from session reuse, merged repair and wrong-task UI counts.
+- Restore capacity-stopped queue pieces to decide, show capacity-specific UI recovery hints, and build continued-run memory prompts only when switching models.
+- Add `git_pending` receipts for unresolved markers, unmerged paths and unfinished merge/rebase/cherry-pick steps.
+  Experimental `git.auto_stage_resolved` (default false) lets the parent stage marker-free resolved conflict paths,
+  never commit; preserve existing commands, options, JSON meanings, verdicts and exit codes.
+- Restrict staging to UU/AA conflict paths changed since dispatch, leaving modify/delete and untouched conflicts
+  for manual review. Bound conflict-only reads to 4 MiB, avoid heading/image false alarms, and record invalid
+  staging configuration without losing receipts. Recheck only each candidate path before staging.
+- Exercise changed, marker-bearing UU paths with dispatch snapshots; document that conflicts created during
+  execution remain manual and that a standalone seven-equals line can conservatively be flagged as a marker.
+- Add conservative experimental pre-dispatch brief warnings to stderr, receipts and run records, including background runs.
+  Keep dispatch advisory by default; opt-in `ccx run --strict-brief` refuses clear mode, input-path or platform conflicts
+  before launching an agent. Preserve existing commands, options, verdicts and default exit codes.
+  Handle Chinese punctuation and report-file requests conservatively, distinguish common file extensions from dotted
+  API names or versions, and avoid duplicate background warnings while preserving saved diagnostics and stdin briefs.
+- Fix `ccx verify --list` to work without `--sample`, returning a read-only `pending` list of unjudged runs.
+  Add opt-in `--days`, `--project` and `--state` filters for listing and sampling; retain the seven-day default
+  and existing `--sample N [--list]` JSON and interactive behavior. Engineering checks only; no real CLI evaluation.
+  Reject listing combined with verdict arguments; resolve worktrees to their main project, handle missing/invalid
+  paths, and compare project names without case on Windows. Retry record reads and expose an `unreadable` count.
+- Fix #283: expose the shared evidence headline in full run output, every `ccx show` form, and UI run/task/map receipts. Completed executions without independent passing check or review evidence show `UNVERIFIED`; execution `ok`, `status`, exit codes, commands, options and defaults remain unchanged.
+- Follow-up review: normalize stored execution flags through `exit_ok`, reject edited-test/namecheck evidence, identify records by attempts, and retain UI status styling, probable-verdict qualifiers and explicit human verdicts.
+- Add an opt-in experimental credential directory guard for delegated attempts: additive Claude Read/Bash deny rules, configurable extra directories, and pre-launch Unknown warnings for unverified adapters. Preserve existing defaults, commands, options, verdicts and sandbox arguments.
+- Limit default denies to credential/authentication files, Codex sqlite stores and complete evaluation homes; preserve normal CLI context files. Cover Git Bash path forms, task-relative environment homes and resolved aliases, reject oversized launch rules, and report invalid guard settings as configuration errors rather than interrupted runs.
+- Preserve actual changed paths and the last assistant event in timeout receipts for worktree and original-checkout runs.
+  Reuse `defaults.timeout_sec` (still 1800 seconds) and add experimental `defaults.timeout_reminder = false` for an
+  up-front partial-result reminder, without changing existing receipt fields, timeout verdicts or exit codes.
+- Keep timeout evidence in its original attempt after a successful retry; expose it at the top level only for a final
+  timeout. Collect changed paths without reading diff bodies or untracked file contents, and retain the final 4000
+  characters of long assistant messages. Cover timeout recovery, large files and incomplete JSON events with fake CLIs.
+- Document lean switches, focused re-review, automatic lead selection, warm lanes and test review together as
+  experimental and not recommended, with historical results, Unknown evidence limits and source links in both languages.
+- Preserve credential guard evidence per attempt across capacity fallback; include weakest-state summaries and
+  pre-launch `credential_guard_warnings` in receipts when enabled, while leaving disabled receipts unchanged.
+  Keep guard warnings and non-Pass status visible with the lead's line-output preference; top-level mechanism
+  and rules-added evidence describe the weakest attempt, not the entire run. Fixes #291.
+- Fix preflight JSON and warning output on Windows by configuring stdout/stderr as UTF-8 when supported.
+  Harden eval sandbox temp subprocess tests with UTF-8 Python output, replacement decoding, and stdout/stderr
+  diagnostics. Add legacy-encoding regression checks, including an unset PYTHONIOENCODING environment.
+- Join startup maintenance subprocesses in the shared hook-test environment before removing temporary hubs,
+  and wait for the archive lock after releasing the deliberately asynchronous archive regression worker.
+  Guard the waiting entry-point wiring with a regression test; reap every child after timeouts and report CLI
+  and cleanup failures together. Production hooks and non-hook background command behavior are unchanged.
+- Add `CCX_NO_START_ARCHIVE=1` to skip session-start archive scheduling and worker launch; keep startup defaults
+  unchanged and preserve `CCX_NO_AUTO_ARCHIVE=1` as an after-run-only opt-out. Document both switches and existing
+  archive configuration alternatives, with regression tests that run the real session-start hook (#306).
+- Fix Windows demo-test cleanup races by joining UI reader/watcher threads and child processes before removing
+  the temporary demo. Reuse the test-only CLI child-wait helper; production background defaults are unchanged.
+  Failed demo removal still returns a boolean and now reports up to five failed paths on stderr, also included
+  in the test fixture's assertion message (#307).
+  The original parallel full-suite failure was not reproduced, so its occupying process remains unconfirmed.
+  This covers UI reader/watcher threads and direct child processes, including the demo-backed map tests; it does
+  not join grandchildren spawned by a UI-started ccx process. If cleanup fails again, inspect the failed paths
+  printed by `demo.remove`.
+- Fix numeric quota/auth hints matching inside UUIDs, hashes, filenames and longer numbers (#311).
+  Share boundary-aware matching across failure classification, quota-stop evidence and Claude/Codex auth flags;
+  keep standalone HTTP codes, text-hint substring matching, hint priority and existing commands/options.
+  Standalone 429/401 values (e.g. line numbers, ports or punctuation-separated timestamp components) can still
+  cause false positives; this fix only excludes matches inside ASCII identifiers and longer numbers.
+- Add a read-only, standard-library unified summary for strength and long-session evaluations, with JSON/text
+  output, valid paired exact McNemar tests, the existing settled task subset, arbitrary P4 arm comparisons,
+  clean-environment subsets and dispatch escalation/stopping diagnostics. Existing evaluation output is unchanged.
+- Add experimental `lead.slim_context` (off by default): render two-line ccx entry guidance and load startup
+  context on demand with `ccx mem delta --as <tool> --full`; keep commands and skills available.
+  Managed-mode startup hooks avoid duplicate entry text; external-mode hooks expand both executable paths.
+  Retain quiet startup maintenance, background board synchronization, human-turn tracking and short completion
+  notices. Hidden context stays unread. Client-managed skill descriptions remain in the skill list.
+  The legacy `ccx lead --hint` hook is intentionally quiet while the switch is on.
+- Preserve both contract-diagnostic and cheap-dispatch compact receipt fields when integrating the review, relay and dispatch lines; existing defaults, commands, options, JSON meanings and verdicts are retained.
+- Add an opt-in, tool-free Claude semantic contract adapter, hidden-pytest failure extraction and unconfirmed human coverage tables; offline generation remains the default and semantic runs require an explicit budget capped at $8.
+- Connect context and memory retest manifests to serial, isolated ccx execution with explicit --run/--budget, $4/$3 ceilings, per-call reservations, retained failures and stop-on-unknown-cost behavior; fake-CLI engineering checks only.
+- Fix UTF-8/BOM quota hooks on Windows and ignore hooks inside delegated sub-agents.
+- Serialize relay launches per workspace, detect known live ccx writers, identify stale locks, and release claims on spawn failure.
+- Replace relay source diffs with bounded metadata and content fingerprints, enforce snapshot deadlines, and ignore local packets in Git.
+- Preserve foreign hook settings when relay is disabled; use Claude edit permissions and reject zero-exit continuations without observed changes.
+- Escalate cheap attempts accepted only by worker-modified tests; do not label filtered checks independently verified.
+- Allow cheap-dispatch CLI errors and timeouts to reach the next authorized rung even without a resumable session.
+- Retry cheap-dispatch failures with Unknown baselines, while keeping opaque checks and pipelines on the ordinary route.
+- Capture unconfirmed rate limits without quota claims or stop advice; require explicit `--force-unconfirmed` for launch, including legacy unmarked hook/event packets.
+- Escalate passing cheap attempts whose check independence is Unknown, while preserving the ordinary route's behavior.
+- Report Unknown workspace changes separately with a non-success ccx exit; retain the child's recorded exit code.
+- Keep hook Git deadlines short, add configurable longer manual relay deadlines, and explain snapshot failures and retry steps.
+- State Claude's actual edit/tool permissions and report denied checks as not-run without granting unrecorded commands.
+- Recognize explicit synthetic Codex usage-limit wording and distinguish billing errors; resolve semantic batch shims to direct native/Node execution or fail closed.
+- Fix integration note formatting and explicitly decode retest Git subprocess output as UTF-8 with replacement.
+- Keep README quick start first, retain bilingual comparison and eight-layer evidence, and check their content independently of section order.
+- Document optimization stage evidence and negative results in English and Chinese, with an offline raw-row
+  summary script, explicit budget/EOL/accounting limitations, and updated measured-page pointers. No defaults,
+  commands, options, JSON field meanings or exit codes change.
+- Fix test-review manifest discovery, repeated-file task citations and whitespace/Markdown punctuation matching;
+  keep literal task grounding, independent execution, Unknown handling and default read review unchanged.
+- Give test reviewers an execution-free finish instruction; retain manifest diagnostics, confirmation errors,
+  per-call reviewer settings and native CLI costs alongside the existing API-equivalent estimate.
+- Add opt-in `review.tests_model` / `review.tests_effort`, replay reviewer flags and repeated `--unit-cap MODEL=USD`;
+  replace replay confirmation's plan mode with the existing read-only dontAsk/tool allowlist.
+- Record the first-round 29-unit diagnosis without hidden-test text; all new validation uses fake CLIs.
+- Improve opt-in test review with pre-change Python interfaces and a behaviour checklist prompt; preserve original
+  task wording, accept rendered Markdown link labels, and retain interface/checklist evidence.
+- Accept vendor-qualified test reviewer pins and the replay's `--review-model` alias; preserve cross-vendor and
+  native-budget guards, default read review, existing options, scores, verdicts and exit codes.
+- Document all eight missed R2 wrong receipts and twelve Unknowns, dry-run reservations, and unresolved evidence limits.
+- Forward saved original wording before the separately labelled assigned task in test-review generation and confirmation;
+  retain duplicate content and truncation notices, reuse saved captures on resume, and validate quotes per source.
+- Add experimental opt-in task-derived test review (`review.mode=tests`), real unittest execution, failure evidence,
+  and explicit Unknown outcomes; preserve read-review prompts, legacy trigger settings, commands and exit codes.
+- Add an offline-first pg3b replay audit with pinned reconstruction, budget reservations, hidden-material separation,
+  denominator-preserving metrics, and the opt-in r5 `ccx2rt` arm. Real evaluation remains not run.
+- Preserve original task text through run records, resumes and replay jobs (`--user-task-file` for a separate original),
+  and give generated test subprocesses only an allowlisted runtime environment rather than parent credentials.
+- Route test-method runtime exceptions through failure confirmation; audit the main checkout's saved pg3b data,
+  mark report-based receipt inference, reuse named local exercise caches, and filter binary cache diff blocks.
+- Accept `polyglot-benchmark.git` cache names, explicitly decode pin-check subprocess output as UTF-8, and retain
+  the exact opt-in arm assertion with `ccx2rt` added.
+- Fix experimental P4 resumed-session cost accounting to charge validated cumulative deltas, fail closed on missing or inconsistent receipts, and add read-only result replay with explicit resume-budget uncertainty.
+- Add an experimental, default-off P4 long-session evaluation planner, isolated execution engine, one-line receipt boundary, frozen code-only 12-task history set, full offline parent/reference output and fake-CLI checks. Explicit --run --budget enables bounded step-budget scheduling with per-invocation lead/child caps and an operational overrun envelope; no absolute billing-cap or performance claim.
+- Add opt-in Stage 5 long-session gates, vendor/model side-cost evidence and read-only historical replay.
+  Preserve Stage 4 defaults and verdicts; add cache-only selection excluding development/final tasks,
+  with explicit shortfall reporting and no model call for incomplete selections.
+  Document installed-only arm equivalence as Unknown and stop before introducing a weaker simulation.
+- Pin P5 native checkout and the absolute acceptance interpreter; require untouched parent whole-suite baselines.
+  Preserve baseline/reference failures and incomplete episodes; exclude without consulting model results.
+- Add default-off full host-check artifacts and focused-context prompts, plus the opt-in luna/medium
+  ccxlongcheap arm and independent three-arm summaries. Estimate visible first-turn content offline without
+  inventing unavailable system-token attribution or claiming measured savings.
+- Add an explicit cache-only P5 reselection tool requiring compatible parent full checks and passing reference full and hidden checks, excluding previously audited tasks without using model outcomes.
+- Ensure Windows P5 units and validation actually materialize CRLF through Git's conversion into an empty export directory; retain actual EOL counts and respect explicit attributes without adding a non-Windows setting.
+- Install from PyPI with `pipx install relayline`.
+- Add a first-field headline to serialized compact receipts, including P4 execution-ok receipts whose checks failed,
+  while preserving existing JSON meanings, commands, options, verdict defaults and exit codes. Document execution versus
+  acceptance and audit all eight historical P4 lead responses without changing their results or evaluation protocol.
+- `headline` is a new default-on display field, not a new verdict. Default check logging also adds `stdout_path`,
+  `stderr_path`, `stdout_truncated`, `stderr_truncated`, and `failed_cases`, writing at most 2 × 256 KiB per check
+  even when baseline comparison is off; existing `tail` remains unchanged.
+- Add an experimental, default-off `--codex-workspace-tmp` evaluation launcher for workspace-write Codex runs and resumes, without changing sandbox permissions or product defaults.
+- Require the Codex preflight canary to create, write, read, and remove a temporary directory; reuse existing sandbox metadata and add the temporary-directory policy to row fingerprints.
+- Retain redacted lead and ccx sub-agent event/stderr streams for every r5 result under invocation-specific artifacts, with file hashes and relative references.
+- Record a measured Windows temporary-directory probe and fake-CLI regressions; no command or option was removed, and existing receipt fields, exit codes, and scoring rules are retained.
+- Add opt-in `lead.slim_small` guidance so clearly small tasks can skip the preliminary ccx refusal call and brief;
+  managed context and turn hooks render it from one source. Existing defaults, commands and receipt semantics stay.
+- Add the `ccx3cand` r5 arm, a second deterministic 30-exercise split excluding the prior splits, and an offline
+  historical-stream overhead audit. No paid evaluation or savings verdict is included.
+- Add experimental, default-off `routing.small_self_run` lead refusal (`--force` bypass) and
+  `routing.strict_escalate` starting-rung guard; preserve existing commands, default JSON and exit codes.
+- Add opt-in `ccx2small` evaluation wiring and reproducible offline development-data calibration;
+  effectiveness remains Unknown and thresholds/defaults are unchanged.
+- Add experimental, default-off `delegate.user_words`, an 8000-character configurable cap, and
+  `ccx run --user-words-file` to carry sanitized original interface requirements alongside the lead's brief;
+  reuse the snapshot on retries and resume without adding original text to the accounting ledger.
+- Add opt-in `ccx2uw` evaluation arm with ccx2's unchanged lead instructions and flags, unit-local config
+  readback, and `user_words_mode` telemetry. Evidence: engineering checks only; correctness benefit unknown.
+  Existing commands, options, exit codes and verdict rules are preserved.
+- Decode fake Codex/Claude prompt pipes explicitly as UTF-8, matching the runner's byte encoding even with
+  Windows cp936 stdio; cover Chinese prompt artifacts, retry, resume and fallback under forced legacy stdio.
+  Preserve already-decoded StringIO input supplied by runpy wrappers used in evaluation and review tests.
+- Keep completed hook hints at the existing deadline and move session-start archival to a windowless background
+  worker with an OS lock and child reaping; preserve normal output, timeout defaults and exit codes.
+- Read the ledger once per report invocation, including nested statistics, and cache unchanged Codex discovery
+  headers in process. Keep JSON fields and all commands/options; add synthetic timings and exact output regressions.
+- Serialize archival with resume restoration and running-state publication, skip active sessions, bound external
+  archive commands to 30 seconds with child cleanup, and resolve relative hub paths before launching workers.
+- Reuse process-group/tree cleanup for archive timeouts, including Windows command wrappers; avoid waiting again
+  on descendant-owned output pipes after timeout.
+- Keep resume best effort when the archive lock budget expires, recording `archive_restore_lock_timeout` in the
+  run record; retain existing cleanup/retry assertions while scoping their fake to the archive command.
+- Add the opt-in `fresh` evaluation task set: 30 pinned Exercism Python exercises selected by a fixed salted hash,
+  excluding all 34 polyglot Python exercises and two stubs already passing their hidden tests.
+- Add the experimental `ccx2cand` evaluation arm with unit-local user wording and small-task/strict-escalation
+  switches, pre-launch assertions, required `--files` guidance, routing/source telemetry and fresh-specific summaries.
+  Keep existing commands, options, defaults, result fields and exit codes; extend the offline grader for fresh/exemplar.
+- Offline context/memory retest manifests with historical $4/$3 budget estimates, six memory cases and a separate startup-payload probe.
+- Explicit-file cross-vendor ledger/CLI reconciliation with native usage extraction and per-attempt Unknown preservation.
+- A descriptive task-type/model fit board with sample counts and failure-inclusive cost per success.
+- Add experimental, default-off P4 `--native-checkout` and `--focused-retry` evaluation flags, an offline `--validate-native` audit, and final-split three-arm dry-run coverage; preserve existing defaults, options, JSON meanings and acceptance rules.
+- Add a read-only historical P4 command/exit overlap report; retain independent acceptance because check timing and file-tree binding are unavailable.
+- Add experimental, default-off cheap-first dispatch with independent acceptance, baseline-aware failure escalation, and separate first/escalation/recovery cost records.
+- Add a six-task P4 `ccxcheapfirst` dry-run plan against `self`, a $8 operational envelope guard, and early stopping above a 30% escalation rate; real-model savings and accuracy remain Unknown.
+- Preserve existing commands, options, default routing, JSON meanings and exit codes; exercise the opt-in path through fake-CLI subprocess regression tests.
+- Add an opt-in experimental quota handoff: conservative protocol signal recognition, Claude StopFailure capture with
+  durable notification, and explicit budgeted cross-vendor new-lead preparation/launch. Preserve existing delegation
+  semantics, commands and options; fake CLI checks do not establish real quota recovery or desktop hook execution.
+- Add an opt-in, offline contract diagnostic with a source-free extractive process, validated citations and immutable
+  hashes; add scoped evidence labels without changing existing verdicts or review defaults.
+- Add an offline 15-unit historical pg3b diagnostic with dry-run reservations capped at $8 and deterministic,
+  controller-only human-table matching. No real model calls, new catch-rate claims or default changes.
+- Add bilingual offline tier/queue diagnostics using synthetic resolver inputs and fake CLIs, including
+  two rounds at queue widths 1/3/10, isolated dispatcher timings, fixture-topology/load limitations,
+  and a recommendation to prioritize a future save-versus-balanced workflow comparison; no product defaults change.
+- Unified test preregistration: change log for 2026-11-11. G1 and G2 move to pin `9305fd82` with `--codex-home`
+  after the empty Codex home (#320) and receipt-error handling (#321) were fixed. G3 is rerun from the start as
+  `unified-g3r` after an environment stop.
+- Add the 2026-11-07 unified evaluation pre-registration in `docs/research/prereg/`: G1–G4 this round (one switch
+  each, pinned to the main commit after #314); G5/G6 moved out with what they lack. No code or default changes.
+- Narrow the English and Chinese README introductions and setup introduction to experimental quota continuity, shared context/memory and one cross-tool ledger; retain the eight-layer explanation and qualified measurements after quick start.
+- Add an opt-in installed-wheel walkthrough (`pip wheel`, a clean venv and installed entry point outside the checkout, fake CLIs only), run it in package CI and a dedicated Linux job, and document macOS's CI-only evidence.
+- Preserve all commands, options, defaults, JSON meanings, exit codes and verdict rules; existing editable walkthrough mode remains the default.
+- Add an offline, credential-free newcomer walkthrough with isolated homes, fake CLIs, retained logs and explicit installation-failure reporting; exercise setup, doctor, demo/UI exports and the README first delegation.
+- Clarify setup's README working-directory requirement and show inspection plus both acceptance and rejection verdict commands. Existing commands, options, defaults, JSON meanings and exit codes are unchanged.
+
 ## 0.6.0 — 2026-11-04 (receipts you can read, memory suggestions, daily UI; retested and limits published)
 - `ccx q resume` continues the session of the run a `doing` piece was in the middle of (found by its `q:<id>` label,
   a review's fix round included) instead of starting the piece over, and tells the sub-agent it was stopped. A piece
