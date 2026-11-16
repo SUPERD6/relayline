@@ -30,7 +30,8 @@ Strength pairs also report effect_rate = (b - c) / n_pairs (null when n_pairs is
 
 p4 --paired (round-2 pre-registration, section 4) adds a task-level "paired" block
 to each subset. Rows pair by (round, episode, task); only pairs valid on both sides
-count. b = A right and B wrong, c = A wrong and B right; difference =
+count, where --paired also treats p4's round-2 invalid rows as invalid (invalid_reason,
+receipt_error or environment_error set; pre-registration section 0). b = A right and B wrong, c = A wrong and B right; difference =
 (c - b) / n = p(B right) - p(A right).
 - tango_lower_95: one-sided 95% lower bound of that difference, i.e. the lower end
   of Tango's (1998, Stat Med 17:891) asymptotic score interval at z = z(0.95), in
@@ -50,12 +51,15 @@ count. b = A right and B wrong, c = A wrong and B right; difference =
   when that row's side_cost_status is not Pass.
 - wall: median_ratio = median B wall / median A wall (round 1's rule);
   per_task_ratio_median = median of per-pair B/A wall ratios.
-- cap_hits per arm: rows with cap_hit true or a Claude subtype error_max_budget*.
-- first_rung per arm: the first rung (model:effort) of the first non-review ledger
-  entry of each unit, counted, and compared with --expected-first-rung (or the
-  rows' default_first_rung); units with no such entry count as no_dispatch.
-- strata by row "source" and "repo"; all_rows (secondary): every complete pair,
-  an invalid row counted as wrong and charged its reserved_usd or --reserve-usd.
+- cap_hits per arm: rows with cap_hit true or a Claude subtype error_max_budget*;
+  vendor_usd per arm: p5_costs.aggregate over all the arm's rows (descriptive).
+- first_rung per arm: every delegation's first rung (model:effort; the row's
+  first_rungs from p4, else the ledger), counted; mismatches = units where any of
+  them differs from --expected-first-rung (or the rows' default_first_rung) or p4's
+  first_rung_matches_default is false; units without one count as no_dispatch.
+- strata by row "source" and "repo"; all_rows (secondary): every complete pair, an
+  invalid row counted as wrong; a known cost as recorded, an unknown one at
+  max(known_usd, reserved_usd or --reserve-usd).
 `holm P1 P2 ...` is Holm's (1979, Scand J Stat 6:65) step-down adjustment:
 sorted p(1..m), adjusted p(i) = max over j <= i of min(1, (m - j + 1) p(j)).
 "unknown" or "null" counts as p = 1 (round-2 pre-registration: an Unknown group).
@@ -294,15 +298,32 @@ def cap_hit(row: dict) -> bool:
     return row.get("cap_hit") is True or str(row.get("subtype") or "").startswith("error_max_budget")
 
 
-def first_rung(row: dict) -> str | None:
-    """model:effort of the first rung of the unit's first non-review ledger entry."""
-    for entry in row.get("side_ledger") or []:
-        if entry.get("type") or str(entry.get("label") or "").startswith("review:"):
-            continue
-        rungs = [r for r in entry.get("rungs") or [] if r]
-        if rungs:
-            return ":".join(str(rungs[0]).split(":")[-2:])
-    return None
+def _model_effort(rung) -> str:
+    return ":".join(str(rung).split(":")[-2:])
+
+
+def first_rungs(row: dict) -> list[str]:
+    """model:effort of every delegation's first rung in a unit. Prefers the row's first_rungs (p4, #346:
+    dispatch.first_rung of each cheap-first ledger entry); older rows fall back to the ledger: cheap-first
+    entries if any, else every non-review entry, each by dispatch.first_rung or its first attempted rung."""
+    if isinstance(row.get("first_rungs"), list):
+        return [_model_effort(r) for r in row["first_rungs"] if r]
+    entries = [e for e in row.get("side_ledger") or []
+               if not e.get("type") and not str(e.get("label") or "").startswith("review:")]
+    entries = [e for e in entries if (e.get("dispatch") or {}).get("cheap_first")] or entries
+    out = []
+    for entry in entries:
+        rung = (entry.get("dispatch") or {}).get("first_rung") or next((r for r in entry.get("rungs") or [] if r), None)
+        if rung:
+            out.append(_model_effort(rung))
+    return out
+
+
+def pair_valid(row: dict) -> bool:
+    """valid() plus the round-2 invalid rows p4 records (#346): invalid_reason, receipt_error, environment_error
+    (pre-registration section 0). Used only by --paired, so the default arms.valid counts are unchanged."""
+    return (valid(row) and not row.get("invalid_reason") and row.get("receipt_error") is not True
+            and row.get("environment_error") is not True)
 
 
 def pair_rows(rows: list[dict], pair: tuple[str, str]) -> dict:
@@ -321,7 +342,7 @@ def pair_rows(rows: list[dict], pair: tuple[str, str]) -> dict:
 def paired_core(entries: list[dict], pair: tuple[str, str]) -> dict:
     a, b_arm = pair
     complete = [e for e in entries if a in e and b_arm in e]
-    pairs = [e for e in complete if valid(e[a]) and valid(e[b_arm])]
+    pairs = [e for e in complete if pair_valid(e[a]) and pair_valid(e[b_arm])]
     n = len(pairs)
     b = sum(e[a]["ok"] and not e[b_arm]["ok"] for e in pairs)
     c = sum(not e[a]["ok"] and e[b_arm]["ok"] for e in pairs)
@@ -343,24 +364,27 @@ def paired_core(entries: list[dict], pair: tuple[str, str]) -> dict:
 
 
 def all_rows_core(entries: list[dict], pair: tuple[str, str], reserve_usd: float | None) -> dict:
-    """Secondary: every complete pair; an invalid row is wrong and costs its reservation."""
+    """Secondary: every complete pair; an invalid row counts as wrong. Costs: a known cost as recorded, an
+    unknown one at max(known_usd, reserved_usd or --reserve-usd), as p4's budget charges it (pre-registration
+    section 4 and #347: "unknown-cost units charged at their reservation")."""
     a, b_arm = pair
     complete = [e for e in entries if a in e and b_arm in e]
 
     def outcome(row):
-        return row["ok"] is True if valid(row) else False
+        return row["ok"] is True if pair_valid(row) else False
 
     def cost(row):
         known = money(row.get("usd"))
         if known is not None:
             return known
         reserved = money(row.get("reserved_usd"))
-        return reserved if reserved is not None else reserve_usd
+        reserved = reserved if reserved is not None else reserve_usd
+        return None if reserved is None else max(reserved, money(row.get("known_usd")) or 0)
 
     n = len(complete)
     b = sum(outcome(e[a]) and not outcome(e[b_arm]) for e in complete)
     c = sum(not outcome(e[a]) and outcome(e[b_arm]) for e in complete)
-    return {"n_pairs": n, "invalid_rows": sum(not valid(e[arm]) for e in complete for arm in pair),
+    return {"n_pairs": n, "invalid_rows": sum(not pair_valid(e[arm]) for e in complete for arm in pair),
             "reserve_usd": reserve_usd,
             "correctness": {"b": b, "c": c, "difference": (c - b) / n if n else None,
                             "tango_lower_95": tango_lower(b, c, n)},
@@ -374,20 +398,23 @@ def paired_block(subset: list[dict], pair: tuple[str, str], reserve_usd: float |
     arms = {}
     for arm in pair:
         group = [row for row in subset if row["arm"] == arm]
-        observed, no_dispatch = {}, 0
-        for row in group:
-            rung = first_rung(row)
-            if rung is None:
-                no_dispatch += 1
-            else:
-                observed[rung] = observed.get(rung, 0) + 1
         expected = expected_first_rung or next((row["default_first_rung"] for row in group
                                                 if row.get("default_first_rung")), None)
-        expected = ":".join(str(expected).split(":")[-2:]) if expected else None
+        expected = _model_effort(expected) if expected else None
+        observed, no_dispatch, mismatched = {}, 0, 0
+        for row in group:
+            rungs = first_rungs(row)
+            no_dispatch += not rungs
+            for rung in rungs:
+                observed[rung] = observed.get(rung, 0) + 1
+            # a unit mismatches when any of its delegations started elsewhere (p4's own flag counts too)
+            mismatched += (row.get("first_rung_matches_default") is False
+                           or bool(expected) and any(rung != expected for rung in rungs))
+        flagged = any("first_rung_matches_default" in row for row in group)
         arms[arm] = {"cap_hits": sum(map(cap_hit, group)),
+                     "vendor_usd": p5_costs.aggregate(group),
                      "first_rung": {"observed": observed, "no_dispatch": no_dispatch, "expected": expected,
-                                    "mismatches": (sum(v for k, v in observed.items() if k != expected)
-                                                   if expected else None)}}
+                                    "mismatches": mismatched if expected or flagged else None}}
     result["arms"] = arms
     for field in ("source", "repo"):
         groups = {}

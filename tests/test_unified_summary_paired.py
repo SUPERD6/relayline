@@ -297,3 +297,62 @@ def test_p4_paired_cli_json_text_and_flag_errors(tmp_path):
         assert bad.returncode == 2 and "--paired" in bad.stderr
     negative = run_cli(tmp_path, *base, "--paired", "--reserve-usd", "-1")
     assert negative.returncode == 2 and "nonnegative" in negative.stderr
+
+
+# ---- review of PR #368 ----
+
+def test_p4_paired_round2_invalid_rows_are_invalid():
+    """Pre-registration section 0: a receipt error, missing dispatch evidence or an environment error makes the
+    row invalid even when ok and usd are known (p4 records invalid_reason / receipt_error, #346)."""
+    rows = rows_fixture()
+    rows[3].update(receipt_error=True, invalid_reason="receipt_error")                    # task 2, v2
+    rows[5].update(dispatch_observed=False, invalid_reason="dispatch_evidence_unknown")  # task 3, v2
+    result = U.p4(rows, "t", ("self", "v2"), paired=True)
+    block = result["all"]["paired"]
+    assert block["n_valid_pairs"] == 1 and (block["correctness"]["b"], block["correctness"]["c"]) == (0, 0)
+    assert block["all_rows"]["invalid_rows"] == 3
+    assert (block["all_rows"]["correctness"]["b"], block["all_rows"]["correctness"]["c"]) == (2, 0)
+    assert result["all"]["arms"]["v2"]["valid"] == 3          # the default count keeps its old definition
+    env = rows_fixture()
+    env[0]["environment_error"] = True
+    assert U.p4(env, "t", ("self", "v2"), paired=True)["all"]["paired"]["n_valid_pairs"] == 2
+
+
+def test_p4_paired_first_rungs_from_row_every_delegation_counts():
+    """A unit whose second cheap-first delegation started on another rung is a mismatch (B rule 1)."""
+    rows = rows_fixture()
+    rows[1]["first_rungs"] = ["claude:haiku:low", "claude:sonnet:medium"]
+    rows[1]["first_rung_matches_default"] = False
+    rows[1]["default_first_rung"] = "claude:haiku:low"
+    rung = U.p4(rows, "t", ("self", "v2"), paired=True)["all"]["paired"]["arms"]["v2"]["first_rung"]
+    # task 1 from the row (haiku, sonnet); tasks 2-4 from the ledger (sonnet, haiku, haiku)
+    assert rung["observed"] == {"haiku:low": 3, "sonnet:medium": 2}
+    assert rung["expected"] == "haiku:low" and rung["mismatches"] == 2
+    # p4's own flag counts even without an expected rung
+    flag_only = rows_fixture()
+    flag_only[1].update(first_rungs=["claude:haiku:low"], first_rung_matches_default=False)
+    rung = U.p4(flag_only, "t", ("self", "v2"), paired=True)["all"]["paired"]["arms"]["v2"]["first_rung"]
+    assert rung["expected"] is None and rung["mismatches"] == 1
+
+
+def test_first_rungs_ledger_prefers_cheap_first_dispatch():
+    row = {"side_ledger": [
+        {"label": "", "rungs": ["claude:sonnet:medium"]},                                  # not a cheap-first dispatch
+        {"label": "", "rungs": [], "dispatch": {"cheap_first": True, "first_rung": "claude:haiku:low"}},
+        {"label": "review:x", "rungs": ["codex:gpt-6-luna:low"]}]}
+    assert U.first_rungs(row) == ["haiku:low"]        # interrupted before an attempt: dispatch.first_rung still counts
+    assert U.first_rungs({"side_ledger": [{"label": "", "rungs": ["codex:gpt-6-luna:low", "codex:sol:medium"]}]}) \
+        == ["gpt-6-luna:low"]
+    assert U.first_rungs({}) == [] and U.first_rungs({"first_rungs": []}) == []
+
+
+def test_p4_paired_vendor_totals_and_reservation_floor():
+    rows = rows_fixture()
+    block = U.p4(rows, "t", ("self", "v2"), paired=True)["all"]["paired"]
+    v2 = block["arms"]["v2"]["vendor_usd"]
+    # v2 tasks 1-3: Claude .49 + 1.0 + 2.0, Codex reviewer .01; task 4 (lead unknown): haiku .02 only, Unknown
+    assert v2["claude_side_usd"] == pytest.approx(3.51) and v2["codex_side_usd"] == pytest.approx(.01)
+    assert v2["side_cost_status"] == "Unknown"
+    rows[-1]["known_usd"] = 2.0                        # spent more than its reservation before the cost went unknown
+    assert U.p4(rows, "t", ("self", "v2"), paired=True)["all"]["paired"]["all_rows"]["cost"]["total_b"] \
+        == pytest.approx(.5 + 1 + 2 + 2.0)
