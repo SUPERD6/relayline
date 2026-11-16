@@ -24,12 +24,15 @@ class TestGuardAttempts(AdapterEnv):
         assert [(a["agent"], a["kind"]) for a in rec["attempts"]] == [
             ("claude", "capacity"), ("codex", "ok")]
         guards = [a["credential_guard"] for a in rec["attempts"]]
+        codex = {"status": "Unknown", "mechanism": "codex-permission-profile", "rules_added": True,
+                 **({"windows_sandbox": "default"} if credential_guard.IS_WINDOWS else {}),
+                 "access_denied_commands": 0}
         assert guards == [
-            {"status": "Unknown", "mechanism": "claude-permissions-deny", "rules_added": True},
-            {"status": "Unknown", "mechanism": "unverified"}]
+            {"status": "Unknown", "mechanism": "claude-permissions-deny", "rules_added": True}, codex]
         assert rec["credential_guard"]["status"] == "Unknown"
-        assert rec["credential_guard"]["mechanism"] == "unverified"
-        assert "rules_added" not in rec["credential_guard"]
+        # both attempts carry injected rules: the earliest weakest one names the mechanism; counts are run totals
+        assert rec["credential_guard"]["mechanism"] == "claude-permissions-deny"
+        assert rec["credential_guard"]["access_denied_commands"] == 0
         assert rec["credential_guard"]["attempts"] == [
             {"n": n, "agent": a["agent"], "model": a["model"], **guards[n]}
             for n, a in enumerate(rec["attempts"])]

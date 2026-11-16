@@ -26,11 +26,32 @@ Claude 临时 `--settings` 追加 `permissions.deny`：敏感目标的 Read 规�
 Read 使用官方说明的 `//c/...` 盘符归一化；不能据此声称所有工具匹配均不区分大小写。启动前会警告。
 需要所有进程都不可读取时，应使用外部操作系统隔离。
 
-Codex 等其他适配器在**启动前**警告，并在运行记录新增
-`credential_guard: {status: "Unknown", mechanism: "unverified"}`，保留现有沙箱参数。
+Codex（#289 起）改用 **permission profile** 运行，不再用旧的沙箱模式：ccx 把自己传的
+`-c sandbox_mode="read-only"` / `"workspace-write"` 换成 `-c default_permissions="ccx-credential-guard"` 和内联的
+`-c permissions.ccx-credential-guard={extends=":read-only"|":workspace", filesystem={<目标>="deny", ...}}`，
+禁读目标与 Claude 相同。不写用户的 Codex 配置文件；`exec resume` 用同样的参数。
+参数无法检查或会让 profile 失效时，启动前拒绝（配置错误，不产生尝试）：`--sandbox`/`-s`、
+`--dangerously-bypass-approvals-and-sandbox`、`--approve-for-me`、`-p/--profile`、`sandbox_mode="danger-full-access"`、
+已有 `default_permissions`/`permissions.*`/`sandbox_workspace_write` 覆盖、`--config=` 写法、无法解析的 Codex 配置文件，
+以及 Windows 上的 **unelevated** 沙箱（`windows.sandbox` 取后面的 `-c` 或第一个设置它的配置文件）。
+实测（见下）：unelevated 沙箱遇到禁读条目直接拒绝启动会话；**elevated** 沙箱给匹配的文件和目录加
+`CodexSandboxUsers:(DENY)(R)` ACL 来执行禁读，**运行结束后这些 ACL 仍然保留**。它们只影响 Codex 的沙箱账户，
+不影响你本人和 Codex 主进程，可用 `icacls <路径> /remove:d CodexSandboxUsers` 去掉。Codex 的 permission profile 仍是 **beta**。
+不覆盖：MCP 服务器、Codex 进程内的工具（如看图）以及 Codex 主进程自己的读取。Codex 文档说任何已加载配置文件里的
+`sandbox_mode` 会让它改用旧沙箱；实测 codex-cli 0.164.0 仍按 `-c` 的 profile 执行，所以 ccx 不拒绝，但记录
+`config_sets_sandbox_mode: true` 并在警告里说明。检查的配置文件：`CODEX_HOME/config.toml`（`--ignore-user-config` 时跳过）
+和从任务目录到仓库根的 `.codex/config.toml`；不检查托管（`requirements`）配置。Linux/macOS 的执行效果
+（按 Codex 文档是 bubblewrap / Seatbelt）**未在本机实测**。
+
+Codex 记录 `credential_guard: {status: "Unknown", mechanism: "codex-permission-profile", rules_added: true}`，
+Windows 上另记 `windows_sandbox`（`elevated`、未设置时为 `default` 等）。其他适配器在**启动前**警告，并记录
+`{status: "Unknown", mechanism: "unverified"}`，保留现有沙箱参数。
 Claude 记录 `status: "Unknown"`、`mechanism: "claude-permissions-deny"`，不把注入规则当作已验证隔离。
-`rules_added` 仅表示规则已注入启动设置，**不统计拒绝次数**，也不把已有 CLI 拒绝计数归因到这些规则。
-**Codex 未受到本 guard 的禁读保护**。记录和警告不添加凭据内容或目录清单。
+`rules_added` 仅表示规则已注入启动设置。
+每次尝试结束后统计看到的拒绝：Codex `access_denied_commands` = 非零退出且输出含拒绝访问信息
+（`Access is denied`、`Permission denied`、`Operation not permitted` 等）的 shell 命令数；Claude `refused_tool_calls`
+= CLI 自己的 `permission_denials` 计数。两者**不区分拒绝原因**（禁读、沙箱、允许列表都算），不归因于禁读本身；
+不经 shell 的读取看不到。顶层数值是整次运行的合计。记录和警告不添加凭据内容或目录清单。
 CLI 自身的认证和启动配置加载不属于工具规则保护范围。
 
 开启时，`attempts[n].credential_guard` 保留各次启动证据，包括满载后换模型的尝试。
@@ -38,7 +59,7 @@ CLI 自身的认证和启动配置加载不属于工具规则保护范围。
 并新增 `attempts` 摘要，包含从零开始的 `n`、agent、model 和禁读证据。
 状态相同时，`unverified` 比已注入规则更弱；原有 mechanism 和 `rules_added` 字段描述最弱的那次，
 不代表整次运行；其他尝试的证据保留在摘要里。核对每次启动，以 `attempts[].credential_guard` 为准。
-目前两个适配器仍都报告 `Unknown`，Claude 注入规则不代表 `Pass`。
+Claude 和 Codex 都报告 `Unknown`，注入的规则或 profile 不代表 `Pass`。
 启动警告同时写入运行记录的 `credential_guard_warnings` 列表，包含从零开始的 `attempt`、agent 和 message。
 紧凑的 `run`/`show` 收据也包含汇总与警告。中断后恢复成 attempt 时保留禁读证据。
 主导选择 `line` 模式时，有禁读警告或禁读状态不是 `Pass` 就保留完整收据；直接使用 line 视图也保留两个禁读字段。
@@ -48,16 +69,26 @@ Claude 生成的 settings 上限为 22,000 字符，完整引用后的命令上�
 低于 Windows 的 32,767 单元上限；过长时启动前报错，不截断保护规则。
 配置错误走现有配置错误退出码 3，记录为 finished/error，不再误记 killed/被中断，也不产生 CLI 尝试。
 
-## CLI 依据（2026-11-05）
+## CLI 依据（2026-11-05，Codex 部分 2026-11-16 更新）
 
-- 本机核对 `codex-cli 0.164.0 --help`：支持 `-c key=value` 和 read-only/workspace-write；
-  这些模式本身不能证明按目录禁读。
-- [Codex 官方权限文档](https://learn.chatgpt.com/docs/permissions) 提供 filesystem `deny` 和 profile 继承；
-  这些 beta 配置在已核对版本/平台上的支持与执行效果**尚未确认**，不传猜测配置，也不悄悄替换沙箱默认值。
+- 2026-11-16（#289）：Windows 11 上的 `codex-cli 0.164.0`。`codex exec --help` 有 `-c key=value`、`-p/--profile`
+  （配置文件层）、`--sandbox`、`--ignore-user-config`；`codex sandbox --help` 有 `-P/--permission-profile`。
+  [Codex 官方权限文档](https://learn.chatgpt.com/docs/permissions)（beta）：`[permissions.<name>]` 含 `extends` 和
+  `filesystem` 条目 `read`/`write`/`deny`，用 `default_permissions` 选择；deny 也禁读；支持通配；profile 不与
+  `sandbox_mode` 组合；Windows `unelevated` 遇到无法执行的策略会拒绝。
+- 只用假文件（`FAKE-TOKEN-FOR-TEST`）、不调模型实测：elevated 后端上 `codex sandbox -c permissions.g={...} -P g -- cmd /c type <文件>`
+  拒绝了被禁的文件、目录、绝对路径 `auth*` / `*.sqlite*` 通配和 `:workspace_roots` 通配（"Access is denied."），
+  其他文件仍可读，不存在的路径也接受；之后 `icacls` 显示持久的 `CodexSandboxUsers:(DENY)(R)`。同样操作在 unelevated
+  后端上每条命令都失败（"Restricted read-only access requires the elevated Windows sandbox backend"）。
+- 用与 ccx 完全相同的 `-c default_permissions=... -c permissions.ccx-credential-guard={...}` 参数实测 `codex exec`：
+  unelevated home 下会话没有启动（"windows unelevated restricted-token sandbox cannot enforce deny-read restrictions
+  directly; refusing to run unsandboxed"），不花 token；关掉禁读时同一任务读出了假 token。配置里另设
+  `sandbox_mode = "danger-full-access"` 的临时 home 得到同样的拒绝，说明 `-c` 的 profile 仍生效。
+  `ccx run --to codex` 的实测见 PR。
 - [Claude 官方权限文档](https://code.claude.com/docs/en/permissions) 说明 deny 优先级、绝对路径 `//`、
   Windows 盘符归一化、Bash 命令模式任意位置的 `*`（含 `Bash(*...*)`）和任意程序绕过限制。
   官方文档核对日期 2026-11-05，现有适配器核对基线为 Claude Code 2.1.309；
   本次未调用真实 Claude 或模型。
 
-测试只用临时假 home 和 `tests/fakes`，核对路径构造、已有设置保留、警告，以及从仓库外启动 `ccx run` 的接线。
-未证明真实 CLI 或操作系统隔离效果。
+测试只用临时假 home 和 `tests/fakes`，核对路径构造、已有设置保留、Codex profile 参数与拒绝条件、警告、
+拒绝计数，以及从仓库外启动 `ccx run` 的接线。测试本身不证明真实 CLI 或操作系统隔离效果；上面的实测只对所写版本和平台成立。

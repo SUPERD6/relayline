@@ -871,6 +871,8 @@ def run(req: Request, p: Paths) -> dict:
         finally:
             hb.close()
         dt = round(time.time() - t0, 1)
+        from .credential_guard import note_denials, observed_denials
+        note_denials(record, guard, observed_denials(cli, so, oc.permission_denials) if guard is not None else {})
         from . import capacity
         capacity_signal = (None if env_failure((oc.result or {}).get("status"), oc.ok, oc.kind, se, oc.error)
                            else capacity.signal(cfg, oc, so, se))
