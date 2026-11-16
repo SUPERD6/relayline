@@ -246,9 +246,94 @@ def test_upstream_based_run_is_not_merged_into_a_branch_that_trails_the_upstream
     before = git(repo, "rev-parse", "HEAD")
     out = autonomy.merge(paths(), run_id, L2, apply=True)
     assert not out["merged"] and not out["can_merge"], out
-    assert any("1 commit(s) behind origin/work" in x and "pull" in x for x in out["why_not"]), out
+    assert any("work is missing 1 commit(s) that this run started from (origin/work at " in x
+               and "pull first (`git pull`)" in x for x in out["why_not"]), out
     assert git(repo, "rev-parse", "HEAD") == before and not (repo / "up1.txt").exists()   # no silent pull
     git(repo, "merge", "-q", "--ff-only", "origin/work")                # the person pulls; now it merges
     done = autonomy.merge(paths(), run_id, L2, apply=True)
     assert done["merged"] and done["lines"] == 3 and done["files"] == ["a.py"], done
     assert "y2 = 2" in (repo / "a.py").read_text(encoding="utf-8")
+
+
+def test_a_diverged_branch_is_told_to_bring_the_upstream_in_not_just_pull(tmp_path):
+    repo, run_id = repo_behind_upstream(tmp_path)
+    (repo / "local.txt").write_text("mine\n", encoding="utf-8")
+    git(repo, "add", "local.txt")
+    git(repo, "commit", "-qm", "local only")
+    out = autonomy.merge(paths(), run_id, L2)
+    why = [x for x in out["why_not"] if "missing 1 commit(s)" in x]
+    assert why and "diverged" in why[0] and "1 local commit(s)" in why[0] and "git pull --rebase" in why[0], out
+
+
+# ---- #349: where a resumed run started (upstream_start follows resumed_from) ----
+
+def write_rec(run_id, **fields):
+    p = paths()
+    (p.runs / run_id).mkdir(parents=True, exist_ok=True)
+    (p.runs / run_id / "run.json").write_text(json.dumps({"run_id": run_id, **fields}), encoding="utf-8")
+    return {"run_id": run_id, **fields}
+
+
+def test_upstream_start_follows_resumed_from_to_the_base():
+    write_rec("r1", worktree_base="upstream", base_ref="origin/x", base_sha="a" * 40)
+    write_rec("r2", resumed_from="r1")
+    rec = write_rec("r3", resumed_from="r2")
+    assert autonomy.upstream_start(paths(), rec) == {"sha": "a" * 40, "ref": "origin/x"}
+
+
+def test_upstream_start_head_runs_and_old_records_are_head_based():
+    assert autonomy.upstream_start(paths(), write_rec("h1")) is None                    # default / pre-#341 record
+    assert autonomy.upstream_start(paths(), write_rec("h2", worktree_base="head")) is None
+    write_rec("u1", worktree_base="upstream", base_ref="origin/x", base_sha="a" * 40)
+    rec = write_rec("h3", worktree_base="head", resumed_from="u1")      # the resume's own base wins: it is head
+    assert autonomy.upstream_start(paths(), rec) is None
+    write_rec("h4", worktree_base="head", worktree_base_fallback="no upstream")
+    assert autonomy.upstream_start(paths(), write_rec("h5", resumed_from="h4")) is None
+
+
+@pytest.mark.parametrize("setup, why", [
+    ("missing", "run r0, which it resumed, is missing"),
+    ("corrupt", "run r0, which it resumed, cannot be read"),
+    ("no_sha", "records no base_sha"),
+    ("cycle", "loop"),
+    ("long", "too long"),
+])
+def test_upstream_start_a_broken_chain_is_unknown_not_head(setup, why):
+    p = paths()
+    if setup == "corrupt":
+        (p.runs / "r0").mkdir(parents=True)
+        (p.runs / "r0" / "run.json").write_text("{not json", encoding="utf-8")
+    elif setup == "no_sha":
+        write_rec("r0", worktree_base="upstream", base_ref="origin/x")
+    elif setup == "cycle":
+        write_rec("r0", resumed_from="r1")
+    elif setup == "long":
+        for i in range(25):
+            write_rec(f"c{i}", resumed_from=f"c{i + 1}")
+        write_rec("r0", resumed_from="c0")
+    rec = write_rec("r1", resumed_from="r0")
+    start = autonomy.upstream_start(p, rec)
+    assert start and "sha" not in start and why in start["unknown"], start
+
+
+def test_a_run_whose_start_cannot_be_told_is_not_merged(tmp_path):
+    repo, run_id = repo_with_run(tmp_path)          # a plain run, resumed from a run whose record is gone
+    p = paths()
+    rec = json.loads((p.runs / run_id / "run.json").read_text(encoding="utf-8"))
+    (p.runs / run_id / "run.json").write_text(json.dumps({**rec, "resumed_from": "20261025-gone"}), encoding="utf-8")
+    before = git(repo, "rev-parse", "HEAD")
+    out = autonomy.merge(p, run_id, L2, apply=True)
+    assert not out["merged"] and any("cannot tell where this run started" in x for x in out["why_not"]), out
+    assert not any("nothing changed" in x for x in out["why_not"]), out
+    assert git(repo, "rev-parse", "HEAD") == before
+
+
+def test_a_resumed_upstream_run_counts_only_the_sub_agents_change(tmp_path):
+    repo, run_id = repo_behind_upstream(tmp_path)
+    p = paths()
+    first = json.loads((p.runs / run_id / "run.json").read_text(encoding="utf-8"))
+    resumed = write_rec("20261116-000100-up02", ok=True, kind=None, state="done", cwd=first["cwd"], label="add ys",
+                        check=first["check"], review=first["review"], resumed_from=run_id)
+    out = autonomy.merge(p, resumed["run_id"], L2)
+    assert out["lines"] == 3 and out["files"] == ["a.py"], out
+    assert any("missing 1 commit(s)" in x for x in out["why_not"]), out

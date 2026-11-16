@@ -730,8 +730,11 @@ check; no improvement in task success or savings has been measured here.
   local refs only, since the fetch happens in the detached child. ccx never fetches more than that one upstream
   and never pulls. Merging such a run back (`ccx autonomy merge`, `ccx q accept`) counts lines and files from
   `base_sha`, so only the sub-agent's change is measured, and is refused while the local branch lacks that commit
-  (`<branch> is N commit(s) behind <upstream> ... pull first`): merging would otherwise bring the upstream's commits
-  in too, an implicit pull. A resumed run uses the base of the run it continued.
+  (`<branch> is missing N commit(s) that this run started from ... pull first`; when the branch has diverged from
+  it, the note says to bring the upstream in with `git pull --rebase` or `git pull`): merging would otherwise bring
+  those commits in too, an implicit pull. A resumed run uses the base of the run it continued; when that resume
+  chain breaks (a record missing or unreadable, a loop, over 20 resumes), the merge is refused with `cannot tell
+  where this run started` rather than measured from the merge-base.
   Both layouts are recognized in run results, queues and acceptance, lane commits, automatic merging, check-trust
   grouping and UI project grouping, even after the setting changes. Inside placement is experimental: checked
   with fake agent CLIs and Git, not yet with real agent CLIs or Codex project trust inheritance.

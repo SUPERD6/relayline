@@ -275,14 +275,25 @@ class TestAccept(AcceptEnv):
         q1 = self.piece("on upstream", {"a.txt": "a\n"}, base="upstream")
         before = git(self.work, "rev-parse", "HEAD")
         out = self.accept(q1, code=2)
-        self.assertIn("work is 1 commit(s) behind origin/work", out["refused"][0]["why"])
-        self.assertIn("pull", out["refused"][0]["why"])
+        self.assertIn("work is missing 1 commit(s) that this run started from (origin/work at ",
+                      out["refused"][0]["why"])
+        self.assertIn("pull first (`git pull`)", out["refused"][0]["why"])
         self.assertEqual(git(self.work, "rev-parse", "HEAD"), before)
         self.assertFalse((self.work / "up.txt").exists())
         git(self.work, "merge", "-q", "--ff-only", "origin/work")          # the person pulls; now it lands
         out = self.accept(q1)
         self.assertEqual([x["id"] for x in out["accepted"]], [q1])
         self.assertTrue((self.work / "a.txt").exists())
+
+    def test_a_piece_whose_start_cannot_be_told_is_refused(self):
+        """#349: a resume chain that breaks (the record it resumed is gone) is not taken for a head-based run."""
+        self.repo()
+        q1 = self.piece("resumed", {"a.txt": "a\n"}, record={"resumed_from": "20261029-gone"})
+        before = git(self.work, "rev-parse", "HEAD")
+        out = self.accept(q1, code=2)
+        self.assertIn("cannot tell where this run started", out["refused"][0]["why"])
+        self.assertIn("20261029-gone", out["refused"][0]["why"])
+        self.assertEqual(git(self.work, "rev-parse", "HEAD"), before)
 
 
 class TestPipelineEndToEnd(AcceptEnv):
