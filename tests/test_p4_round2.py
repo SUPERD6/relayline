@@ -92,6 +92,7 @@ def test_v2_prompt_writes_failing_check_first_and_legacy_prompt_unchanged():
     assert '--check "python -m pytest -q -o addopts="' not in v2
     assert "concrete inputs and expected outputs" in v2
     assert "git commit" in v2
+    assert "-p no:cacheprovider" in v2 and "git status --porcelain" in v2
     legacy = P.prompt(task, D.ARM, 1.0)
     assert '--check "python -m pytest -q -o addopts="' in legacy and "run --to codex" in legacy
     assert P.prompt(task, "ccxlong", 1.0) == P.prompt(task, "ccxlong", 1.0, child_agent="codex")
@@ -120,6 +121,9 @@ def test_dry_run_prints_default_first_rung_reviewers_and_network(tmp_path):
     spec = tier_spec(load_config(Paths(hub)), "T1", "claude")
     first = plan["default_first_rung"][D.ARM2]
     assert (first["agent"], first["model"], first["effort"]) == ("claude", spec["model"], spec["effort"])
+    asked = tier_spec(load_config(Paths(hub)), "T2", "claude")
+    assert first["requested_rung"] == f"claude:{asked['model']}:{asked['effort']}"
+    assert plan["tasks_sha256"] != sha and plan["selection_sha256"] == sha
     settings = plan["arm_settings"]
     assert settings[D.ARM2]["cheap_first"] is True and settings[D.ARM2]["check_sensitivity"] == "escalate"
     assert settings["self"]["cheap_first"] is False and settings["self"]["lead_budget_usd"] == 1.5
@@ -218,9 +222,108 @@ def _r2_engine(fake_engine, monkeypatch, tmp_path, ledger):
     a.split, a.max_escalation_rate, a.max_invalid_rows = "r2b", None, 3
     a.child_agent, a.episode_size, a.task_count, a.rounds = "claude", 1, len(ts), 1
     monkeypatch.setattr(P.r5, "hub_rows", ledger)
+    # The shape ccx writes to run.json: the receipt's status lives under result (ledger.slim / delegate).
     monkeypatch.setattr(P.r5.r2, "record", lambda hub, rid: {"check_cmd": "python -m pytest -q tests/test_new.py",
-                                                            "check_sensitivity": "sensitive", "status": "done"})
+                                                            "check_sensitivity": "sensitive",
+                                                            "result": {"status": "done"}})
     return a, ts, log
+
+
+def _ledger(escalated=0, first_usd=.01):
+    def rows(hub):
+        return ([{"run_id": "r1", "dispatch": {"cheap_first": True, "attempted": 1, "escalated": escalated,
+                                               "first_usd": first_usd, "escalation_usd": .1 * escalated}}]
+                if str(hub).endswith(D.ARM2) else [])
+    return rows
+
+
+def _run_ids(monkeypatch):
+    monkeypatch.setattr(P.r5.r2, "hub_cost", lambda hub: {"usd": 0, "review_usd": 0,
+                                                         "run_ids": ["r1", "rv"] if str(hub).endswith(D.ARM2) else []})
+
+
+def test_receipt_error_reads_result_status_and_skips_review_records(fake_engine, monkeypatch, tmp_path):
+    a, ts, log = _r2_engine(fake_engine, monkeypatch, tmp_path, _ledger())
+    _run_ids(monkeypatch)
+    records = {"r1": {"label": "x", "check_cmd": "c"},                     # no result: the receipt says error
+               "rv": {"label": "review:r1", "result": None}}
+    monkeypatch.setattr(P.r5.r2, "record", lambda hub, rid: records[rid])
+    assert P.run_experiment(a, ts[:2], P.schedule(ts[:2], 1, ("self", D.ARM2))) == 0
+    v2 = [r for r in P.read_jsonl(a.out) if r["arm"] == D.ARM2]
+    assert all(r["receipt_error"] and r["invalid_reason"] == "receipt_error" for r in v2)
+    records["r1"]["result"] = {"status": "done"}
+    a.out = tmp_path / "second.jsonl"
+    a.workdir = tmp_path / "work2"
+    assert P.run_experiment(a, ts[:2], P.schedule(ts[:2], 1, ("self", D.ARM2))) == 0
+    assert all(r["receipt_error"] is False for r in P.read_jsonl(a.out) if r["arm"] == D.ARM2)
+
+
+def test_hidden_collection_error_is_a_valid_failed_row_in_round2(fake_engine, monkeypatch, tmp_path):
+    a, ts, log = _r2_engine(fake_engine, monkeypatch, tmp_path, _ledger())
+    monkeypatch.setattr(P, "run_hidden", lambda repo, names, python: {
+        "ok": False, "rc": 2, "summary": "1 error", "output": "ImportError", "environment_error": True})
+    assert P.run_experiment(a, ts[:2], P.schedule(ts[:2], 1, ("self", D.ARM2))) == 0
+    rows = P.read_jsonl(a.out)
+    assert all(r["ok"] is False and not r["environment_error"] and r["invalid_reason"] is None
+               and r["score_collection_error"] for r in rows)
+
+
+def test_round2_error_continues_but_keyboard_interrupt_stops(fake_engine, monkeypatch, tmp_path):
+    a, ts, log = _r2_engine(fake_engine, monkeypatch, tmp_path, _ledger())
+    original = P.Episode.step
+    calls = {"n": 0}
+
+    def step(self, *args, **kwargs):
+        calls["n"] += 1
+        if calls["n"] == 1:
+            raise RuntimeError("boom")
+        if calls["n"] == 4:
+            raise KeyboardInterrupt
+        return original(self, *args, **kwargs)
+    monkeypatch.setattr(P.Episode, "step", step)
+    assert P.run_experiment(a, ts, P.schedule(ts, 1, ("self", D.ARM2))) == 2
+    rows = P.read_jsonl(a.out)
+    assert len(rows) == 4 and rows[0]["error"] == "RuntimeError" and rows[0]["invalid_reason"] == "cost_unknown"
+    assert rows[3]["error"] == "KeyboardInterrupt"
+    assert P.read_jsonl(a.out.with_suffix(".events.jsonl"))[-1]["reason"] == "interrupted_or_error"
+
+
+def test_fourth_cost_unknown_row_stops(fake_engine, monkeypatch, tmp_path):
+    a, ts, log = _r2_engine(fake_engine, monkeypatch, tmp_path, _ledger())
+    monkeypatch.setattr(P.r5.r3, "last_result", lambda out: {})
+    assert P.run_experiment(a, ts, P.schedule(ts, 1, ("self", D.ARM2))) == 2
+    rows = P.read_jsonl(a.out)
+    assert len(rows) == 4 and all(r["invalid_reason"] == "cost_unknown" for r in rows)
+    event = P.read_jsonl(a.out.with_suffix(".events.jsonl"))[-1]
+    assert event["reason"] == "cost_unknown_over_limit" and event["spent_known_usd"] >= 4 * 1.5
+
+
+def test_dispatch_cost_unknown_is_charged_at_reservation(fake_engine, monkeypatch, tmp_path):
+    a, ts, log = _r2_engine(fake_engine, monkeypatch, tmp_path, _ledger(first_usd=None))
+    assert P.run_experiment(a, ts[:2], P.schedule(ts[:2], 1, ("self", D.ARM2))) == 0
+    rows = P.read_jsonl(a.out)
+    v2 = [r for r in rows if r["arm"] == D.ARM2]
+    assert all(r["invalid_reason"] == "dispatch_cost_unknown" for r in v2)
+    event = P.read_jsonl(a.out.with_suffix(".events.jsonl"))[-1]
+    self_usd = sum(r["usd"] for r in rows if r["arm"] == "self")
+    assert event["cost_unknown_rows"] == 2 and abs(event["spent_known_usd"] - (self_usd + 2 * 1.5)) < 1e-9
+
+
+def test_v2_default_escalation_limit_still_stops(fake_engine, monkeypatch, tmp_path):
+    a, ts, log = _r2_engine(fake_engine, monkeypatch, tmp_path, _ledger(escalated=1))
+    a.max_escalation_rate = .3
+    assert P.run_experiment(a, ts, P.schedule(ts, 1, ("self", D.ARM2))) == 2
+    assert len(P.read_jsonl(a.out)) == 1
+    assert P.read_jsonl(a.out.with_suffix(".events.jsonl"))[-1]["reason"] == "escalation_rate_above_30_percent"
+
+
+@pytest.mark.parametrize("extra", [("--focused-retry",), ("--focused-context",), ("--episode-size", "1"),
+                                   ("--native-checkout",)])
+def test_v2_refuses_options_that_would_silently_change_it(tmp_path, extra):
+    f, sha = task_file(tmp_path, 2)
+    r = dry(["--split", "r2b", "--tasks-file", str(f), "--tasks-sha256", sha,
+             "--arms", "self,ccxcheapfirst2", "--budget", "10", *extra], tmp_path)
+    assert r.returncode != 0 and not r.stdout
 
 
 def test_engine_continues_past_invalid_rows_until_more_than_three(fake_engine, monkeypatch, tmp_path):

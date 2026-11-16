@@ -208,15 +208,16 @@ def prompt_v2(task: dict, child_cap: float, receipt: Path | None, agent: str) ->
             "writing a failing check first:\n"
             "1. Turn the request into at least one new test aimed at the new requirement, in a new file under tests/. "
             "Read only the interface the test needs, not the whole code base.\n"
-            "2. Run it with PYTHONPATH=. python -m pytest -q -o addopts= <that test file> and see it fail before the "
-            "change. If it passes, it cannot see the new requirement: fix the test until it fails.\n"
+            "2. Run it with PYTHONPATH=. python -m pytest -q -o addopts= -p no:cacheprovider <that test file> and see it "
+            "fail before the change. If it passes, it cannot see the new requirement: fix the test until it fails.\n"
             "3. Commit only that test file (git add <that test file>; git commit -m \"failing check\"), so the tree is "
-            "clean when ccx compares the check before and after the change. Make no other commit.\n"
+            "clean when ccx compares the check before and after the change (git status --porcelain must print "
+            "nothing). Make no other commit.\n"
             "4. Dispatch with that test as --check. In the brief, state the request with concrete inputs and expected "
             "outputs, and tell the sub-agent not to edit that test. Use the shipped default tradeoff (omit "
             "--tradeoff), review and routing; run synchronously:\n"
             f'{ccx} run --to {agent} --mode write --context auto --new --no-ab --max-usd {child_cap:g} '
-            '--check "python -m pytest -q -o addopts= <that test file>" "<brief>"\n'
+            '--check "python -m pytest -q -o addopts= -p no:cacheprovider <that test file>" "<brief>"\n'
             "CCX_LEAD_VIEW=line enables the existing compact receipt. If receipt ok=true, accept that one "
             "line and finish: do not read files, diff, full result, or rerun checks. Only if receipt ok is not "
             "true may you use ccx show <run_id> and ccx resume <run_id> to diagnose or request a repair; "
@@ -284,7 +285,7 @@ def telemetry(stream: str) -> dict:
             "lead_usage": r5.TL.lead_stream(stream)["usage"]}
 
 
-def reset_repo(repo: Path, tree: bytes, native=False) -> None:
+def reset_repo(repo: Path, tree: bytes, native=False, caches=False) -> None:
     # Owned, disposable episode directory only; never git reset the source checkout.
     PF.rmtree(repo)
     E.repo_from_tar(tree, {"stubs": []}, repo)
@@ -293,6 +294,9 @@ def reset_repo(repo: Path, tree: bytes, native=False) -> None:
     exclude = repo / ".git" / "info" / "exclude"
     with exclude.open("a", encoding="utf-8", newline="") as f:
         f.write("\n/.ccx-eval-tmp-*/\n")
+        if caches:
+            # ccxcheapfirst2: the lead runs its failing test before dispatching; check.sensitivity needs a clean tree.
+            f.write(".pytest_cache/\n__pycache__/\n")
 
 
 def score(repo: Path, task: dict, material: dict, python: str, native=False) -> dict:
@@ -350,7 +354,7 @@ class Episode:
         self.streams = []
         self.artifacts = a.artifacts
         self.native = native_checkout(a)
-        reset_repo(self.iso.repo, material["tar"], self.native)
+        reset_repo(self.iso.repo, material["tar"], self.native, key.endswith("-" + DE.ARM2))
         (self.iso.hub / "ccx").mkdir(parents=True)
         self.arm = key.rsplit("-", 1)[-1]
         if self.arm in DE.ARMS:
@@ -376,12 +380,14 @@ class Episode:
         self.env["PATH"] = str(Path(a.ext_python).parent) + os.pathsep + self.env["PATH"]
         if self.native:
             self.env["PYTHONDONTWRITEBYTECODE"] = "1"
+        if self.arm == DE.ARM2:
+            self.env["PYTHONDONTWRITEBYTECODE"] = "1"   # keep the tree clean for check.sensitivity
         if getattr(a, "codex_web_search", "default") == "disabled":
             # Every Codex exec (sub-agent and reviewer) goes through codex_tmp.py in p4 (codex_workspace_tmp).
             self.env["CCX_EVAL_CODEX_WEB_SEARCH"] = "disabled"
 
     def step(self, u: dict, task: dict, material: dict, a, cap: float) -> dict:
-        reset_repo(self.iso.repo, material["tar"], self.native)
+        reset_repo(self.iso.repo, material["tar"], self.native, self.arm == DE.ARM2)
         row = {**u, "session_id": self.sid, "reference_commit": task["commit"], "repo": task["repo"],
                "env_clean": False, "ok": None, "usd": None, "cost_complete": False,
                "evidence": getattr(a, "evidence", "not run"),
@@ -446,21 +452,29 @@ class Episode:
         self.side_ledger_count = len(ledger)
         if u["arm"] in DE.ARMS:
             row["dispatch_observed"] = any(e.get("dispatch", {}).get("cheap_first") for e in row["side_ledger"])
+        round2 = getattr(a, "max_invalid_rows", None) is not None
+        records = []
+        if u["arm"] != "self" and (round2 or u["arm"] == DE.ARM2):
+            # Sub-agent runs only: a review run's record has no result of its own (as r5.ccx_check_reason).
+            records = [rec for rec in (r5.r2.record(self.iso.hub, rid) for rid in row["ccx_run_ids"])
+                       if not str(rec.get("label") or "").startswith("review:")]
+            # The receipt's status, as ccx builds it (ledger.slim / delegate result): result.status, else "error".
+            row["receipt_error"] = any((rec.get("result") or {}).get("status", "error") == "error" for rec in records)
+            # ccx --max-usd stop: record["max_usd"] is written only when the cap stopped a step (delegate._capped);
+            # p4_receipt refuses a new attempt once the task's child allowance is spent.
+            row["child_cap_hit"] = (any(rec.get("kind") == "over_budget" or rec.get("max_usd") for rec in records)
+                                    or "child allowance exhausted" in out)
         if u["arm"] == DE.ARM2:
-            records = [r5.r2.record(self.iso.hub, rid) for rid in row["ccx_run_ids"]]
             row["lead_check_commands"] = list(dict.fromkeys(r["check_cmd"] for r in records if r.get("check_cmd")))
             # From the sensitivity receipt: "sensitive" = the check failed before the change.
             row["check_sensitivity"] = [r.get("check_sensitivity") for r in records if "check_sensitivity" in r]
-            row["receipt_error"] = any(r.get("status") == "error" for r in records)
             row["default_first_rung"] = self.default_rung
             row["first_rungs"] = [e["dispatch"].get("first_rung") for e in row["side_ledger"]
                                   if e.get("dispatch", {}).get("cheap_first")]
             row["first_rung_matches_default"] = (all(r == self.default_rung for r in row["first_rungs"])
                                                  if row["first_rungs"] else None)
             row["child_agent"] = self.child_agent
-            # ccx --max-usd stop: record["max_usd"] is written only when the cap stopped a step (delegate._capped).
-            row["child_cap_hit"] = any(r.get("kind") == "over_budget" or r.get("max_usd") for r in records)
-        if getattr(a, "max_invalid_rows", None) is not None:
+        if round2:
             row["lead_cap_hit"] = fin.get("subtype") == "error_max_budget_usd"
             row["cap_hit"] = row["lead_cap_hit"] or bool(row.get("child_cap_hit"))
             row["timed_out"] = rc == -9
@@ -494,6 +508,11 @@ class Episode:
         scoring_start = time.monotonic()
         sc = (score(self.iso.repo, task, material, self.python, True) if self.native else
               score(self.iso.repo, task, material, self.python))
+        if round2 and sc["rc"] == 2:
+            # Round 2 (#346): hidden tests that fail to import/collect (e.g. the arm never added the function) are the
+            # arm's own failure, a valid ok=False row; the task set checks they collect on the reference (#348).
+            sc = {**sc, "environment_error": False}
+            row["score_collection_error"] = True
         row.update({"ok": sc["ok"], "pytest": sc["summary"], "score_rc": sc["rc"],
                     "environment_error": sc["environment_error"] or not row["session_match"],
                     "score_wall_s": time.monotonic() - scoring_start})
@@ -763,8 +782,13 @@ def main(argv=None) -> int:
         if native_checkout(a):
             # The native acceptance command would replace the lead's own failing check (p4_receipt pins --check).
             raise SystemExit("ccxcheapfirst2 cannot use --native-checkout: the lead's own --check must reach ccx")
+        if a.focused_retry or a.focused_context:
+            # focused_retry rewrites the hub settings (dropping cheap_first/sensitivity); focused_context has no v2 prompt.
+            raise SystemExit("ccxcheapfirst2 cannot use --focused-retry or --focused-context; no model called")
     elif a.child_agent:
         raise SystemExit("--child-agent applies only to the ccxcheapfirst2 arm; other ccx arms keep codex")
+    if set(DE.ARMS) & set(arms) and a.episode_size != N:
+        raise SystemExit("cheap-first arms always run one task per session; drop --episode-size")
     if a.run and a.max_operational_usd is not None and budget_envelope(a)["operational_upper_usd"] > a.max_operational_usd:
         raise SystemExit(f"operational budget envelope exceeds --max-operational-usd {a.max_operational_usd:g}; no model called")
     try:
@@ -799,7 +823,7 @@ def main(argv=None) -> int:
                             "evidence": "not run", "policy": "independent check only; check.baseline on_fail; new failures only"}
     if a.split in ROUND2:
         digest = PF.sha256_file(Path(a.tasks_file))
-        plan.update(tasks_file=str(a.tasks_file), tasks_file_sha256=digest, tasks_sha256=digest, selection_sha256=digest)
+        plan.update(tasks_file=str(a.tasks_file), tasks_file_sha256=digest, selection_sha256=digest)
     if a.split in ROUND2 or set(DE.ARMS) & set(arms):
         plan.update(plan_settings(a, arms))
     if a.split == "p5" and len(tasks) != 8:
@@ -905,8 +929,13 @@ def plan_settings(a, arms) -> dict:
         if arm in DE.ARMS:
             rung = first_rung(cfg, agent)
             _, model, effort = rung.split(":", 2)
+            from ccx.config import tier_spec
+            asked = tier_spec(cfg, "T2", agent)
             out["default_first_rung"][arm] = {"agent": agent, "model": model, "effort": effort, "rung": rung,
-                                              "source": "ccx.config.tier_spec(T1) on this arm's fresh hub (dispatch.prepare)"}
+                                              "source": "ccx.config.tier_spec(T1) on this arm's fresh hub (dispatch.prepare)",
+                                              "requested_rung": f"{agent}:{asked['model']}:{asked['effort']}",
+                                              "requested_source": "Request default tier T2; routing may pick another at "
+                                                                  "run time, the ledger's dispatch.requested_rung is authoritative"}
     web = getattr(a, "codex_web_search", "default")
     out["network"] = {"lead_deny": list(WEB_TOOLS), "claude_subagent_deny": list(WEB_TOOLS),
                       "claude_subagent_basis": "CCX_CLAUDE_SETTINGS = the unit's settings file, same deny list as the lead",
@@ -914,11 +943,14 @@ def plan_settings(a, arms) -> dict:
                       "codex_flag": '-c web_search="disabled" on every codex exec via codex_tmp.py' if web == "disabled"
                       else "none added (Codex default; ccx adds it only with lean tools)"}
     rate = getattr(a, "max_escalation_rate", .3)
-    out["stop_rules"] = {"max_escalation_rate": rate, "max_invalid_rows": getattr(a, "max_invalid_rows", None),
-                         "invalid_row": "environment error, receipt status error, cost unknown, or missing dispatch evidence; "
-                                        "an arm's own timeout or cap with known cost is a valid row with ok=false",
+    limit = getattr(a, "max_invalid_rows", None)
+    out["stop_rules"] = {"max_escalation_rate": rate, "max_invalid_rows": limit,
+                         "invalid_row": ("environment error, receipt status error, cost unknown, or missing dispatch evidence "
+                                         "(kept, group continues); an arm's own timeout, cap or hidden-test collection error "
+                                         "with known cost is a valid row with ok=false" if limit is not None else
+                                         "round-1 rules: the first error, cost-unknown row or missing dispatch evidence stops the group"),
                          "unknown_cost": ("charged at the task reservation; the group stops past max_invalid_rows such rows"
-                                          if getattr(a, "max_invalid_rows", None) is not None else "stops the group (round-1 rule)")}
+                                          if limit is not None else "stops the group (round-1 rule)")}
     out["episode_size"] = 1 if set(DE.ARMS) & set(arms) else getattr(a, "episode_size", N)
     return out
 
@@ -1049,13 +1081,13 @@ def run_experiment(a, tasks: list[dict], units: list[dict]) -> int:
             else:
                 row["invalid_reason"] = invalid_reason(row)
                 row["reservation_usd"] = row.get("reservation_usd", lead_cap + child_cap)
-                if row.get("usd") is None or not row.get("cost_complete"):
+                if (row.get("usd") is None or not row.get("cost_complete")
+                        or row["invalid_reason"] == "dispatch_cost_unknown"):
+                    # Unknown cost (including a dispatch phase whose cost is unknown): charge the reservation.
                     unknown_cost_rows += 1
-                    budget.spent += max(row.get("known_usd") or 0, lead_cap + child_cap)
+                    budget.spent += max(row.get("usd") or row.get("known_usd") or 0, lead_cap + child_cap)
                 else:
                     budget.charge(row["usd"])
-                if row["invalid_reason"] == "dispatch_cost_unknown":
-                    unknown_cost_rows += 1
                 if row.get("arm") in DE.ARMS and row.get("dispatch_observed") is not True:
                     missing_evidence_rows += 1
                 for arm in cheap_arms:
