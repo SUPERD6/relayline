@@ -7,7 +7,7 @@
 
 ## 现在
 
-**已发布：** 0.7.0，2026-11-16：`v0.7.0` tag 打在 #357 的发版提交上（该提交全矩阵 CI 和打包检查全绿），[GitHub Release](https://github.com/SUPERD6/relayline/releases/tag/v0.7.0) 附 wheel 和 sdist；CHANGELOG 的 0.7.0 一节折入了到 #354 为止的 `changes/` 记录。**还没发 PyPI**（由维护者决定）：`pipx install relayline` 装到的仍是 0.6.0，要用 0.7.0 请从 Release 附件安装。tag 之后合入的 PR（#352 起）尚未发版。目标不变（[工程标准](engineering-standards.zh.md)、[优化计划](research/2026-11-04-optimization-plan.zh.md)）：默认不变差，并找到一个可复现的正效果场景。共享上下文和记忆在一轮、用过的最好情况题目上已有正面结果（见下方统一测试；还需要在新题上跑第二轮确认）；下面其他新开关的实际效果仍为 **Unknown**。
+**已发布：** 0.7.0，2026-11-16：`v0.7.0` tag 打在 #357 的发版提交上（该提交全矩阵 CI 和打包检查全绿），[GitHub Release](https://github.com/SUPERD6/relayline/releases/tag/v0.7.0) 附 wheel 和 sdist；CHANGELOG 的 0.7.0 一节折入了到 #354 为止的 `changes/` 记录；#355、#356、#363 的代码在 tag 里，但记录没折，留在 `changes/` 等下次发版。**还没发 PyPI**（由维护者决定）：`pipx install relayline` 装到的仍是 0.6.0，要用 0.7.0 请从 Release 附件安装。tag 之后合入、尚未发版的：#352、#361、#364、#366、#368、#369。目标不变（[工程标准](engineering-standards.zh.md)、[优化计划](research/2026-11-04-optimization-plan.zh.md)）：默认不变差，并找到一个可复现的正效果场景。共享上下文和记忆在一轮、用过的最好情况题目上已有正面结果（见下方统一测试；还需要在新题上跑第二轮确认）；下面其他新开关的实际效果仍为 **Unknown**。
 
 **阶段 1 及之后的工具、第二、三轮（#267–#277，工程检查，多数默认关）：** #267 把用户原话带给子智能体；#268 把归档移到后台、报告只读一次账本（提速，只算调度，未测对完成工作的影响）；#269 评测临时目录放进工作区并保留事件流；#270 加 `small_self_run` 和最便宜档护栏。之后 #271 测试型审查和回放，#273 修第一轮回放发现的问题，#274 阶段 3 工具（30 道新题和候选默认路径组），#275 阶段 4 工具（长会话），#276 第二轮（收据、检查基线、审查、短任务开销），#277 第三轮（额度接力、便宜首轮、审查契约、上手收窄）。**阶段 0**（诊断，题目已用过；self 30/30，配对成本比 1.017 为 Pass，墙钟比 1.276 为 Unknown；同版本 hc2 ccx2 非同时段运行）只作诊断，不能当作当前版本省钱的证据：[hc2 报告](research/2026-11-04-hc2-holdout.zh.md)。**沙箱：** WinError 5 只在 TMP 放在工作区外时出现，属于评测条件问题（[报告](research/2026-11-04-sandbox-tmp.zh.md)）。
 
@@ -26,7 +26,7 @@
 
 **此后合入（PR #338–#342 和 #344，统一测试的后续）：** #338 派活指导：先写一条改动前会失败的 check，brief 里写具体输入和期望输出（#326；改了技能文字、`--check` 帮助和没给 `--check` 时的提示，行为不变）；#339 `[run] stall_minutes`（**默认关**，实验性）：子 agent 这么久没有输出就停下，回执记 `timeout` + `stalled`（#330）；#340 `--worktree` 里的子 agent 不再提交，回执的 `commit_state` 列出未提交文件，不扩大 Codex 沙箱（#334）；#341 `ccx run --base head|upstream` / `[worktree] base`（默认 `head`），基准落后时开跑前提示（#336）；#342 评测脚本超时用公共的 `run_tree` 结束整个进程树（#332）；#344 子 agent 输出按字节解码，先 UTF-8、再本机代码页，不再替换字符（#335；2026-11-14 看到的乱码其实出在读取一方：中文 Windows 上 Python 通过管道打印 JSON 用的是 GBK）。
 
-**此后合入（PR #352–#369）：** #354 `ccx ui` 对卡住停下的运行显示单独文案，不再显示成"超过时限"（#343）；#357 发版 0.7.0（升版本、折叠记录）；#352 Codex 侧凭据禁读（**默认关**，实验性）：用带 filesystem deny 的 Codex permission profile 替换 ccx 传的 `sandbox_mode`，会绕过它的参数或配置在启动前拒绝，Windows 上只接受 elevated 沙箱；两家的收据都按尝试记录被拒绝的读取次数（Codex `access_denied_commands`、Claude `refused_tool_calls`），不把它们算成禁读拦下的（#289）；#361 一行回执保留精简的 `commit_state`，recap 末尾加"N files uncommitted"（#350）；#363 派活指导写明 worktree 默认从本地 HEAD 起步，`base = upstream` 时从 `@{upstream}` 起步（#351）。第二轮评测工具：#355/#358 p4 便宜首轮 v2 臂、任意题数、dry-run 打印默认首档（#346）；#356/#364 `scripts/eval/round2_tasks.py`（新题选题、校验、防泄漏）（#348）；#366 `strength_retest` 支持冻结的题目文件、单次重复和选子 agent（含 Claude）（#345）；#369 [第二轮预登记](research/prereg/2026-11-16-round2.zh.md)（只设计，未开跑）。
+**此后合入（PR #352–#369）。** 在 0.7.0 里的：#354 `ccx ui` 对卡住停下的运行显示单独文案，不再显示成"超过时限"（#343）；#357 发版 0.7.0（升版本、折叠记录）；#363 派活指导写明 worktree 默认从本地 HEAD 起步，`base = upstream` 时从 `@{upstream}` 起步（#351）；评测工具 #355/#358 p4 便宜首轮 v2 臂、任意题数、dry-run 打印默认首档（#346），#356 `scripts/eval/round2_tasks.py`（新题选题、校验、防泄漏）（#348）。tag 之后的：#352 Codex 侧凭据禁读（**默认关**，实验性）：用带 filesystem deny 的 Codex permission profile 替换 ccx 传的 `sandbox_mode`，会绕过它的参数或配置在启动前拒绝，Windows 上只接受 elevated 沙箱；两家的收据都按尝试记录被拒绝的读取次数（Codex `access_denied_commands`、Claude `refused_tool_calls`），不把它们算成禁读拦下的（#289）；#361 一行回执保留精简的 `commit_state`，recap 末尾加"N files uncommitted"（#350）；#364 按审查补改 `round2_tasks.py`（#348）；#366 `strength_retest` 支持冻结的题目文件、单次重复和选子 agent（含 Claude）（#345）；#368 `unified_summary` 按题配对统计（#347）；#369 [第二轮预登记](research/prereg/2026-11-16-round2.zh.md)（只设计，未开跑）。
 
 **已有默认：** 路由 auto，配额感知/审查开；`small_self`、精简开关、记忆去重、无历史子会话/batch 合并、复现门禁关/实验性；worktree 默认 `sibling`，`inside` 自选/实验性；预算 0/不限，计费 `api`；`memory.by_kind` 关/实验性；`run.stall_minutes` 0/关/实验性；`worktree.base` 为 `head`。
 
@@ -41,16 +41,16 @@
 
 ## 接下来三件
 
-1. 第二轮按预登记（#369）跑：先合完剩下的工具（#347 汇总统计、#367/#365 把 `src/` 加进 PYTHONPATH、#370 便宜首轮 v2 汇总、#371 B/C 开发题选题）和题目集；开跑要维护者批预算和新的累计上限（评测累计约 $165，旧上限约 $200）。
+1. 第二轮按预登记（#369）跑：先合完剩下的工具（#367/#365 把 `src/` 加进 PYTHONPATH、#370 便宜首轮 v2 汇总、#371 B/C 开发题选题）和题目集。预算：维护者 2026-11-16 定了评测累计上限 $450（目前约花 $165，统筹估算）；这一轮的上限（$67，含 C 组 $103）在范围内，工具合完就能开跑。
 2. 可靠性：#349（`--base upstream` 合回时把 upstream 提交算进改动；PR #360 审查中）、#359（long_environment 超时留下 pytest 子进程）、#362（detached grandchild 测试偶发失败）。
 3. 维护者同意后把 0.7.0 发到 PyPI（先 TestPyPI，见[维护说明 §5](maintenance.zh.md)）；真实每天使用一周。
 
 ## 把握有多大（简版）
 
 - **real（Windows，已登录 CLI）：** 双向派活、检查/审查、停止/续跑/记账、归档、DeepSeek 主导、discuss、对话板/叫醒、共享上下文 A/B、hc1/pg3b/hc2 和阶段 0、batch/worktree/undo、非 ASCII 路径/隐藏控制台、Windows Codex hook、交互式 Codex 每轮 hook、dsh 排队归档、临时 Claude 插件市场安装、UI 隐藏测试、Codex 实现/审查流程。
-- **只有 fake / 工程检查（含 #271 之后合入的内容），例如：** 席位、配额排序/改派、额度接力、模型满载换模型、角色、就绪/刷新、一行结果、看板、收据 UNVERIFIED 显示、超时收据、Git 未完成步骤列表、简报/模式矛盾检查、self_first、slim_context、Claude 侧凭据禁读、汇总脚本、check 敏感度（#333）、卡住检测（#339）、worktree 基准（#341）、未提交文件回执（#340）、Codex 侧凭据禁读（#352）。**真实样本回放：** #245 Claude 限额事件/四条探针读数；Codex 拒绝样本仍为合成，不证明真实自动改派（[样本](../tests/data/real_signals/)）。
-- **未验证：** Codex 侧凭据禁读在真实 elevated 沙箱里是否生效（#352 核对了 `codex-cli 0.164.0` 的帮助和 profile 写法；真跑会给用户的 `~/.codex` 加持久 ACL，由维护者决定）；真实 Codex 子 agent 在 `--worktree` 里是否遵守不提交的规则（#340，只用假 CLI 测过）；真实限额改派、macOS 钥匙串就绪（缺凭据 = Unknown）、真实离线/慢网络 fetch 超时、已安装 `gpt-6.1-terra` 计价；macOS/Linux 真机（只有 CI）、Gemini CLI、Codex 桌面 `say --now`/doctor 规则/叫醒 hook、dsh 后续写归档、从 GitHub 装 Codex 插件、真实子智能体上限、`--review auto` 触发率、真实 hook 超时、GitHub intake、L2 自动合并整条链、评测外路由；除共享上下文和记忆外，上面列出的各开关对成本或成功率的影响（Unknown）。
-- **已知问题：** 开着的：#349、#359、#362；评测工具 #347、#365、#367、#370、#371。此前仍未验证：没有本地 plan-review；CI 对 `/private/var`、8.3 短名和 `\\?\` 前缀的修复没复查；真实子智能体上限（F11 未触发）。
+- **只有 fake / 工程检查（含 #271 之后合入的内容），例如：** 席位、配额排序/改派、额度接力、模型满载换模型、角色、就绪/刷新、一行结果、看板、收据 UNVERIFIED 显示、超时收据、Git 未完成步骤列表、简报/模式矛盾检查、self_first、slim_context、Claude 侧凭据禁读、汇总脚本、check 敏感度（#333）、卡住检测（#339）、worktree 基准（#341）、未提交文件回执（#340）。**部分真实：** Codex 侧凭据禁读（#352，`codex-cli 0.164.0`，用假凭据文件）：elevated 的 `codex sandbox` 读被禁路径返回拒绝，unelevated 沙箱直接拒绝运行，开关打开时 `ccx run --to codex` 在启动前拒绝；elevated 沙箱会在这些路径上留下持久的 DENY ACL（撤销：`icacls <路径> /remove:d CodexSandboxUsers`）。**真实样本回放：** #245 Claude 限额事件/四条探针读数；Codex 拒绝样本仍为合成，不证明真实自动改派（[样本](../tests/data/real_signals/)）。
+- **未验证：** 在 elevated 沙箱下开着 Codex 侧凭据禁读完整跑一次 `ccx run`（已登录又是 elevated 的只有用户自己的 `~/.codex`，会加持久 ACL，由维护者决定）；真实 Codex 子 agent 在 `--worktree` 里是否遵守不提交的规则（#340，只用假 CLI 测过）；真实限额改派、macOS 钥匙串就绪（缺凭据 = Unknown）、真实离线/慢网络 fetch 超时、已安装 `gpt-6.1-terra` 计价；macOS/Linux 真机（只有 CI）、Gemini CLI、Codex 桌面 `say --now`/doctor 规则/叫醒 hook、dsh 后续写归档、从 GitHub 装 Codex 插件、真实子智能体上限、`--review auto` 触发率、真实 hook 超时、GitHub intake、L2 自动合并整条链、评测外路由；除共享上下文和记忆外，上面列出的各开关对成本或成功率的影响（Unknown）。
+- **已知问题：** 开着的：#349、#359、#362；评测工具 #365、#367、#370、#371。此前仍未验证：没有本地 plan-review；CI 对 `/private/var`、8.3 短名和 `\\?\` 前缀的修复没复查；真实子智能体上限（F11 未触发）。
 
 ### 待本人验证（2026-11-16）
 
