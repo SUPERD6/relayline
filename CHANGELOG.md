@@ -247,9 +247,8 @@
 - Add a first-field headline to serialized compact receipts, including P4 execution-ok receipts whose checks failed,
   while preserving existing JSON meanings, commands, options, verdict defaults and exit codes. Document execution versus
   acceptance and audit all eight historical P4 lead responses without changing their results or evaluation protocol.
-- `headline` is a new default-on display field, not a new verdict. Default check logging also adds `stdout_path`,
-  `stderr_path`, `stdout_truncated`, `stderr_truncated`, and `failed_cases`, writing at most 2 × 256 KiB per check
-  even when baseline comparison is off; existing `tail` remains unchanged.
+- `headline` is a new default-on display field, not a new verdict (default check output retention: see the
+  check-baseline entries above).
 - Add an experimental, default-off `--codex-workspace-tmp` evaluation launcher for workspace-write Codex runs and resumes, without changing sandbox permissions or product defaults.
 - Require the Codex preflight canary to create, write, read, and remove a temporary directory; reuse existing sandbox metadata and add the temporary-directory policy to row fingerprints.
 - Retain redacted lead and ccx sub-agent event/stderr streams for every r5 result under invocation-specific artifacts, with file hashes and relative references.
