@@ -26,6 +26,7 @@ def codex(tmp_path, monkeypatch):
     for key in ("HOME", "USERPROFILE"):
         monkeypatch.setenv(key, str(home))
     monkeypatch.setenv("CODEX_HOME", str(chome))
+    monkeypatch.setenv("CCX_CODEX_BIN", str(ROOT / "tests/fakes/fake_codex.py"))   # never the real CLI (CI has none)
     monkeypatch.setattr(credential_guard, "IS_WINDOWS", False)   # Windows-only checks opt in per test
     work = tmp_path / "work"
     work.mkdir()
