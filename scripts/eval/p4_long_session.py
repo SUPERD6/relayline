@@ -475,6 +475,9 @@ class Episode:
                                                  if row["first_rungs"] else None)
             row["child_agent"] = self.child_agent
         if round2:
+            # Field names unified_summary p4 --paired reads (#347): source stratum, reservation for unknown costs.
+            row["source"] = task.get("source")
+            row["reserved_usd"] = lead_cap + child_cap
             row["lead_cap_hit"] = fin.get("subtype") == "error_max_budget_usd"
             row["cap_hit"] = row["lead_cap_hit"] or bool(row.get("child_cap_hit"))
             row["timed_out"] = rc == -9
@@ -1081,6 +1084,8 @@ def run_experiment(a, tasks: list[dict], units: list[dict]) -> int:
             else:
                 row["invalid_reason"] = invalid_reason(row)
                 row["reservation_usd"] = row.get("reservation_usd", lead_cap + child_cap)
+                row["reserved_usd"] = row["reservation_usd"]
+                row.setdefault("source", task.get("source"))
                 if (row.get("usd") is None or not row.get("cost_complete")
                         or row["invalid_reason"] == "dispatch_cost_unknown"):
                     # Unknown cost (including a dispatch phase whose cost is unknown): charge the reservation.

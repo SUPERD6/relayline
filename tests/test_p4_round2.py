@@ -294,6 +294,7 @@ def test_fourth_cost_unknown_row_stops(fake_engine, monkeypatch, tmp_path):
     assert P.run_experiment(a, ts, P.schedule(ts, 1, ("self", D.ARM2))) == 2
     rows = P.read_jsonl(a.out)
     assert len(rows) == 4 and all(r["invalid_reason"] == "cost_unknown" for r in rows)
+    assert all(r["reserved_usd"] == r["reservation_usd"] for r in rows) and all("source" in r for r in rows)
     event = P.read_jsonl(a.out.with_suffix(".events.jsonl"))[-1]
     assert event["reason"] == "cost_unknown_over_limit" and event["spent_known_usd"] >= 4 * 1.5
 
