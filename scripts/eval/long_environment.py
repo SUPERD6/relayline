@@ -15,7 +15,7 @@ import ext_repo as E
 import long_check as LC
 
 POLICY = "native-git-checkout-v2"
-SRC_ON_PATH = False  # round2_tasks turns this on for its own validation; P4/P5 keep the root only
+SRC_ON_PATH = False  # round2_tasks turns this on for its own validation; otherwise a task's src_layout decides (#365)
 CHECK = "-m pytest -q -o addopts="
 
 
@@ -55,17 +55,21 @@ def command(python: str) -> str:
     return quoted + " " + CHECK
 
 
-def environment(repo: Path, python: str, tmp: Path):
+def environment(repo: Path, python: str, tmp: Path, src_layout: bool = False):
+    """src/ (if present) goes before the root when round2_tasks validates (SRC_ON_PATH) or the task was selected
+    with src_layout (#365); P4/P5 tasks without it keep the root only."""
     tmp.mkdir(parents=True, exist_ok=True)
+    src = (SRC_ON_PATH or src_layout) and (repo / "src").is_dir()
     return {**os.environ, "PATH": str(Path(python).resolve().parent) + os.pathsep + os.environ.get("PATH", ""),
-            "PYTHONPATH": (str(repo / "src") + os.pathsep if SRC_ON_PATH and (repo / "src").is_dir() else "") + str(repo),
+            "PYTHONPATH": (str(repo / "src") + os.pathsep if src else "") + str(repo),
             "PYTEST_DISABLE_PLUGIN_AUTOLOAD": "1", "PYTHONDONTWRITEBYTECODE": "1",
             "PIP_NO_INDEX": "1", **{k: str(tmp) for k in ("TMP", "TEMP", "TMPDIR")}}
 
 
-def baseline(repo: Path, python: str, tmp: Path, raw: Path | None = None, timeout: int = 180):
+def baseline(repo: Path, python: str, tmp: Path, raw: Path | None = None, timeout: int = 180,
+             src_layout: bool = False):
     """Exactly the unit acceptance command, original parent tests, no hidden test injection."""
-    env = environment(repo, python, tmp)
+    env = environment(repo, python, tmp, src_layout)
     cmd = command(python)
     try:
         r = subprocess.run(cmd, shell=True, cwd=repo, env=env, capture_output=True, timeout=timeout)
@@ -87,13 +91,14 @@ def baseline(repo: Path, python: str, tmp: Path, raw: Path | None = None, timeou
 
 def validate_task(cache: Path, python: str, task: dict, raw_dir: Path | None = None, baseline_timeout: int = 180):
     m = LC.material(cache, task)
+    src = bool(task.get("src_layout"))
     with tempfile.TemporaryDirectory(prefix="p5-native-") as tmp:
         root = Path(tmp)
         repo = root / "repo"
         policy = build(m["tar"], repo)
         stem = task["commit"]
         base = baseline(repo, python, repo / ".ccx-eval-tmp-acceptance",
-                        raw_dir / (stem + "-baseline.txt") if raw_dir else None, baseline_timeout)
+                        raw_dir / (stem + "-baseline.txt") if raw_dir else None, baseline_timeout, src)
         # Remove all generated baseline state; hidden validation uses fresh identical checkouts.
         checks = {}
         if base["rc"] == 0:
@@ -110,7 +115,7 @@ def validate_task(cache: Path, python: str, task: dict, raw_dir: Path | None = N
                     E._git(target, "commit", "-q", "--no-verify", "-m", "hidden snapshot")
                 checkout(target)
                 checks[name] = hidden(target, task["tests"], python,
-                                      raw_dir/(stem+f"-{name}.txt") if raw_dir else None)
+                                      raw_dir/(stem+f"-{name}.txt") if raw_dir else None, src)
         else:
             checks = {k: {"rc": None, "summary": "not run: original parent baseline failed"}
                       for k in ("parent", "reference")}
@@ -118,10 +123,10 @@ def validate_task(cache: Path, python: str, task: dict, raw_dir: Path | None = N
     return {"baseline": base, **checks, "valid": valid, "checkout": policy}
 
 
-def hidden(repo, tests, python, raw=None):
+def hidden(repo, tests, python, raw=None, src_layout=False):
     try:
         r = subprocess.run([python, "-m", "pytest", "-q", "-o", "addopts=", "-p", "no:cacheprovider", *tests],
-                           cwd=repo, env=environment(repo, python, repo/".ccx-eval-tmp-hidden"),
+                           cwd=repo, env=environment(repo, python, repo/".ccx-eval-tmp-hidden", src_layout),
                            capture_output=True, timeout=180)
         output = LC.normalize_output((r.stdout+r.stderr).decode("utf-8", "replace"), repo)
         result = {"rc": r.returncode, "summary": output.strip().splitlines()[-1] if output.strip() else "empty",

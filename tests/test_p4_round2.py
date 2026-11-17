@@ -388,3 +388,35 @@ def test_engine_charges_unknown_cost_at_reservation_and_continues(fake_engine, m
     events = P.read_jsonl(a.out.with_suffix(".events.jsonl"))
     assert events[-1]["cost_unknown_rows"] == 1
     assert events[-1]["spent_known_usd"] >= rows[0]["reservation_usd"]
+
+
+def test_src_layout_task_runs_with_src_on_pythonpath(fake_engine, monkeypatch, tmp_path):
+    """#365: a task selected with src_layout (round2_tasks) runs with src/ and the root on PYTHONPATH, for the
+    lead, its sub-agents and the acceptance check; other tasks keep PYTHONPATH=. and their prompt."""
+    a, ts, log = _r2_engine(fake_engine, monkeypatch, tmp_path, _ledger())
+    from test_p4_long_session import tree
+    ts = ts[:2]
+    ts[0]["src_layout"] = True
+    material = {ts[0]["id"]: {"tar": tree({"source.py": "src\n", "src/srcpkg/__init__.py": "X = 1\n",
+                                           "tests/test_old.py": "# old"}),
+                              "tests": {"tests/test_hidden.py": b"# HIDDEN_GRADE_SENTINEL"}},
+                ts[1]["id"]: {"tar": tree({"source.py": "flat\n", "tests/test_old.py": "# old"}),
+                              "tests": {"tests/test_hidden.py": b"# HIDDEN_GRADE_SENTINEL"}}}
+    monkeypatch.setattr(P.LC, "material", lambda _, t: material[t["id"]])
+    assert P.run_experiment(a, ts, P.schedule(ts, 1, ("self", D.ARM2))) == 0
+    entries = [json.loads(line) for line in log.read_text().splitlines()]
+    src = [e for e in entries if e["parent"].strip() == "src"]
+    flat = [e for e in entries if e["parent"].strip() == "flat"]
+    assert len(src) == 2 and len(flat) == 2
+    assert all(e["importable"] is True and e["pythonpath"] == "src" + os.pathsep + "." for e in src)
+    assert all(e["pythonpath"] == "." for e in flat)
+    assert all(f"PYTHONPATH='src{os.pathsep}.'" in e["prompt"] and "PYTHONPATH=. " not in e["prompt"] for e in src)
+    assert all("PYTHONPATH=." in e["prompt"] and "PYTHONPATH='src" not in e["prompt"] for e in flat)
+
+
+def test_src_layout_prompt_only_changes_the_pythonpath():
+    task = {"brief": "Add frobnicate().", "code": ["pkg/mod.py"]}
+    for arm in ("self", D.ARM, D.ARM2):
+        flat = P.prompt(task, arm, 1.0, child_agent="claude")
+        src = P.prompt({**task, "src_layout": True}, arm, 1.0, child_agent="claude")
+        assert src == flat.replace("PYTHONPATH=.", f"PYTHONPATH='src{os.pathsep}.'") and src != flat
