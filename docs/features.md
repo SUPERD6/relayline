@@ -735,6 +735,10 @@ check; no improvement in task success or savings has been measured here.
   those commits in too, an implicit pull. A resumed run uses the base of the run it continued; when that resume
   chain breaks (a record missing or unreadable, a loop, over 20 resumes), the merge is refused with `cannot tell
   where this run started` rather than measured from the merge-base.
+  Both merges (for `--base head` and upstream runs alike) take the branch the run's worktree has checked out, and
+  only when it is `ccx/<id>` of the run or of a run up its resume chain; a worktree on a detached HEAD or moved to
+  another branch is refused (`the worktree is not on a branch` / `the worktree is on X, not ...`) rather than merged
+  by the branch name the queue noted when the run ended.
   Both layouts are recognized in run results, queues and acceptance, lane commits, automatic merging, check-trust
   grouping and UI project grouping, even after the setting changes. Inside placement is experimental: checked
   with fake agent CLIs and Git, not yet with real agent CLIs or Codex project trust inheritance.

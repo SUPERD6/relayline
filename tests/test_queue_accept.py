@@ -3,6 +3,7 @@ conflicts and rollbacks; `--dep 1`; the compact `ccx q ls`; `ccx q done` of seve
 import json
 import subprocess
 import sys
+from pathlib import Path
 
 from ccx import queue as wq
 from ccx.config import Paths
@@ -294,6 +295,113 @@ class TestAccept(AcceptEnv):
         self.assertIn("cannot tell where this run started", out["refused"][0]["why"])
         self.assertIn("20261029-gone", out["refused"][0]["why"])
         self.assertEqual(git(self.work, "rev-parse", "HEAD"), before)
+
+
+class TestAcceptBranch(AcceptEnv):
+    """#384: accept merges the branch the piece's worktree has checked out, only when it is ccx/<id> of its run or of
+    a run up its resume chain (autonomy.run_branch, #374), never the name the queue noted when the run ended."""
+
+    def item(self, q):
+        return wq.load(self.work)["items"][q]
+
+    def resume(self, q, branch="keep"):
+        """The piece was resumed: run <first>-r2 (resumed_from the first) worked on in the same worktree and
+        committed r.txt there; the item now names that run. branch: what the queue noted ("keep" = unchanged)."""
+        it = self.item(q)
+        first = self.rec(it["run"])
+        r2 = f"{it['run']}-r2"
+        (Path(it["worktree"]) / "r.txt").write_text("r\n", encoding="utf-8")
+        git(it["worktree"], "add", "-A")
+        git(it["worktree"], "commit", "-qm", f"ccx run {r2}")
+        d = self.hub / "ccx" / "runs" / r2
+        d.mkdir(parents=True)
+        own = {k: v for k, v in first.items() if k not in ("worktree_base", "base_sha", "base_ref")}  # a resume
+        (d / "run.json").write_text(json.dumps({**own, "run_id": r2, "resumed_from": it["run"]}),  # records none
+                                    encoding="utf-8")
+        fields = {"run": r2} if branch == "keep" else {"run": r2, "branch": branch}
+        wq.update(self.work, q, **fields)
+        return r2
+
+    def assert_refused(self, q, words):
+        before = git(self.work, "rev-parse", "HEAD")
+        out = self.accept(q, code=2)
+        self.assertEqual(out["accepted"], [])
+        self.assertIn(words, out["refused"][0]["why"])
+        self.assertEqual(git(self.work, "rev-parse", "HEAD"), before)          # nothing merged
+        self.assertIsNone(self.item(q).get("verdict"))
+        self.assertFalse(self.item(q).get("merged"))
+        self.assertEqual(self.ledger_rows("q_accept"), [])
+        return out
+
+    def test_a_detached_worktree_noted_as_HEAD_is_refused_not_merged_into_itself(self):
+        self.repo()
+        q1 = self.piece("one", {"a.txt": "a\n"})
+        git(self.item(q1)["worktree"], "checkout", "-q", "--detach")
+        wq.update(self.work, q1, branch="HEAD")             # what `git rev-parse --abbrev-ref HEAD` noted
+        self.assert_refused(q1, "detached HEAD")
+        self.assertEqual(self.accept(q1, "--dry-run", code=2).get("plan", []), [])
+
+    def test_a_piece_noted_as_HEAD_with_a_verdict_is_not_taken_for_landed(self):
+        self.repo()
+        q1 = self.piece("one", {"a.txt": "a\n"})
+        wq.update(self.work, q1, branch="HEAD", verdict=True)
+        out = self.accept("--all-ready")                    # its worktree is on ccx/<run>: that branch lands
+        self.assertEqual([x["id"] for x in out["accepted"]], [q1])
+        self.assertTrue((self.work / "a.txt").exists())
+
+    def test_a_worktree_moved_to_another_branch_is_refused(self):
+        self.repo()
+        q1 = self.piece("one", {"a.txt": "a\n"})
+        wt = self.item(q1)["worktree"]
+        git(wt, "checkout", "-q", "-b", "elsewhere")
+        (Path(wt) / "x.txt").write_text("x\n", encoding="utf-8")   # left uncommitted
+        self.assert_refused(q1, "the worktree is on elsewhere")
+        self.assertEqual(git(wt, "status", "--porcelain"), "?? x.txt")        # not committed to elsewhere either
+        self.assertFalse((self.work / "a.txt").exists())
+
+    def test_a_resumed_piece_lands_the_first_runs_branch(self):
+        self.repo()
+        q1 = self.piece("one", {"a.txt": "a\n"})
+        first = self.item(q1)["run"]
+        self.resume(q1, branch=None)                        # the queue noted no branch: ccx/<r2> would not exist
+        dry = self.accept(q1, "--dry-run")
+        self.assertEqual(dry["plan"][0]["branch"], f"ccx/{first}")
+        out = self.accept(q1)
+        self.assertEqual([x["id"] for x in out["accepted"]], [q1])
+        self.assertTrue((self.work / "a.txt").exists() and (self.work / "r.txt").exists())
+        self.assertEqual(self.ledger_rows("q_accept")[0]["branch"], f"ccx/{first}")
+
+    def test_a_resumed_piece_whose_worktree_is_detached_is_refused(self):
+        self.repo()
+        q1 = self.piece("one", {"a.txt": "a\n"})
+        self.resume(q1)
+        git(self.item(q1)["worktree"], "checkout", "-q", "--detach")
+        self.assert_refused(q1, "detached HEAD")
+
+    def upstream(self):
+        remote = self.work.parent / "remote.git"
+        git(self.work.parent, "init", "-q", "--bare", str(remote))
+        git(self.work, "remote", "add", "origin", str(remote))
+        git(self.work, "push", "-qu", "origin", "work")
+
+    def test_an_upstream_based_piece_moved_to_another_branch_is_refused(self):
+        self.repo()
+        self.upstream()
+        q1 = self.piece("on upstream", {"a.txt": "a\n"}, base="upstream")
+        self.assertEqual(self.rec(self.item(q1)["run"]).get("worktree_base"), "upstream")
+        git(self.item(q1)["worktree"], "checkout", "-q", "-b", "elsewhere")
+        self.assert_refused(q1, "the worktree is on elsewhere")
+
+    def test_a_resumed_upstream_based_piece_lands_the_first_runs_branch(self):
+        self.repo()
+        self.upstream()
+        q1 = self.piece("on upstream", {"a.txt": "a\n"}, base="upstream")
+        first = self.item(q1)["run"]
+        self.resume(q1, branch=None)
+        out = self.accept(q1)
+        self.assertEqual([x["id"] for x in out["accepted"]], [q1])
+        self.assertEqual(self.ledger_rows("q_accept")[0]["branch"], f"ccx/{first}")
+        self.assertTrue((self.work / "r.txt").exists())
 
 
 class TestPipelineEndToEnd(AcceptEnv):
