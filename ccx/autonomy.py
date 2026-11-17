@@ -225,7 +225,7 @@ def merge(p: Paths, run_id: str, info: dict, cfg: dict | None = None, rules: lis
         return {**out, "can_merge": False, "why_not": no}
     rc, target = _git(repo, "symbolic-ref", "--short", "HEAD")
     target = target if rc == 0 else ""
-    found, why = run_branch(p, rec, wt)   # #374: a resumed run's branch is the first run's
+    found, why = run_branch(p, rec, wt, run_id)   # #374: a resumed run's branch is the first run's
     if found:
         branch = out["branch"] = found
     else:
@@ -251,7 +251,7 @@ def merge(p: Paths, run_id: str, info: dict, cfg: dict | None = None, rules: lis
         rc, base = _git(repo, "merge-base", target or "HEAD", branch)
     lines, files = _numstat(wt, base) if rc == 0 else (0, [])
     out.update(lines=lines, files=files)
-    if not files and not (start and start.get("unknown")):
+    if not files and found and not (start and start.get("unknown")):   # an unknown branch says why already
         no.append("nothing changed")
     if lines > int(st["max_lines"]) or len(files) > int(st["max_files"]):
         no.append(f"too big for a merge without the person: {lines} lines in {len(files)} files "
@@ -309,30 +309,45 @@ def upstream_start(p: Paths, rec: dict, hops: int = 20) -> dict | None:
             return {"unknown": f"the record of run {parent}, which it resumed, cannot be read (not an object)"}
 
 
-def run_branch(p: Paths, rec: dict, wt: Path, hops: int = 20) -> tuple[str | None, str | None]:
+def run_branch(p: Paths, rec: dict, wt: Path, run_id: str | None = None,
+               hops: int = 20) -> tuple[str | None, str | None]:
     """#374: the branch run `rec` worked on -> (branch, None), or (None, why not). A resume works in the worktree of
     the run it resumed, so a resumed run's branch is ccx/<first run_id>, not ccx/<its own>. The worktree's checked-out
     branch is what its changes get committed to; it must be ccx/<id> of this run or of a run up its resume chain,
-    else (detached, or moved to another branch) nothing is merged."""
+    else (detached, moved to another branch) nothing is merged. A chain that breaks before reaching that branch (a
+    record missing or unreadable, a loop, more than `hops` resumes) is refused with the reason, never guessed."""
     rc, cur = _git(wt, "symbolic-ref", "--short", "-q", "HEAD")
     if rc != 0 or not cur:
         return None, "the worktree is not on a branch (detached HEAD): the person merges it"
-    ids, seen = [rec.get("run_id")], set()
-    while rec.get("resumed_from") and len(seen) <= hops:
-        seen.add(rec.get("run_id"))
+    rid = run_id or rec.get("run_id")
+    ids, broken = [rid], None
+    while rec.get("resumed_from") and f"ccx/{ids[-1]}" != cur:
         parent = rec["resumed_from"]
-        if parent in seen:
+        if parent in ids:
+            broken = f"the resume chain loops back to run {parent}"
+            break
+        if len(ids) > hops:
+            broken = f"the resume chain is too long (over {hops} runs)"
             break
         ids.append(parent)
         try:
             rec = ledger.load_run(p, parent)
-        except (OSError, ValueError):
+        except FileNotFoundError:
+            broken = f"the record of run {parent}, which it resumed, is missing"
+            break
+        except (OSError, ValueError) as e:
+            broken = f"the record of run {parent}, which it resumed, cannot be read ({type(e).__name__})"
             break
         if not isinstance(rec, dict):
+            broken = f"the record of run {parent}, which it resumed, cannot be read (not an object)"
             break
     if cur in {f"ccx/{i}" for i in ids if i}:
         return cur, None
-    return None, f"the worktree is on {cur}, not ccx/{ids[-1]} (this run's branch): the person merges it"
+    if broken:
+        return None, f"cannot tell which branch this run worked on ({broken}): the person merges it"
+    mine = ", ".join(f"ccx/{i}" for i in ids if i)
+    return None, (f"the worktree is on {cur}, not a branch of this run or of the runs it resumed ({mine}): "
+                  "the person merges it")
 
 
 def unknown_start(start: dict) -> str:
