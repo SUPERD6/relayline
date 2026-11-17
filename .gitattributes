@@ -1,3 +1,5 @@
 # shell scripts must keep LF: the plugin hooks run bin/ccx through sh, also on Windows checkouts
 bin/ccx text eol=lf
 *.sh text eol=lf
+# frozen round 2 task files: strength_retest checks the raw bytes' SHA-256 (--tasks-sha256), so no CRLF checkout
+docs/research/data/round2-tasks/*.json text eol=lf

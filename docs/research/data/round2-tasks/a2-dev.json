@@ -1,0 +1,305 @@
+{
+  "kind": "memory",
+  "group": "A2-DEV",
+  "dev": true,
+  "author": "Claude Opus 5.5 (claude-opus-5-5), task-writing session that takes part in no evaluation",
+  "preregistration": "docs/research/prereg/2026-11-16-round2.md, section 2 (A1, A2)",
+  "issue": 375,
+  "tasks": [
+    {
+      "id": "r2a2-dev-01-env-flag",
+      "dev": true,
+      "source": "authored",
+      "files": {
+        "settings.py": "import os\n\n\ndef env_str(name, default=''):\n    return os.environ.get(name, default)\n"
+      },
+      "brief": "Add env_flag(name, default=False) to settings.py: read a boolean switch from the environment variable `name`; when the variable is not set, return default.",
+      "neutral": false,
+      "kind": "convention",
+      "memory": "Project convention for environment switches: only '1', 'true' and 'yes' (any case, surrounding spaces ignored) count as on, and only '0', 'false', 'no' and the empty string count as off. Any other value raises ConfigError, a ValueError subclass defined in settings.py; never guess.",
+      "distractors": [
+        [
+          "tooling",
+          "Release builds are made from a clean checkout with `python -m build`; never upload a dirty tree."
+        ],
+        [
+          "people",
+          "Reviews on this project are asynchronous: leave a summary comment, do not wait for a call."
+        ],
+        [
+          "pitfall",
+          "The CI image has no locale data: tests must not depend on locale-specific formatting."
+        ],
+        [
+          "convention",
+          "Ports read from the environment must be between 1024 and 65535; below that the service refuses to start."
+        ]
+      ],
+      "visible": "from settings import env_flag\n\n\ndef test_unset(monkeypatch):\n    monkeypatch.delenv('R2_FLAG', raising=False)\n    assert env_flag('R2_FLAG') is False\n    assert env_flag('R2_FLAG', True) is True\n",
+      "hidden": "import pytest\nimport settings\nfrom settings import env_flag\n\n\ndef test_on_values(monkeypatch):\n    for v in ('1', 'TRUE', ' yes '):\n        monkeypatch.setenv('R2_FLAG', v)\n        assert env_flag('R2_FLAG') is True\n\n\ndef test_off_values(monkeypatch):\n    for v in ('0', 'False', 'no', ''):\n        monkeypatch.setenv('R2_FLAG', v)\n        assert env_flag('R2_FLAG', True) is False\n\n\ndef test_other_raises(monkeypatch):\n    assert issubclass(settings.ConfigError, ValueError)\n    for v in ('on', '2', 'y'):\n        monkeypatch.setenv('R2_FLAG', v)\n        with pytest.raises(settings.ConfigError):\n            env_flag('R2_FLAG')\n\n\ndef test_unset_default(monkeypatch):\n    monkeypatch.delenv('R2_FLAG', raising=False)\n    assert env_flag('R2_FLAG', True) is True\n",
+      "reference": {
+        "settings.py": "import os\n\n\nclass ConfigError(ValueError):\n    pass\n\n\ndef env_str(name, default=''):\n    return os.environ.get(name, default)\n\n\ndef env_flag(name, default=False):\n    raw = os.environ.get(name)\n    if raw is None:\n        return default\n    value = raw.strip().lower()\n    if value in ('1', 'true', 'yes'):\n        return True\n    if value in ('0', 'false', 'no', ''):\n        return False\n    raise ConfigError(f'{name}={raw!r} is not a boolean switch')\n"
+      },
+      "naive": {
+        "settings.py": "import os\n\n\ndef env_str(name, default=''):\n    return os.environ.get(name, default)\n\n\ndef env_flag(name, default=False):\n    raw = os.environ.get(name)\n    if raw is None:\n        return default\n    return raw.strip().lower() in ('1', 'true', 'yes', 'on', 'y')\n"
+      },
+      "conventions": [
+        "only '1', 'true' and 'yes' (any case, surrounding spaces ignored) count as on",
+        "only '0', 'false', 'no' and the empty string count as off",
+        "Any other value raises ConfigError, a ValueError subclass defined in settings.py"
+      ],
+      "trace": [
+        {
+          "assertion": "test_zz_hidden_eval.py::test_on_values#1",
+          "brief": "only '1', 'true' and 'yes' (any case, surrounding spaces ignored) count as on"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_off_values#1",
+          "brief": "only '0', 'false', 'no' and the empty string count as off"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_other_raises#1",
+          "brief": "only '1', 'true' and 'yes' (any case, surrounding spaces ignored) count as on"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_other_raises#1",
+          "brief": "only '0', 'false', 'no' and the empty string count as off"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_other_raises#1",
+          "brief": "Any other value raises ConfigError, a ValueError subclass defined in settings.py"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_other_raises#2",
+          "brief": "only '1', 'true' and 'yes' (any case, surrounding spaces ignored) count as on"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_other_raises#2",
+          "brief": "only '0', 'false', 'no' and the empty string count as off"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_other_raises#2",
+          "brief": "Any other value raises ConfigError, a ValueError subclass defined in settings.py"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_unset_default#1",
+          "brief": "when the variable is not set, return default"
+        }
+      ]
+    },
+    {
+      "id": "r2a2-dev-02-page-window",
+      "dev": true,
+      "source": "authored",
+      "files": {
+        "paging.py": "def clamp(n, low, high):\n    return max(low, min(n, high))\n"
+      },
+      "brief": "Implement page_bounds(page, per_page, total) in paging.py: which slice of a result list of length total a given page shows, returned as a (start, stop) pair.",
+      "neutral": false,
+      "kind": "convention",
+      "memory": "Paging convention in this codebase: page numbers start at 1, not 0, and stop is exclusive like a Python slice. A page past the end returns (total, total) instead of raising, and per_page below 1 raises ValueError.",
+      "distractors": [
+        [
+          "tooling",
+          "Release builds are made from a clean checkout with `python -m build`; never upload a dirty tree."
+        ],
+        [
+          "people",
+          "Reviews on this project are asynchronous: leave a summary comment, do not wait for a call."
+        ],
+        [
+          "pitfall",
+          "The CI image has no locale data: tests must not depend on locale-specific formatting."
+        ],
+        [
+          "convention",
+          "Search results in the admin pages are sorted newest first; public lists are sorted by title."
+        ]
+      ],
+      "hidden": "import pytest\nfrom paging import page_bounds\n\n\ndef test_first_pages():\n    assert page_bounds(1, 10, 35) == (0, 10)\n    assert page_bounds(4, 10, 35) == (30, 35)\n\n\ndef test_past_end():\n    assert page_bounds(5, 10, 35) == (35, 35)\n    assert page_bounds(9, 10, 0) == (0, 0)\n\n\ndef test_bad_per_page():\n    with pytest.raises(ValueError):\n        page_bounds(1, 0, 10)\n",
+      "reference": {
+        "paging.py": "def clamp(n, low, high):\n    return max(low, min(n, high))\n\n\ndef page_bounds(page, per_page, total):\n    if per_page < 1:\n        raise ValueError('per_page must be at least 1')\n    start = clamp((page - 1) * per_page, 0, total)\n    return start, clamp(start + per_page, 0, total)\n"
+      },
+      "naive": {
+        "paging.py": "def clamp(n, low, high):\n    return max(low, min(n, high))\n\n\ndef page_bounds(page, per_page, total):\n    start = page * per_page\n    if start > total:\n        raise IndexError('page out of range')\n    return start, min(start + per_page, total)\n"
+      },
+      "conventions": [
+        "page numbers start at 1, not 0",
+        "A page past the end returns (total, total) instead of raising",
+        "per_page below 1 raises ValueError"
+      ],
+      "trace": [
+        {
+          "assertion": "test_zz_hidden_eval.py::test_first_pages#1",
+          "brief": "page numbers start at 1, not 0"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_first_pages#1",
+          "brief": "stop is exclusive like a Python slice"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_first_pages#1",
+          "brief": "returned as a (start, stop) pair"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_first_pages#2",
+          "brief": "page numbers start at 1, not 0"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_first_pages#2",
+          "brief": "stop is exclusive like a Python slice"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_first_pages#2",
+          "brief": "returned as a (start, stop) pair"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_past_end#1",
+          "brief": "A page past the end returns (total, total) instead of raising"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_past_end#2",
+          "brief": "A page past the end returns (total, total) instead of raising"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_bad_per_page#1",
+          "brief": "per_page below 1 raises ValueError"
+        }
+      ]
+    },
+    {
+      "id": "r2a2-dev-03-file-size",
+      "dev": true,
+      "source": "authored",
+      "files": {
+        "humanize.py": "def plural(n, word):\n    return f\"{n} {word}\" + (\"\" if n == 1 else \"s\")\n"
+      },
+      "brief": "Add human_size(n_bytes) to humanize.py: a short human-readable text for a file size, for the download page.",
+      "neutral": false,
+      "kind": "convention",
+      "memory": "Convention for sizes shown to users: decimal units (1 kB = 1000 bytes, then MB, GB), not 1024. One digit after the point, always shown (2.0 MB), and a plain 'B' for sizes below 1000. Unit symbols are kB, MB, GB with a space before them.",
+      "distractors": [
+        [
+          "tooling",
+          "Release builds are made from a clean checkout with `python -m build`; never upload a dirty tree."
+        ],
+        [
+          "people",
+          "Reviews on this project are asynchronous: leave a summary comment, do not wait for a call."
+        ],
+        [
+          "pitfall",
+          "The CI image has no locale data: tests must not depend on locale-specific formatting."
+        ],
+        [
+          "convention",
+          "Durations in logs are written in seconds with three decimals, e.g. 1.250 s."
+        ]
+      ],
+      "hidden": "from humanize import human_size\n\n\ndef test_decimal_units():\n    assert human_size(1000) == '1.0 kB'\n    assert human_size(1_500_000) == '1.5 MB'\n\n\ndef test_small_and_digit():\n    assert human_size(999) == '999 B'\n    assert human_size(2_000_000_000) == '2.0 GB'\n\n\ndef test_symbols():\n    assert human_size(12_345) == '12.3 kB'\n",
+      "reference": {
+        "humanize.py": "def plural(n, word):\n    return f\"{n} {word}\" + (\"\" if n == 1 else \"s\")\n\n\ndef human_size(n_bytes):\n    if n_bytes < 1000:\n        return f'{n_bytes} B'\n    value = n_bytes\n    for unit in ('kB', 'MB', 'GB'):\n        value /= 1000\n        if value < 1000 or unit == 'GB':\n            return f'{value:.1f} {unit}'\n"
+      },
+      "naive": {
+        "humanize.py": "def plural(n, word):\n    return f\"{n} {word}\" + (\"\" if n == 1 else \"s\")\n\n\ndef human_size(n_bytes):\n    value = float(n_bytes)\n    for unit in ('B', 'KB', 'MB', 'GB'):\n        if value < 1024:\n            return f'{value:g}{unit}'\n        value /= 1024\n    return f'{value:g}TB'\n"
+      },
+      "conventions": [
+        "decimal units (1 kB = 1000 bytes, then MB, GB), not 1024",
+        "One digit after the point, always shown (2.0 MB), and a plain 'B' for sizes below 1000",
+        "Unit symbols are kB, MB, GB with a space before them"
+      ],
+      "trace": [
+        {
+          "assertion": "test_zz_hidden_eval.py::test_decimal_units#1",
+          "brief": "decimal units (1 kB = 1000 bytes, then MB, GB), not 1024"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_decimal_units#2",
+          "brief": "decimal units (1 kB = 1000 bytes, then MB, GB), not 1024"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_small_and_digit#1",
+          "brief": "One digit after the point, always shown (2.0 MB), and a plain 'B' for sizes below 1000"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_small_and_digit#2",
+          "brief": "One digit after the point, always shown (2.0 MB), and a plain 'B' for sizes below 1000"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_symbols#1",
+          "brief": "Unit symbols are kB, MB, GB with a space before them"
+        }
+      ]
+    },
+    {
+      "id": "r2a2-dev-04-csv-row",
+      "dev": true,
+      "source": "authored",
+      "files": {
+        "export.py": "def header(columns):\n    return \",\".join(columns)\n"
+      },
+      "brief": "Write to_row(values) in export.py: turn one record (a list of values) into a line of the export file, without the line ending.",
+      "neutral": false,
+      "kind": "convention",
+      "memory": "Export file format of this project: fields are separated by a tab, not a comma (header() predates the change). None is written as an empty field, booleans as Y and N, and tabs or newlines inside a value are replaced by a single space.",
+      "distractors": [
+        [
+          "tooling",
+          "Release builds are made from a clean checkout with `python -m build`; never upload a dirty tree."
+        ],
+        [
+          "people",
+          "Reviews on this project are asynchronous: leave a summary comment, do not wait for a call."
+        ],
+        [
+          "pitfall",
+          "The CI image has no locale data: tests must not depend on locale-specific formatting."
+        ],
+        [
+          "convention",
+          "Report PDFs use A4 paper and 2 cm margins on every side."
+        ]
+      ],
+      "hidden": "from export import to_row\n\n\ndef test_tabs():\n    assert to_row(['a', 1, 2.5]) == 'a\\t1\\t2.5'\n\n\ndef test_none_and_bools():\n    assert to_row([None, True, False]) == '\\tY\\tN'\n\n\ndef test_inner_whitespace():\n    assert to_row(['x\\ty', 'line1\\nline2']) == 'x y\\tline1 line2'\n",
+      "reference": {
+        "export.py": "def header(columns):\n    return \",\".join(columns)\n\n\ndef _field(v):\n    if v is None:\n        return ''\n    if isinstance(v, bool):\n        return 'Y' if v else 'N'\n    return str(v).replace('\\t', ' ').replace('\\r\\n', ' ').replace('\\n', ' ')\n\n\ndef to_row(values):\n    return '\\t'.join(_field(v) for v in values)\n"
+      },
+      "naive": {
+        "export.py": "def header(columns):\n    return \",\".join(columns)\n\n\ndef to_row(values):\n    return \",\".join(str(v) for v in values)\n"
+      },
+      "conventions": [
+        "fields are separated by a tab, not a comma",
+        "None is written as an empty field, booleans as Y and N",
+        "tabs or newlines inside a value are replaced by a single space"
+      ],
+      "trace": [
+        {
+          "assertion": "test_zz_hidden_eval.py::test_tabs#1",
+          "brief": "fields are separated by a tab, not a comma"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_none_and_bools#1",
+          "brief": "None is written as an empty field, booleans as Y and N"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_inner_whitespace#1",
+          "brief": "tabs or newlines inside a value are replaced by a single space"
+        }
+      ]
+    }
+  ],
+  "distractors": [
+    [
+      "tooling",
+      "Release builds are made from a clean checkout with `python -m build`; never upload a dirty tree."
+    ],
+    [
+      "people",
+      "Reviews on this project are asynchronous: leave a summary comment, do not wait for a call."
+    ],
+    [
+      "pitfall",
+      "The CI image has no locale data: tests must not depend on locale-specific formatting."
+    ]
+  ]
+}
