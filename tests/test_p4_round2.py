@@ -260,7 +260,7 @@ def test_receipt_error_reads_result_status_and_skips_review_records(fake_engine,
 
 def test_hidden_collection_error_is_a_valid_failed_row_in_round2(fake_engine, monkeypatch, tmp_path):
     a, ts, log = _r2_engine(fake_engine, monkeypatch, tmp_path, _ledger())
-    monkeypatch.setattr(P, "run_hidden", lambda repo, names, python: {
+    monkeypatch.setattr(P, "run_hidden", lambda repo, names, python, **_: {
         "ok": False, "rc": 2, "summary": "1 error", "output": "ImportError", "environment_error": True})
     assert P.run_experiment(a, ts[:2], P.schedule(ts[:2], 1, ("self", D.ARM2))) == 0
     rows = P.read_jsonl(a.out)
