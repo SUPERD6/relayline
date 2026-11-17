@@ -21,6 +21,7 @@ from __future__ import annotations
 import io
 import json
 import os
+import re
 import shutil
 import stat
 import subprocess
@@ -49,8 +50,23 @@ def _rmtree(p: Path) -> None:
         shutil.rmtree(p, onerror=onerror)
 
 
+def cache_key(repo: str) -> str:
+    """The cache folder stem of a repository (#400). `owner/name` becomes `<owner>__<name>`, case-folded, with every
+    character outside `[a-z0-9._-]` (Windows rejects `:*?"<>|`) and a trailing dot or space replaced by `_`, so
+    `a/utils` and `b/utils` never share a clone. A plain name (a frozen task's `repo`, e.g. `polyglot`) is unchanged.
+    The old bare-name folder of an owner/name repository is never looked at: that is how two owners would share it."""
+    parts = [p for p in str(repo).strip().split("/") if p]
+    if len(parts) < 2:
+        return str(repo).strip()
+    safe = []
+    for p in parts[-2:]:
+        p = re.sub(r"[^a-z0-9._-]", "_", p.casefold())
+        safe.append(p[:-1] + "_" if p.endswith(".") else p)
+    return "__".join(safe)
+
+
 def cache_path(cache: Path, name: str) -> Path:
-    return Path(cache) / f"{name}.git"
+    return Path(cache) / f"{cache_key(name)}.git"
 
 
 def fetch(name: str, spec: dict, cache: Path, source: Path | None = None) -> Path:
@@ -61,7 +77,8 @@ def fetch(name: str, spec: dict, cache: Path, source: Path | None = None) -> Pat
         return dest
     origin = spec["url"]
     if source is not None:
-        cands = [Path(source) / name, Path(source) / f"{name}.git"]
+        key = cache_key(name)
+        cands = [Path(source) / key, Path(source) / f"{key}.git"]
         local = next((c for c in cands if c.exists()), None)
         if local is None:
             raise FileNotFoundError(f"--ext-cache has no copy of {name} (looked for {', '.join(map(str, cands))})")

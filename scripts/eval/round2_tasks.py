@@ -384,7 +384,7 @@ def repo_list(snapshot: dict, meta_dir: Path, used: set[str]) -> dict:
                 prior = first[repo_key(url)]
                 reason = f"same repository as rank {prior['rank']} ({prior['project']})"
             else:
-                entry.update(repo=norm_name(url), url=url, license=lic)
+                entry.update(repo=repo_key(url), url=url, license=lic)  # owner/name: also the cache key (#400)
                 first[repo_key(url)] = entry
         (excluded if reason else kept).append({**entry, **({"reason": reason} if reason else {})})
     return {"snapshot_last_update": snapshot.get("last_update"), "rule": "rank order; GitHub source; MIT/BSD/"
@@ -648,7 +648,7 @@ def select_upstream(cache: Path, repos: list[dict], python: str, used: set[str],
                 exclusions.append({"repo": repo, "commit": row["commit"], "reason": reason, **extra,
                                    **({"dev": True} if dev else {})})
                 continue
-            task = {**row, "id": f"r2-{repo}-{row['commit'][:12]}", "project": spec.get("project", repo),
+            task = {**row, "id": f"r2-{E.cache_key(repo)}-{row['commit'][:12]}", "project": spec.get("project", repo),
                     "url": spec.get("url"), "group": group, **({"dev": True} if dev else {})}
             try:
                 # validated, and later run and scored, with these (#415)
