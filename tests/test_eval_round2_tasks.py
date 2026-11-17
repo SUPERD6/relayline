@@ -197,6 +197,7 @@ def test_cli_select_reports_dev_and_downstream_includes_dev(tmp_path, monkeypatc
     _dev_setup(monkeypatch, {"r1": [_row("a", t, 80), _row("c", t - 1, 160), _row("d", t - 2, 80)]},
                b_dev=2, c_dev=1, b_cap=6, c_cap=4)
     monkeypatch.setattr(R, "_validate", lambda *a: {"valid": True})
+    monkeypatch.setattr(R, "installed_overlap", lambda *a, **k: None)  # no real --ext-python here (#415)
     monkeypatch.setattr(R, "corpus", lambda **k: {"repos": set()})
     (tmp_path / "cache").mkdir()
     (tmp_path / "repos.json").write_text(json.dumps({"kept": [{"repo": "r1"}]}), encoding="utf-8")
