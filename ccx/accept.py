@@ -151,9 +151,11 @@ def branch_landed(root: Path, it: dict) -> bool:
     that is already in does not hide its run's branch. When that ref does not exist, the worktree's commit is trusted
     only while the worktree is on a ccx/* branch; detached or on another branch, the answer is "not landed", as before
     #402 (the run's real branch is not known then).
-    Limits: only ancestry counts, so work landed by squash or cherry-pick reads as not landed; uncommitted changes
-    in the worktree are not looked at. With the worktree gone only the noted name is left: a resumed piece that noted
-    no branch then reads as not landed, and commits made only on a detached worktree are not seen."""
+    #413: a ref that is not an ancestor still counts when its changes are already there (landed by squash,
+    cherry-pick or rebase), see _content_in.
+    Limits: uncommitted changes in the worktree are not looked at. With the worktree gone only the noted name is left:
+    a resumed piece that noted no branch then reads as not landed, and commits made only on a detached worktree are
+    not seen."""
     noted = it.get("branch")
     branch = noted if noted and noted != "HEAD" else f"ccx/{it.get('run')}"   # #384: `HEAD` is always an ancestor
     wt = it.get("worktree")
@@ -165,7 +167,9 @@ def branch_landed(root: Path, it: dict) -> bool:
             rc, out = autonomy._git(Path(wt), "rev-parse", "--verify", "-q", "HEAD^{commit}")
             head = out if rc == 0 and out else None
     if head is None:
-        return autonomy._git(root, "merge-base", "--is-ancestor", branch, "HEAD")[0] == 0
+        if autonomy._git(root, "rev-parse", "--verify", "-q", f"{branch}^{{commit}}")[0] != 0:
+            return False
+        return _in_head(root, branch, {})
     refs = [head]
     if autonomy._git(root, "rev-parse", "--verify", "-q", f"refs/heads/{branch}")[0] == 0:
         refs.append(branch)
@@ -173,7 +177,42 @@ def branch_landed(root: Path, it: dict) -> bool:
         rc, cur = autonomy._git(Path(wt), "symbolic-ref", "--short", "-q", "HEAD")
         if rc != 0 or not cur.startswith("ccx/"):   # #402 review: moved off its run's branch, which we cannot name
             return False
-    return all(autonomy._git(root, "merge-base", "--is-ancestor", r, "HEAD")[0] == 0 for r in refs)
+    seen: dict = {}
+    return all(_in_head(root, r, seen) for r in refs)
+
+
+def _in_head(root: Path, ref: str, seen: dict) -> bool:
+    """Is ref in what the project has checked out: an ancestor of HEAD, or (#413) its changes already there.
+    seen: shared by the calls of one branch_landed, so HEAD's tree is read once."""
+    return autonomy._git(root, "merge-base", "--is-ancestor", ref, "HEAD")[0] == 0 or _content_in(root, ref, seen)
+
+
+def _content_in(root: Path, ref: str, seen: dict | None = None) -> bool:
+    """#413: are the changes of ref (not an ancestor of HEAD) already in HEAD, landed by squash, cherry-pick or rebase?
+
+    1. `git merge-tree --write-tree HEAD ref` (git 2.38+) merges ref into HEAD. A clean merge decides alone: landed
+       when the result is HEAD's own tree (this sees a squash, many commits landed as one, as well as a cherry-pick
+       and a rebase); not landed otherwise (part of it missing, or its landing reverted: the patches are still in the
+       history, so `git cherry` would wrongly say landed; #420 review).
+    2. Only when that merge conflicts (the files changed again since) or merge-tree cannot run (an older git):
+       `git cherry HEAD ref`, landed when every commit of ref not in HEAD has an equal patch (same patch-id) in HEAD
+       since the fork. This still sees a cherry-pick or rebase after later edits to the same files, but not a squash
+       (one patch for many).
+    Limits: a squash whose files changed again so that the merge conflicts reads as not landed (the conservative
+    side: accept then merges again, as before #413). A landing that was reverted and whose files then changed so that
+    the merge conflicts reads as landed (git cherry only sees patches). With a git older than 2.38 only test 2 runs:
+    a squash is not seen and a reverted cherry-pick reads as landed. Test 1 writes the merged tree into the object
+    store (unreferenced, gc removes it); nothing in the work tree, index or refs changes."""
+    seen = {} if seen is None else seen
+    rc, out = autonomy._git(root, "merge-tree", "--write-tree", "HEAD", ref)
+    if rc == 0 and out:
+        if "tree" not in seen:
+            rc2, own = autonomy._git(root, "rev-parse", "HEAD^{tree}")
+            seen["tree"] = own if rc2 == 0 and own else None
+        return seen["tree"] is not None and out.splitlines()[0].strip() == seen["tree"]
+    rc, out = autonomy._git(root, "cherry", "HEAD", ref)
+    lines = [x for x in out.splitlines() if x.strip()] if rc == 0 else []
+    return bool(lines) and all(x.startswith("-") for x in lines)
 
 
 def accepted_unmerged(root: Path, q: dict) -> list[str]:
