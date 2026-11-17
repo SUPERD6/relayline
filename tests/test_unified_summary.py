@@ -230,6 +230,11 @@ def test_p4_dispatch_block_for_round2_cheapfirst2_arm():
     assert f"{arm} dispatch" in text and "escalation_usd" in text
     missing = U.p4([p4_row("self", 1, 1), p4_row(arm, None, None)], "synthetic", ("self", arm))
     assert missing["all"]["arms"][arm]["dispatch"]["stop_reason"] == "dispatch_evidence_unknown"
+    no_cost = [{"dispatch": {"cheap_first": True, "attempted": 1, "escalated": 1,
+                             "first_usd": .1, "escalation_usd": None}}]
+    cost = U.p4([p4_row("self", 1, 1), p4_row(arm, 1, 1, side_ledger=no_cost, dispatch_observed=True)],
+                "synthetic", ("self", arm))["all"]["arms"][arm]["dispatch"]
+    assert cost["escalation_usd"] is None and cost["stop_reason"] == "dispatch_cost_unknown"
 
 
 def test_p4_default_input_matches_existing_parser():

@@ -31,7 +31,9 @@ first_usd, escalation_usd, status, plus stop_reason) to each cheap-first arm in
 dispatch_eval.ARMS: ccxcheapfirst (round 1; stop_reason includes its 30% escalation
 stop) and ccxcheapfirst2 (round 2, issue #370; no escalation-rate stop, as the
 pre-registration runs it with --max-escalation-rate none, so stop_reason only reports
-missing dispatch evidence or cost).
+missing dispatch evidence or cost). stop_reason is recomputed afterwards with the 30% default
+(not the run's own --max-escalation-rate) and always counts missing evidence or cost, so it
+can name a reason the run itself did not stop on (e.g. under --max-invalid-rows).
 
 Strength pairs also report effect_rate = (b - c) / n_pairs (null when n_pairs is 0).
 
