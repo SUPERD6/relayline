@@ -24,8 +24,12 @@ What is measured and what is not:
   wall.call       measured: `ccx` tool_use to its tool_result in the lead stream. It contains startup + agent + check +
       review; with ledger rows the agent's own `seconds` are subtracted, and the remainder is reported as one combined
       bound (startup + check + review + ccx bookkeeping).
-  wall.startup    measured when the runs' ledger rows (or side_ledger entries) carry `startup_seconds` (#392: CLI launch
-      to its first event, summed over attempts); then wall.agent is the run's `seconds` minus it (`startup_subtracted`).
+  wall.startup    measured when the runs' ledger rows (or side_ledger entries) carry `startup_seconds` (#392: CLI process
+      launch to its first stdout line, summed over attempts). That line is usually the CLI's start event (Claude's
+      system init, Codex's thread.started), so this is process start-up without the first model request's latency; a
+      non-JSON warning line printed first also counts. Then a unit's wall.agent is the runs' `seconds` minus it
+      (`startup_subtracted`); a summary over units where startup is known in only some keeps startup in every unit's
+      agent wall (`startup_known_units`, `note`), so one median never mixes the two.
   wall.check_review  measured when the rows carry `check_timing` (#392: every check's start and seconds, passed ones
       too) and, for a reviewed run, `review_timing`: per run the union of those intervals, so a background review
       that overlapped the check counts once. A background review dropped because its check failed is not in it.
@@ -246,6 +250,7 @@ def unit(row, events, why_no_stream, ledger_by_id, weights=None):
                           else "a run of this unit is missing from the ledger or has no seconds" if agent_s is None
                           else "startup_seconds exceed the run's seconds (data anomaly)")
     wall["agent"]["startup_subtracted"] = agent_s is not None and startup_s is not None
+    wall["agent"]["with_startup"] = agent_s          # the runs' own seconds, startup included (for mixed summaries)
     wall["check_review"] = known(check_review_wall(agent_ents, ledger_by_id),
                                  "a run has no check_timing (a row written before #392, or no --ledger rows)")
     resid = call_total - agent_s if call_total is not None and agent_s is not None else None
@@ -315,17 +320,33 @@ def summarize(units):
         names = list(ITEMS) + (["lead_other", "check_review_review", "check_review_lead_allocated"] if kind == "cost"
                                else ["call", "startup_check_review_combined"])
         block = {}
+        # wall.agent: startup is taken out only where it is known (#392 rows). With some units of each kind, every
+        # unit's agent wall keeps its startup, so one median/sum never mixes the two; how many could be is reported
+        sub = sum(1 for u in units if u["wall"]["agent"].get("startup_subtracted"))
+        mixed = kind == "wall" and 0 < sub < len(units)
         for name in names:
-            vals = [u[kind][name]["value"] for u in units if name in u[kind] and u[kind][name]["value"] is not None]
+            if mixed and name == "agent":
+                vals = [u["wall"]["agent"]["with_startup"] for u in units
+                        if u["wall"]["agent"].get("with_startup") is not None]
+            else:
+                vals = [u[kind][name]["value"] for u in units
+                        if name in u[kind] and u[kind][name]["value"] is not None]
             whys = sorted({u[kind][name]["unknown"] for u in units if name in u[kind]
                            and u[kind][name]["value"] is None})
             block[name] = {**stats(vals), "unknown_units": len(units) - len(vals), "unknown_reasons": whys}
+            if kind == "wall" and name == "agent":
+                block[name].update(startup_subtracted_units=0 if mixed else sub,
+                                   startup_known_units=sub,
+                                   note=("startup known in only some units: agent wall includes startup in every "
+                                         "unit" if mixed else None))
         if kind == "wall":
             gaps = [g for u in units for g in u["wall"]["brief"]["gaps_s"]]
             block["brief_per_delegation_known"] = stats(gaps)
         # shares over the items known for every unit, summed per unit (so the shares add to 100%)
         full = [n for n in names if n in ITEMS or n == "lead_other"]
         usable = [n for n in full if all(u[kind].get(n, {}).get("value") is not None for u in units) and units]
+        if mixed and "agent" in usable:                 # agent wall includes startup there: both would count it
+            usable = [n for n in usable if n != "startup"]
         den = sum(block[n]["sum"] for n in usable) if usable else 0
         enough = len(usable) >= 2 and den > 0     # one known item would show 100%: no share without a comparison
         block["_shares"] = {"over": usable, "left_out_unknown": [n for n in full if n not in usable],
@@ -384,6 +405,9 @@ def report(result):
                                 else " (part allocated)" if kind == "cost" and name == "check_review" else "")
                 lines.append(f"  {label:32} median {med:>9}  n={b['n']}  share "
                              f"{'-' if share is None else f'{share:.0%}'}{why}")
+            if kind == "wall" and s[kind]["agent"].get("note"):
+                lines.append(f"  agent: {s[kind]['agent']['note']} "
+                             f"({s[kind]['agent']['startup_known_units']} unit(s) have startup)")
             if kind == "wall":
                 g = s[kind]["brief_per_delegation_known"]
                 lines.append(f"  brief, per delegation message with a known start: median {fmt(g['median'])}, n={g['n']}")

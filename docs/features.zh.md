@@ -319,8 +319,10 @@ API 等价美元。原有美元字段和 API 模式建议文案保留。
 ### 交接计时（#392）
 
 为了能量出交接开销，run.json 和账本还记几个时间。时刻用墙钟，UTC ISO 8601；耗时用单调钟算，改系统时间不影响。
-每次尝试记 `started_at`（CLI 进程启动）、`first_event_at`（收到第一个事件）和 `startup_seconds`（两者之差；
-没收到事件时为 `null`）。每次尝试上的每条检查记 `check_started_at` 和 `check_seconds`，通过的也记（以前只有
+每次尝试记 `started_at`（CLI 进程启动）、`first_event_at`（收到 stdout 第一行）和 `startup_seconds`（两者之差；
+没收到任何一行时为 `null`）。第一行通常是 CLI 自己的启动事件（Claude 的 `system` init、Codex 的
+`thread.started`），所以 `startup_seconds` 量的是进程启动，不含第一次模型请求的延迟；先打出的非 JSON 警告行
+也算第一个事件。每次尝试上的每条检查记 `check_started_at` 和 `check_seconds`，通过的也记（以前只有
 失败的检查有 `check_seconds`）。记下的审查加 `started_at`、`ended_at`、`seconds` 和 `background`（是否和检查
 同时跑）。账本行把它们汇总成 `startup_seconds`、`check_seconds`，在 `check_timing` 里列出每条检查，并带上
 `review_timing`。`scripts/eval/handover_overhead.py` 用这些算启动和检查/审查的墙钟；之前写的行没有这些字段，

@@ -230,3 +230,18 @@ def test_script_old_rows_stay_unknown():
     assert u["wall"]["agent"]["value"] == 120.0 and not u["wall"]["agent"]["startup_subtracted"]
     text = H.report(H.analyze([unit_row()], None, led))
     assert "Unknown" in text
+
+
+def test_summary_does_not_mix_agent_wall_with_and_without_startup():
+    new = {**unit_row(), "task": "new"}
+    old = {**unit_row(), "task": "old", "side_ledger": [{"run_id": "c", "label": "", "ae_usd": 0.5}]}
+    led = [{"run_id": "a", "seconds": 100.0, "startup_seconds": 10.0, "check_timing": []},
+           {"run_id": "b", "seconds": 5.0}, {"run_id": "c", "seconds": 60.0}]
+    res = H.analyze([new, old], None, led)
+    assert res["per_unit"][0]["wall"]["agent"]["value"] == 90.0          # per unit: startup taken out where known
+    agent = res["all"]["wall"]["agent"]
+    assert agent["sum"] == 160.0                                          # summary: startup kept in both units
+    assert agent["startup_subtracted_units"] == 0 and agent["startup_known_units"] == 1 and agent["note"]
+    assert "unit(s) have startup" in H.report(res)
+    only_new = H.analyze([new], None, led)["all"]["wall"]["agent"]
+    assert only_new["sum"] == 90.0 and only_new["startup_subtracted_units"] == 1 and only_new["note"] is None

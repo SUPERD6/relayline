@@ -525,8 +525,10 @@ choice; the original dollar fields and API-mode advice are retained.
 
 So the cost of handing work over can be measured, run.json and the ledger also keep a few times. Wall-clock moments
 are UTC ISO 8601; durations come from a monotonic clock, so a clock change does not move them. Each attempt records
-`started_at` (the CLI process started), `first_event_at` (its first event arrived) and `startup_seconds` (the gap;
-`null` when no event came). Every check on an attempt records `check_started_at` and `check_seconds`, passed ones
+`started_at` (the CLI process started), `first_event_at` (its first stdout line arrived) and `startup_seconds` (the
+gap; `null` when no line came). That first line is usually the CLI's own start event (Claude's `system` init, Codex's
+`thread.started`), so `startup_seconds` is process start-up and does not include the first model request's latency;
+a non-JSON warning line printed first counts as the first event too. Every check on an attempt records `check_started_at` and `check_seconds`, passed ones
 too (before, only a failed check kept `check_seconds`). A recorded review gets `started_at`, `ended_at`, `seconds`
 and `background` (it ran beside the check). The ledger row sums them as `startup_seconds` and `check_seconds`, lists
 each check in `check_timing` and copies `review_timing`. `scripts/eval/handover_overhead.py` uses these for the

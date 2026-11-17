@@ -114,6 +114,26 @@ def attempt_reason(i: int, att: list[dict]) -> str:
     return f"climb after {kind}"
 
 
+def early_checks(rec: dict) -> list[tuple[dict, float]]:
+    """(attempt, seconds) of the checks a run's attempts kept besides its final check (record["check"]).
+
+    Before #392 an attempt kept check_seconds only for a failed check that climbed (and, with a check baseline, the
+    last attempt also for the final check). Since #392 every check is on its attempt, the final one too: the last
+    attempt's check is record["check"] (the same run, or the same object reused), so it is left out here whenever a
+    final check with seconds exists and that attempt has check_started_at (#392) or did not fail its check."""
+    att = rec.get("attempts") or []
+    final = (rec.get("check") or {}).get("seconds")
+    out = []
+    for i, a in enumerate(att):
+        if not a.get("check_seconds"):
+            continue
+        if i == len(att) - 1 and final and ("check_started_at" in a
+                                            or a.get("kind") not in ("check_failed", "check_unverified")):
+            continue                                   # that is the final check, counted from record["check"]
+        out.append((a, float(a["check_seconds"])))
+    return out
+
+
 def run_parts(hub: Path, run_ids: list) -> tuple[dict, int]:
     """Role/reason parts of a unit's ccx runs (reviews found through a run's review link too); and how many run
     records could not be read."""
@@ -137,14 +157,16 @@ def run_parts(hub: Path, run_ids: list) -> tuple[dict, int]:
                 _add(parts, "review", "review", a.get("seconds"), a.get("ae_usd"), _tok(a.get("usage")))
             continue
         fix = bool(rec.get("review_of"))
+        early = {id(a): s for a, s in early_checks(rec)}
         for i, a in enumerate(att):
             role = "fix" if fix else "sub"
             reason = "fix round after a review" if fix else \
                 ("sent back by the lead (resume)" if i == 0 and rec.get("resumed_from") else attempt_reason(i, att))
             _add(parts, role, reason, a.get("seconds"), a.get("ae_usd"), _tok(a.get("usage")))
-            if a.get("check_seconds"):
-                _add(parts, "fix" if fix else "check", "check of a fix round" if fix else "failed rung's check",
-                     a["check_seconds"], 0, 0)
+            if id(a) in early:
+                _add(parts, "fix" if fix else "check", "check of a fix round" if fix else
+                     "failed rung's check" if a.get("kind") == "check_failed" else "earlier rung's check",
+                     early[id(a)], 0, 0)
         final = (rec.get("check") or {}).get("seconds")
         if final:
             _add(parts, "fix" if fix else "check", "check of a fix round" if fix else "final check", final, 0, 0)

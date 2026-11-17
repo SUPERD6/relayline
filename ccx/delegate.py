@@ -185,6 +185,9 @@ def _timed_review(req: Request, p: Paths, cfg: dict, record: dict, cwd: Path, ru
     except Exception as e:  # noqa: BLE001 — a review that can't run never fails the work itself
         record["review"] = {"verdict": "not-run", "error": f"{type(e).__name__}: {e}"[:200]}
     rv = record.get("review")
+    # identity, not equality: review_run (and review_tests.run_review) always assign a new dict to record["review"]
+    # when they record a review, so the same object as before means no review was recorded this time. If one ever
+    # updates record["review"] in place instead, this check must change (it would then leave that review untimed)
     if isinstance(rv, dict) and rv is not before:      # no review due (nothing recorded): nothing to time
         rv.update(started_at=started, ended_at=wall_now(), seconds=round(time.perf_counter() - t0, 3),
                   background=background)

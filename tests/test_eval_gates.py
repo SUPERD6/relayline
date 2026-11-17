@@ -231,6 +231,21 @@ def test_timeline_splits_a_unit_by_role_and_reason(tmp_path):
     assert s["ccx2"]["parts"]["lead"]["model"]["s_med"] == 30.0 and any("ccx2" in x for x in TL.lines(s))
 
 
+def test_timeline_counts_a_392_final_check_once(tmp_path):
+    """#392: the last attempt also carries the final check (record["check"]): one "final check", no early copy."""
+    hub = tmp_path / "h"
+    t = "2026-11-17T10:00:00+00:00"
+    _rec(hub, "r1", attempts=[{"seconds": 40, "kind": "check_unverified", "rung": 1, "check_started_at": t,
+                               "check_seconds": 6.0},
+                              {"seconds": 30, "kind": None, "rung": 2, "check_started_at": t, "check_seconds": 10.0}],
+         check={"seconds": 10.0, "passed": True})
+    parts, _ = TL.run_parts(hub, ["r1"])
+    assert parts["check"]["final check"]["s"] == 10.0
+    assert parts["check"]["earlier rung's check"]["s"] == 6.0
+    assert "failed rung's check" not in parts["check"]
+    assert sum(v["s"] for v in parts["check"].values()) == 16.0
+
+
 def test_timeline_reaches_rows_and_its_summary_reads_them(tmp_path, monkeypatch, capsys):
     hub = tmp_path / "h"
     _rec(hub, "r1", attempts=[{"seconds": 5, "ae_usd": 0.02}])

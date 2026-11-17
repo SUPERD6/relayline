@@ -157,7 +157,9 @@ class Outcome:
     permission_denials: int | None = None   # tool calls the CLI refused (Claude's result event); None: not reported
     stalled: bool = False       # kind "timeout" because no stdout line came for stall_sec (run.stall_minutes)
     # #392 timing (None: the process never started, or no stdout line came): when the CLI process started and when
-    # its first event (stdout line) arrived, wall clock (UTC ISO 8601); startup_seconds is the gap on a monotonic clock
+    # its first stdout line arrived, wall clock (UTC ISO 8601); startup_seconds is the gap on a monotonic clock. That
+    # line is usually the CLI's start event (Claude's system init, Codex's thread.started): process start-up, not the
+    # first model request's latency; a non-JSON warning line printed first counts as well
     started_at: str | None = None
     first_event_at: str | None = None
     startup_seconds: float | None = None
