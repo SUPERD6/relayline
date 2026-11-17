@@ -62,7 +62,7 @@ ccx run --project <名字> --minutes <n> --tradeoff save --review on --check "CM
 | L1（默认） | 只读任务（`--mode read`，如审分工草案）、审查、已同意任务的改一轮、归档 | 可能改文件的任务：一句话说 `plan`；同意后加 `--approved` |
 | L2 | 读写都直接派；带 `--worktree --check "CMD" --review on` 时由 ccx 自己合并分支（见下） | ccx 拒绝合并的：报告分支和 `autonomy.merge.why_not`，用户说合才合 |
 
-L2 自动合并（ccx 全部检查；`ccx autonomy merge <run_id>` 只检查不合并）：用户允许了这个项目合并；运行正常结束；`--check` 通过且没被标成弱；独立审查 pass；改动最多 `max_lines` 行、`max_files` 个文件（默认 80 / 5）；项目没有审批规则；风险不是 visible / critical；项目当前分支不是受保护分支（`main`、`master`、`trunk`、`release/*` 和远端默认分支）。只在本机合进项目当前所在的分支；推送和任何进主分支的 PR 仍由用户决定。撤回：看返回里的 `undo` 那一行。
+L2 自动合并（ccx 全部检查；`ccx autonomy merge <run_id>` 只检查不合并）：用户允许了这个项目合并；运行正常结束；`--check` 通过且没被标成弱；独立审查 pass；改动最多 `max_lines` 行、`max_files` 个文件（默认 80 / 5）；项目没有审批规则；风险不是 visible / critical；项目当前分支不是受保护分支（`main`、`master`、`trunk`、`release/*` 和远端默认分支）。只在本机合进项目当前所在的分支；推送和任何进主分支的 PR 仍由用户决定。撤回：看返回里的 `undo` 那一行。续跑过的运行合的是最初那次运行的分支（`ccx/<最初 run_id>`，续跑沿用它的 worktree）；worktree 被切到别的分支时拒绝合并。
 
 `ccx batch` 和 `ccx q run` 不读档位：L0、L1 下要用户同意了那份计划才启动。
 

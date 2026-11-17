@@ -187,8 +187,8 @@ def _numstat(wt: Path, base: str) -> tuple[int, list[str]]:
 
 def merge(p: Paths, run_id: str, info: dict, cfg: dict | None = None, rules: list | None = None,
           apply: bool = False) -> dict:
-    """L2: merge run `run_id`'s worktree branch (ccx/<run_id>) into the branch the project is on, if every
-    condition holds. Dry run unless apply. Any condition that fails is listed and nothing is merged."""
+    """L2: merge run `run_id`'s worktree branch (ccx/<run_id>; ccx/<first run_id> for a resume, #374) into the
+    branch the project is on, if every condition holds. Dry run unless apply. Any condition that fails is listed and nothing is merged."""
     from .workspace import worktree_repo
     cfg = cfg if cfg is not None else load_config(p)
     st = settings(cfg)
@@ -225,6 +225,11 @@ def merge(p: Paths, run_id: str, info: dict, cfg: dict | None = None, rules: lis
         return {**out, "can_merge": False, "why_not": no}
     rc, target = _git(repo, "symbolic-ref", "--short", "HEAD")
     target = target if rc == 0 else ""
+    found, why = run_branch(p, rec, wt)   # #374: a resumed run's branch is the first run's
+    if found:
+        branch = out["branch"] = found
+    else:
+        no.append(why)
     out.update(repo=str(repo), into=target)
     if not target:
         no.append("the project is not on a branch")
@@ -302,6 +307,32 @@ def upstream_start(p: Paths, rec: dict, hops: int = 20) -> dict | None:
             return {"unknown": f"the record of run {parent}, which it resumed, cannot be read ({type(e).__name__})"}
         if not isinstance(rec, dict):
             return {"unknown": f"the record of run {parent}, which it resumed, cannot be read (not an object)"}
+
+
+def run_branch(p: Paths, rec: dict, wt: Path, hops: int = 20) -> tuple[str | None, str | None]:
+    """#374: the branch run `rec` worked on -> (branch, None), or (None, why not). A resume works in the worktree of
+    the run it resumed, so a resumed run's branch is ccx/<first run_id>, not ccx/<its own>. The worktree's checked-out
+    branch is what its changes get committed to; it must be ccx/<id> of this run or of a run up its resume chain,
+    else (detached, or moved to another branch) nothing is merged."""
+    rc, cur = _git(wt, "symbolic-ref", "--short", "-q", "HEAD")
+    if rc != 0 or not cur:
+        return None, "the worktree is not on a branch (detached HEAD): the person merges it"
+    ids, seen = [rec.get("run_id")], set()
+    while rec.get("resumed_from") and len(seen) <= hops:
+        seen.add(rec.get("run_id"))
+        parent = rec["resumed_from"]
+        if parent in seen:
+            break
+        ids.append(parent)
+        try:
+            rec = ledger.load_run(p, parent)
+        except (OSError, ValueError):
+            break
+        if not isinstance(rec, dict):
+            break
+    if cur in {f"ccx/{i}" for i in ids if i}:
+        return cur, None
+    return None, f"the worktree is on {cur}, not ccx/{ids[-1]} (this run's branch): the person merges it"
 
 
 def unknown_start(start: dict) -> str:
