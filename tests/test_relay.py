@@ -206,6 +206,34 @@ class TestRelay(Env):
         self.assertEqual((self.git("diff", "--cached"), self.git("diff")), (staged, diff))
         self.assertEqual(self.ccx(*args, "--launch").returncode, 3)  # no duplicate writer
 
+    def test_timestamps_utc_fixed_format_and_old_records_still_read(self):
+        import re
+        from ccx import relay_state
+        fixed = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$")
+        self.enable()
+        before = relay_state.utc_now()
+        packet = self.capture()
+        path = self.work / ".ccx" / "relay" / (packet + ".json")
+        data = json.loads(path.read_text(encoding="utf-8"))
+        self.assertRegex(data["captured_at"], fixed)
+        captured_at = data["captured_at"]
+        # An old packet has no time field: it must still load and prepare a continuation.
+        del data["captured_at"]
+        path.write_text(json.dumps(data), encoding="utf-8")
+        self.assertNotIn("captured_at", relay_state.load_packet(self.work.resolve(), packet)[1])
+        r = self.ccx("relay", "continue", packet, "--to", "codex", "--budget-seconds", "30", "--old-stopped")
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        r = self.ccx("relay", "continue", packet, "--to", "codex", "--budget-seconds", "30", "--old-stopped",
+                     "--launch")
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        saved = json.loads(Path(json.loads(r.stdout)["record"]).read_text(encoding="utf-8"))
+        self.assertRegex(saved["started_at"], fixed)
+        after = relay_state.utc_now()
+        # Fixed-width UTC strings compare in time order; this locks real UTC, not local time.
+        self.assertLessEqual(before, captured_at)
+        self.assertLessEqual(captured_at, saved["started_at"])
+        self.assertLessEqual(saved["started_at"], after)
+
     def test_midprocess_death_preserves_partial_work_and_can_recapture(self):
         self.enable()
         packet = self.capture(source="codex")

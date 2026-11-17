@@ -136,7 +136,7 @@ def _launch(cwd, packet_id, target, budget, path, packet, current, prompt, argv,
     with os.fdopen(fd, "w", encoding="utf-8") as f:
         f.write(json.dumps({"supervisor_pid": os.getpid(), "to": target}))
     run_path = path.with_name(packet_id + ".continue-" + uuid.uuid4().hex + ".json")
-    out.update(state="starting", old_writer_stopped=True)
+    out.update(state="starting", old_writer_stopped=True, started_at=state.utc_now())
     state.atomic_json(run_path, out)
     env = without_launcher_vars(os.environ)
     for key in ("CLAUDECODE", "CLAUDE_CODE_ENTRYPOINT", "CCX_DEPTH", "CCX_PARENT_RUN"):
