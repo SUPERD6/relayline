@@ -3,6 +3,7 @@ conflicts and rollbacks; `--dep 1`; the compact `ccx q ls`; `ccx q done` of seve
 import json
 import subprocess
 import sys
+from pathlib import Path
 
 from ccx import queue as wq
 from ccx.config import Paths
@@ -293,6 +294,168 @@ class TestAccept(AcceptEnv):
         out = self.accept(q1, code=2)
         self.assertIn("cannot tell where this run started", out["refused"][0]["why"])
         self.assertIn("20261029-gone", out["refused"][0]["why"])
+        self.assertEqual(git(self.work, "rev-parse", "HEAD"), before)
+
+
+class TestAcceptBranch(AcceptEnv):
+    """#384: accept merges the branch the piece's worktree has checked out, only when it is ccx/<id> of its run or of
+    a run up its resume chain (autonomy.run_branch, #374), never the name the queue noted when the run ended."""
+
+    def item(self, q):
+        return wq.load(self.work)["items"][q]
+
+    def resume(self, q, branch="keep"):
+        """The piece was resumed: run <first>-r2 (resumed_from the first) worked on in the same worktree and
+        committed r.txt there; the item now names that run. branch: what the queue noted ("keep" = unchanged)."""
+        it = self.item(q)
+        first = self.rec(it["run"])
+        r2 = f"{it['run']}-r2"
+        (Path(it["worktree"]) / "r.txt").write_text("r\n", encoding="utf-8")
+        git(it["worktree"], "add", "-A")
+        git(it["worktree"], "commit", "-qm", f"ccx run {r2}")
+        d = self.hub / "ccx" / "runs" / r2
+        d.mkdir(parents=True)
+        own = {k: v for k, v in first.items() if k not in ("worktree_base", "base_sha", "base_ref")}  # a resume
+        (d / "run.json").write_text(json.dumps({**own, "run_id": r2, "resumed_from": it["run"]}),  # records none
+                                    encoding="utf-8")
+        fields = {"run": r2} if branch == "keep" else {"run": r2, "branch": branch}
+        wq.update(self.work, q, **fields)
+        return r2
+
+    def first(self, q):
+        """The run whose branch the piece's worktree should be on (as the queue noted it, else the item's run)."""
+        noted = self.item(q).get("branch") or ""
+        return noted[4:] if noted.startswith("ccx/") else self.item(q)["run"]
+
+    def assert_refused(self, q, words):
+        before = git(self.work, "rev-parse", "HEAD")
+        out = self.accept(q, code=2)
+        self.assertEqual(out["accepted"], [])
+        why = out["refused"][0]["why"]
+        self.assertIn(words, why)
+        self.assertNotIn("the person merges it", why)                          # autonomy's wording, not here
+        self.assertIn(f"switch ccx/{self.first(q)}`) and accept again", why)  # what to do instead
+        self.assertIn(f"`ccx q done {q} --ok 1`", why)
+        self.assertEqual(git(self.work, "rev-parse", "HEAD"), before)          # nothing merged
+        self.assertIsNone(self.item(q).get("verdict"))
+        self.assertFalse(self.item(q).get("merged"))
+        self.assertEqual(self.ledger_rows("q_accept"), [])
+        return out
+
+    def test_a_detached_worktree_noted_as_HEAD_is_refused_not_merged_into_itself(self):
+        self.repo()
+        q1 = self.piece("one", {"a.txt": "a\n"})
+        git(self.item(q1)["worktree"], "checkout", "-q", "--detach")
+        wq.update(self.work, q1, branch="HEAD")             # what `git rev-parse --abbrev-ref HEAD` noted
+        self.assert_refused(q1, "detached HEAD")
+        self.assertEqual(self.accept(q1, "--dry-run", code=2).get("plan", []), [])
+
+    def test_a_piece_noted_as_HEAD_with_a_verdict_is_not_taken_for_landed(self):
+        self.repo()
+        q1 = self.piece("one", {"a.txt": "a\n"})
+        wq.update(self.work, q1, branch="HEAD", verdict=True)
+        out = self.accept("--all-ready")                    # its worktree is on ccx/<run>: that branch lands
+        self.assertEqual([x["id"] for x in out["accepted"]], [q1])
+        self.assertTrue((self.work / "a.txt").exists())
+
+    def test_a_worktree_moved_to_another_branch_is_refused(self):
+        self.repo()
+        q1 = self.piece("one", {"a.txt": "a\n"})
+        wt = self.item(q1)["worktree"]
+        git(wt, "checkout", "-q", "-b", "elsewhere")
+        (Path(wt) / "x.txt").write_text("x\n", encoding="utf-8")   # left uncommitted
+        self.assert_refused(q1, "the worktree is on elsewhere")
+        self.assertEqual(git(wt, "status", "--porcelain"), "?? x.txt")        # not committed to elsewhere either
+        self.assertFalse((self.work / "a.txt").exists())
+
+    def test_a_resumed_piece_lands_the_first_runs_branch(self):
+        self.repo()
+        q1 = self.piece("one", {"a.txt": "a\n"})
+        first = self.item(q1)["run"]
+        self.resume(q1, branch=None)                        # the queue noted no branch: ccx/<r2> would not exist
+        dry = self.accept(q1, "--dry-run")
+        self.assertEqual(dry["plan"][0]["branch"], f"ccx/{first}")
+        out = self.accept(q1)
+        self.assertEqual([x["id"] for x in out["accepted"]], [q1])
+        self.assertTrue((self.work / "a.txt").exists() and (self.work / "r.txt").exists())
+        self.assertEqual(self.ledger_rows("q_accept")[0]["branch"], f"ccx/{first}")
+
+    def test_a_resumed_piece_whose_worktree_is_detached_is_refused(self):
+        self.repo()
+        q1 = self.piece("one", {"a.txt": "a\n"})
+        self.resume(q1)
+        git(self.item(q1)["worktree"], "checkout", "-q", "--detach")
+        self.assert_refused(q1, "detached HEAD")
+
+    def upstream(self):
+        remote = self.work.parent / "remote.git"
+        git(self.work.parent, "init", "-q", "--bare", str(remote))
+        git(self.work, "remote", "add", "origin", str(remote))
+        git(self.work, "push", "-qu", "origin", "work")
+
+    def test_an_upstream_based_piece_moved_to_another_branch_is_refused(self):
+        self.repo()
+        self.upstream()
+        q1 = self.piece("on upstream", {"a.txt": "a\n"}, base="upstream")
+        self.assertEqual(self.rec(self.item(q1)["run"]).get("worktree_base"), "upstream")
+        git(self.item(q1)["worktree"], "checkout", "-q", "-b", "elsewhere")
+        self.assert_refused(q1, "the worktree is on elsewhere")
+
+    def test_a_resumed_upstream_based_piece_lands_the_first_runs_branch(self):
+        self.repo()
+        self.upstream()
+        q1 = self.piece("on upstream", {"a.txt": "a\n"}, base="upstream")
+        first = self.item(q1)["run"]
+        self.resume(q1, branch=None)
+        out = self.accept(q1)
+        self.assertEqual([x["id"] for x in out["accepted"]], [q1])
+        self.assertEqual(self.ledger_rows("q_accept")[0]["branch"], f"ccx/{first}")
+        self.assertTrue((self.work / "r.txt").exists())
+
+    def test_a_warm_lane_piece_lands_on_the_lanes_first_branch(self):
+        """A warm lane's later piece is its own item whose run continues the lane's first run (resumed_from,
+        continued) in that run's worktree, so its branch is ccx/<lane's first run>."""
+        self.repo()
+        q1 = self.piece("lane first", {"a.txt": "a\n"})
+        lane = self.item(q1)
+        q2 = wq.add(self.work, "lane second", "lane second")["id"]
+        r2 = f"{lane['run']}-{q2}"
+        (Path(lane["worktree"]) / "b.txt").write_text("b\n", encoding="utf-8")
+        git(lane["worktree"], "add", "-A")
+        git(lane["worktree"], "commit", "-qm", f"ccx run {r2}: q:{q2} (ok)")
+        d = self.hub / "ccx" / "runs" / r2
+        d.mkdir(parents=True)
+        (d / "run.json").write_text(json.dumps({**self.rec(lane["run"]), "run_id": r2, "label": f"q:{q2}",
+                                                "resumed_from": lane["run"], "continued": True}), encoding="utf-8")
+        wq.update(self.work, q2, status="done", run=r2, agent="codex", worktree=lane["worktree"],
+                  branch=lane["branch"], verdict=None)                       # what _tree_fields notes for it
+        dry = self.accept(q2, "--dry-run")
+        self.assertEqual(dry["plan"][0]["branch"], f"ccx/{lane['run']}")
+        out = self.accept(q2)
+        self.assertEqual([x["id"] for x in out["accepted"]], [q2])
+        self.assertEqual(self.ledger_rows("q_accept")[0]["branch"], f"ccx/{lane['run']}")
+        self.assertTrue((self.work / "b.txt").exists())
+
+    def test_a_worktree_moved_after_the_checks_is_refused_with_what_waits_on_it(self):
+        """The worktree leaves its branch between why_not and the merge: no None branch reaches git merge."""
+        from unittest import mock
+        from ccx import accept as acc
+        from ccx.config import load_config
+        self.repo()
+        q1 = self.piece("one", {"a.txt": "a\n"})
+        q2 = self.piece("after one", {"b.txt": "b\n"}, deps=[q1])
+        git(self.item(q1)["worktree"], "checkout", "-q", "--detach")
+        p = Paths(self.hub)
+        before = git(self.work, "rev-parse", "HEAD")
+        with mock.patch.object(acc, "why_not", return_value=None), \
+                mock.patch.object(acc.autonomy, "merge_branch", side_effect=AssertionError("merged")):
+            for dry in (True, False):
+                out, code = acc.accept(p, load_config(p), self.work, [q1, q2], dry_run=dry)
+                self.assertEqual(code, 2)
+                why = {r["id"]: r["why"] for r in out["refused"]}
+                self.assertIn("detached HEAD", why[q1])
+                self.assertIn(f"waits on {q1}", why[q2])
+                self.assertFalse(out.get("plan") or out.get("accepted"))
         self.assertEqual(git(self.work, "rev-parse", "HEAD"), before)
 
 

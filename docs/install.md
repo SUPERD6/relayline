@@ -181,7 +181,8 @@ ccx q accept q1 q2 | --all-ready [--check CMD] [--dry-run]   # land worktree pie
                                       # unfinished / no_changes / unverified pieces and stops a piece at a conflict;
                                       # never pushes, never into main without --into-protected (the person's yes);
                                       # refuses a run you rejected (verify --ok 0); stops the batch when a rollback
-                                      # fails or the check leaves edits in tracked files
+                                      # fails or the check leaves edits in tracked files; merges the branch the
+                                      # worktree has checked out, refuses a detached / moved one (features.md, Safety)
 ccx route --files 3 --coupling cross ... [--lead claude:opus:high --ctx-files log.txt]  # recommendation; + self vs delegate
 ccx plan size --minutes 240 --rung codex:gpt-6.1-sol:medium # how many pieces for a big task (task-split)
 ccx show <run_id> [--full]            # compact result by default
