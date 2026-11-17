@@ -1,0 +1,6580 @@
+{
+  "models_called": false,
+  "brief_rule": "same id, same repository, same commit (or earlier short SHA prefix), or normalized brief SequenceMatcher ratio >= 0.6; candidates above 0.4 listed",
+  "corpus": {
+    "files": 109,
+    "briefs": 204,
+    "ids": 254,
+    "repos": [
+      "boltons",
+      "exercism-python",
+      "humanize",
+      "itsdangerous",
+      "more-itertools",
+      "pluggy",
+      "polyglot",
+      "polyglot-benchmark",
+      "python"
+    ],
+    "errors": []
+  },
+  "brief_max_ratio": 0.5854,
+  "brief_clean": true,
+  "brief_tasks": [
+    {
+      "id": "r2a1-dev-01-ledger-totals",
+      "findings": [],
+      "listed_above_0.4": [
+        {
+          "source": "new",
+          "id": "r2a1-06-query-string",
+          "ratio": 0.4282
+        },
+        {
+          "source": "new",
+          "id": "r2a1-07-top-words",
+          "ratio": 0.4191
+        },
+        {
+          "source": "new",
+          "id": "r2a1-38-coordinates",
+          "ratio": 0.4142
+        },
+        {
+          "source": "new",
+          "id": "r2a1-31-cash-rounding",
+          "ratio": 0.4069
+        },
+        {
+          "source": "new",
+          "id": "r2a1-13-ticket-queue",
+          "ratio": 0.4059
+        },
+        {
+          "source": "new",
+          "id": "r2a2-43-competition-rank",
+          "ratio": 0.4012
+        }
+      ],
+      "clean": true
+    },
+    {
+      "id": "r2a1-dev-02-retry-schedule",
+      "findings": [],
+      "listed_above_0.4": [
+        {
+          "source": "new",
+          "id": "r2a2-43-competition-rank",
+          "ratio": 0.483
+        },
+        {
+          "source": "new",
+          "id": "r2a1-27-shard-pick",
+          "ratio": 0.4371
+        },
+        {
+          "source": "new",
+          "id": "r2a1-22-week-key",
+          "ratio": 0.4309
+        },
+        {
+          "source": "new",
+          "id": "r2a1-01-restock",
+          "ratio": 0.4293
+        },
+        {
+          "source": "new",
+          "id": "r2a1-39-deploy-target",
+          "ratio": 0.4167
+        },
+        {
+          "source": "new",
+          "id": "r2a1-08-duration-parse",
+          "ratio": 0.414
+        },
+        {
+          "source": "new",
+          "id": "r2a1-30-password-score",
+          "ratio": 0.4124
+        },
+        {
+          "source": "new",
+          "id": "r2a1-13-ticket-queue",
+          "ratio": 0.4064
+        },
+        {
+          "source": "new",
+          "id": "r2a2-23-status-colour",
+          "ratio": 0.4015
+        },
+        {
+          "source": "new",
+          "id": "r2a2-48-count-label",
+          "ratio": 0.4014
+        },
+        {
+          "source": "new",
+          "id": "r2a2-dev-04-csv-row",
+          "ratio": 0.4013
+        }
+      ],
+      "clean": true
+    },
+    {
+      "id": "r2a1-dev-03-tag-parse",
+      "findings": [],
+      "listed_above_0.4": [
+        {
+          "source": "new",
+          "id": "r2a1-45-quota-size",
+          "ratio": 0.5591
+        },
+        {
+          "source": "new",
+          "id": "r2a1-08-duration-parse",
+          "ratio": 0.5368
+        },
+        {
+          "source": "new",
+          "id": "r2a1-02-phone-format",
+          "ratio": 0.4828
+        },
+        {
+          "source": "new",
+          "id": "r2a2-40-sku-check",
+          "ratio": 0.4733
+        },
+        {
+          "source": "new",
+          "id": "r2a1-38-coordinates",
+          "ratio": 0.469
+        },
+        {
+          "source": "new",
+          "id": "r2a1-01-restock",
+          "ratio": 0.4663
+        },
+        {
+          "source": "new",
+          "id": "r2a1-14-version-compare",
+          "ratio": 0.4651
+        },
+        {
+          "source": "new",
+          "id": "r2a2-07-relative-change",
+          "ratio": 0.4651
+        },
+        {
+          "source": "new",
+          "id": "r2a1-32-key-values",
+          "ratio": 0.4643
+        },
+        {
+          "source": "new",
+          "id": "r2a2-02-utc-stamp",
+          "ratio": 0.4589
+        },
+        {
+          "source": "scripts/eval/l5_memory.py",
+          "id": "mem-json",
+          "ratio": 0.4483
+        },
+        {
+          "source": "scripts/eval/r3.py",
+          "id": null,
+          "ratio": 0.443
+        },
+        {
+          "source": "new",
+          "id": "r2a2-46-reading-time",
+          "ratio": 0.4416
+        },
+        {
+          "source": "scripts/eval/tasks_r2.py",
+          "id": "a",
+          "ratio": 0.4332
+        },
+        {
+          "source": "new",
+          "id": "r2a1-42-short-number",
+          "ratio": 0.4286
+        },
+        {
+          "source": "new",
+          "id": "r2a2-33-count-by",
+          "ratio": 0.4245
+        },
+        {
+          "source": "new",
+          "id": "r2a1-09-invoice-number",
+          "ratio": 0.4238
+        },
+        {
+          "source": "new",
+          "id": "r2a1-28-whitespace",
+          "ratio": 0.4237
+        },
+        {
+          "source": "new",
+          "id": "r2a2-24-wrap-lines",
+          "ratio": 0.4236
+        },
+        {
+          "source": "new",
+          "id": "r2a1-18-discount-codes",
+          "ratio": 0.4228
+        },
+        {
+          "source": "scripts/eval/tasks.py",
+          "id": "slugify",
+          "ratio": 0.4221
+        },
+        {
+          "source": "new",
+          "id": "r2a2-15-token-mask",
+          "ratio": 0.4145
+        },
+        {
+          "source": "new",
+          "id": "r2a1-34-comment-html",
+          "ratio": 0.4143
+        },
+        {
+          "source": "new",
+          "id": "r2a1-37-bill-split",
+          "ratio": 0.4109
+        },
+        {
+          "source": "new",
+          "id": "r2a2-25-ride-speed",
+          "ratio": 0.4098
+        },
+        {
+          "source": "scripts/eval/l5_memory.py",
+          "id": "mem-paths",
+          "ratio": 0.4096
+        },
+        {
+          "source": "new",
+          "id": "r2a1-n1-palindrome",
+          "ratio": 0.4073
+        },
+        {
+          "source": "new",
+          "id": "r2a2-dev-02-page-window",
+          "ratio": 0.407
+        }
+      ],
+      "clean": true
+    },
+    {
+      "id": "r2a1-dev-04-neutral-initials",
+      "findings": [],
+      "listed_above_0.4": [
+        {
+          "source": "scripts/eval/tasks_r2.py",
+          "id": "b",
+          "ratio": 0.4764
+        }
+      ],
+      "clean": true
+    },
+    {
+      "id": "r2a2-dev-01-env-flag",
+      "findings": [],
+      "listed_above_0.4": [
+        {
+          "source": "new",
+          "id": "r2a1-42-short-number",
+          "ratio": 0.4198
+        },
+        {
+          "source": "new",
+          "id": "r2a1-32-key-values",
+          "ratio": 0.4138
+        },
+        {
+          "source": "new",
+          "id": "r2a2-11-geo-point",
+          "ratio": 0.4016
+        }
+      ],
+      "clean": true
+    },
+    {
+      "id": "r2a2-dev-02-page-window",
+      "findings": [],
+      "listed_above_0.4": [
+        {
+          "source": "new",
+          "id": "r2a1-47-ticket-title",
+          "ratio": 0.4477
+        },
+        {
+          "source": "new",
+          "id": "r2a2-42-report-day",
+          "ratio": 0.4406
+        },
+        {
+          "source": "scripts/eval/tasks_r3.py",
+          "id": "search-api",
+          "ratio": 0.4375
+        },
+        {
+          "source": "new",
+          "id": "r2a2-20-phone-intl",
+          "ratio": 0.428
+        },
+        {
+          "source": "new",
+          "id": "r2a2-43-competition-rank",
+          "ratio": 0.4259
+        },
+        {
+          "source": "new",
+          "id": "r2a2-30-vat-line",
+          "ratio": 0.4191
+        },
+        {
+          "source": "new",
+          "id": "r2a1-29-cache-key",
+          "ratio": 0.418
+        },
+        {
+          "source": "scripts/eval/tasks_r2.py",
+          "id": "c",
+          "ratio": 0.4066
+        },
+        {
+          "source": "new",
+          "id": "r2a2-04-error-body",
+          "ratio": 0.4056
+        },
+        {
+          "source": "new",
+          "id": "r2a2-46-reading-time",
+          "ratio": 0.405
+        },
+        {
+          "source": "new",
+          "id": "r2a1-08-duration-parse",
+          "ratio": 0.4028
+        }
+      ],
+      "clean": true
+    },
+    {
+      "id": "r2a2-dev-03-file-size",
+      "findings": [],
+      "listed_above_0.4": [
+        {
+          "source": "new",
+          "id": "r2a2-38-duration-text",
+          "ratio": 0.5398
+        },
+        {
+          "source": "new",
+          "id": "r2a1-42-short-number",
+          "ratio": 0.4954
+        },
+        {
+          "source": "new",
+          "id": "r2a2-01-euro-amount",
+          "ratio": 0.4831
+        },
+        {
+          "source": "new",
+          "id": "r2a2-25-ride-speed",
+          "ratio": 0.4667
+        },
+        {
+          "source": "new",
+          "id": "r2a2-32-page-title",
+          "ratio": 0.4314
+        },
+        {
+          "source": "new",
+          "id": "r2a2-18-http-date",
+          "ratio": 0.4306
+        },
+        {
+          "source": "new",
+          "id": "r2a2-45-aspect-ratio",
+          "ratio": 0.4245
+        },
+        {
+          "source": "new",
+          "id": "r2a2-21-identifier-words",
+          "ratio": 0.4132
+        },
+        {
+          "source": "new",
+          "id": "r2a2-36-cache-names",
+          "ratio": 0.4074
+        },
+        {
+          "source": "new",
+          "id": "r2a1-35-booking-merge",
+          "ratio": 0.403
+        }
+      ],
+      "clean": true
+    },
+    {
+      "id": "r2a2-dev-04-csv-row",
+      "findings": [],
+      "listed_above_0.4": [
+        {
+          "source": "new",
+          "id": "r2a2-47-spreadsheet-cell",
+          "ratio": 0.5042
+        },
+        {
+          "source": "new",
+          "id": "r2a2-13-joined-list",
+          "ratio": 0.4904
+        },
+        {
+          "source": "new",
+          "id": "r2a2-33-count-by",
+          "ratio": 0.4474
+        },
+        {
+          "source": "new",
+          "id": "r2a1-06-query-string",
+          "ratio": 0.4429
+        },
+        {
+          "source": "new",
+          "id": "r2a1-43-index-groups",
+          "ratio": 0.4318
+        },
+        {
+          "source": "new",
+          "id": "r2a1-29-cache-key",
+          "ratio": 0.4311
+        },
+        {
+          "source": "new",
+          "id": "r2a1-24-hex-color",
+          "ratio": 0.4298
+        },
+        {
+          "source": "new",
+          "id": "r2a2-20-phone-intl",
+          "ratio": 0.428
+        },
+        {
+          "source": "new",
+          "id": "r2a1-42-short-number",
+          "ratio": 0.4255
+        },
+        {
+          "source": "new",
+          "id": "r2a1-21-name-split",
+          "ratio": 0.424
+        },
+        {
+          "source": "new",
+          "id": "r2a2-03-record-ids",
+          "ratio": 0.4234
+        },
+        {
+          "source": "new",
+          "id": "r2a1-44-quote-reply",
+          "ratio": 0.4223
+        },
+        {
+          "source": "new",
+          "id": "r2a1-40-log-line",
+          "ratio": 0.4211
+        },
+        {
+          "source": "new",
+          "id": "r2a1-37-bill-split",
+          "ratio": 0.4204
+        },
+        {
+          "source": "new",
+          "id": "r2a1-07-top-words",
+          "ratio": 0.417
+        },
+        {
+          "source": "new",
+          "id": "r2a2-06-data-lines",
+          "ratio": 0.4167
+        },
+        {
+          "source": "new",
+          "id": "r2a1-05-grade-bands",
+          "ratio": 0.4156
+        },
+        {
+          "source": "new",
+          "id": "r2a1-20-run-length",
+          "ratio": 0.4054
+        },
+        {
+          "source": "new",
+          "id": "r2a1-26-text-table",
+          "ratio": 0.4028
+        }
+      ],
+      "clean": true
+    },
+    {
+      "id": "r2a1-01-restock",
+      "findings": [],
+      "listed_above_0.4": [
+        {
+          "source": "new",
+          "id": "r2a1-09-invoice-number",
+          "ratio": 0.4463
+        },
+        {
+          "source": "new",
+          "id": "r2a1-08-duration-parse",
+          "ratio": 0.4444
+        },
+        {
+          "source": "new",
+          "id": "r2a1-38-coordinates",
+          "ratio": 0.4386
+        },
+        {
+          "source": "new",
+          "id": "r2a1-13-ticket-queue",
+          "ratio": 0.4062
+        },
+        {
+          "source": "new",
+          "id": "r2a2-25-ride-speed",
+          "ratio": 0.4054
+        }
+      ],
+      "clean": true
+    },
+    {
+      "id": "r2a1-02-phone-format",
+      "findings": [],
+      "listed_above_0.4": [
+        {
+          "source": "new",
+          "id": "r2a1-19-contact-dedupe",
+          "ratio": 0.5382
+        },
+        {
+          "source": "new",
+          "id": "r2a2-40-sku-check",
+          "ratio": 0.5036
+        },
+        {
+          "source": "new",
+          "id": "r2a1-17-elapsed-clock",
+          "ratio": 0.502
+        },
+        {
+          "source": "new",
+          "id": "r2a1-46-isbn",
+          "ratio": 0.4823
+        },
+        {
+          "source": "new",
+          "id": "r2a1-12-percent-label",
+          "ratio": 0.4766
+        },
+        {
+          "source": "new",
+          "id": "r2a1-08-duration-parse",
+          "ratio": 0.4722
+        },
+        {
+          "source": "new",
+          "id": "r2a1-13-ticket-queue",
+          "ratio": 0.4713
+        },
+        {
+          "source": "new",
+          "id": "r2a1-21-name-split",
+          "ratio": 0.4594
+        },
+        {
+          "source": "new",
+          "id": "r2a2-22-upload-path",
+          "ratio": 0.4451
+        },
+        {
+          "source": "new",
+          "id": "r2a2-20-phone-intl",
+          "ratio": 0.442
+        },
+        {
+          "source": "new",
+          "id": "r2a1-40-log-line",
+          "ratio": 0.4348
+        },
+        {
+          "source": "new",
+          "id": "r2a1-11-truncate",
+          "ratio": 0.4345
+        },
+        {
+          "source": "new",
+          "id": "r2a1-03-sensor-stats",
+          "ratio": 0.4306
+        },
+        {
+          "source": "new",
+          "id": "r2a1-04-username-check",
+          "ratio": 0.4306
+        },
+        {
+          "source": "new",
+          "id": "r2a1-41-star-rating",
+          "ratio": 0.4275
+        },
+        {
+          "source": "new",
+          "id": "r2a1-45-quota-size",
+          "ratio": 0.4271
+        },
+        {
+          "source": "scripts/eval/tasks_r2.py",
+          "id": "b",
+          "ratio": 0.4251
+        },
+        {
+          "source": "new",
+          "id": "r2a1-07-top-words",
+          "ratio": 0.4177
+        },
+        {
+          "source": "new",
+          "id": "r2a1-05-grade-bands",
+          "ratio": 0.4167
+        },
+        {
+          "source": "new",
+          "id": "r2a2-44-url-join",
+          "ratio": 0.4163
+        },
+        {
+          "source": "scripts/eval/tasks.py",
+          "id": "slugify",
+          "ratio": 0.4136
+        },
+        {
+          "source": "new",
+          "id": "r2a2-15-token-mask",
+          "ratio": 0.4124
+        },
+        {
+          "source": "new",
+          "id": "r2a2-42-report-day",
+          "ratio": 0.4124
+        },
+        {
+          "source": "scripts/eval/tasks.py",
+          "id": "mem-errors",
+          "ratio": 0.4031
+        },
+        {
+          "source": "new",
+          "id": "r2a2-43-competition-rank",
+          "ratio": 0.403
+        },
+        {
+          "source": "new",
+          "id": "r2a2-48-count-label",
+          "ratio": 0.403
+        }
+      ],
+      "clean": true
+    },
+    {
+      "id": "r2a1-03-sensor-stats",
+      "findings": [],
+      "listed_above_0.4": [
+        {
+          "source": "new",
+          "id": "r2a1-24-hex-color",
+          "ratio": 0.4856
+        },
+        {
+          "source": "new",
+          "id": "r2a1-15-mask-email",
+          "ratio": 0.4686
+        },
+        {
+          "source": "new",
+          "id": "r2a2-27-next-working-day",
+          "ratio": 0.4312
+        },
+        {
+          "source": "new",
+          "id": "r2a2-19-score-display",
+          "ratio": 0.4298
+        },
+        {
+          "source": "new",
+          "id": "r2a1-41-star-rating",
+          "ratio": 0.4264
+        },
+        {
+          "source": "new",
+          "id": "r2a1-17-elapsed-clock",
+          "ratio": 0.4135
+        },
+        {
+          "source": "new",
+          "id": "r2a1-30-password-score",
+          "ratio": 0.4049
+        },
+        {
+          "source": "new",
+          "id": "r2a1-12-percent-label",
+          "ratio": 0.4034
+        },
+        {
+          "source": "new",
+          "id": "r2a1-27-shard-pick",
+          "ratio": 0.4031
+        }
+      ],
+      "clean": true
+    },
+    {
+      "id": "r2a1-04-username-check",
+      "findings": [],
+      "listed_above_0.4": [
+        {
+          "source": "new",
+          "id": "r2a1-12-percent-label",
+          "ratio": 0.479
+        },
+        {
+          "source": "new",
+          "id": "r2a1-25-age-buckets",
+          "ratio": 0.4659
+        },
+        {
+          "source": "new",
+          "id": "r2a1-24-hex-color",
+          "ratio": 0.4609
+        },
+        {
+          "source": "new",
+          "id": "r2a2-29-page-cursor",
+          "ratio": 0.4307
+        },
+        {
+          "source": "new",
+          "id": "r2a1-13-ticket-queue",
+          "ratio": 0.4303
+        },
+        {
+          "source": "new",
+          "id": "r2a1-14-version-compare",
+          "ratio": 0.4281
+        },
+        {
+          "source": "new",
+          "id": "r2a1-28-whitespace",
+          "ratio": 0.4274
+        },
+        {
+          "source": "new",
+          "id": "r2a1-09-invoice-number",
+          "ratio": 0.42
+        },
+        {
+          "source": "new",
+          "id": "r2a1-42-short-number",
+          "ratio": 0.416
+        },
+        {
+          "source": "new",
+          "id": "r2a1-29-cache-key",
+          "ratio": 0.4094
+        },
+        {
+          "source": "new",
+          "id": "r2a1-06-query-string",
+          "ratio": 0.4079
+        },
+        {
+          "source": "new",
+          "id": "r2a1-31-cash-rounding",
+          "ratio": 0.4074
+        },
+        {
+          "source": "new",
+          "id": "r2a2-11-geo-point",
+          "ratio": 0.4052
+        },
+        {
+          "source": "new",
+          "id": "r2a1-30-password-score",
+          "ratio": 0.4049
+        },
+        {
+          "source": "new",
+          "id": "r2a1-19-contact-dedupe",
+          "ratio": 0.4013
+        }
+      ],
+      "clean": true
+    },
+    {
+      "id": "r2a1-05-grade-bands",
+      "findings": [],
+      "listed_above_0.4": [
+        {
+          "source": "scripts/eval/l5_memory.py",
+          "id": "mem-dates",
+          "ratio": 0.4695
+        },
+        {
+          "source": "new",
+          "id": "r2a2-02-utc-stamp",
+          "ratio": 0.4683
+        },
+        {
+          "source": "new",
+          "id": "r2a1-45-quota-size",
+          "ratio": 0.4585
+        },
+        {
+          "source": "new",
+          "id": "r2a1-26-text-table",
+          "ratio": 0.4526
+        },
+        {
+          "source": "new",
+          "id": "r2a1-30-password-score",
+          "ratio": 0.4484
+        },
+        {
+          "source": "scripts/eval/l5_memory.py",
+          "id": "mem-json",
+          "ratio": 0.4466
+        },
+        {
+          "source": "new",
+          "id": "r2a2-26-tag-merge",
+          "ratio": 0.4455
+        },
+        {
+          "source": "new",
+          "id": "r2a1-18-discount-codes",
+          "ratio": 0.4412
+        },
+        {
+          "source": "new",
+          "id": "r2a1-32-key-values",
+          "ratio": 0.4409
+        },
+        {
+          "source": "new",
+          "id": "r2a2-48-count-label",
+          "ratio": 0.4344
+        },
+        {
+          "source": "new",
+          "id": "r2a2-44-url-join",
+          "ratio": 0.4335
+        },
+        {
+          "source": "new",
+          "id": "r2a1-13-ticket-queue",
+          "ratio": 0.4314
+        },
+        {
+          "source": "new",
+          "id": "r2a2-36-cache-names",
+          "ratio": 0.4286
+        },
+        {
+          "source": "new",
+          "id": "r2a1-17-elapsed-clock",
+          "ratio": 0.4225
+        },
+        {
+          "source": "new",
+          "id": "r2a1-06-query-string",
+          "ratio": 0.4214
+        },
+        {
+          "source": "new",
+          "id": "r2a2-22-upload-path",
+          "ratio": 0.4196
+        },
+        {
+          "source": "new",
+          "id": "r2a2-38-duration-text",
+          "ratio": 0.4188
+        },
+        {
+          "source": "scripts/eval/tasks_r2.py",
+          "id": "d",
+          "ratio": 0.4162
+        },
+        {
+          "source": "scripts/eval/l5_memory.py",
+          "id": "mem-paths",
+          "ratio": 0.4126
+        },
+        {
+          "source": "new",
+          "id": "r2a2-42-report-day",
+          "ratio": 0.4096
+        },
+        {
+          "source": "new",
+          "id": "r2a2-12-percentile",
+          "ratio": 0.4085
+        },
+        {
+          "source": "new",
+          "id": "r2a1-08-duration-parse",
+          "ratio": 0.4065
+        }
+      ],
+      "clean": true
+    },
+    {
+      "id": "r2a1-06-query-string",
+      "findings": [],
+      "listed_above_0.4": [
+        {
+          "source": "new",
+          "id": "r2a1-13-ticket-queue",
+          "ratio": 0.4725
+        },
+        {
+          "source": "new",
+          "id": "r2a2-13-joined-list",
+          "ratio": 0.4387
+        },
+        {
+          "source": "new",
+          "id": "r2a1-21-name-split",
+          "ratio": 0.4348
+        },
+        {
+          "source": "new",
+          "id": "r2a1-27-shard-pick",
+          "ratio": 0.4247
+        },
+        {
+          "source": "new",
+          "id": "r2a1-10-config-merge",
+          "ratio": 0.4118
+        },
+        {
+          "source": "new",
+          "id": "r2a1-11-truncate",
+          "ratio": 0.4118
+        },
+        {
+          "source": "new",
+          "id": "r2a1-15-mask-email",
+          "ratio": 0.4103
+        },
+        {
+          "source": "new",
+          "id": "r2a1-07-top-words",
+          "ratio": 0.4096
+        },
+        {
+          "source": "new",
+          "id": "r2a1-19-contact-dedupe",
+          "ratio": 0.4023
+        }
+      ],
+      "clean": true
+    },
+    {
+      "id": "r2a1-07-top-words",
+      "findings": [],
+      "listed_above_0.4": [
+        {
+          "source": "new",
+          "id": "r2a1-37-bill-split",
+          "ratio": 0.4594
+        },
+        {
+          "source": "new",
+          "id": "r2a1-28-whitespace",
+          "ratio": 0.458
+        },
+        {
+          "source": "new",
+          "id": "r2a1-29-cache-key",
+          "ratio": 0.4172
+        },
+        {
+          "source": "new",
+          "id": "r2a2-29-page-cursor",
+          "ratio": 0.4172
+        },
+        {
+          "source": "new",
+          "id": "r2a1-21-name-split",
+          "ratio": 0.4164
+        },
+        {
+          "source": "new",
+          "id": "r2a1-34-comment-html",
+          "ratio": 0.4052
+        },
+        {
+          "source": "new",
+          "id": "r2a2-43-competition-rank",
+          "ratio": 0.4029
+        },
+        {
+          "source": "new",
+          "id": "r2a1-31-cash-rounding",
+          "ratio": 0.4027
+        }
+      ],
+      "clean": true
+    },
+    {
+      "id": "r2a1-08-duration-parse",
+      "findings": [],
+      "listed_above_0.4": [
+        {
+          "source": "new",
+          "id": "r2a1-45-quota-size",
+          "ratio": 0.5415
+        },
+        {
+          "source": "new",
+          "id": "r2a1-12-percent-label",
+          "ratio": 0.479
+        },
+        {
+          "source": "new",
+          "id": "r2a1-28-whitespace",
+          "ratio": 0.4786
+        },
+        {
+          "source": "new",
+          "id": "r2a2-26-tag-merge",
+          "ratio": 0.4766
+        },
+        {
+          "source": "new",
+          "id": "r2a1-13-ticket-queue",
+          "ratio": 0.4727
+        },
+        {
+          "source": "new",
+          "id": "r2a2-04-error-body",
+          "ratio": 0.4689
+        },
+        {
+          "source": "new",
+          "id": "r2a1-36-progress-bar",
+          "ratio": 0.4674
+        },
+        {
+          "source": "new",
+          "id": "r2a2-40-sku-check",
+          "ratio": 0.4615
+        },
+        {
+          "source": "new",
+          "id": "r2a1-34-comment-html",
+          "ratio": 0.4604
+        },
+        {
+          "source": "scripts/eval/tasks_r2.py",
+          "id": "b",
+          "ratio": 0.4557
+        },
+        {
+          "source": "new",
+          "id": "r2a2-15-token-mask",
+          "ratio": 0.4542
+        },
+        {
+          "source": "new",
+          "id": "r2a2-46-reading-time",
+          "ratio": 0.4541
+        },
+        {
+          "source": "scripts/eval/r3.py",
+          "id": null,
+          "ratio": 0.4527
+        },
+        {
+          "source": "new",
+          "id": "r2a1-32-key-values",
+          "ratio": 0.4388
+        },
+        {
+          "source": "new",
+          "id": "r2a1-25-age-buckets",
+          "ratio": 0.4373
+        },
+        {
+          "source": "new",
+          "id": "r2a2-34-great-circle",
+          "ratio": 0.4322
+        },
+        {
+          "source": "new",
+          "id": "r2a2-43-competition-rank",
+          "ratio": 0.432
+        },
+        {
+          "source": "new",
+          "id": "r2a1-17-elapsed-clock",
+          "ratio": 0.4304
+        },
+        {
+          "source": "new",
+          "id": "r2a1-41-star-rating",
+          "ratio": 0.4186
+        },
+        {
+          "source": "new",
+          "id": "r2a1-15-mask-email",
+          "ratio": 0.4184
+        },
+        {
+          "source": "scripts/eval/l5_memory.py",
+          "id": "mem-json",
+          "ratio": 0.4174
+        },
+        {
+          "source": "scripts/eval/tasks.py",
+          "id": "duration",
+          "ratio": 0.4173
+        },
+        {
+          "source": "new",
+          "id": "r2a1-38-coordinates",
+          "ratio": 0.4167
+        },
+        {
+          "source": "new",
+          "id": "r2a1-29-cache-key",
+          "ratio": 0.4161
+        },
+        {
+          "source": "new",
+          "id": "r2a2-24-wrap-lines",
+          "ratio": 0.4126
+        },
+        {
+          "source": "new",
+          "id": "r2a2-12-percentile",
+          "ratio": 0.4093
+        },
+        {
+          "source": "new",
+          "id": "r2a1-14-version-compare",
+          "ratio": 0.408
+        },
+        {
+          "source": "new",
+          "id": "r2a1-19-contact-dedupe",
+          "ratio": 0.4078
+        },
+        {
+          "source": "new",
+          "id": "r2a2-44-url-join",
+          "ratio": 0.4053
+        },
+        {
+          "source": "new",
+          "id": "r2a1-24-hex-color",
+          "ratio": 0.4033
+        },
+        {
+          "source": "new",
+          "id": "r2a1-43-index-groups",
+          "ratio": 0.4014
+        },
+        {
+          "source": "new",
+          "id": "r2a1-37-bill-split",
+          "ratio": 0.4012
+        }
+      ],
+      "clean": true
+    },
+    {
+      "id": "r2a1-09-invoice-number",
+      "findings": [],
+      "listed_above_0.4": [
+        {
+          "source": "new",
+          "id": "r2a1-22-week-key",
+          "ratio": 0.4377
+        },
+        {
+          "source": "new",
+          "id": "r2a2-20-phone-intl",
+          "ratio": 0.4236
+        },
+        {
+          "source": "new",
+          "id": "r2a2-21-identifier-words",
+          "ratio": 0.4079
+        },
+        {
+          "source": "new",
+          "id": "r2a2-29-page-cursor",
+          "ratio": 0.4013
+        }
+      ],
+      "clean": true
+    },
+    {
+      "id": "r2a1-10-config-merge",
+      "findings": [],
+      "listed_above_0.4": [
+        {
+          "source": "new",
+          "id": "r2a1-20-run-length",
+          "ratio": 0.4396
+        },
+        {
+          "source": "scripts/eval/tasks_r2.py",
+          "id": "merge",
+          "ratio": 0.4385
+        },
+        {
+          "source": "scripts/eval/r3.py",
+          "id": null,
+          "ratio": 0.4337
+        },
+        {
+          "source": "new",
+          "id": "r2a1-39-deploy-target",
+          "ratio": 0.4079
+        },
+        {
+          "source": "new",
+          "id": "r2a1-48-dict-diff",
+          "ratio": 0.4039
+        }
+      ],
+      "clean": true
+    },
+    {
+      "id": "r2a1-11-truncate",
+      "findings": [],
+      "listed_above_0.4": [
+        {
+          "source": "new",
+          "id": "r2a1-28-whitespace",
+          "ratio": 0.5085
+        },
+        {
+          "source": "new",
+          "id": "r2a1-21-name-split",
+          "ratio": 0.4869
+        },
+        {
+          "source": "new",
+          "id": "r2a2-24-wrap-lines",
+          "ratio": 0.4861
+        },
+        {
+          "source": "new",
+          "id": "r2a1-15-mask-email",
+          "ratio": 0.4481
+        },
+        {
+          "source": "new",
+          "id": "r2a1-36-progress-bar",
+          "ratio": 0.4259
+        },
+        {
+          "source": "new",
+          "id": "r2a1-17-elapsed-clock",
+          "ratio": 0.4017
+        }
+      ],
+      "clean": true
+    },
+    {
+      "id": "r2a1-12-percent-label",
+      "findings": [],
+      "listed_above_0.4": [
+        {
+          "source": "new",
+          "id": "r2a1-24-hex-color",
+          "ratio": 0.5024
+        },
+        {
+          "source": "new",
+          "id": "r2a1-28-whitespace",
+          "ratio": 0.495
+        },
+        {
+          "source": "new",
+          "id": "r2a1-25-age-buckets",
+          "ratio": 0.4939
+        },
+        {
+          "source": "new",
+          "id": "r2a1-46-isbn",
+          "ratio": 0.4828
+        },
+        {
+          "source": "new",
+          "id": "r2a1-22-week-key",
+          "ratio": 0.4596
+        },
+        {
+          "source": "new",
+          "id": "r2a1-44-quote-reply",
+          "ratio": 0.453
+        },
+        {
+          "source": "new",
+          "id": "r2a1-40-log-line",
+          "ratio": 0.4418
+        },
+        {
+          "source": "new",
+          "id": "r2a1-42-short-number",
+          "ratio": 0.4404
+        },
+        {
+          "source": "new",
+          "id": "r2a1-17-elapsed-clock",
+          "ratio": 0.439
+        },
+        {
+          "source": "new",
+          "id": "r2a1-34-comment-html",
+          "ratio": 0.4309
+        },
+        {
+          "source": "new",
+          "id": "r2a1-20-run-length",
+          "ratio": 0.4293
+        },
+        {
+          "source": "new",
+          "id": "r2a1-29-cache-key",
+          "ratio": 0.4286
+        },
+        {
+          "source": "new",
+          "id": "r2a1-47-ticket-title",
+          "ratio": 0.4224
+        },
+        {
+          "source": "new",
+          "id": "r2a2-22-upload-path",
+          "ratio": 0.4173
+        },
+        {
+          "source": "new",
+          "id": "r2a1-15-mask-email",
+          "ratio": 0.4058
+        }
+      ],
+      "clean": true
+    },
+    {
+      "id": "r2a1-13-ticket-queue",
+      "findings": [],
+      "listed_above_0.4": [
+        {
+          "source": "new",
+          "id": "r2a1-19-contact-dedupe",
+          "ratio": 0.5854
+        },
+        {
+          "source": "new",
+          "id": "r2a2-42-report-day",
+          "ratio": 0.4805
+        },
+        {
+          "source": "new",
+          "id": "r2a1-45-quota-size",
+          "ratio": 0.451
+        },
+        {
+          "source": "new",
+          "id": "r2a2-43-competition-rank",
+          "ratio": 0.4452
+        },
+        {
+          "source": "new",
+          "id": "r2a2-46-reading-time",
+          "ratio": 0.436
+        },
+        {
+          "source": "new",
+          "id": "r2a1-29-cache-key",
+          "ratio": 0.4358
+        },
+        {
+          "source": "new",
+          "id": "r2a2-40-sku-check",
+          "ratio": 0.4313
+        },
+        {
+          "source": "new",
+          "id": "r2a1-32-key-values",
+          "ratio": 0.426
+        },
+        {
+          "source": "new",
+          "id": "r2a1-47-ticket-title",
+          "ratio": 0.4259
+        },
+        {
+          "source": "new",
+          "id": "r2a1-17-elapsed-clock",
+          "ratio": 0.4242
+        },
+        {
+          "source": "new",
+          "id": "r2a1-23-rate-window",
+          "ratio": 0.4222
+        },
+        {
+          "source": "new",
+          "id": "r2a1-n7-line-widths",
+          "ratio": 0.4053
+        }
+      ],
+      "clean": true
+    },
+    {
+      "id": "r2a1-14-version-compare",
+      "findings": [],
+      "listed_above_0.4": [
+        {
+          "source": "new",
+          "id": "r2a1-28-whitespace",
+          "ratio": 0.4791
+        },
+        {
+          "source": "new",
+          "id": "r2a1-32-key-values",
+          "ratio": 0.4495
+        },
+        {
+          "source": "new",
+          "id": "r2a1-25-age-buckets",
+          "ratio": 0.4481
+        },
+        {
+          "source": "new",
+          "id": "r2a1-18-discount-codes",
+          "ratio": 0.4369
+        },
+        {
+          "source": "new",
+          "id": "r2a1-46-isbn",
+          "ratio": 0.43
+        },
+        {
+          "source": "new",
+          "id": "r2a1-22-week-key",
+          "ratio": 0.4189
+        },
+        {
+          "source": "new",
+          "id": "r2a1-20-run-length",
+          "ratio": 0.4135
+        },
+        {
+          "source": "new",
+          "id": "r2a1-45-quota-size",
+          "ratio": 0.4052
+        }
+      ],
+      "clean": true
+    },
+    {
+      "id": "r2a1-15-mask-email",
+      "findings": [],
+      "listed_above_0.4": [
+        {
+          "source": "new",
+          "id": "r2a1-41-star-rating",
+          "ratio": 0.5022
+        },
+        {
+          "source": "new",
+          "id": "r2a1-24-hex-color",
+          "ratio": 0.4811
+        },
+        {
+          "source": "new",
+          "id": "r2a1-21-name-split",
+          "ratio": 0.4701
+        },
+        {
+          "source": "new",
+          "id": "r2a2-03-record-ids",
+          "ratio": 0.466
+        },
+        {
+          "source": "new",
+          "id": "r2a1-17-elapsed-clock",
+          "ratio": 0.4563
+        },
+        {
+          "source": "new",
+          "id": "r2a1-34-comment-html",
+          "ratio": 0.4453
+        },
+        {
+          "source": "new",
+          "id": "r2a1-31-cash-rounding",
+          "ratio": 0.4351
+        },
+        {
+          "source": "new",
+          "id": "r2a1-36-progress-bar",
+          "ratio": 0.4348
+        },
+        {
+          "source": "new",
+          "id": "r2a2-23-status-colour",
+          "ratio": 0.4322
+        },
+        {
+          "source": "new",
+          "id": "r2a1-37-bill-split",
+          "ratio": 0.4295
+        },
+        {
+          "source": "new",
+          "id": "r2a2-43-competition-rank",
+          "ratio": 0.4201
+        },
+        {
+          "source": "new",
+          "id": "r2a1-28-whitespace",
+          "ratio": 0.4138
+        },
+        {
+          "source": "new",
+          "id": "r2a2-12-percentile",
+          "ratio": 0.4123
+        },
+        {
+          "source": "new",
+          "id": "r2a1-48-dict-diff",
+          "ratio": 0.4083
+        },
+        {
+          "source": "new",
+          "id": "r2a2-48-count-label",
+          "ratio": 0.4019
+        },
+        {
+          "source": "new",
+          "id": "r2a2-06-data-lines",
+          "ratio": 0.4018
+        }
+      ],
+      "clean": true
+    },
+    {
+      "id": "r2a1-16-batches",
+      "findings": [],
+      "listed_above_0.4": [
+        {
+          "source": "new",
+          "id": "r2a1-35-booking-merge",
+          "ratio": 0.4968
+        },
+        {
+          "source": "new",
+          "id": "r2a1-42-short-number",
+          "ratio": 0.4302
+        },
+        {
+          "source": "new",
+          "id": "r2a1-32-key-values",
+          "ratio": 0.4232
+        },
+        {
+          "source": "new",
+          "id": "r2a1-22-week-key",
+          "ratio": 0.4184
+        },
+        {
+          "source": "new",
+          "id": "r2a1-25-age-buckets",
+          "ratio": 0.415
+        },
+        {
+          "source": "new",
+          "id": "r2a1-28-whitespace",
+          "ratio": 0.4096
+        },
+        {
+          "source": "new",
+          "id": "r2a2-01-euro-amount",
+          "ratio": 0.4094
+        },
+        {
+          "source": "new",
+          "id": "r2a2-33-count-by",
+          "ratio": 0.4031
+        }
+      ],
+      "clean": true
+    },
+    {
+      "id": "r2a1-17-elapsed-clock",
+      "findings": [],
+      "listed_above_0.4": [
+        {
+          "source": "new",
+          "id": "r2a1-47-ticket-title",
+          "ratio": 0.5022
+        },
+        {
+          "source": "new",
+          "id": "r2a1-36-progress-bar",
+          "ratio": 0.5
+        },
+        {
+          "source": "scripts/eval/l5_memory.py",
+          "id": "mem-json",
+          "ratio": 0.4873
+        },
+        {
+          "source": "new",
+          "id": "r2a2-12-percentile",
+          "ratio": 0.4867
+        },
+        {
+          "source": "new",
+          "id": "r2a1-19-contact-dedupe",
+          "ratio": 0.4855
+        },
+        {
+          "source": "new",
+          "id": "r2a1-43-index-groups",
+          "ratio": 0.4797
+        },
+        {
+          "source": "new",
+          "id": "r2a1-29-cache-key",
+          "ratio": 0.4755
+        },
+        {
+          "source": "new",
+          "id": "r2a1-23-rate-window",
+          "ratio": 0.4615
+        },
+        {
+          "source": "scripts/eval/l5_memory.py",
+          "id": "mem-dates",
+          "ratio": 0.4608
+        },
+        {
+          "source": "new",
+          "id": "r2a2-34-great-circle",
+          "ratio": 0.4532
+        },
+        {
+          "source": "new",
+          "id": "r2a2-42-report-day",
+          "ratio": 0.45
+        },
+        {
+          "source": "new",
+          "id": "r2a2-17-sheet-column",
+          "ratio": 0.4492
+        },
+        {
+          "source": "scripts/eval/l5_memory.py",
+          "id": "mem-paths",
+          "ratio": 0.4486
+        },
+        {
+          "source": "new",
+          "id": "r2a1-48-dict-diff",
+          "ratio": 0.4454
+        },
+        {
+          "source": "new",
+          "id": "r2a2-44-url-join",
+          "ratio": 0.4433
+        },
+        {
+          "source": "new",
+          "id": "r2a2-43-competition-rank",
+          "ratio": 0.4424
+        },
+        {
+          "source": "new",
+          "id": "r2a2-46-reading-time",
+          "ratio": 0.4388
+        },
+        {
+          "source": "new",
+          "id": "r2a1-26-text-table",
+          "ratio": 0.4377
+        },
+        {
+          "source": "new",
+          "id": "r2a2-36-cache-names",
+          "ratio": 0.4372
+        },
+        {
+          "source": "new",
+          "id": "r2a1-24-hex-color",
+          "ratio": 0.4286
+        },
+        {
+          "source": "new",
+          "id": "r2a1-46-isbn",
+          "ratio": 0.4242
+        },
+        {
+          "source": "new",
+          "id": "r2a2-20-phone-intl",
+          "ratio": 0.4178
+        },
+        {
+          "source": "scripts/eval/tasks_r2.py",
+          "id": "d",
+          "ratio": 0.4146
+        },
+        {
+          "source": "new",
+          "id": "r2a1-33-working-days",
+          "ratio": 0.4123
+        },
+        {
+          "source": "new",
+          "id": "r2a1-44-quote-reply",
+          "ratio": 0.412
+        },
+        {
+          "source": "new",
+          "id": "r2a1-30-password-score",
+          "ratio": 0.4112
+        },
+        {
+          "source": "new",
+          "id": "r2a2-24-wrap-lines",
+          "ratio": 0.4111
+        },
+        {
+          "source": "new",
+          "id": "r2a1-41-star-rating",
+          "ratio": 0.4089
+        },
+        {
+          "source": "new",
+          "id": "r2a2-04-error-body",
+          "ratio": 0.4083
+        },
+        {
+          "source": "new",
+          "id": "r2a2-15-token-mask",
+          "ratio": 0.4083
+        },
+        {
+          "source": "new",
+          "id": "r2a1-34-comment-html",
+          "ratio": 0.4082
+        },
+        {
+          "source": "new",
+          "id": "r2a1-28-whitespace",
+          "ratio": 0.408
+        },
+        {
+          "source": "new",
+          "id": "r2a2-26-tag-merge",
+          "ratio": 0.4059
+        },
+        {
+          "source": "new",
+          "id": "r2a1-21-name-split",
+          "ratio": 0.4052
+        },
+        {
+          "source": "new",
+          "id": "r2a2-10-email-key",
+          "ratio": 0.4038
+        }
+      ],
+      "clean": true
+    },
+    {
+      "id": "r2a1-18-discount-codes",
+      "findings": [],
+      "listed_above_0.4": [
+        {
+          "source": "new",
+          "id": "r2a1-30-password-score",
+          "ratio": 0.4835
+        },
+        {
+          "source": "new",
+          "id": "r2a2-48-count-label",
+          "ratio": 0.4576
+        },
+        {
+          "source": "new",
+          "id": "r2a1-32-key-values",
+          "ratio": 0.4342
+        },
+        {
+          "source": "new",
+          "id": "r2a2-30-vat-line",
+          "ratio": 0.4211
+        },
+        {
+          "source": "new",
+          "id": "r2a1-41-star-rating",
+          "ratio": 0.4085
+        },
+        {
+          "source": "new",
+          "id": "r2a2-20-phone-intl",
+          "ratio": 0.4085
+        },
+        {
+          "source": "new",
+          "id": "r2a1-39-deploy-target",
+          "ratio": 0.4082
+        },
+        {
+          "source": "new",
+          "id": "r2a2-23-status-colour",
+          "ratio": 0.4062
+        },
+        {
+          "source": "new",
+          "id": "r2a2-03-record-ids",
+          "ratio": 0.403
+        },
+        {
+          "source": "new",
+          "id": "r2a1-27-shard-pick",
+          "ratio": 0.4014
+        }
+      ],
+      "clean": true
+    },
+    {
+      "id": "r2a1-19-contact-dedupe",
+      "findings": [],
+      "listed_above_0.4": [
+        {
+          "source": "new",
+          "id": "r2a1-29-cache-key",
+          "ratio": 0.5163
+        },
+        {
+          "source": "new",
+          "id": "r2a1-26-text-table",
+          "ratio": 0.4688
+        },
+        {
+          "source": "new",
+          "id": "r2a1-21-name-split",
+          "ratio": 0.4539
+        },
+        {
+          "source": "new",
+          "id": "r2a1-32-key-values",
+          "ratio": 0.4416
+        },
+        {
+          "source": "new",
+          "id": "r2a1-23-rate-window",
+          "ratio": 0.4246
+        },
+        {
+          "source": "new",
+          "id": "r2a2-26-tag-merge",
+          "ratio": 0.4234
+        },
+        {
+          "source": "new",
+          "id": "r2a2-42-report-day",
+          "ratio": 0.4231
+        },
+        {
+          "source": "scripts/eval/l5_memory.py",
+          "id": "mem-paths",
+          "ratio": 0.4196
+        },
+        {
+          "source": "new",
+          "id": "r2a2-43-competition-rank",
+          "ratio": 0.4083
+        },
+        {
+          "source": "new",
+          "id": "r2a1-36-progress-bar",
+          "ratio": 0.4067
+        },
+        {
+          "source": "new",
+          "id": "r2a1-43-index-groups",
+          "ratio": 0.4025
+        },
+        {
+          "source": "scripts/eval/tasks.py",
+          "id": "mem-errors",
+          "ratio": 0.4014
+        }
+      ],
+      "clean": true
+    },
+    {
+      "id": "r2a1-20-run-length",
+      "findings": [],
+      "listed_above_0.4": [
+        {
+          "source": "new",
+          "id": "r2a1-46-isbn",
+          "ratio": 0.5368
+        },
+        {
+          "source": "new",
+          "id": "r2a1-34-comment-html",
+          "ratio": 0.4898
+        },
+        {
+          "source": "new",
+          "id": "r2a1-35-booking-merge",
+          "ratio": 0.4733
+        },
+        {
+          "source": "new",
+          "id": "r2a1-31-cash-rounding",
+          "ratio": 0.4641
+        },
+        {
+          "source": "new",
+          "id": "r2a2-02-utc-stamp",
+          "ratio": 0.4388
+        },
+        {
+          "source": "new",
+          "id": "r2a2-26-tag-merge",
+          "ratio": 0.4257
+        },
+        {
+          "source": "new",
+          "id": "r2a2-05-author-name",
+          "ratio": 0.4245
+        },
+        {
+          "source": "new",
+          "id": "r2a1-24-hex-color",
+          "ratio": 0.419
+        },
+        {
+          "source": "new",
+          "id": "r2a1-32-key-values",
+          "ratio": 0.4163
+        },
+        {
+          "source": "new",
+          "id": "r2a1-38-coordinates",
+          "ratio": 0.4157
+        },
+        {
+          "source": "new",
+          "id": "r2a1-21-name-split",
+          "ratio": 0.4138
+        },
+        {
+          "source": "new",
+          "id": "r2a2-41-markdown-escape",
+          "ratio": 0.4072
+        },
+        {
+          "source": "new",
+          "id": "r2a1-48-dict-diff",
+          "ratio": 0.4034
+        }
+      ],
+      "clean": true
+    },
+    {
+      "id": "r2a1-21-name-split",
+      "findings": [],
+      "listed_above_0.4": [
+        {
+          "source": "new",
+          "id": "r2a1-41-star-rating",
+          "ratio": 0.5217
+        },
+        {
+          "source": "new",
+          "id": "r2a2-36-cache-names",
+          "ratio": 0.4691
+        },
+        {
+          "source": "new",
+          "id": "r2a1-28-whitespace",
+          "ratio": 0.4541
+        },
+        {
+          "source": "new",
+          "id": "r2a1-24-hex-color",
+          "ratio": 0.4454
+        },
+        {
+          "source": "new",
+          "id": "r2a1-29-cache-key",
+          "ratio": 0.4437
+        },
+        {
+          "source": "new",
+          "id": "r2a2-21-identifier-words",
+          "ratio": 0.4387
+        },
+        {
+          "source": "new",
+          "id": "r2a1-39-deploy-target",
+          "ratio": 0.4335
+        },
+        {
+          "source": "new",
+          "id": "r2a1-25-age-buckets",
+          "ratio": 0.4234
+        },
+        {
+          "source": "new",
+          "id": "r2a1-31-cash-rounding",
+          "ratio": 0.4226
+        },
+        {
+          "source": "scripts/eval/l5_memory.py",
+          "id": "mem-paths",
+          "ratio": 0.4215
+        },
+        {
+          "source": "new",
+          "id": "r2a1-26-text-table",
+          "ratio": 0.4164
+        },
+        {
+          "source": "new",
+          "id": "r2a1-46-isbn",
+          "ratio": 0.4093
+        },
+        {
+          "source": "new",
+          "id": "r2a1-47-ticket-title",
+          "ratio": 0.4093
+        },
+        {
+          "source": "new",
+          "id": "r2a1-33-working-days",
+          "ratio": 0.4062
+        },
+        {
+          "source": "new",
+          "id": "r2a2-03-record-ids",
+          "ratio": 0.4052
+        },
+        {
+          "source": "new",
+          "id": "r2a2-27-next-working-day",
+          "ratio": 0.4038
+        }
+      ],
+      "clean": true
+    },
+    {
+      "id": "r2a1-22-week-key",
+      "findings": [],
+      "listed_above_0.4": [
+        {
+          "source": "new",
+          "id": "r2a2-14-week-start",
+          "ratio": 0.5752
+        },
+        {
+          "source": "new",
+          "id": "r2a2-08-event-line",
+          "ratio": 0.4939
+        },
+        {
+          "source": "new",
+          "id": "r2a1-24-hex-color",
+          "ratio": 0.475
+        },
+        {
+          "source": "new",
+          "id": "r2a2-32-page-title",
+          "ratio": 0.4549
+        },
+        {
+          "source": "new",
+          "id": "r2a1-40-log-line",
+          "ratio": 0.446
+        },
+        {
+          "source": "new",
+          "id": "r2a1-39-deploy-target",
+          "ratio": 0.4377
+        },
+        {
+          "source": "new",
+          "id": "r2a1-25-age-buckets",
+          "ratio": 0.4348
+        },
+        {
+          "source": "new",
+          "id": "r2a1-42-short-number",
+          "ratio": 0.4211
+        },
+        {
+          "source": "new",
+          "id": "r2a1-44-quote-reply",
+          "ratio": 0.4106
+        },
+        {
+          "source": "new",
+          "id": "r2a2-11-geo-point",
+          "ratio": 0.4105
+        }
+      ],
+      "clean": true
+    },
+    {
+      "id": "r2a1-23-rate-window",
+      "findings": [],
+      "listed_above_0.4": [
+        {
+          "source": "new",
+          "id": "r2a2-12-percentile",
+          "ratio": 0.4675
+        },
+        {
+          "source": "new",
+          "id": "r2a1-40-log-line",
+          "ratio": 0.4606
+        },
+        {
+          "source": "new",
+          "id": "r2a2-15-token-mask",
+          "ratio": 0.4161
+        },
+        {
+          "source": "new",
+          "id": "r2a2-06-data-lines",
+          "ratio": 0.4013
+        }
+      ],
+      "clean": true
+    },
+    {
+      "id": "r2a1-24-hex-color",
+      "findings": [],
+      "listed_above_0.4": [
+        {
+          "source": "new",
+          "id": "r2a1-44-quote-reply",
+          "ratio": 0.5439
+        },
+        {
+          "source": "new",
+          "id": "r2a1-28-whitespace",
+          "ratio": 0.4928
+        },
+        {
+          "source": "new",
+          "id": "r2a1-39-deploy-target",
+          "ratio": 0.4896
+        },
+        {
+          "source": "new",
+          "id": "r2a1-41-star-rating",
+          "ratio": 0.4589
+        },
+        {
+          "source": "new",
+          "id": "r2a1-30-password-score",
+          "ratio": 0.4545
+        },
+        {
+          "source": "new",
+          "id": "r2a1-36-progress-bar",
+          "ratio": 0.453
+        },
+        {
+          "source": "new",
+          "id": "r2a2-46-reading-time",
+          "ratio": 0.4356
+        },
+        {
+          "source": "new",
+          "id": "r2a1-46-isbn",
+          "ratio": 0.4219
+        },
+        {
+          "source": "new",
+          "id": "r2a2-06-data-lines",
+          "ratio": 0.4211
+        },
+        {
+          "source": "scripts/eval/tasks_polyglot.py",
+          "id": "pg-proverb",
+          "ratio": 0.4176
+        },
+        {
+          "source": "new",
+          "id": "r2a2-26-tag-merge",
+          "ratio": 0.4135
+        },
+        {
+          "source": "scripts/eval/tasks_polyglot.py",
+          "id": "pg-book-store",
+          "ratio": 0.4108
+        },
+        {
+          "source": "scripts/eval/tasks_polyglot.py",
+          "id": "pg-scale-generator",
+          "ratio": 0.4105
+        },
+        {
+          "source": "new",
+          "id": "r2a2-27-next-working-day",
+          "ratio": 0.4084
+        },
+        {
+          "source": "new",
+          "id": "r2a2-36-cache-names",
+          "ratio": 0.4072
+        },
+        {
+          "source": "new",
+          "id": "r2a2-43-competition-rank",
+          "ratio": 0.4036
+        },
+        {
+          "source": "new",
+          "id": "r2a2-09-tenths-temp",
+          "ratio": 0.402
+        },
+        {
+          "source": "new",
+          "id": "r2a1-48-dict-diff",
+          "ratio": 0.4016
+        },
+        {
+          "source": "new",
+          "id": "r2a2-13-joined-list",
+          "ratio": 0.4016
+        }
+      ],
+      "clean": true
+    },
+    {
+      "id": "r2a1-25-age-buckets",
+      "findings": [],
+      "listed_above_0.4": [
+        {
+          "source": "new",
+          "id": "r2a1-46-isbn",
+          "ratio": 0.5055
+        },
+        {
+          "source": "new",
+          "id": "r2a1-28-whitespace",
+          "ratio": 0.4856
+        },
+        {
+          "source": "new",
+          "id": "r2a1-31-cash-rounding",
+          "ratio": 0.4588
+        },
+        {
+          "source": "new",
+          "id": "r2a1-42-short-number",
+          "ratio": 0.4247
+        },
+        {
+          "source": "new",
+          "id": "r2a2-18-http-date",
+          "ratio": 0.416
+        }
+      ],
+      "clean": true
+    },
+    {
+      "id": "r2a1-26-text-table",
+      "findings": [],
+      "listed_above_0.4": [
+        {
+          "source": "new",
+          "id": "r2a1-40-log-line",
+          "ratio": 0.4401
+        },
+        {
+          "source": "new",
+          "id": "r2a2-30-vat-line",
+          "ratio": 0.4321
+        },
+        {
+          "source": "new",
+          "id": "r2a1-47-ticket-title",
+          "ratio": 0.4315
+        },
+        {
+          "source": "new",
+          "id": "r2a1-n6-common-prefix",
+          "ratio": 0.4282
+        },
+        {
+          "source": "scripts/eval/l5_memory.py",
+          "id": "mem-paths",
+          "ratio": 0.4218
+        },
+        {
+          "source": "new",
+          "id": "r2a1-37-bill-split",
+          "ratio": 0.4146
+        },
+        {
+          "source": "new",
+          "id": "r2a2-02-utc-stamp",
+          "ratio": 0.4125
+        },
+        {
+          "source": "new",
+          "id": "r2a2-42-report-day",
+          "ratio": 0.412
+        },
+        {
+          "source": "new",
+          "id": "r2a2-43-competition-rank",
+          "ratio": 0.4101
+        },
+        {
+          "source": "new",
+          "id": "r2a2-26-tag-merge",
+          "ratio": 0.403
+        },
+        {
+          "source": "new",
+          "id": "r2a1-n5-vowels",
+          "ratio": 0.4009
+        }
+      ],
+      "clean": true
+    },
+    {
+      "id": "r2a1-27-shard-pick",
+      "findings": [],
+      "listed_above_0.4": [
+        {
+          "source": "new",
+          "id": "r2a1-48-dict-diff",
+          "ratio": 0.4942
+        },
+        {
+          "source": "new",
+          "id": "r2a1-34-comment-html",
+          "ratio": 0.4286
+        },
+        {
+          "source": "new",
+          "id": "r2a2-33-count-by",
+          "ratio": 0.4242
+        },
+        {
+          "source": "new",
+          "id": "r2a2-41-markdown-escape",
+          "ratio": 0.4132
+        },
+        {
+          "source": "new",
+          "id": "r2a1-29-cache-key",
+          "ratio": 0.4126
+        },
+        {
+          "source": "new",
+          "id": "r2a1-39-deploy-target",
+          "ratio": 0.4062
+        }
+      ],
+      "clean": true
+    },
+    {
+      "id": "r2a1-28-whitespace",
+      "findings": [],
+      "listed_above_0.4": [
+        {
+          "source": "new",
+          "id": "r2a1-42-short-number",
+          "ratio": 0.486
+        },
+        {
+          "source": "new",
+          "id": "r2a1-46-isbn",
+          "ratio": 0.4649
+        },
+        {
+          "source": "new",
+          "id": "r2a2-02-utc-stamp",
+          "ratio": 0.456
+        },
+        {
+          "source": "new",
+          "id": "r2a1-31-cash-rounding",
+          "ratio": 0.453
+        },
+        {
+          "source": "new",
+          "id": "r2a2-26-tag-merge",
+          "ratio": 0.4523
+        },
+        {
+          "source": "new",
+          "id": "r2a1-36-progress-bar",
+          "ratio": 0.4356
+        },
+        {
+          "source": "scripts/eval/tasks_polyglot.py",
+          "id": "pg-go-counting",
+          "ratio": 0.4181
+        },
+        {
+          "source": "new",
+          "id": "r2a1-44-quote-reply",
+          "ratio": 0.4174
+        },
+        {
+          "source": "new",
+          "id": "r2a1-39-deploy-target",
+          "ratio": 0.4052
+        },
+        {
+          "source": "new",
+          "id": "r2a1-34-comment-html",
+          "ratio": 0.405
+        },
+        {
+          "source": "scripts/eval/tasks_polyglot.py",
+          "id": "pg-bowling",
+          "ratio": 0.4046
+        }
+      ],
+      "clean": true
+    },
+    {
+      "id": "r2a1-29-cache-key",
+      "findings": [],
+      "listed_above_0.4": [
+        {
+          "source": "new",
+          "id": "r2a1-34-comment-html",
+          "ratio": 0.4837
+        },
+        {
+          "source": "new",
+          "id": "r2a1-n6-common-prefix",
+          "ratio": 0.4751
+        },
+        {
+          "source": "new",
+          "id": "r2a2-12-percentile",
+          "ratio": 0.4669
+        },
+        {
+          "source": "new",
+          "id": "r2a2-36-cache-names",
+          "ratio": 0.4638
+        },
+        {
+          "source": "new",
+          "id": "r2a1-43-index-groups",
+          "ratio": 0.4495
+        },
+        {
+          "source": "new",
+          "id": "r2a1-36-progress-bar",
+          "ratio": 0.4429
+        },
+        {
+          "source": "new",
+          "id": "r2a1-48-dict-diff",
+          "ratio": 0.4415
+        },
+        {
+          "source": "new",
+          "id": "r2a2-44-url-join",
+          "ratio": 0.4392
+        },
+        {
+          "source": "new",
+          "id": "r2a2-43-competition-rank",
+          "ratio": 0.4388
+        },
+        {
+          "source": "new",
+          "id": "r2a1-44-quote-reply",
+          "ratio": 0.4354
+        },
+        {
+          "source": "new",
+          "id": "r2a2-10-email-key",
+          "ratio": 0.4307
+        },
+        {
+          "source": "scripts/eval/l5_memory.py",
+          "id": "mem-dates",
+          "ratio": 0.4151
+        },
+        {
+          "source": "new",
+          "id": "r2a1-47-ticket-title",
+          "ratio": 0.411
+        },
+        {
+          "source": "scripts/eval/tasks_r2.py",
+          "id": "c",
+          "ratio": 0.4062
+        },
+        {
+          "source": "new",
+          "id": "r2a1-n3-median",
+          "ratio": 0.4052
+        }
+      ],
+      "clean": true
+    },
+    {
+      "id": "r2a1-30-password-score",
+      "findings": [],
+      "listed_above_0.4": [
+        {
+          "source": "new",
+          "id": "r2a1-41-star-rating",
+          "ratio": 0.4936
+        },
+        {
+          "source": "new",
+          "id": "r2a1-33-working-days",
+          "ratio": 0.4538
+        },
+        {
+          "source": "new",
+          "id": "r2a2-48-count-label",
+          "ratio": 0.4505
+        },
+        {
+          "source": "new",
+          "id": "r2a2-16-player-level",
+          "ratio": 0.4488
+        },
+        {
+          "source": "new",
+          "id": "r2a2-02-utc-stamp",
+          "ratio": 0.4369
+        },
+        {
+          "source": "scripts/eval/tasks_polyglot.py",
+          "id": "pg-paasio",
+          "ratio": 0.4324
+        },
+        {
+          "source": "new",
+          "id": "r2a2-43-competition-rank",
+          "ratio": 0.4317
+        },
+        {
+          "source": "new",
+          "id": "r2a2-39-parcel-cost",
+          "ratio": 0.4272
+        },
+        {
+          "source": "scripts/eval/tasks_polyglot.py",
+          "id": "pg-wordy",
+          "ratio": 0.4239
+        },
+        {
+          "source": "new",
+          "id": "r2a1-32-key-values",
+          "ratio": 0.4235
+        },
+        {
+          "source": "scripts/eval/tasks_polyglot.py",
+          "id": "pg-food-chain",
+          "ratio": 0.4233
+        },
+        {
+          "source": "scripts/eval/tasks_polyglot.py",
+          "id": "pg-go-counting",
+          "ratio": 0.4211
+        },
+        {
+          "source": "scripts/eval/tasks_polyglot.py",
+          "id": "pg-sgf-parsing",
+          "ratio": 0.4211
+        },
+        {
+          "source": "new",
+          "id": "r2a1-n6-common-prefix",
+          "ratio": 0.4207
+        },
+        {
+          "source": "scripts/eval/tasks_polyglot.py",
+          "id": "pg-connect",
+          "ratio": 0.4194
+        },
+        {
+          "source": "new",
+          "id": "r2a1-39-deploy-target",
+          "ratio": 0.4163
+        },
+        {
+          "source": "new",
+          "id": "r2a1-46-isbn",
+          "ratio": 0.4149
+        },
+        {
+          "source": "scripts/eval/tasks_polyglot.py",
+          "id": "pg-forth",
+          "ratio": 0.413
+        },
+        {
+          "source": "new",
+          "id": "r2a1-44-quote-reply",
+          "ratio": 0.4115
+        },
+        {
+          "source": "new",
+          "id": "r2a2-03-record-ids",
+          "ratio": 0.4112
+        },
+        {
+          "source": "scripts/eval/l5_memory.py",
+          "id": "mem-paths",
+          "ratio": 0.4107
+        },
+        {
+          "source": "new",
+          "id": "r2a2-27-next-working-day",
+          "ratio": 0.4103
+        },
+        {
+          "source": "new",
+          "id": "r2a2-19-score-display",
+          "ratio": 0.4098
+        },
+        {
+          "source": "new",
+          "id": "r2a2-47-spreadsheet-cell",
+          "ratio": 0.4087
+        },
+        {
+          "source": "new",
+          "id": "r2a1-34-comment-html",
+          "ratio": 0.4078
+        },
+        {
+          "source": "new",
+          "id": "r2a2-41-markdown-escape",
+          "ratio": 0.4069
+        },
+        {
+          "source": "new",
+          "id": "r2a2-17-sheet-column",
+          "ratio": 0.4061
+        },
+        {
+          "source": "new",
+          "id": "r2a2-10-email-key",
+          "ratio": 0.4036
+        }
+      ],
+      "clean": true
+    },
+    {
+      "id": "r2a1-31-cash-rounding",
+      "findings": [],
+      "listed_above_0.4": [
+        {
+          "source": "new",
+          "id": "r2a1-41-star-rating",
+          "ratio": 0.4264
+        },
+        {
+          "source": "new",
+          "id": "r2a1-46-isbn",
+          "ratio": 0.4091
+        }
+      ],
+      "clean": true
+    },
+    {
+      "id": "r2a1-32-key-values",
+      "findings": [],
+      "listed_above_0.4": [
+        {
+          "source": "new",
+          "id": "r2a2-02-utc-stamp",
+          "ratio": 0.5063
+        },
+        {
+          "source": "new",
+          "id": "r2a1-37-bill-split",
+          "ratio": 0.4866
+        },
+        {
+          "source": "scripts/eval/l5_memory.py",
+          "id": "mem-dates",
+          "ratio": 0.4571
+        },
+        {
+          "source": "new",
+          "id": "r2a1-45-quota-size",
+          "ratio": 0.4561
+        },
+        {
+          "source": "new",
+          "id": "r2a2-24-wrap-lines",
+          "ratio": 0.4558
+        },
+        {
+          "source": "new",
+          "id": "r2a2-15-token-mask",
+          "ratio": 0.4484
+        },
+        {
+          "source": "scripts/eval/l5_memory.py",
+          "id": "mem-json",
+          "ratio": 0.4454
+        },
+        {
+          "source": "new",
+          "id": "r2a2-36-cache-names",
+          "ratio": 0.4453
+        },
+        {
+          "source": "new",
+          "id": "r2a2-26-tag-merge",
+          "ratio": 0.4444
+        },
+        {
+          "source": "new",
+          "id": "r2a2-20-phone-intl",
+          "ratio": 0.4436
+        },
+        {
+          "source": "new",
+          "id": "r2a1-34-comment-html",
+          "ratio": 0.4406
+        },
+        {
+          "source": "scripts/eval/tasks_r2.py",
+          "id": "c",
+          "ratio": 0.4333
+        },
+        {
+          "source": "new",
+          "id": "r2a2-31-hex-rgb",
+          "ratio": 0.4274
+        },
+        {
+          "source": "scripts/eval/tasks.py",
+          "id": "slugify",
+          "ratio": 0.4268
+        },
+        {
+          "source": "scripts/eval/r3.py",
+          "id": null,
+          "ratio": 0.4211
+        },
+        {
+          "source": "new",
+          "id": "r2a2-40-sku-check",
+          "ratio": 0.4179
+        },
+        {
+          "source": "new",
+          "id": "r2a1-38-coordinates",
+          "ratio": 0.4122
+        },
+        {
+          "source": "new",
+          "id": "r2a1-43-index-groups",
+          "ratio": 0.4111
+        },
+        {
+          "source": "scripts/eval/tasks_r2.py",
+          "id": "a",
+          "ratio": 0.4099
+        }
+      ],
+      "clean": true
+    },
+    {
+      "id": "r2a1-33-working-days",
+      "findings": [],
+      "listed_above_0.4": [
+        {
+          "source": "new",
+          "id": "r2a1-41-star-rating",
+          "ratio": 0.4739
+        },
+        {
+          "source": "new",
+          "id": "r2a1-48-dict-diff",
+          "ratio": 0.4733
+        },
+        {
+          "source": "new",
+          "id": "r2a2-27-next-working-day",
+          "ratio": 0.4689
+        },
+        {
+          "source": "new",
+          "id": "r2a2-43-competition-rank",
+          "ratio": 0.4232
+        },
+        {
+          "source": "new",
+          "id": "r2a2-34-great-circle",
+          "ratio": 0.4229
+        },
+        {
+          "source": "new",
+          "id": "r2a1-36-progress-bar",
+          "ratio": 0.4127
+        },
+        {
+          "source": "new",
+          "id": "r2a2-13-joined-list",
+          "ratio": 0.412
+        },
+        {
+          "source": "new",
+          "id": "r2a1-46-isbn",
+          "ratio": 0.4078
+        },
+        {
+          "source": "new",
+          "id": "r2a2-42-report-day",
+          "ratio": 0.4015
+        }
+      ],
+      "clean": true
+    },
+    {
+      "id": "r2a1-34-comment-html",
+      "findings": [],
+      "listed_above_0.4": [
+        {
+          "source": "new",
+          "id": "r2a2-26-tag-merge",
+          "ratio": 0.4938
+        },
+        {
+          "source": "new",
+          "id": "r2a2-48-count-label",
+          "ratio": 0.4506
+        },
+        {
+          "source": "new",
+          "id": "r2a2-17-sheet-column",
+          "ratio": 0.4474
+        },
+        {
+          "source": "scripts/eval/tasks_r2.py",
+          "id": "a",
+          "ratio": 0.4452
+        },
+        {
+          "source": "new",
+          "id": "r2a2-24-wrap-lines",
+          "ratio": 0.4422
+        },
+        {
+          "source": "new",
+          "id": "r2a2-36-cache-names",
+          "ratio": 0.4297
+        },
+        {
+          "source": "new",
+          "id": "r2a1-42-short-number",
+          "ratio": 0.4264
+        },
+        {
+          "source": "new",
+          "id": "r2a1-n7-line-widths",
+          "ratio": 0.4232
+        },
+        {
+          "source": "new",
+          "id": "r2a2-07-relative-change",
+          "ratio": 0.4167
+        },
+        {
+          "source": "new",
+          "id": "r2a2-20-phone-intl",
+          "ratio": 0.4135
+        },
+        {
+          "source": "new",
+          "id": "r2a2-31-hex-rgb",
+          "ratio": 0.4103
+        },
+        {
+          "source": "scripts/eval/l5_memory.py",
+          "id": "mem-dates",
+          "ratio": 0.4082
+        }
+      ],
+      "clean": true
+    },
+    {
+      "id": "r2a1-35-booking-merge",
+      "findings": [],
+      "listed_above_0.4": [
+        {
+          "source": "new",
+          "id": "r2a1-42-short-number",
+          "ratio": 0.4436
+        },
+        {
+          "source": "new",
+          "id": "r2a2-25-ride-speed",
+          "ratio": 0.427
+        }
+      ],
+      "clean": true
+    },
+    {
+      "id": "r2a1-36-progress-bar",
+      "findings": [],
+      "listed_above_0.4": [
+        {
+          "source": "new",
+          "id": "r2a1-42-short-number",
+          "ratio": 0.5062
+        },
+        {
+          "source": "new",
+          "id": "r2a1-48-dict-diff",
+          "ratio": 0.5038
+        },
+        {
+          "source": "new",
+          "id": "r2a2-38-duration-text",
+          "ratio": 0.4337
+        },
+        {
+          "source": "new",
+          "id": "r2a1-41-star-rating",
+          "ratio": 0.4257
+        },
+        {
+          "source": "new",
+          "id": "r2a2-43-competition-rank",
+          "ratio": 0.4232
+        },
+        {
+          "source": "new",
+          "id": "r2a1-44-quote-reply",
+          "ratio": 0.4202
+        },
+        {
+          "source": "new",
+          "id": "r2a2-23-status-colour",
+          "ratio": 0.4072
+        },
+        {
+          "source": "new",
+          "id": "r2a2-33-count-by",
+          "ratio": 0.4017
+        }
+      ],
+      "clean": true
+    },
+    {
+      "id": "r2a1-37-bill-split",
+      "findings": [],
+      "listed_above_0.4": [
+        {
+          "source": "new",
+          "id": "r2a2-43-competition-rank",
+          "ratio": 0.4531
+        },
+        {
+          "source": "new",
+          "id": "r2a1-43-index-groups",
+          "ratio": 0.4497
+        },
+        {
+          "source": "new",
+          "id": "r2a1-45-quota-size",
+          "ratio": 0.4464
+        },
+        {
+          "source": "new",
+          "id": "r2a2-22-upload-path",
+          "ratio": 0.4228
+        },
+        {
+          "source": "new",
+          "id": "r2a2-36-cache-names",
+          "ratio": 0.4169
+        },
+        {
+          "source": "new",
+          "id": "r2a1-48-dict-diff",
+          "ratio": 0.4061
+        },
+        {
+          "source": "scripts/eval/tasks_r2.py",
+          "id": "c",
+          "ratio": 0.4046
+        },
+        {
+          "source": "scripts/eval/tasks_r2.py",
+          "id": "rank",
+          "ratio": 0.4044
+        },
+        {
+          "source": "new",
+          "id": "r2a2-12-percentile",
+          "ratio": 0.4025
+        }
+      ],
+      "clean": true
+    },
+    {
+      "id": "r2a1-38-coordinates",
+      "findings": [],
+      "listed_above_0.4": [
+        {
+          "source": "new",
+          "id": "r2a1-45-quota-size",
+          "ratio": 0.5356
+        },
+        {
+          "source": "new",
+          "id": "r2a1-46-isbn",
+          "ratio": 0.4681
+        }
+      ],
+      "clean": true
+    },
+    {
+      "id": "r2a1-39-deploy-target",
+      "findings": [],
+      "listed_above_0.4": [
+        {
+          "source": "new",
+          "id": "r2a2-35-age-years",
+          "ratio": 0.4426
+        },
+        {
+          "source": "new",
+          "id": "r2a2-19-score-display",
+          "ratio": 0.4248
+        },
+        {
+          "source": "new",
+          "id": "r2a2-36-cache-names",
+          "ratio": 0.4228
+        },
+        {
+          "source": "new",
+          "id": "r2a2-48-count-label",
+          "ratio": 0.4198
+        },
+        {
+          "source": "new",
+          "id": "r2a2-27-next-working-day",
+          "ratio": 0.4074
+        },
+        {
+          "source": "new",
+          "id": "r2a2-02-utc-stamp",
+          "ratio": 0.4053
+        },
+        {
+          "source": "new",
+          "id": "r2a2-23-status-colour",
+          "ratio": 0.4035
+        }
+      ],
+      "clean": true
+    },
+    {
+      "id": "r2a1-40-log-line",
+      "findings": [],
+      "listed_above_0.4": [
+        {
+          "source": "new",
+          "id": "r2a2-30-vat-line",
+          "ratio": 0.437
+        },
+        {
+          "source": "new",
+          "id": "r2a2-46-reading-time",
+          "ratio": 0.4333
+        },
+        {
+          "source": "new",
+          "id": "r2a1-44-quote-reply",
+          "ratio": 0.4332
+        },
+        {
+          "source": "new",
+          "id": "r2a2-08-event-line",
+          "ratio": 0.4291
+        },
+        {
+          "source": "new",
+          "id": "r2a2-18-http-date",
+          "ratio": 0.4286
+        },
+        {
+          "source": "scripts/eval/l5_memory.py",
+          "id": "mem-paths",
+          "ratio": 0.4264
+        },
+        {
+          "source": "new",
+          "id": "r2a2-15-token-mask",
+          "ratio": 0.4225
+        },
+        {
+          "source": "new",
+          "id": "r2a2-48-count-label",
+          "ratio": 0.4219
+        },
+        {
+          "source": "new",
+          "id": "r2a1-47-ticket-title",
+          "ratio": 0.4218
+        },
+        {
+          "source": "new",
+          "id": "r2a2-17-sheet-column",
+          "ratio": 0.4156
+        },
+        {
+          "source": "new",
+          "id": "r2a1-43-index-groups",
+          "ratio": 0.4138
+        },
+        {
+          "source": "new",
+          "id": "r2a1-n5-vowels",
+          "ratio": 0.4128
+        },
+        {
+          "source": "new",
+          "id": "r2a1-48-dict-diff",
+          "ratio": 0.4043
+        },
+        {
+          "source": "new",
+          "id": "r2a1-41-star-rating",
+          "ratio": 0.4015
+        },
+        {
+          "source": "new",
+          "id": "r2a2-42-report-day",
+          "ratio": 0.4014
+        }
+      ],
+      "clean": true
+    },
+    {
+      "id": "r2a1-41-star-rating",
+      "findings": [],
+      "listed_above_0.4": [
+        {
+          "source": "new",
+          "id": "r2a2-19-score-display",
+          "ratio": 0.4815
+        },
+        {
+          "source": "new",
+          "id": "r2a2-09-tenths-temp",
+          "ratio": 0.4658
+        },
+        {
+          "source": "new",
+          "id": "r2a1-47-ticket-title",
+          "ratio": 0.4524
+        },
+        {
+          "source": "new",
+          "id": "r2a2-43-competition-rank",
+          "ratio": 0.437
+        },
+        {
+          "source": "new",
+          "id": "r2a2-27-next-working-day",
+          "ratio": 0.4369
+        },
+        {
+          "source": "new",
+          "id": "r2a2-07-relative-change",
+          "ratio": 0.4344
+        },
+        {
+          "source": "new",
+          "id": "r2a2-42-report-day",
+          "ratio": 0.4215
+        },
+        {
+          "source": "new",
+          "id": "r2a2-25-ride-speed",
+          "ratio": 0.4174
+        },
+        {
+          "source": "new",
+          "id": "r2a2-46-reading-time",
+          "ratio": 0.4147
+        },
+        {
+          "source": "new",
+          "id": "r2a2-48-count-label",
+          "ratio": 0.412
+        },
+        {
+          "source": "new",
+          "id": "r2a2-35-age-years",
+          "ratio": 0.4103
+        },
+        {
+          "source": "new",
+          "id": "r2a2-02-utc-stamp",
+          "ratio": 0.4055
+        }
+      ],
+      "clean": true
+    },
+    {
+      "id": "r2a1-42-short-number",
+      "findings": [],
+      "listed_above_0.4": [
+        {
+          "source": "new",
+          "id": "r2a2-05-author-name",
+          "ratio": 0.48
+        },
+        {
+          "source": "new",
+          "id": "r2a2-01-euro-amount",
+          "ratio": 0.4566
+        },
+        {
+          "source": "new",
+          "id": "r2a2-37-host-list",
+          "ratio": 0.4464
+        },
+        {
+          "source": "new",
+          "id": "r2a2-36-cache-names",
+          "ratio": 0.4386
+        },
+        {
+          "source": "new",
+          "id": "r2a1-46-isbn",
+          "ratio": 0.4344
+        },
+        {
+          "source": "new",
+          "id": "r2a2-18-http-date",
+          "ratio": 0.4344
+        },
+        {
+          "source": "new",
+          "id": "r2a2-08-event-line",
+          "ratio": 0.4261
+        },
+        {
+          "source": "new",
+          "id": "r2a2-14-week-start",
+          "ratio": 0.4115
+        },
+        {
+          "source": "new",
+          "id": "r2a2-25-ride-speed",
+          "ratio": 0.4054
+        }
+      ],
+      "clean": true
+    },
+    {
+      "id": "r2a1-43-index-groups",
+      "findings": [],
+      "listed_above_0.4": [
+        {
+          "source": "new",
+          "id": "r2a1-48-dict-diff",
+          "ratio": 0.4857
+        },
+        {
+          "source": "new",
+          "id": "r2a2-20-phone-intl",
+          "ratio": 0.4644
+        },
+        {
+          "source": "new",
+          "id": "r2a2-33-count-by",
+          "ratio": 0.4603
+        },
+        {
+          "source": "new",
+          "id": "r2a2-36-cache-names",
+          "ratio": 0.4591
+        },
+        {
+          "source": "new",
+          "id": "r2a2-40-sku-check",
+          "ratio": 0.4387
+        },
+        {
+          "source": "new",
+          "id": "r2a2-42-report-day",
+          "ratio": 0.4326
+        },
+        {
+          "source": "new",
+          "id": "r2a2-46-reading-time",
+          "ratio": 0.4286
+        },
+        {
+          "source": "new",
+          "id": "r2a2-38-duration-text",
+          "ratio": 0.427
+        },
+        {
+          "source": "new",
+          "id": "r2a2-13-joined-list",
+          "ratio": 0.4211
+        },
+        {
+          "source": "scripts/eval/l5_memory.py",
+          "id": "mem-dates",
+          "ratio": 0.4146
+        },
+        {
+          "source": "scripts/eval/tasks_r2.py",
+          "id": "c",
+          "ratio": 0.412
+        },
+        {
+          "source": "scripts/eval/l5_memory.py",
+          "id": "mem-json",
+          "ratio": 0.41
+        },
+        {
+          "source": "new",
+          "id": "r2a2-07-relative-change",
+          "ratio": 0.4075
+        },
+        {
+          "source": "new",
+          "id": "r2a1-n2-running-total",
+          "ratio": 0.4043
+        },
+        {
+          "source": "new",
+          "id": "r2a2-12-percentile",
+          "ratio": 0.403
+        }
+      ],
+      "clean": true
+    },
+    {
+      "id": "r2a1-44-quote-reply",
+      "findings": [],
+      "listed_above_0.4": [
+        {
+          "source": "new",
+          "id": "r2a2-23-status-colour",
+          "ratio": 0.4513
+        },
+        {
+          "source": "new",
+          "id": "r2a2-09-tenths-temp",
+          "ratio": 0.4493
+        },
+        {
+          "source": "new",
+          "id": "r2a2-42-report-day",
+          "ratio": 0.4461
+        },
+        {
+          "source": "new",
+          "id": "r2a2-43-competition-rank",
+          "ratio": 0.439
+        },
+        {
+          "source": "new",
+          "id": "r2a2-06-data-lines",
+          "ratio": 0.4382
+        },
+        {
+          "source": "new",
+          "id": "r2a2-19-score-display",
+          "ratio": 0.4286
+        },
+        {
+          "source": "new",
+          "id": "r2a2-03-record-ids",
+          "ratio": 0.4206
+        },
+        {
+          "source": "new",
+          "id": "r2a2-13-joined-list",
+          "ratio": 0.4118
+        },
+        {
+          "source": "new",
+          "id": "r2a1-48-dict-diff",
+          "ratio": 0.4045
+        }
+      ],
+      "clean": true
+    },
+    {
+      "id": "r2a1-45-quota-size",
+      "findings": [],
+      "listed_above_0.4": [
+        {
+          "source": "new",
+          "id": "r2a2-40-sku-check",
+          "ratio": 0.5543
+        },
+        {
+          "source": "new",
+          "id": "r2a2-26-tag-merge",
+          "ratio": 0.4545
+        },
+        {
+          "source": "scripts/eval/tasks_r2.py",
+          "id": "a",
+          "ratio": 0.4397
+        },
+        {
+          "source": "new",
+          "id": "r2a2-04-error-body",
+          "ratio": 0.4286
+        },
+        {
+          "source": "scripts/eval/tasks_r2.py",
+          "id": "b",
+          "ratio": 0.4272
+        },
+        {
+          "source": "new",
+          "id": "r2a2-24-wrap-lines",
+          "ratio": 0.4164
+        },
+        {
+          "source": "new",
+          "id": "r2a2-20-phone-intl",
+          "ratio": 0.4075
+        },
+        {
+          "source": "new",
+          "id": "r2a2-15-token-mask",
+          "ratio": 0.4071
+        },
+        {
+          "source": "new",
+          "id": "r2a2-22-upload-path",
+          "ratio": 0.4038
+        },
+        {
+          "source": "new",
+          "id": "r2a2-07-relative-change",
+          "ratio": 0.403
+        },
+        {
+          "source": "new",
+          "id": "r2a1-n1-palindrome",
+          "ratio": 0.4021
+        }
+      ],
+      "clean": true
+    },
+    {
+      "id": "r2a1-46-isbn",
+      "findings": [],
+      "listed_above_0.4": [
+        {
+          "source": "new",
+          "id": "r2a2-43-competition-rank",
+          "ratio": 0.4672
+        },
+        {
+          "source": "new",
+          "id": "r2a2-40-sku-check",
+          "ratio": 0.4173
+        }
+      ],
+      "clean": true
+    },
+    {
+      "id": "r2a1-47-ticket-title",
+      "findings": [],
+      "listed_above_0.4": [
+        {
+          "source": "scripts/eval/l5_memory.py",
+          "id": "mem-paths",
+          "ratio": 0.4813
+        },
+        {
+          "source": "new",
+          "id": "r2a2-48-count-label",
+          "ratio": 0.4519
+        },
+        {
+          "source": "new",
+          "id": "r2a2-30-vat-line",
+          "ratio": 0.4506
+        },
+        {
+          "source": "new",
+          "id": "r2a2-13-joined-list",
+          "ratio": 0.4444
+        },
+        {
+          "source": "new",
+          "id": "r2a2-42-report-day",
+          "ratio": 0.4345
+        },
+        {
+          "source": "new",
+          "id": "r2a2-10-email-key",
+          "ratio": 0.4333
+        },
+        {
+          "source": "scripts/eval/tasks.py",
+          "id": "mem-money",
+          "ratio": 0.4271
+        },
+        {
+          "source": "new",
+          "id": "r2a2-04-error-body",
+          "ratio": 0.427
+        },
+        {
+          "source": "new",
+          "id": "r2a2-15-token-mask",
+          "ratio": 0.427
+        },
+        {
+          "source": "new",
+          "id": "r2a2-32-page-title",
+          "ratio": 0.4174
+        },
+        {
+          "source": "scripts/eval/l5_memory.py",
+          "id": "mem-dates",
+          "ratio": 0.4156
+        },
+        {
+          "source": "new",
+          "id": "r2a2-09-tenths-temp",
+          "ratio": 0.4089
+        },
+        {
+          "source": "new",
+          "id": "r2a2-38-duration-text",
+          "ratio": 0.4048
+        }
+      ],
+      "clean": true
+    },
+    {
+      "id": "r2a1-48-dict-diff",
+      "findings": [],
+      "listed_above_0.4": [
+        {
+          "source": "new",
+          "id": "r2a2-07-relative-change",
+          "ratio": 0.4436
+        },
+        {
+          "source": "scripts/eval/l5_memory.py",
+          "id": "mem-json",
+          "ratio": 0.4156
+        },
+        {
+          "source": "scripts/eval/tasks_r2.py",
+          "id": "a",
+          "ratio": 0.413
+        },
+        {
+          "source": "new",
+          "id": "r2a2-03-record-ids",
+          "ratio": 0.4118
+        },
+        {
+          "source": "new",
+          "id": "r2a2-01-euro-amount",
+          "ratio": 0.4083
+        },
+        {
+          "source": "new",
+          "id": "r2a2-26-tag-merge",
+          "ratio": 0.4068
+        },
+        {
+          "source": "new",
+          "id": "r2a2-28-title-sort",
+          "ratio": 0.4015
+        }
+      ],
+      "clean": true
+    },
+    {
+      "id": "r2a1-n1-palindrome",
+      "findings": [],
+      "listed_above_0.4": [
+        {
+          "source": "new",
+          "id": "r2a1-n6-common-prefix",
+          "ratio": 0.4245
+        },
+        {
+          "source": "new",
+          "id": "r2a1-n2-running-total",
+          "ratio": 0.4017
+        }
+      ],
+      "clean": true
+    },
+    {
+      "id": "r2a1-n2-running-total",
+      "findings": [],
+      "listed_above_0.4": [
+        {
+          "source": "new",
+          "id": "r2a1-n7-line-widths",
+          "ratio": 0.4657
+        },
+        {
+          "source": "new",
+          "id": "r2a1-n5-vowels",
+          "ratio": 0.4344
+        },
+        {
+          "source": "new",
+          "id": "r2a1-n8-clamp-values",
+          "ratio": 0.4163
+        },
+        {
+          "source": "scripts/eval/tasks.py",
+          "id": "dedupe",
+          "ratio": 0.4077
+        },
+        {
+          "source": "new",
+          "id": "r2a1-n3-median",
+          "ratio": 0.4053
+        },
+        {
+          "source": "scripts/eval/tasks_r2.py",
+          "id": "a",
+          "ratio": 0.4033
+        }
+      ],
+      "clean": true
+    },
+    {
+      "id": "r2a1-n3-median",
+      "findings": [],
+      "listed_above_0.4": [
+        {
+          "source": "new",
+          "id": "r2a1-n7-line-widths",
+          "ratio": 0.4286
+        },
+        {
+          "source": "new",
+          "id": "r2a2-42-report-day",
+          "ratio": 0.4278
+        },
+        {
+          "source": "scripts/eval/tasks_r2.py",
+          "id": "a",
+          "ratio": 0.4254
+        },
+        {
+          "source": "new",
+          "id": "r2a1-n8-clamp-values",
+          "ratio": 0.4068
+        }
+      ],
+      "clean": true
+    },
+    {
+      "id": "r2a1-n4-flatten",
+      "findings": [],
+      "listed_above_0.4": [
+        {
+          "source": "new",
+          "id": "r2a1-n6-common-prefix",
+          "ratio": 0.4035
+        }
+      ],
+      "clean": true
+    },
+    {
+      "id": "r2a1-n5-vowels",
+      "findings": [],
+      "listed_above_0.4": [
+        {
+          "source": "new",
+          "id": "r2a1-n6-common-prefix",
+          "ratio": 0.41
+        }
+      ],
+      "clean": true
+    },
+    {
+      "id": "r2a1-n6-common-prefix",
+      "findings": [],
+      "listed_above_0.4": [
+        {
+          "source": "new",
+          "id": "r2a2-12-percentile",
+          "ratio": 0.4371
+        },
+        {
+          "source": "new",
+          "id": "r2a2-02-utc-stamp",
+          "ratio": 0.4338
+        },
+        {
+          "source": "new",
+          "id": "r2a2-28-title-sort",
+          "ratio": 0.4186
+        },
+        {
+          "source": "new",
+          "id": "r2a2-42-report-day",
+          "ratio": 0.4177
+        },
+        {
+          "source": "scripts/eval/tasks_r2.py",
+          "id": "groupby",
+          "ratio": 0.4077
+        },
+        {
+          "source": "new",
+          "id": "r2a2-30-vat-line",
+          "ratio": 0.404
+        },
+        {
+          "source": "new",
+          "id": "r2a2-40-sku-check",
+          "ratio": 0.4026
+        }
+      ],
+      "clean": true
+    },
+    {
+      "id": "r2a1-n7-line-widths",
+      "findings": [],
+      "listed_above_0.4": [
+        {
+          "source": "scripts/eval/tasks_r2.py",
+          "id": "rank",
+          "ratio": 0.4388
+        }
+      ],
+      "clean": true
+    },
+    {
+      "id": "r2a1-n8-clamp-values",
+      "findings": [],
+      "listed_above_0.4": [
+        {
+          "source": "scripts/eval/tasks_r2.py",
+          "id": "a",
+          "ratio": 0.4894
+        }
+      ],
+      "clean": true
+    },
+    {
+      "id": "r2a2-01-euro-amount",
+      "findings": [],
+      "listed_above_0.4": [
+        {
+          "source": "new",
+          "id": "r2a2-25-ride-speed",
+          "ratio": 0.4739
+        },
+        {
+          "source": "new",
+          "id": "r2a2-14-week-start",
+          "ratio": 0.4444
+        },
+        {
+          "source": "new",
+          "id": "r2a2-30-vat-line",
+          "ratio": 0.4298
+        },
+        {
+          "source": "new",
+          "id": "r2a2-13-joined-list",
+          "ratio": 0.4245
+        },
+        {
+          "source": "new",
+          "id": "r2a2-48-count-label",
+          "ratio": 0.4206
+        },
+        {
+          "source": "new",
+          "id": "r2a2-33-count-by",
+          "ratio": 0.4151
+        },
+        {
+          "source": "new",
+          "id": "r2a2-45-aspect-ratio",
+          "ratio": 0.4131
+        },
+        {
+          "source": "new",
+          "id": "r2a2-39-parcel-cost",
+          "ratio": 0.404
+        },
+        {
+          "source": "new",
+          "id": "r2a2-21-identifier-words",
+          "ratio": 0.4033
+        },
+        {
+          "source": "new",
+          "id": "r2a2-23-status-colour",
+          "ratio": 0.402
+        }
+      ],
+      "clean": true
+    },
+    {
+      "id": "r2a2-02-utc-stamp",
+      "findings": [],
+      "listed_above_0.4": [
+        {
+          "source": "scripts/eval/l5_memory.py",
+          "id": "mem-dates",
+          "ratio": 0.5204
+        },
+        {
+          "source": "new",
+          "id": "r2a2-18-http-date",
+          "ratio": 0.5
+        },
+        {
+          "source": "new",
+          "id": "r2a2-17-sheet-column",
+          "ratio": 0.4916
+        },
+        {
+          "source": "new",
+          "id": "r2a2-26-tag-merge",
+          "ratio": 0.4845
+        },
+        {
+          "source": "new",
+          "id": "r2a2-40-sku-check",
+          "ratio": 0.4749
+        },
+        {
+          "source": "scripts/eval/tasks_r2.py",
+          "id": "d",
+          "ratio": 0.4744
+        },
+        {
+          "source": "scripts/eval/tasks.py",
+          "id": "mem-money",
+          "ratio": 0.4713
+        },
+        {
+          "source": "scripts/eval/l5_memory.py",
+          "id": "mem-json",
+          "ratio": 0.4656
+        },
+        {
+          "source": "new",
+          "id": "r2a2-39-parcel-cost",
+          "ratio": 0.4574
+        },
+        {
+          "source": "new",
+          "id": "r2a2-34-great-circle",
+          "ratio": 0.4513
+        },
+        {
+          "source": "new",
+          "id": "r2a2-30-vat-line",
+          "ratio": 0.4495
+        },
+        {
+          "source": "new",
+          "id": "r2a2-03-record-ids",
+          "ratio": 0.449
+        },
+        {
+          "source": "new",
+          "id": "r2a2-08-event-line",
+          "ratio": 0.4402
+        },
+        {
+          "source": "new",
+          "id": "r2a2-10-email-key",
+          "ratio": 0.439
+        },
+        {
+          "source": "new",
+          "id": "r2a2-25-ride-speed",
+          "ratio": 0.4378
+        },
+        {
+          "source": "new",
+          "id": "r2a2-46-reading-time",
+          "ratio": 0.4362
+        },
+        {
+          "source": "scripts/eval/tasks.py",
+          "id": "mem-log",
+          "ratio": 0.4354
+        },
+        {
+          "source": "new",
+          "id": "r2a2-22-upload-path",
+          "ratio": 0.4312
+        },
+        {
+          "source": "scripts/eval/r3.py",
+          "id": null,
+          "ratio": 0.4235
+        },
+        {
+          "source": "new",
+          "id": "r2a2-07-relative-change",
+          "ratio": 0.4186
+        },
+        {
+          "source": "new",
+          "id": "r2a2-04-error-body",
+          "ratio": 0.4138
+        },
+        {
+          "source": "new",
+          "id": "r2a2-15-token-mask",
+          "ratio": 0.4138
+        },
+        {
+          "source": "new",
+          "id": "r2a2-09-tenths-temp",
+          "ratio": 0.4105
+        },
+        {
+          "source": "new",
+          "id": "r2a2-16-player-level",
+          "ratio": 0.4064
+        },
+        {
+          "source": "new",
+          "id": "r2a2-23-status-colour",
+          "ratio": 0.4021
+        }
+      ],
+      "clean": true
+    },
+    {
+      "id": "r2a2-03-record-ids",
+      "findings": [],
+      "listed_above_0.4": [
+        {
+          "source": "new",
+          "id": "r2a2-14-week-start",
+          "ratio": 0.4898
+        },
+        {
+          "source": "new",
+          "id": "r2a2-27-next-working-day",
+          "ratio": 0.4757
+        },
+        {
+          "source": "new",
+          "id": "r2a2-23-status-colour",
+          "ratio": 0.467
+        },
+        {
+          "source": "new",
+          "id": "r2a2-09-tenths-temp",
+          "ratio": 0.4545
+        },
+        {
+          "source": "new",
+          "id": "r2a2-08-event-line",
+          "ratio": 0.4516
+        },
+        {
+          "source": "new",
+          "id": "r2a2-35-age-years",
+          "ratio": 0.4507
+        },
+        {
+          "source": "new",
+          "id": "r2a2-12-percentile",
+          "ratio": 0.4425
+        },
+        {
+          "source": "new",
+          "id": "r2a2-16-player-level",
+          "ratio": 0.4205
+        },
+        {
+          "source": "new",
+          "id": "r2a2-18-http-date",
+          "ratio": 0.4135
+        },
+        {
+          "source": "new",
+          "id": "r2a2-48-count-label",
+          "ratio": 0.4057
+        }
+      ],
+      "clean": true
+    },
+    {
+      "id": "r2a2-04-error-body",
+      "findings": [],
+      "listed_above_0.4": [
+        {
+          "source": "scripts/eval/tasks_r2.py",
+          "id": "a",
+          "ratio": 0.4388
+        },
+        {
+          "source": "new",
+          "id": "r2a2-30-vat-line",
+          "ratio": 0.4351
+        },
+        {
+          "source": "scripts/eval/tasks_r2.py",
+          "id": "c",
+          "ratio": 0.4339
+        },
+        {
+          "source": "new",
+          "id": "r2a2-46-reading-time",
+          "ratio": 0.431
+        },
+        {
+          "source": "new",
+          "id": "r2a2-26-tag-merge",
+          "ratio": 0.4286
+        },
+        {
+          "source": "new",
+          "id": "r2a2-43-competition-rank",
+          "ratio": 0.4269
+        },
+        {
+          "source": "new",
+          "id": "r2a2-34-great-circle",
+          "ratio": 0.4268
+        },
+        {
+          "source": "new",
+          "id": "r2a2-36-cache-names",
+          "ratio": 0.4223
+        },
+        {
+          "source": "scripts/eval/l5_memory.py",
+          "id": "mem-json",
+          "ratio": 0.4206
+        },
+        {
+          "source": "new",
+          "id": "r2a2-48-count-label",
+          "ratio": 0.4194
+        },
+        {
+          "source": "scripts/eval/tasks.py",
+          "id": "mem-money",
+          "ratio": 0.408
+        },
+        {
+          "source": "new",
+          "id": "r2a2-28-title-sort",
+          "ratio": 0.4061
+        },
+        {
+          "source": "new",
+          "id": "r2a2-42-report-day",
+          "ratio": 0.4058
+        },
+        {
+          "source": "new",
+          "id": "r2a2-10-email-key",
+          "ratio": 0.4016
+        }
+      ],
+      "clean": true
+    },
+    {
+      "id": "r2a2-05-author-name",
+      "findings": [],
+      "listed_above_0.4": [
+        {
+          "source": "new",
+          "id": "r2a2-42-report-day",
+          "ratio": 0.4274
+        },
+        {
+          "source": "scripts/eval/tasks_polyglot.py",
+          "id": "pg-connect",
+          "ratio": 0.413
+        },
+        {
+          "source": "scripts/eval/tasks_polyglot.py",
+          "id": "pg-react",
+          "ratio": 0.4066
+        },
+        {
+          "source": "scripts/eval/l5_memory.py",
+          "id": "mem-paths",
+          "ratio": 0.4054
+        },
+        {
+          "source": "scripts/eval/tasks_polyglot.py",
+          "id": "pg-dot-dsl",
+          "ratio": 0.4022
+        },
+        {
+          "source": "new",
+          "id": "r2a2-30-vat-line",
+          "ratio": 0.4017
+        }
+      ],
+      "clean": true
+    },
+    {
+      "id": "r2a2-06-data-lines",
+      "findings": [],
+      "listed_above_0.4": [
+        {
+          "source": "scripts/eval/tasks.py",
+          "id": "mem-money",
+          "ratio": 0.4481
+        },
+        {
+          "source": "new",
+          "id": "r2a2-08-event-line",
+          "ratio": 0.4426
+        },
+        {
+          "source": "new",
+          "id": "r2a2-30-vat-line",
+          "ratio": 0.4344
+        },
+        {
+          "source": "scripts/eval/l5_memory.py",
+          "id": "mem-json",
+          "ratio": 0.4279
+        },
+        {
+          "source": "new",
+          "id": "r2a2-28-title-sort",
+          "ratio": 0.4198
+        },
+        {
+          "source": "new",
+          "id": "r2a2-16-player-level",
+          "ratio": 0.4131
+        },
+        {
+          "source": "new",
+          "id": "r2a2-37-host-list",
+          "ratio": 0.4118
+        },
+        {
+          "source": "new",
+          "id": "r2a2-23-status-colour",
+          "ratio": 0.4093
+        },
+        {
+          "source": "new",
+          "id": "r2a2-12-percentile",
+          "ratio": 0.4016
+        }
+      ],
+      "clean": true
+    },
+    {
+      "id": "r2a2-07-relative-change",
+      "findings": [],
+      "listed_above_0.4": [
+        {
+          "source": "new",
+          "id": "r2a2-28-title-sort",
+          "ratio": 0.4754
+        },
+        {
+          "source": "new",
+          "id": "r2a2-20-phone-intl",
+          "ratio": 0.4508
+        },
+        {
+          "source": "new",
+          "id": "r2a2-35-age-years",
+          "ratio": 0.4483
+        },
+        {
+          "source": "scripts/eval/tasks_r2.py",
+          "id": "c",
+          "ratio": 0.446
+        },
+        {
+          "source": "new",
+          "id": "r2a2-30-vat-line",
+          "ratio": 0.4408
+        },
+        {
+          "source": "scripts/eval/r3.py",
+          "id": null,
+          "ratio": 0.4397
+        },
+        {
+          "source": "new",
+          "id": "r2a2-19-score-display",
+          "ratio": 0.4393
+        },
+        {
+          "source": "new",
+          "id": "r2a2-31-hex-rgb",
+          "ratio": 0.434
+        },
+        {
+          "source": "new",
+          "id": "r2a2-25-ride-speed",
+          "ratio": 0.4298
+        },
+        {
+          "source": "new",
+          "id": "r2a2-36-cache-names",
+          "ratio": 0.4274
+        },
+        {
+          "source": "new",
+          "id": "r2a2-47-spreadsheet-cell",
+          "ratio": 0.4184
+        },
+        {
+          "source": "new",
+          "id": "r2a2-17-sheet-column",
+          "ratio": 0.4175
+        },
+        {
+          "source": "scripts/eval/l5_memory.py",
+          "id": "mem-json",
+          "ratio": 0.4167
+        },
+        {
+          "source": "new",
+          "id": "r2a2-40-sku-check",
+          "ratio": 0.4146
+        },
+        {
+          "source": "scripts/eval/l5_memory.py",
+          "id": "mem-dates",
+          "ratio": 0.4036
+        },
+        {
+          "source": "scripts/eval/l5_memory.py",
+          "id": "mem-paths",
+          "ratio": 0.4034
+        }
+      ],
+      "clean": true
+    },
+    {
+      "id": "r2a2-08-event-line",
+      "findings": [],
+      "listed_above_0.4": [
+        {
+          "source": "new",
+          "id": "r2a2-18-http-date",
+          "ratio": 0.5249
+        },
+        {
+          "source": "new",
+          "id": "r2a2-32-page-title",
+          "ratio": 0.5
+        },
+        {
+          "source": "new",
+          "id": "r2a2-16-player-level",
+          "ratio": 0.4327
+        },
+        {
+          "source": "new",
+          "id": "r2a2-11-geo-point",
+          "ratio": 0.4245
+        },
+        {
+          "source": "new",
+          "id": "r2a2-37-host-list",
+          "ratio": 0.4206
+        },
+        {
+          "source": "new",
+          "id": "r2a2-30-vat-line",
+          "ratio": 0.4184
+        },
+        {
+          "source": "new",
+          "id": "r2a2-14-week-start",
+          "ratio": 0.4019
+        }
+      ],
+      "clean": true
+    },
+    {
+      "id": "r2a2-09-tenths-temp",
+      "findings": [],
+      "listed_above_0.4": [
+        {
+          "source": "new",
+          "id": "r2a2-23-status-colour",
+          "ratio": 0.4921
+        },
+        {
+          "source": "new",
+          "id": "r2a2-19-score-display",
+          "ratio": 0.4868
+        },
+        {
+          "source": "new",
+          "id": "r2a2-41-markdown-escape",
+          "ratio": 0.4651
+        },
+        {
+          "source": "new",
+          "id": "r2a2-30-vat-line",
+          "ratio": 0.4545
+        },
+        {
+          "source": "new",
+          "id": "r2a2-39-parcel-cost",
+          "ratio": 0.4421
+        },
+        {
+          "source": "new",
+          "id": "r2a2-33-count-by",
+          "ratio": 0.4412
+        },
+        {
+          "source": "new",
+          "id": "r2a2-14-week-start",
+          "ratio": 0.4316
+        },
+        {
+          "source": "new",
+          "id": "r2a2-43-competition-rank",
+          "ratio": 0.4265
+        },
+        {
+          "source": "new",
+          "id": "r2a2-27-next-working-day",
+          "ratio": 0.4246
+        }
+      ],
+      "clean": true
+    },
+    {
+      "id": "r2a2-10-email-key",
+      "findings": [],
+      "listed_above_0.4": [
+        {
+          "source": "scripts/eval/tasks_r2.py",
+          "id": "d",
+          "ratio": 0.4393
+        },
+        {
+          "source": "scripts/eval/tasks.py",
+          "id": "mem-money",
+          "ratio": 0.4253
+        },
+        {
+          "source": "new",
+          "id": "r2a2-42-report-day",
+          "ratio": 0.4177
+        },
+        {
+          "source": "new",
+          "id": "r2a2-12-percentile",
+          "ratio": 0.417
+        }
+      ],
+      "clean": true
+    },
+    {
+      "id": "r2a2-11-geo-point",
+      "findings": [],
+      "listed_above_0.4": [
+        {
+          "source": "new",
+          "id": "r2a2-18-http-date",
+          "ratio": 0.4631
+        },
+        {
+          "source": "new",
+          "id": "r2a2-25-ride-speed",
+          "ratio": 0.451
+        },
+        {
+          "source": "new",
+          "id": "r2a2-14-week-start",
+          "ratio": 0.4503
+        },
+        {
+          "source": "new",
+          "id": "r2a2-32-page-title",
+          "ratio": 0.4444
+        },
+        {
+          "source": "new",
+          "id": "r2a2-37-host-list",
+          "ratio": 0.4093
+        },
+        {
+          "source": "new",
+          "id": "r2a2-30-vat-line",
+          "ratio": 0.4072
+        }
+      ],
+      "clean": true
+    },
+    {
+      "id": "r2a2-12-percentile",
+      "findings": [],
+      "listed_above_0.4": [
+        {
+          "source": "scripts/eval/tasks.py",
+          "id": "mem-money",
+          "ratio": 0.5027
+        },
+        {
+          "source": "new",
+          "id": "r2a2-28-title-sort",
+          "ratio": 0.4858
+        },
+        {
+          "source": "new",
+          "id": "r2a2-48-count-label",
+          "ratio": 0.4786
+        },
+        {
+          "source": "new",
+          "id": "r2a2-36-cache-names",
+          "ratio": 0.4219
+        },
+        {
+          "source": "scripts/eval/l5_memory.py",
+          "id": "mem-json",
+          "ratio": 0.411
+        },
+        {
+          "source": "new",
+          "id": "r2a2-46-reading-time",
+          "ratio": 0.4037
+        }
+      ],
+      "clean": true
+    },
+    {
+      "id": "r2a2-13-joined-list",
+      "findings": [],
+      "listed_above_0.4": [
+        {
+          "source": "new",
+          "id": "r2a2-36-cache-names",
+          "ratio": 0.5197
+        },
+        {
+          "source": "new",
+          "id": "r2a2-33-count-by",
+          "ratio": 0.4418
+        },
+        {
+          "source": "new",
+          "id": "r2a2-43-competition-rank",
+          "ratio": 0.4062
+        },
+        {
+          "source": "new",
+          "id": "r2a2-15-token-mask",
+          "ratio": 0.4014
+        }
+      ],
+      "clean": true
+    },
+    {
+      "id": "r2a2-14-week-start",
+      "findings": [],
+      "listed_above_0.4": [
+        {
+          "source": "new",
+          "id": "r2a2-32-page-title",
+          "ratio": 0.4923
+        },
+        {
+          "source": "new",
+          "id": "r2a2-45-aspect-ratio",
+          "ratio": 0.4631
+        },
+        {
+          "source": "new",
+          "id": "r2a2-23-status-colour",
+          "ratio": 0.455
+        },
+        {
+          "source": "new",
+          "id": "r2a2-25-ride-speed",
+          "ratio": 0.4478
+        },
+        {
+          "source": "new",
+          "id": "r2a2-37-host-list",
+          "ratio": 0.4434
+        },
+        {
+          "source": "scripts/eval/l5_memory.py",
+          "id": "mem-paths",
+          "ratio": 0.4369
+        },
+        {
+          "source": "new",
+          "id": "r2a2-29-page-cursor",
+          "ratio": 0.4206
+        },
+        {
+          "source": "new",
+          "id": "r2a2-18-http-date",
+          "ratio": 0.42
+        },
+        {
+          "source": "new",
+          "id": "r2a2-35-age-years",
+          "ratio": 0.4098
+        },
+        {
+          "source": "scripts/eval/tasks_polyglot.py",
+          "id": "pg-forth",
+          "ratio": 0.4096
+        },
+        {
+          "source": "scripts/eval/tasks_polyglot.py",
+          "id": "pg-react",
+          "ratio": 0.4096
+        },
+        {
+          "source": "scripts/eval/tasks_polyglot.py",
+          "id": "pg-robot-name",
+          "ratio": 0.4094
+        },
+        {
+          "source": "scripts/eval/tasks_polyglot.py",
+          "id": "pg-dot-dsl",
+          "ratio": 0.4048
+        },
+        {
+          "source": "scripts/eval/tasks_polyglot.py",
+          "id": "pg-hangman",
+          "ratio": 0.4048
+        },
+        {
+          "source": "scripts/eval/tasks_polyglot.py",
+          "id": "pg-dominoes",
+          "ratio": 0.4024
+        },
+        {
+          "source": "scripts/eval/tasks_polyglot.py",
+          "id": "pg-rest-api",
+          "ratio": 0.4024
+        }
+      ],
+      "clean": true
+    },
+    {
+      "id": "r2a2-15-token-mask",
+      "findings": [],
+      "listed_above_0.4": [
+        {
+          "source": "new",
+          "id": "r2a2-46-reading-time",
+          "ratio": 0.4741
+        },
+        {
+          "source": "scripts/eval/l5_memory.py",
+          "id": "mem-json",
+          "ratio": 0.4721
+        },
+        {
+          "source": "scripts/eval/l5_memory.py",
+          "id": "mem-dates",
+          "ratio": 0.4667
+        },
+        {
+          "source": "new",
+          "id": "r2a2-36-cache-names",
+          "ratio": 0.4462
+        },
+        {
+          "source": "new",
+          "id": "r2a2-26-tag-merge",
+          "ratio": 0.437
+        },
+        {
+          "source": "new",
+          "id": "r2a2-22-upload-path",
+          "ratio": 0.4345
+        },
+        {
+          "source": "new",
+          "id": "r2a2-24-wrap-lines",
+          "ratio": 0.4291
+        },
+        {
+          "source": "new",
+          "id": "r2a2-17-sheet-column",
+          "ratio": 0.4215
+        },
+        {
+          "source": "new",
+          "id": "r2a2-30-vat-line",
+          "ratio": 0.4198
+        },
+        {
+          "source": "new",
+          "id": "r2a2-48-count-label",
+          "ratio": 0.4194
+        },
+        {
+          "source": "new",
+          "id": "r2a2-34-great-circle",
+          "ratio": 0.4184
+        },
+        {
+          "source": "new",
+          "id": "r2a2-19-score-display",
+          "ratio": 0.4156
+        },
+        {
+          "source": "scripts/eval/tasks_r2.py",
+          "id": "c",
+          "ratio": 0.4068
+        },
+        {
+          "source": "scripts/eval/tasks_r3.py",
+          "id": "search-api",
+          "ratio": 0.4029
+        }
+      ],
+      "clean": true
+    },
+    {
+      "id": "r2a2-16-player-level",
+      "findings": [],
+      "listed_above_0.4": [
+        {
+          "source": "new",
+          "id": "r2a2-27-next-working-day",
+          "ratio": 0.4545
+        },
+        {
+          "source": "new",
+          "id": "r2a2-48-count-label",
+          "ratio": 0.4532
+        },
+        {
+          "source": "new",
+          "id": "r2a2-23-status-colour",
+          "ratio": 0.4468
+        },
+        {
+          "source": "new",
+          "id": "r2a2-47-spreadsheet-cell",
+          "ratio": 0.436
+        },
+        {
+          "source": "scripts/eval/tasks.py",
+          "id": "mem-money",
+          "ratio": 0.4359
+        },
+        {
+          "source": "scripts/eval/tasks_polyglot.py",
+          "id": "pg-go-counting",
+          "ratio": 0.4211
+        },
+        {
+          "source": "new",
+          "id": "r2a2-39-parcel-cost",
+          "ratio": 0.4064
+        },
+        {
+          "source": "new",
+          "id": "r2a2-34-great-circle",
+          "ratio": 0.4021
+        }
+      ],
+      "clean": true
+    },
+    {
+      "id": "r2a2-17-sheet-column",
+      "findings": [],
+      "listed_above_0.4": [
+        {
+          "source": "new",
+          "id": "r2a2-46-reading-time",
+          "ratio": 0.5475
+        },
+        {
+          "source": "new",
+          "id": "r2a2-48-count-label",
+          "ratio": 0.5231
+        },
+        {
+          "source": "scripts/eval/tasks_r2.py",
+          "id": "d",
+          "ratio": 0.517
+        },
+        {
+          "source": "scripts/eval/l5_memory.py",
+          "id": "mem-paths",
+          "ratio": 0.4873
+        },
+        {
+          "source": "new",
+          "id": "r2a2-30-vat-line",
+          "ratio": 0.4785
+        },
+        {
+          "source": "scripts/eval/tasks.py",
+          "id": "mem-log",
+          "ratio": 0.4638
+        },
+        {
+          "source": "new",
+          "id": "r2a2-39-parcel-cost",
+          "ratio": 0.4469
+        },
+        {
+          "source": "scripts/eval/l5_memory.py",
+          "id": "mem-dates",
+          "ratio": 0.4385
+        },
+        {
+          "source": "new",
+          "id": "r2a2-23-status-colour",
+          "ratio": 0.4333
+        },
+        {
+          "source": "new",
+          "id": "r2a2-44-url-join",
+          "ratio": 0.4294
+        },
+        {
+          "source": "new",
+          "id": "r2a2-36-cache-names",
+          "ratio": 0.4242
+        },
+        {
+          "source": "new",
+          "id": "r2a2-31-hex-rgb",
+          "ratio": 0.4205
+        },
+        {
+          "source": "new",
+          "id": "r2a2-34-great-circle",
+          "ratio": 0.4194
+        },
+        {
+          "source": "new",
+          "id": "r2a2-40-sku-check",
+          "ratio": 0.419
+        },
+        {
+          "source": "scripts/eval/tasks.py",
+          "id": "mem-errors",
+          "ratio": 0.4105
+        },
+        {
+          "source": "new",
+          "id": "r2a2-43-competition-rank",
+          "ratio": 0.41
+        },
+        {
+          "source": "new",
+          "id": "r2a2-32-page-title",
+          "ratio": 0.4086
+        },
+        {
+          "source": "scripts/eval/tasks.py",
+          "id": "mem-money",
+          "ratio": 0.4054
+        }
+      ],
+      "clean": true
+    },
+    {
+      "id": "r2a2-18-http-date",
+      "findings": [],
+      "listed_above_0.4": [
+        {
+          "source": "new",
+          "id": "r2a2-32-page-title",
+          "ratio": 0.4444
+        },
+        {
+          "source": "new",
+          "id": "r2a2-23-status-colour",
+          "ratio": 0.4378
+        },
+        {
+          "source": "new",
+          "id": "r2a2-46-reading-time",
+          "ratio": 0.43
+        },
+        {
+          "source": "new",
+          "id": "r2a2-29-page-cursor",
+          "ratio": 0.4082
+        },
+        {
+          "source": "scripts/eval/tasks.py",
+          "id": "mem-money",
+          "ratio": 0.4024
+        }
+      ],
+      "clean": true
+    },
+    {
+      "id": "r2a2-19-score-display",
+      "findings": [],
+      "listed_above_0.4": [
+        {
+          "source": "new",
+          "id": "r2a2-35-age-years",
+          "ratio": 0.4706
+        },
+        {
+          "source": "new",
+          "id": "r2a2-46-reading-time",
+          "ratio": 0.4171
+        }
+      ],
+      "clean": true
+    },
+    {
+      "id": "r2a2-20-phone-intl",
+      "findings": [],
+      "listed_above_0.4": [
+        {
+          "source": "new",
+          "id": "r2a2-36-cache-names",
+          "ratio": 0.5
+        },
+        {
+          "source": "new",
+          "id": "r2a2-38-duration-text",
+          "ratio": 0.4634
+        },
+        {
+          "source": "new",
+          "id": "r2a2-28-title-sort",
+          "ratio": 0.4472
+        },
+        {
+          "source": "new",
+          "id": "r2a2-44-url-join",
+          "ratio": 0.4465
+        },
+        {
+          "source": "new",
+          "id": "r2a2-48-count-label",
+          "ratio": 0.4464
+        },
+        {
+          "source": "scripts/eval/tasks_r2.py",
+          "id": "a",
+          "ratio": 0.4411
+        },
+        {
+          "source": "new",
+          "id": "r2a2-47-spreadsheet-cell",
+          "ratio": 0.4398
+        },
+        {
+          "source": "scripts/eval/tasks_polyglot.py",
+          "id": "pg-phone-number",
+          "ratio": 0.4158
+        }
+      ],
+      "clean": true
+    },
+    {
+      "id": "r2a2-21-identifier-words",
+      "findings": [],
+      "listed_above_0.4": [
+        {
+          "source": "new",
+          "id": "r2a2-45-aspect-ratio",
+          "ratio": 0.4113
+        }
+      ],
+      "clean": true
+    },
+    {
+      "id": "r2a2-22-upload-path",
+      "findings": [],
+      "listed_above_0.4": [
+        {
+          "source": "new",
+          "id": "r2a2-36-cache-names",
+          "ratio": 0.4375
+        },
+        {
+          "source": "scripts/eval/tasks.py",
+          "id": "dedupe",
+          "ratio": 0.4106
+        },
+        {
+          "source": "scripts/eval/l5_memory.py",
+          "id": "mem-paths",
+          "ratio": 0.4042
+        }
+      ],
+      "clean": true
+    },
+    {
+      "id": "r2a2-23-status-colour",
+      "findings": [],
+      "listed_above_0.4": [
+        {
+          "source": "new",
+          "id": "r2a2-35-age-years",
+          "ratio": 0.466
+        },
+        {
+          "source": "new",
+          "id": "r2a2-39-parcel-cost",
+          "ratio": 0.4444
+        },
+        {
+          "source": "new",
+          "id": "r2a2-43-competition-rank",
+          "ratio": 0.4381
+        },
+        {
+          "source": "new",
+          "id": "r2a2-25-ride-speed",
+          "ratio": 0.4158
+        },
+        {
+          "source": "new",
+          "id": "r2a2-47-spreadsheet-cell",
+          "ratio": 0.4131
+        },
+        {
+          "source": "new",
+          "id": "r2a2-34-great-circle",
+          "ratio": 0.4082
+        },
+        {
+          "source": "new",
+          "id": "r2a2-41-markdown-escape",
+          "ratio": 0.4019
+        }
+      ],
+      "clean": true
+    },
+    {
+      "id": "r2a2-24-wrap-lines",
+      "findings": [],
+      "listed_above_0.4": [
+        {
+          "source": "new",
+          "id": "r2a2-38-duration-text",
+          "ratio": 0.4526
+        },
+        {
+          "source": "scripts/eval/tasks.py",
+          "id": "slugify",
+          "ratio": 0.4161
+        }
+      ],
+      "clean": true
+    },
+    {
+      "id": "r2a2-25-ride-speed",
+      "findings": [],
+      "listed_above_0.4": [
+        {
+          "source": "new",
+          "id": "r2a2-45-aspect-ratio",
+          "ratio": 0.5
+        },
+        {
+          "source": "new",
+          "id": "r2a2-32-page-title",
+          "ratio": 0.4615
+        },
+        {
+          "source": "new",
+          "id": "r2a2-43-competition-rank",
+          "ratio": 0.4414
+        },
+        {
+          "source": "new",
+          "id": "r2a2-29-page-cursor",
+          "ratio": 0.4228
+        },
+        {
+          "source": "new",
+          "id": "r2a2-35-age-years",
+          "ratio": 0.422
+        }
+      ],
+      "clean": true
+    },
+    {
+      "id": "r2a2-26-tag-merge",
+      "findings": [],
+      "listed_above_0.4": [
+        {
+          "source": "scripts/eval/l5_memory.py",
+          "id": "mem-json",
+          "ratio": 0.4923
+        },
+        {
+          "source": "scripts/eval/tasks.py",
+          "id": "mem-errors",
+          "ratio": 0.4585
+        },
+        {
+          "source": "scripts/eval/l5_memory.py",
+          "id": "mem-dates",
+          "ratio": 0.4554
+        },
+        {
+          "source": "new",
+          "id": "r2a2-44-url-join",
+          "ratio": 0.4479
+        },
+        {
+          "source": "new",
+          "id": "r2a2-28-title-sort",
+          "ratio": 0.4395
+        },
+        {
+          "source": "scripts/eval/tasks.py",
+          "id": "mem-money",
+          "ratio": 0.4294
+        },
+        {
+          "source": "new",
+          "id": "r2a2-31-hex-rgb",
+          "ratio": 0.4293
+        },
+        {
+          "source": "scripts/eval/l5_memory.py",
+          "id": "mem-paths",
+          "ratio": 0.4245
+        },
+        {
+          "source": "new",
+          "id": "r2a2-48-count-label",
+          "ratio": 0.419
+        },
+        {
+          "source": "new",
+          "id": "r2a2-34-great-circle",
+          "ratio": 0.4179
+        },
+        {
+          "source": "scripts/eval/tasks_r3.py",
+          "id": "search-api",
+          "ratio": 0.4083
+        },
+        {
+          "source": "new",
+          "id": "r2a2-46-reading-time",
+          "ratio": 0.4021
+        }
+      ],
+      "clean": true
+    },
+    {
+      "id": "r2a2-27-next-working-day",
+      "findings": [],
+      "listed_above_0.4": [
+        {
+          "source": "new",
+          "id": "r2a2-43-competition-rank",
+          "ratio": 0.4242
+        },
+        {
+          "source": "new",
+          "id": "r2a2-46-reading-time",
+          "ratio": 0.4181
+        }
+      ],
+      "clean": true
+    },
+    {
+      "id": "r2a2-28-title-sort",
+      "findings": [],
+      "listed_above_0.4": [
+        {
+          "source": "new",
+          "id": "r2a2-36-cache-names",
+          "ratio": 0.4915
+        },
+        {
+          "source": "new",
+          "id": "r2a2-30-vat-line",
+          "ratio": 0.4372
+        },
+        {
+          "source": "new",
+          "id": "r2a2-40-sku-check",
+          "ratio": 0.4355
+        },
+        {
+          "source": "new",
+          "id": "r2a2-48-count-label",
+          "ratio": 0.4206
+        },
+        {
+          "source": "scripts/eval/tasks.py",
+          "id": "slugify",
+          "ratio": 0.415
+        }
+      ],
+      "clean": true
+    },
+    {
+      "id": "r2a2-29-page-cursor",
+      "findings": [],
+      "listed_above_0.4": [
+        {
+          "source": "new",
+          "id": "r2a2-43-competition-rank",
+          "ratio": 0.4409
+        }
+      ],
+      "clean": true
+    },
+    {
+      "id": "r2a2-30-vat-line",
+      "findings": [],
+      "listed_above_0.4": [
+        {
+          "source": "new",
+          "id": "r2a2-36-cache-names",
+          "ratio": 0.4895
+        },
+        {
+          "source": "new",
+          "id": "r2a2-34-great-circle",
+          "ratio": 0.48
+        },
+        {
+          "source": "new",
+          "id": "r2a2-46-reading-time",
+          "ratio": 0.4679
+        },
+        {
+          "source": "new",
+          "id": "r2a2-31-hex-rgb",
+          "ratio": 0.4465
+        },
+        {
+          "source": "new",
+          "id": "r2a2-44-url-join",
+          "ratio": 0.4444
+        },
+        {
+          "source": "new",
+          "id": "r2a2-48-count-label",
+          "ratio": 0.4359
+        },
+        {
+          "source": "scripts/eval/tasks.py",
+          "id": "mem-money",
+          "ratio": 0.4278
+        },
+        {
+          "source": "new",
+          "id": "r2a2-47-spreadsheet-cell",
+          "ratio": 0.4215
+        },
+        {
+          "source": "new",
+          "id": "r2a2-42-report-day",
+          "ratio": 0.4198
+        },
+        {
+          "source": "scripts/eval/tasks_r2.py",
+          "id": "d",
+          "ratio": 0.4194
+        },
+        {
+          "source": "new",
+          "id": "r2a2-38-duration-text",
+          "ratio": 0.413
+        },
+        {
+          "source": "scripts/eval/l5_memory.py",
+          "id": "mem-dates",
+          "ratio": 0.4071
+        },
+        {
+          "source": "scripts/eval/tasks_r2.py",
+          "id": "b",
+          "ratio": 0.4066
+        },
+        {
+          "source": "new",
+          "id": "r2a2-39-parcel-cost",
+          "ratio": 0.4037
+        }
+      ],
+      "clean": true
+    },
+    {
+      "id": "r2a2-31-hex-rgb",
+      "findings": [],
+      "listed_above_0.4": [
+        {
+          "source": "new",
+          "id": "r2a2-36-cache-names",
+          "ratio": 0.5098
+        },
+        {
+          "source": "scripts/eval/tasks.py",
+          "id": "mem-log",
+          "ratio": 0.4444
+        },
+        {
+          "source": "new",
+          "id": "r2a2-48-count-label",
+          "ratio": 0.4378
+        },
+        {
+          "source": "scripts/eval/tasks.py",
+          "id": "mem-money",
+          "ratio": 0.4156
+        }
+      ],
+      "clean": true
+    },
+    {
+      "id": "r2a2-32-page-title",
+      "findings": [],
+      "listed_above_0.4": [
+        {
+          "source": "new",
+          "id": "r2a2-37-host-list",
+          "ratio": 0.4201
+        },
+        {
+          "source": "scripts/eval/tasks_polyglot.py",
+          "id": "pg-forth",
+          "ratio": 0.4046
+        },
+        {
+          "source": "scripts/eval/tasks_polyglot.py",
+          "id": "pg-scale-generator",
+          "ratio": 0.4044
+        }
+      ],
+      "clean": true
+    },
+    {
+      "id": "r2a2-33-count-by",
+      "findings": [],
+      "listed_above_0.4": [
+        {
+          "source": "new",
+          "id": "r2a2-43-competition-rank",
+          "ratio": 0.4843
+        }
+      ],
+      "clean": true
+    },
+    {
+      "id": "r2a2-34-great-circle",
+      "findings": [],
+      "listed_above_0.4": [
+        {
+          "source": "scripts/eval/l5_memory.py",
+          "id": "mem-json",
+          "ratio": 0.4694
+        },
+        {
+          "source": "scripts/eval/tasks_r2.py",
+          "id": "d",
+          "ratio": 0.4663
+        },
+        {
+          "source": "scripts/eval/tasks.py",
+          "id": "mem-money",
+          "ratio": 0.4512
+        },
+        {
+          "source": "new",
+          "id": "r2a2-42-report-day",
+          "ratio": 0.4435
+        },
+        {
+          "source": "scripts/eval/l5_memory.py",
+          "id": "mem-paths",
+          "ratio": 0.4319
+        },
+        {
+          "source": "new",
+          "id": "r2a2-46-reading-time",
+          "ratio": 0.4308
+        },
+        {
+          "source": "new",
+          "id": "r2a2-40-sku-check",
+          "ratio": 0.4159
+        },
+        {
+          "source": "scripts/eval/tasks_polyglot.py",
+          "id": "pg-hangman",
+          "ratio": 0.4114
+        },
+        {
+          "source": "scripts/eval/tasks_polyglot.py",
+          "id": "pg-sgf-parsing",
+          "ratio": 0.4022
+        }
+      ],
+      "clean": true
+    },
+    {
+      "id": "r2a2-35-age-years",
+      "findings": [],
+      "listed_above_0.4": [
+        {
+          "source": "new",
+          "id": "r2a2-43-competition-rank",
+          "ratio": 0.4071
+        }
+      ],
+      "clean": true
+    },
+    {
+      "id": "r2a2-36-cache-names",
+      "findings": [],
+      "listed_above_0.4": [
+        {
+          "source": "new",
+          "id": "r2a2-38-duration-text",
+          "ratio": 0.4915
+        },
+        {
+          "source": "new",
+          "id": "r2a2-42-report-day",
+          "ratio": 0.4861
+        },
+        {
+          "source": "scripts/eval/tasks.py",
+          "id": "mem-log",
+          "ratio": 0.4819
+        },
+        {
+          "source": "scripts/eval/l5_memory.py",
+          "id": "mem-dates",
+          "ratio": 0.4465
+        },
+        {
+          "source": "new",
+          "id": "r2a2-48-count-label",
+          "ratio": 0.4395
+        },
+        {
+          "source": "new",
+          "id": "r2a2-43-competition-rank",
+          "ratio": 0.4123
+        },
+        {
+          "source": "scripts/eval/l5_memory.py",
+          "id": "mem-paths",
+          "ratio": 0.4089
+        }
+      ],
+      "clean": true
+    },
+    {
+      "id": "r2a2-37-host-list",
+      "findings": [],
+      "listed_above_0.4": [
+        {
+          "source": "new",
+          "id": "r2a2-47-spreadsheet-cell",
+          "ratio": 0.4407
+        }
+      ],
+      "clean": true
+    },
+    {
+      "id": "r2a2-38-duration-text",
+      "findings": [],
+      "listed_above_0.4": [
+        {
+          "source": "new",
+          "id": "r2a2-48-count-label",
+          "ratio": 0.4635
+        },
+        {
+          "source": "new",
+          "id": "r2a2-44-url-join",
+          "ratio": 0.4279
+        }
+      ],
+      "clean": true
+    },
+    {
+      "id": "r2a2-39-parcel-cost",
+      "findings": [],
+      "listed_above_0.4": [
+        {
+          "source": "scripts/eval/tasks.py",
+          "id": "mem-money",
+          "ratio": 0.4331
+        },
+        {
+          "source": "new",
+          "id": "r2a2-46-reading-time",
+          "ratio": 0.4149
+        }
+      ],
+      "clean": true
+    },
+    {
+      "id": "r2a2-40-sku-check",
+      "findings": [],
+      "listed_above_0.4": [
+        {
+          "source": "scripts/eval/l5_memory.py",
+          "id": "mem-dates",
+          "ratio": 0.4493
+        },
+        {
+          "source": "scripts/eval/l5_memory.py",
+          "id": "mem-paths",
+          "ratio": 0.4388
+        },
+        {
+          "source": "scripts/eval/l5_memory.py",
+          "id": "mem-json",
+          "ratio": 0.4364
+        },
+        {
+          "source": "new",
+          "id": "r2a2-46-reading-time",
+          "ratio": 0.4292
+        },
+        {
+          "source": "scripts/eval/tasks_r2.py",
+          "id": "c",
+          "ratio": 0.4043
+        }
+      ],
+      "clean": true
+    },
+    {
+      "id": "r2a2-41-markdown-escape",
+      "findings": [],
+      "listed_above_0.4": [
+        {
+          "source": "new",
+          "id": "r2a2-43-competition-rank",
+          "ratio": 0.4359
+        }
+      ],
+      "clean": true
+    },
+    {
+      "id": "r2a2-42-report-day",
+      "findings": [],
+      "listed_above_0.4": [
+        {
+          "source": "new",
+          "id": "r2a2-46-reading-time",
+          "ratio": 0.4828
+        },
+        {
+          "source": "new",
+          "id": "r2a2-48-count-label",
+          "ratio": 0.4597
+        },
+        {
+          "source": "scripts/eval/l5_memory.py",
+          "id": "mem-paths",
+          "ratio": 0.456
+        },
+        {
+          "source": "new",
+          "id": "r2a2-43-competition-rank",
+          "ratio": 0.4506
+        }
+      ],
+      "clean": true
+    },
+    {
+      "id": "r2a2-43-competition-rank",
+      "findings": [],
+      "listed_above_0.4": [
+        {
+          "source": "scripts/eval/l5_memory.py",
+          "id": "mem-paths",
+          "ratio": 0.4846
+        }
+      ],
+      "clean": true
+    },
+    {
+      "id": "r2a2-44-url-join",
+      "findings": [],
+      "listed_above_0.4": [
+        {
+          "source": "scripts/eval/tasks_r2.py",
+          "id": "d",
+          "ratio": 0.4805
+        },
+        {
+          "source": "scripts/eval/tasks.py",
+          "id": "mem-money",
+          "ratio": 0.4645
+        },
+        {
+          "source": "new",
+          "id": "r2a2-46-reading-time",
+          "ratio": 0.4301
+        },
+        {
+          "source": "scripts/eval/tasks.py",
+          "id": "mem-errors",
+          "ratio": 0.4162
+        }
+      ],
+      "clean": true
+    },
+    {
+      "id": "r2a2-45-aspect-ratio",
+      "findings": [],
+      "listed_above_0.4": [
+        {
+          "source": "new",
+          "id": "r2a2-48-count-label",
+          "ratio": 0.4292
+        },
+        {
+          "source": "scripts/eval/tasks.py",
+          "id": "mem-money",
+          "ratio": 0.407
+        }
+      ],
+      "clean": true
+    },
+    {
+      "id": "r2a2-46-reading-time",
+      "findings": [],
+      "listed_above_0.4": [
+        {
+          "source": "scripts/eval/tasks.py",
+          "id": "mem-money",
+          "ratio": 0.4841
+        },
+        {
+          "source": "scripts/eval/l5_memory.py",
+          "id": "mem-json",
+          "ratio": 0.4762
+        },
+        {
+          "source": "scripts/eval/tasks_r2.py",
+          "id": "d",
+          "ratio": 0.4744
+        },
+        {
+          "source": "scripts/eval/l5_memory.py",
+          "id": "mem-paths",
+          "ratio": 0.4563
+        },
+        {
+          "source": "scripts/eval/tasks.py",
+          "id": "mem-errors",
+          "ratio": 0.4422
+        },
+        {
+          "source": "scripts/eval/l5_memory.py",
+          "id": "mem-dates",
+          "ratio": 0.4388
+        },
+        {
+          "source": "scripts/eval/tasks.py",
+          "id": "mem-log",
+          "ratio": 0.4354
+        },
+        {
+          "source": "scripts/eval/tasks_r2.py",
+          "id": "a",
+          "ratio": 0.4274
+        }
+      ],
+      "clean": true
+    },
+    {
+      "id": "r2a2-47-spreadsheet-cell",
+      "findings": [],
+      "listed_above_0.4": [
+        {
+          "source": "new",
+          "id": "r2a2-48-count-label",
+          "ratio": 0.4386
+        },
+        {
+          "source": "scripts/eval/l5_memory.py",
+          "id": "mem-dates",
+          "ratio": 0.4273
+        }
+      ],
+      "clean": true
+    },
+    {
+      "id": "r2a2-48-count-label",
+      "findings": [],
+      "listed_above_0.4": [
+        {
+          "source": "scripts/eval/tasks.py",
+          "id": "mem-money",
+          "ratio": 0.4971
+        },
+        {
+          "source": "scripts/eval/l5_memory.py",
+          "id": "mem-paths",
+          "ratio": 0.4775
+        },
+        {
+          "source": "scripts/eval/tasks_r2.py",
+          "id": "d",
+          "ratio": 0.4767
+        },
+        {
+          "source": "scripts/eval/tasks.py",
+          "id": "mem-errors",
+          "ratio": 0.4372
+        },
+        {
+          "source": "scripts/eval/l5_memory.py",
+          "id": "mem-dates",
+          "ratio": 0.4245
+        },
+        {
+          "source": "scripts/eval/tasks_r3.py",
+          "id": "search-api",
+          "ratio": 0.416
+        }
+      ],
+      "clean": true
+    }
+  ],
+  "convention_rule": "normalized brief + convention text, SequenceMatcher ratio >= 0.6 within the set and against round 1's shared-context and memory tasks; above 0.4 listed",
+  "convention_max_ratio": 0.4819,
+  "convention_clean": true,
+  "convention_tasks": [
+    {
+      "id": "r2a1-dev-01-ledger-totals",
+      "listed_above_0.4": [],
+      "clean": true
+    },
+    {
+      "id": "r2a1-dev-02-retry-schedule",
+      "listed_above_0.4": [],
+      "clean": true
+    },
+    {
+      "id": "r2a1-dev-03-tag-parse",
+      "listed_above_0.4": [
+        {
+          "source": "new",
+          "id": "r2a1-32-key-values",
+          "ratio": 0.451
+        }
+      ],
+      "clean": true
+    },
+    {
+      "id": "r2a1-dev-04-neutral-initials",
+      "listed_above_0.4": [
+        {
+          "source": "new",
+          "id": "r2a1-n1-palindrome",
+          "ratio": 0.4039
+        }
+      ],
+      "clean": true
+    },
+    {
+      "id": "r2a2-dev-01-env-flag",
+      "listed_above_0.4": [],
+      "clean": true
+    },
+    {
+      "id": "r2a2-dev-02-page-window",
+      "listed_above_0.4": [
+        {
+          "source": "new",
+          "id": "r2a2-42-report-day",
+          "ratio": 0.4084
+        },
+        {
+          "source": "new",
+          "id": "r2a2-16-player-level",
+          "ratio": 0.4036
+        }
+      ],
+      "clean": true
+    },
+    {
+      "id": "r2a2-dev-03-file-size",
+      "listed_above_0.4": [
+        {
+          "source": "new",
+          "id": "r2a2-01-euro-amount",
+          "ratio": 0.43
+        }
+      ],
+      "clean": true
+    },
+    {
+      "id": "r2a2-dev-04-csv-row",
+      "listed_above_0.4": [
+        {
+          "source": "new",
+          "id": "r2a1-29-cache-key",
+          "ratio": 0.4139
+        }
+      ],
+      "clean": true
+    },
+    {
+      "id": "r2a1-01-restock",
+      "listed_above_0.4": [],
+      "clean": true
+    },
+    {
+      "id": "r2a1-02-phone-format",
+      "listed_above_0.4": [],
+      "clean": true
+    },
+    {
+      "id": "r2a1-03-sensor-stats",
+      "listed_above_0.4": [
+        {
+          "source": "new",
+          "id": "r2a2-19-score-display",
+          "ratio": 0.4005
+        }
+      ],
+      "clean": true
+    },
+    {
+      "id": "r2a1-04-username-check",
+      "listed_above_0.4": [
+        {
+          "source": "new",
+          "id": "r2a1-30-password-score",
+          "ratio": 0.4081
+        }
+      ],
+      "clean": true
+    },
+    {
+      "id": "r2a1-05-grade-bands",
+      "listed_above_0.4": [
+        {
+          "source": "new",
+          "id": "r2a1-08-duration-parse",
+          "ratio": 0.4274
+        }
+      ],
+      "clean": true
+    },
+    {
+      "id": "r2a1-06-query-string",
+      "listed_above_0.4": [],
+      "clean": true
+    },
+    {
+      "id": "r2a1-07-top-words",
+      "listed_above_0.4": [],
+      "clean": true
+    },
+    {
+      "id": "r2a1-08-duration-parse",
+      "listed_above_0.4": [
+        {
+          "source": "new",
+          "id": "r2a1-45-quota-size",
+          "ratio": 0.4458
+        },
+        {
+          "source": "new",
+          "id": "r2a1-38-coordinates",
+          "ratio": 0.4139
+        }
+      ],
+      "clean": true
+    },
+    {
+      "id": "r2a1-09-invoice-number",
+      "listed_above_0.4": [],
+      "clean": true
+    },
+    {
+      "id": "r2a1-10-config-merge",
+      "listed_above_0.4": [],
+      "clean": true
+    },
+    {
+      "id": "r2a1-11-truncate",
+      "listed_above_0.4": [],
+      "clean": true
+    },
+    {
+      "id": "r2a1-12-percent-label",
+      "listed_above_0.4": [],
+      "clean": true
+    },
+    {
+      "id": "r2a1-13-ticket-queue",
+      "listed_above_0.4": [
+        {
+          "source": "new",
+          "id": "r2a1-19-contact-dedupe",
+          "ratio": 0.4315
+        }
+      ],
+      "clean": true
+    },
+    {
+      "id": "r2a1-14-version-compare",
+      "listed_above_0.4": [],
+      "clean": true
+    },
+    {
+      "id": "r2a1-15-mask-email",
+      "listed_above_0.4": [
+        {
+          "source": "new",
+          "id": "r2a2-15-token-mask",
+          "ratio": 0.4089
+        }
+      ],
+      "clean": true
+    },
+    {
+      "id": "r2a1-16-batches",
+      "listed_above_0.4": [],
+      "clean": true
+    },
+    {
+      "id": "r2a1-17-elapsed-clock",
+      "listed_above_0.4": [],
+      "clean": true
+    },
+    {
+      "id": "r2a1-18-discount-codes",
+      "listed_above_0.4": [
+        {
+          "source": "new",
+          "id": "r2a2-30-vat-line",
+          "ratio": 0.4021
+        }
+      ],
+      "clean": true
+    },
+    {
+      "id": "r2a1-19-contact-dedupe",
+      "listed_above_0.4": [
+        {
+          "source": "new",
+          "id": "r2a2-26-tag-merge",
+          "ratio": 0.4094
+        }
+      ],
+      "clean": true
+    },
+    {
+      "id": "r2a1-20-run-length",
+      "listed_above_0.4": [],
+      "clean": true
+    },
+    {
+      "id": "r2a1-21-name-split",
+      "listed_above_0.4": [],
+      "clean": true
+    },
+    {
+      "id": "r2a1-22-week-key",
+      "listed_above_0.4": [],
+      "clean": true
+    },
+    {
+      "id": "r2a1-23-rate-window",
+      "listed_above_0.4": [],
+      "clean": true
+    },
+    {
+      "id": "r2a1-24-hex-color",
+      "listed_above_0.4": [],
+      "clean": true
+    },
+    {
+      "id": "r2a1-25-age-buckets",
+      "listed_above_0.4": [],
+      "clean": true
+    },
+    {
+      "id": "r2a1-26-text-table",
+      "listed_above_0.4": [],
+      "clean": true
+    },
+    {
+      "id": "r2a1-27-shard-pick",
+      "listed_above_0.4": [],
+      "clean": true
+    },
+    {
+      "id": "r2a1-28-whitespace",
+      "listed_above_0.4": [],
+      "clean": true
+    },
+    {
+      "id": "r2a1-29-cache-key",
+      "listed_above_0.4": [],
+      "clean": true
+    },
+    {
+      "id": "r2a1-30-password-score",
+      "listed_above_0.4": [],
+      "clean": true
+    },
+    {
+      "id": "r2a1-31-cash-rounding",
+      "listed_above_0.4": [
+        {
+          "source": "new",
+          "id": "r2a1-34-comment-html",
+          "ratio": 0.4041
+        }
+      ],
+      "clean": true
+    },
+    {
+      "id": "r2a1-32-key-values",
+      "listed_above_0.4": [],
+      "clean": true
+    },
+    {
+      "id": "r2a1-33-working-days",
+      "listed_above_0.4": [],
+      "clean": true
+    },
+    {
+      "id": "r2a1-34-comment-html",
+      "listed_above_0.4": [],
+      "clean": true
+    },
+    {
+      "id": "r2a1-35-booking-merge",
+      "listed_above_0.4": [],
+      "clean": true
+    },
+    {
+      "id": "r2a1-36-progress-bar",
+      "listed_above_0.4": [
+        {
+          "source": "new",
+          "id": "r2a1-42-short-number",
+          "ratio": 0.4305
+        }
+      ],
+      "clean": true
+    },
+    {
+      "id": "r2a1-37-bill-split",
+      "listed_above_0.4": [
+        {
+          "source": "new",
+          "id": "r2a1-n3-median",
+          "ratio": 0.4011
+        }
+      ],
+      "clean": true
+    },
+    {
+      "id": "r2a1-38-coordinates",
+      "listed_above_0.4": [
+        {
+          "source": "new",
+          "id": "r2a1-45-quota-size",
+          "ratio": 0.4268
+        }
+      ],
+      "clean": true
+    },
+    {
+      "id": "r2a1-39-deploy-target",
+      "listed_above_0.4": [],
+      "clean": true
+    },
+    {
+      "id": "r2a1-40-log-line",
+      "listed_above_0.4": [
+        {
+          "source": "new",
+          "id": "r2a1-47-ticket-title",
+          "ratio": 0.4047
+        }
+      ],
+      "clean": true
+    },
+    {
+      "id": "r2a1-41-star-rating",
+      "listed_above_0.4": [
+        {
+          "source": "new",
+          "id": "r2a2-25-ride-speed",
+          "ratio": 0.4033
+        }
+      ],
+      "clean": true
+    },
+    {
+      "id": "r2a1-42-short-number",
+      "listed_above_0.4": [],
+      "clean": true
+    },
+    {
+      "id": "r2a1-43-index-groups",
+      "listed_above_0.4": [],
+      "clean": true
+    },
+    {
+      "id": "r2a1-44-quote-reply",
+      "listed_above_0.4": [],
+      "clean": true
+    },
+    {
+      "id": "r2a1-45-quota-size",
+      "listed_above_0.4": [],
+      "clean": true
+    },
+    {
+      "id": "r2a1-46-isbn",
+      "listed_above_0.4": [],
+      "clean": true
+    },
+    {
+      "id": "r2a1-47-ticket-title",
+      "listed_above_0.4": [
+        {
+          "source": "new",
+          "id": "r2a2-32-page-title",
+          "ratio": 0.4035
+        }
+      ],
+      "clean": true
+    },
+    {
+      "id": "r2a1-48-dict-diff",
+      "listed_above_0.4": [],
+      "clean": true
+    },
+    {
+      "id": "r2a1-n1-palindrome",
+      "listed_above_0.4": [
+        {
+          "source": "new",
+          "id": "r2a1-n2-running-total",
+          "ratio": 0.4036
+        }
+      ],
+      "clean": true
+    },
+    {
+      "id": "r2a1-n2-running-total",
+      "listed_above_0.4": [
+        {
+          "source": "new",
+          "id": "r2a1-n7-line-widths",
+          "ratio": 0.4118
+        },
+        {
+          "source": "new",
+          "id": "r2a1-n5-vowels",
+          "ratio": 0.4036
+        }
+      ],
+      "clean": true
+    },
+    {
+      "id": "r2a1-n3-median",
+      "listed_above_0.4": [
+        {
+          "source": "new",
+          "id": "r2a1-n7-line-widths",
+          "ratio": 0.4186
+        }
+      ],
+      "clean": true
+    },
+    {
+      "id": "r2a1-n4-flatten",
+      "listed_above_0.4": [],
+      "clean": true
+    },
+    {
+      "id": "r2a1-n5-vowels",
+      "listed_above_0.4": [],
+      "clean": true
+    },
+    {
+      "id": "r2a1-n6-common-prefix",
+      "listed_above_0.4": [
+        {
+          "source": "new",
+          "id": "r2a2-46-reading-time",
+          "ratio": 0.4066
+        }
+      ],
+      "clean": true
+    },
+    {
+      "id": "r2a1-n7-line-widths",
+      "listed_above_0.4": [],
+      "clean": true
+    },
+    {
+      "id": "r2a1-n8-clamp-values",
+      "listed_above_0.4": [],
+      "clean": true
+    },
+    {
+      "id": "r2a2-01-euro-amount",
+      "listed_above_0.4": [
+        {
+          "source": "new",
+          "id": "r2a2-48-count-label",
+          "ratio": 0.4052
+        },
+        {
+          "source": "new",
+          "id": "r2a2-25-ride-speed",
+          "ratio": 0.4026
+        }
+      ],
+      "clean": true
+    },
+    {
+      "id": "r2a2-02-utc-stamp",
+      "listed_above_0.4": [],
+      "clean": true
+    },
+    {
+      "id": "r2a2-03-record-ids",
+      "listed_above_0.4": [],
+      "clean": true
+    },
+    {
+      "id": "r2a2-04-error-body",
+      "listed_above_0.4": [],
+      "clean": true
+    },
+    {
+      "id": "r2a2-05-author-name",
+      "listed_above_0.4": [],
+      "clean": true
+    },
+    {
+      "id": "r2a2-06-data-lines",
+      "listed_above_0.4": [],
+      "clean": true
+    },
+    {
+      "id": "r2a2-07-relative-change",
+      "listed_above_0.4": [
+        {
+          "source": "new",
+          "id": "r2a2-25-ride-speed",
+          "ratio": 0.43
+        },
+        {
+          "source": "new",
+          "id": "r2a2-30-vat-line",
+          "ratio": 0.4012
+        }
+      ],
+      "clean": true
+    },
+    {
+      "id": "r2a2-08-event-line",
+      "listed_above_0.4": [
+        {
+          "source": "new",
+          "id": "r2a2-32-page-title",
+          "ratio": 0.4189
+        }
+      ],
+      "clean": true
+    },
+    {
+      "id": "r2a2-09-tenths-temp",
+      "listed_above_0.4": [
+        {
+          "source": "new",
+          "id": "r2a2-19-score-display",
+          "ratio": 0.4127
+        }
+      ],
+      "clean": true
+    },
+    {
+      "id": "r2a2-10-email-key",
+      "listed_above_0.4": [],
+      "clean": true
+    },
+    {
+      "id": "r2a2-11-geo-point",
+      "listed_above_0.4": [
+        {
+          "source": "new",
+          "id": "r2a2-34-great-circle",
+          "ratio": 0.4819
+        },
+        {
+          "source": "new",
+          "id": "r2a2-18-http-date",
+          "ratio": 0.4013
+        }
+      ],
+      "clean": true
+    },
+    {
+      "id": "r2a2-12-percentile",
+      "listed_above_0.4": [
+        {
+          "source": "new",
+          "id": "r2a2-42-report-day",
+          "ratio": 0.4197
+        }
+      ],
+      "clean": true
+    },
+    {
+      "id": "r2a2-13-joined-list",
+      "listed_above_0.4": [],
+      "clean": true
+    },
+    {
+      "id": "r2a2-14-week-start",
+      "listed_above_0.4": [
+        {
+          "source": "new",
+          "id": "r2a2-25-ride-speed",
+          "ratio": 0.4038
+        },
+        {
+          "source": "new",
+          "id": "r2a2-18-http-date",
+          "ratio": 0.4027
+        }
+      ],
+      "clean": true
+    },
+    {
+      "id": "r2a2-15-token-mask",
+      "listed_above_0.4": [],
+      "clean": true
+    },
+    {
+      "id": "r2a2-16-player-level",
+      "listed_above_0.4": [
+        {
+          "source": "new",
+          "id": "r2a2-47-spreadsheet-cell",
+          "ratio": 0.4054
+        }
+      ],
+      "clean": true
+    },
+    {
+      "id": "r2a2-17-sheet-column",
+      "listed_above_0.4": [
+        {
+          "source": "new",
+          "id": "r2a2-46-reading-time",
+          "ratio": 0.4365
+        },
+        {
+          "source": "new",
+          "id": "r2a2-23-status-colour",
+          "ratio": 0.4049
+        }
+      ],
+      "clean": true
+    },
+    {
+      "id": "r2a2-18-http-date",
+      "listed_above_0.4": [],
+      "clean": true
+    },
+    {
+      "id": "r2a2-19-score-display",
+      "listed_above_0.4": [],
+      "clean": true
+    },
+    {
+      "id": "r2a2-20-phone-intl",
+      "listed_above_0.4": [],
+      "clean": true
+    },
+    {
+      "id": "r2a2-21-identifier-words",
+      "listed_above_0.4": [],
+      "clean": true
+    },
+    {
+      "id": "r2a2-22-upload-path",
+      "listed_above_0.4": [],
+      "clean": true
+    },
+    {
+      "id": "r2a2-23-status-colour",
+      "listed_above_0.4": [
+        {
+          "source": "new",
+          "id": "r2a2-40-sku-check",
+          "ratio": 0.4096
+        }
+      ],
+      "clean": true
+    },
+    {
+      "id": "r2a2-24-wrap-lines",
+      "listed_above_0.4": [],
+      "clean": true
+    },
+    {
+      "id": "r2a2-25-ride-speed",
+      "listed_above_0.4": [
+        {
+          "source": "new",
+          "id": "r2a2-45-aspect-ratio",
+          "ratio": 0.4182
+        },
+        {
+          "source": "l5_memory.CASES",
+          "id": "mem-paths",
+          "ratio": 0.4032
+        }
+      ],
+      "clean": true
+    },
+    {
+      "id": "r2a2-26-tag-merge",
+      "listed_above_0.4": [],
+      "clean": true
+    },
+    {
+      "id": "r2a2-27-next-working-day",
+      "listed_above_0.4": [],
+      "clean": true
+    },
+    {
+      "id": "r2a2-28-title-sort",
+      "listed_above_0.4": [
+        {
+          "source": "new",
+          "id": "r2a2-36-cache-names",
+          "ratio": 0.4075
+        }
+      ],
+      "clean": true
+    },
+    {
+      "id": "r2a2-29-page-cursor",
+      "listed_above_0.4": [],
+      "clean": true
+    },
+    {
+      "id": "r2a2-30-vat-line",
+      "listed_above_0.4": [
+        {
+          "source": "new",
+          "id": "r2a2-42-report-day",
+          "ratio": 0.4225
+        },
+        {
+          "source": "new",
+          "id": "r2a2-46-reading-time",
+          "ratio": 0.4082
+        }
+      ],
+      "clean": true
+    },
+    {
+      "id": "r2a2-31-hex-rgb",
+      "listed_above_0.4": [],
+      "clean": true
+    },
+    {
+      "id": "r2a2-32-page-title",
+      "listed_above_0.4": [
+        {
+          "source": "new",
+          "id": "r2a2-37-host-list",
+          "ratio": 0.4112
+        },
+        {
+          "source": "new",
+          "id": "r2a2-46-reading-time",
+          "ratio": 0.4091
+        }
+      ],
+      "clean": true
+    },
+    {
+      "id": "r2a2-33-count-by",
+      "listed_above_0.4": [
+        {
+          "source": "new",
+          "id": "r2a2-43-competition-rank",
+          "ratio": 0.4039
+        }
+      ],
+      "clean": true
+    },
+    {
+      "id": "r2a2-34-great-circle",
+      "listed_above_0.4": [],
+      "clean": true
+    },
+    {
+      "id": "r2a2-35-age-years",
+      "listed_above_0.4": [],
+      "clean": true
+    },
+    {
+      "id": "r2a2-36-cache-names",
+      "listed_above_0.4": [
+        {
+          "source": "new",
+          "id": "r2a2-38-duration-text",
+          "ratio": 0.4086
+        }
+      ],
+      "clean": true
+    },
+    {
+      "id": "r2a2-37-host-list",
+      "listed_above_0.4": [],
+      "clean": true
+    },
+    {
+      "id": "r2a2-38-duration-text",
+      "listed_above_0.4": [],
+      "clean": true
+    },
+    {
+      "id": "r2a2-39-parcel-cost",
+      "listed_above_0.4": [],
+      "clean": true
+    },
+    {
+      "id": "r2a2-40-sku-check",
+      "listed_above_0.4": [],
+      "clean": true
+    },
+    {
+      "id": "r2a2-41-markdown-escape",
+      "listed_above_0.4": [],
+      "clean": true
+    },
+    {
+      "id": "r2a2-42-report-day",
+      "listed_above_0.4": [],
+      "clean": true
+    },
+    {
+      "id": "r2a2-43-competition-rank",
+      "listed_above_0.4": [],
+      "clean": true
+    },
+    {
+      "id": "r2a2-44-url-join",
+      "listed_above_0.4": [],
+      "clean": true
+    },
+    {
+      "id": "r2a2-45-aspect-ratio",
+      "listed_above_0.4": [],
+      "clean": true
+    },
+    {
+      "id": "r2a2-46-reading-time",
+      "listed_above_0.4": [],
+      "clean": true
+    },
+    {
+      "id": "r2a2-47-spreadsheet-cell",
+      "listed_above_0.4": [],
+      "clean": true
+    },
+    {
+      "id": "r2a2-48-count-label",
+      "listed_above_0.4": [],
+      "clean": true
+    }
+  ],
+  "clean": true
+}

@@ -1,0 +1,86 @@
+{
+  "normalization": "text files hashed with CRLF -> LF; binary (NUL byte) as is",
+  "files": [
+    {
+      "path": "docs/research/data/round2-tasks/a1-dev.json",
+      "sha256": "a4cb1f263f2543745a3ffbc5728df96616e02e71b022a6a36be64895481f6372"
+    },
+    {
+      "path": "docs/research/data/round2-tasks/a1.json",
+      "sha256": "fd2265ed21b4a99d17635a1d5a2e520d1f167a01f892d6e2a3d63c8947cb48c8"
+    },
+    {
+      "path": "docs/research/data/round2-tasks/a2-dev.json",
+      "sha256": "20c53e2839bce49283029cb26e090184f3c525fb8c408988795b221cdea19493"
+    },
+    {
+      "path": "docs/research/data/round2-tasks/a2.json",
+      "sha256": "bc4de25018a96135981b8c9a9edc72b9f1375ef356ee7d9d043da3a8d22ab216"
+    },
+    {
+      "path": "scripts/eval/round2_a/__init__.py",
+      "sha256": "0e1c30f440ba1bce6cd2272e1b17622832959f5024ea588d35d6ac9015e26ea3"
+    },
+    {
+      "path": "scripts/eval/round2_a/a1_dev.py",
+      "sha256": "4c3d1e95eee960433e3687e12c4132076adc212a3a2fd1fa9dfa2d3a4f4384e0"
+    },
+    {
+      "path": "scripts/eval/round2_a/a1_neutral.py",
+      "sha256": "7a90e2912319b6f9b8467c775787370b2d79b02035700caaf3af829280697433"
+    },
+    {
+      "path": "scripts/eval/round2_a/a1_p1.py",
+      "sha256": "4e5fec9c34829defcc6c0b14ff1371a2a8e6dda74dc22b32ccfd32f6ea0cf52e"
+    },
+    {
+      "path": "scripts/eval/round2_a/a1_p2.py",
+      "sha256": "843ea6d0d9e2e23cfe749f3be8f7a16462c1168971ebdf5ebd924f2179bc5b1c"
+    },
+    {
+      "path": "scripts/eval/round2_a/a1_p3.py",
+      "sha256": "9695701b38c859627ec9c9fff246e1d1b1fb0e157fd6a493dd7d292aae680ae7"
+    },
+    {
+      "path": "scripts/eval/round2_a/a1_p4.py",
+      "sha256": "fbcd2466f45b08b3b3cef1cdbec5f2264013ca4d3c37c1e7e6fee4e5c683c4ac"
+    },
+    {
+      "path": "scripts/eval/round2_a/a1_p5.py",
+      "sha256": "b009186d10c389546b6724e05837419798b19bc60676494ed5b2c8b13538860c"
+    },
+    {
+      "path": "scripts/eval/round2_a/a2_dev.py",
+      "sha256": "11a1ff7de15dd3731be79e5b424b2a49f7452a955f0351ea39699120b868691c"
+    },
+    {
+      "path": "scripts/eval/round2_a/a2_p1.py",
+      "sha256": "1bab4b1d46381120d57d35be07b2ac57b2bf5c03e114ae6b95fc30dc9104c7c4"
+    },
+    {
+      "path": "scripts/eval/round2_a/a2_p2.py",
+      "sha256": "e6ce784430d67f2d40348c14438dfac5fd878e5658309a3356bc04fa4ca03697"
+    },
+    {
+      "path": "scripts/eval/round2_a/a2_p3.py",
+      "sha256": "5c3e331cd7b013d8813db7c94995c87433c9114a47592d5c2d919c8bba1add61"
+    },
+    {
+      "path": "scripts/eval/round2_a/a2_p4.py",
+      "sha256": "91489f1a9ea74841848e6adb316f1e84ef0650d19e2829f0cf76b735da772e4d"
+    },
+    {
+      "path": "scripts/eval/round2_a/a2_p5.py",
+      "sha256": "7f765118fc57a43576cb9892db895515e95cfcc983a3a22377d940102b3807c7"
+    },
+    {
+      "path": "scripts/eval/round2_a/spec.py",
+      "sha256": "01a0b07e45d4b0296e080b422a0615980c3b7eb9b890c78b0e3c4120f743143a"
+    },
+    {
+      "path": "scripts/eval/round2_a_tasks.py",
+      "sha256": "502db7ceb30a95121e8642d876f2762d044b3a90f473b24f8d7757de82c3a89d"
+    }
+  ],
+  "sha256": "c4eed79f650b8f240588450f24357fec90c58de139b4b8a0e2fe1cb8a23ab303"
+}

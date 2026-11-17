@@ -12,7 +12,9 @@ frozen as the JSON files strength_retest.py reads with --tasks / --tasks-sha256:
     check     per task: hidden tests fail on the start files, pass on the reference; the naive implementation
               (repository default or the dropped option) fails a test traced to every convention; a visible test
               (memory tasks only) passes on the reference; trace table complete (round2_tasks.brief_checks over brief +
-              convention text); the file loads with strength_retest.load_tasks
+              convention text); A1: the whole settle text reaches what ccx's --context on attaches from the
+              synthetic lead transcript (context_share, as strength_runner writes it) and no clause is dropped;
+              the file loads with strength_retest.load_tasks
     leak      round2_tasks.leak_check (ids, briefs vs every earlier task and within the set) plus the same
               SequenceMatcher rule on brief + convention text within the set and against round 1's
               context/memory tasks
@@ -147,6 +149,26 @@ def run_tests(files: dict[str, str], hidden: str, visible: str | None) -> dict:
     return {"rc": r.returncode, "tests": tests}
 
 
+def context_reaches(task: dict) -> dict:
+    """What the --context on arm would attach (ccx.context_share on the synthetic lead transcript strength_runner
+    writes): is the whole settle text there (newest ask, kept nearly whole), and was any clause dropped?"""
+    if str(ROOT) not in sys.path:
+        sys.path.insert(0, str(ROOT))
+    import time
+    from ccx import context_share as CS
+    from shared_context_ab import lead_transcript
+    with tempfile.TemporaryDirectory(prefix="r2a-ctx-") as tmp:
+        f = Path(tmp) / "lead.jsonl"
+        f.write_text("".join(json.dumps(e) + "\n" for e in lead_transcript(task, time.time())), encoding="utf-8",
+                     newline="")
+        dropped: list[str] = []
+        evs = CS.drop_lead_only(CS.read_events("claude", f) or [], dropped)
+        text = CS.summary(evs, "claude", "strength-synthetic-lead", Path(tmp), "check")
+    flat = R.normalize_brief(text)
+    return {"settle_whole_in_context": R.normalize_brief(task["settle"]) in flat,
+            "context_chars": len(text), "clauses_dropped": len(dropped)}
+
+
 def _outcome(result: dict, file: str, test: str):
     return result["tests"].get(f"{file[:-3]}::{test}")
 
@@ -154,6 +176,9 @@ def _outcome(result: dict, file: str, test: str):
 def check_task(spec: dict, task: dict) -> dict:
     files, hidden, visible = task["files"], task["hidden"], task.get("visible")
     problems = []
+    shadow = sorted(n for n in files if Path(n).stem in sys.stdlib_module_names)
+    if shadow:
+        problems.append(f"file names shadow standard library modules: {shadow}")
     start = run_tests(files, hidden, visible)
     reference = run_tests({**files, **task["reference"]}, hidden, visible)
     if start["rc"] not in (1, 2):
@@ -195,6 +220,13 @@ def check_task(spec: dict, task: dict) -> dict:
         problems.append("a neutral task has no conventions and no naive implementation")
     if spec["kind"] == "memory" and len(spec["distractors"]) < 1:
         problems.append("no adjacent-topic distractor")
+    reach = None
+    if spec["kind"] == "context":
+        reach = context_reaches(task)
+        if not reach["settle_whole_in_context"]:
+            problems.append("the settle text does not reach the --context on attachment whole")
+        if reach["clauses_dropped"]:
+            problems.append(f"ccx drops {reach['clauses_dropped']} clause(s) of the conversation as hand-off text")
     brief_only = sorted(t for t, frags in spec["trace"].items() if not set(frags) & set(spec["conventions"]))
     row = {"id": task["id"], "start_rc": start["rc"], "reference_rc": reference["rc"],
            "start_failed": sorted(k.split("::")[1] for k, ok in start["tests"].items() if not ok),
@@ -202,6 +234,8 @@ def check_task(spec: dict, task: dict) -> dict:
            "assertions": briefs["assertions"], "trace_complete": briefs["trace_complete"],
            "literal_in_brief_or_conventions": len(briefs["literal_overlap"]),
            "problems": problems, "valid": not problems}
+    if reach is not None:
+        row.update(reach)
     if naive is not None:
         row.update(naive_rc=naive["rc"],
                    naive_failed=sorted(k.split("::")[1] for k, ok in naive["tests"].items() if not ok),
