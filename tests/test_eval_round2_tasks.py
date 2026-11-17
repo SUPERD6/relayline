@@ -106,7 +106,104 @@ def test_groups_caps_and_size_rules(monkeypatch):
     assert [t["commit"][0] for t in out["C"]] == ["d"]
     reasons = {e["commit"][0]: e["reason"] for e in out["exclusions"] if "commit" in e}
     assert reasons["b"].startswith("repository cap (B")
-    assert out["c_shortfall"] == 0 and "e" not in reasons  # stops once both groups are full
+    assert out["c_shortfall"] == 0
+    # the walk goes on for the development tasks (#371): e is too small even for B-dev
+    assert reasons["e"].startswith("implementation change below")
+
+
+def _dev_setup(monkeypatch, hist, b_dev, c_dev, b_cap, c_cap):
+    for name, value in (("B_TAKE", 1), ("C_TAKE", 1), ("B_DEV_TAKE", b_dev), ("C_DEV_TAKE", c_dev),
+                        ("B_CAP", b_cap), ("C_CAP", c_cap)):
+        monkeypatch.setattr(R, name, value)
+    monkeypatch.setattr(R, "compiled_files", lambda cache, repo: [])
+    monkeypatch.setattr(R, "test_changes", lambda cache, repo, sha: None)
+    monkeypatch.setattr(R, "src_layout", lambda cache, repo, sha: False)
+    monkeypatch.setattr(R.LCand, "history", lambda cache, repo: hist[repo])
+
+
+def _row(sha, ts, lines):
+    return {"commit": sha * 40, "timestamp": ts, "tests": ["tests/test_a.py"], "code_lines": lines,
+            "code": ["m.py"], "subject": "s"}
+
+
+def _select(repos):
+    return R.select_upstream(Path("x"), [{"repo": r} for r in repos], "py", set(), validator=lambda *a: {"valid": True})
+
+
+def test_dev_tasks_follow_in_the_same_order_with_shared_b_cap(monkeypatch):
+    t = 2_000_000_000
+    hist = {"r1": [_row("a", t, 80), _row("b", t - 1, 80), _row("c", t - 2, 160), _row("d", t - 3, 80),
+                   _row("x", t - 4, 80)],
+            "r2": [_row("e", t, 80), _row("g", t - 1, 160), _row("h", t - 2, 160)],
+            "r3": [_row("i", t, 160)]}
+    _dev_setup(monkeypatch, hist, b_dev=2, c_dev=1, b_cap=2, c_cap=4)
+    out = _select(["r1", "r2", "r3"])
+    # final tasks exactly as before #371
+    assert [t["commit"][0] for t in out["B"]] == ["a"] and [t["commit"][0] for t in out["C"]] == ["c"]
+    assert out["b_shortfall"] == 0 and out["c_shortfall"] == 0
+    # b (B-size, before C's first task) is not a B-dev task; d follows C; x hits the B cap shared with B
+    assert [t["commit"][0] for t in out["dev"]["B"]] == ["d", "e"]
+    assert [t["commit"][0] for t in out["dev"]["C"]] == ["g"]
+    assert all(t["dev"] is True for t in out["dev"]["B"] + out["dev"]["C"])
+    assert all("dev" not in t for t in out["B"] + out["C"])
+    assert {t["group"] for t in out["dev"]["B"]} == {"B"} and {t["group"] for t in out["dev"]["C"]} == {"C"}
+    assert out["dev_shortfall"] == {"B": 0, "C": 0}
+    reasons = {e["commit"][0]: e["reason"] for e in out["exclusions"] if "commit" in e}
+    assert reasons["b"].startswith("below C size rule")
+    assert reasons["x"].startswith("repository cap (B")
+    assert "h" not in reasons and "i" not in reasons  # stops once the development tasks are full
+    assert {c["commit"][0]: c.get("dev", False) for c in out["checked"]} == {
+        "a": False, "c": False, "d": True, "e": True, "g": True}
+
+
+def test_dev_c_shares_c_cap_and_reports_shortfall(monkeypatch):
+    t = 2_000_000_000
+    hist = {"r1": [_row("a", t, 80), _row("c", t - 1, 160), _row("d", t - 2, 80), _row("e", t - 3, 160),
+                   _row("f", t - 4, 80)]}
+    _dev_setup(monkeypatch, hist, b_dev=1, c_dev=1, b_cap=6, c_cap=1)
+    out = _select(["r1"])
+    assert [t["commit"][0] for t in out["dev"]["B"]] == ["d"] and out["dev"]["C"] == []
+    reasons = {e["commit"][0]: e["reason"] for e in out["exclusions"] if "commit" in e}
+    assert reasons["e"].startswith("repository cap (C")
+    assert reasons["f"].startswith("below C size rule")
+    assert out["dev_shortfall"] == {"B": 0, "C": 1}
+
+
+def test_no_dev_tasks_when_final_groups_are_short(monkeypatch):
+    t = 2_000_000_000
+    _dev_setup(monkeypatch, {"r1": [_row("a", t, 80), _row("b", t - 1, 80)]}, b_dev=4, c_dev=2, b_cap=6, c_cap=4)
+    out = _select(["r1"])
+    assert out["c_shortfall"] == 1 and out["dev"] == {"B": [], "C": []}
+    assert out["dev_shortfall"] == {"B": 4, "C": 2}
+
+
+def test_cli_select_reports_dev_and_downstream_includes_dev(tmp_path, monkeypatch, capsys):
+    t = 2_000_000_000
+    _dev_setup(monkeypatch, {"r1": [_row("a", t, 80), _row("c", t - 1, 160), _row("d", t - 2, 80)]},
+               b_dev=2, c_dev=1, b_cap=6, c_cap=4)
+    monkeypatch.setattr(R, "_validate", lambda *a: {"valid": True})
+    monkeypatch.setattr(R, "corpus", lambda **k: {"repos": set()})
+    (tmp_path / "cache").mkdir()
+    (tmp_path / "repos.json").write_text(json.dumps({"kept": [{"repo": "r1"}]}), encoding="utf-8")
+    out = tmp_path / "sel.json"
+    rc = R.main(["select", "--repos-json", str(tmp_path / "repos.json"), "--ext-cache", str(tmp_path / "cache"),
+                 "--ext-python", "py", "--out", str(out)])
+    printed = capsys.readouterr().out
+    assert rc == 0  # a development shortfall is filled by authored tasks, not a failed selection
+    assert "dev B 1/2, C 0/1" in printed and "author" in printed
+    data = json.loads(out.read_text(encoding="utf-8"))
+    assert [t["commit"][0] for t in data["dev"]["B"]] == ["d"]
+    # env-check covers the development tasks too
+    seen = []
+    monkeypatch.setattr(R, "own_package", lambda py, project, ts, meta, run: seen.append(project) or {"ok": True})
+    for task in data["dev"]["B"]:
+        task["project"] = "devpkg"
+    assert R.env_check(data, "py", None)["ok"] and "devpkg" in seen
+    # leak reads B, C and the development tasks from a selection file
+    leaked = []
+    monkeypatch.setattr(R, "leak_check", lambda tasks, corp: leaked.extend(tasks) or {"clean": True})
+    assert R.main(["leak", "--tasks", str(out), "--out", str(tmp_path / "leak.json")]) == 0
+    assert sorted(t["commit"][0] for t in leaked) == ["a", "c", "d"]
 
 
 def test_compiled_repository_is_excluded(monkeypatch):
