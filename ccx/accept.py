@@ -141,10 +141,31 @@ def off_branch(it: dict, why: str | None) -> str:
 
 
 def branch_landed(root: Path, it: dict) -> bool:
-    """Is the piece's branch already part of what the project has checked out (merged by hand, say)?"""
+    """Is the piece's work already part of what the project has checked out (merged by hand, say)?
+
+    #402: with its worktree still there, the commit the worktree has checked out must be in, so new commits on a
+    detached worktree count, and a resumed piece (whose own ccx/<run> never existed: its worktree is on the first
+    run's branch, see autonomy.run_branch) is judged by the branch it is really on. The branch the queue noted (or
+    ccx/<run> when it noted `HEAD` or nothing) must be in too when that ref exists, so a worktree moved to a branch
+    that is already in does not hide its run's branch. With the worktree gone only that name is left: a resumed piece
+    that noted no branch then reads as not landed, and commits made only on a detached worktree are not seen."""
     noted = it.get("branch")
     branch = noted if noted and noted != "HEAD" else f"ccx/{it.get('run')}"   # #384: `HEAD` is always an ancestor
-    return autonomy._git(root, "merge-base", "--is-ancestor", branch, "HEAD")[0] == 0
+    wt = it.get("worktree")
+    head = None
+    if wt and Path(wt).exists():
+        from .workspace import canonical
+        rc, top = autonomy._git(Path(wt), "rev-parse", "--show-toplevel")
+        # a folder left after the worktree was removed (under .ccx/worktrees, say) would answer for the project
+        if rc == 0 and top and canonical(top) == canonical(wt):
+            rc, out = autonomy._git(Path(wt), "rev-parse", "--verify", "-q", "HEAD^{commit}")
+            head = out if rc == 0 and out else None
+    if head is None:
+        return autonomy._git(root, "merge-base", "--is-ancestor", branch, "HEAD")[0] == 0
+    refs = [head]
+    if autonomy._git(root, "rev-parse", "--verify", "-q", f"refs/heads/{branch}")[0] == 0:
+        refs.append(branch)
+    return all(autonomy._git(root, "merge-base", "--is-ancestor", r, "HEAD")[0] == 0 for r in refs)
 
 
 def accepted_unmerged(root: Path, q: dict) -> list[str]:
