@@ -411,7 +411,7 @@ def test_repo_list_gives_same_name_repositories_owner_qualified_keys(tmp_path):
     assert [k["repo"] for k in out["kept"]] == ["a/utils", "b/utils"]
     # an owner/name repo still counts as used by its bare name
     sel = R.select_upstream(Path("x"), [{"repo": "a/utils", "url": "https://github.com/a/utils", "project": "a-utils"}],
-                            "py", {"utils"})
+                            "py", {"utils"}, registered=[])  # no real --ext-python here (#424)
     assert sel["exclusions"] == [{"repo": "a/utils", "reason": "repository used in an earlier evaluation"}]
 
 
