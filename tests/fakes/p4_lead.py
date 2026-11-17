@@ -27,7 +27,10 @@ with log.open("a", encoding="utf-8", newline="") as f:
                         "parent": (repo / "source.py").read_text(encoding="utf-8"),
                         "pythonpath": os.environ.get("PYTHONPATH"), "importable": importable,
                         "pythonutf8": os.environ.get("PYTHONUTF8"),
-                        "stub": (repo / "pkg" / "_version.py").is_file()}) + "\n")
+                        "stub": (repo / "pkg" / "_version.py").is_file(),
+                        "stub_text": (repo / "pkg" / "_version.py").read_text(encoding="utf-8")
+                        if (repo / "pkg" / "_version.py").is_file() else None,
+                        "pytest_plugins": os.environ.get("PYTEST_PLUGINS")}) + "\n")
 (repo / "left-by-fake.txt").write_text("changed", encoding="utf-8")
 usage = {
     "input_tokens": 10, "cache_read_input_tokens": turn * 100, "cache_creation_input_tokens": 5,
