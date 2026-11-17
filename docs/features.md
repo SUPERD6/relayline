@@ -521,6 +521,18 @@ first, and reports `billing.mode`. `ccx lead --breakdown` similarly orders its p
 per 100 turns first in subscription mode, API-equivalent USD first in API mode. Its advice follows the same
 choice; the original dollar fields and API-mode advice are retained.
 
+### Handover timings (#392)
+
+So the cost of handing work over can be measured, run.json and the ledger also keep a few times. Wall-clock moments
+are UTC ISO 8601; durations come from a monotonic clock, so a clock change does not move them. Each attempt records
+`started_at` (the CLI process started), `first_event_at` (its first event arrived) and `startup_seconds` (the gap;
+`null` when no event came). Every check on an attempt records `check_started_at` and `check_seconds`, passed ones
+too (before, only a failed check kept `check_seconds`). A recorded review gets `started_at`, `ended_at`, `seconds`
+and `background` (it ran beside the check). The ledger row sums them as `startup_seconds` and `check_seconds`, lists
+each check in `check_timing` and copies `review_timing`. `scripts/eval/handover_overhead.py` uses these for the
+startup and check/review wall time; rows written before have none and stay `Unknown`. Receipts (the one line and the
+whole result) are unchanged, and no default changes.
+
 ## Tiers (`config/tiers.toml`, override in `hub/ccx/tiers.toml`)
 
 Fixed tiers are the fallback. With rubric flags, task-routing picks by success probability and cost per success,

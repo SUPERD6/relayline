@@ -400,7 +400,7 @@ def run_check(cmd: str, cwd: Path, timeout: int = 900, tail_chars: int = 800, *,
     from .runners import without_launcher_vars
     from .check_shell import find_bash, needs_bash
 
-    t0 = time.time()
+    t0 = time.perf_counter()        # a duration: monotonic, unmoved by wall-clock changes (#392)
     ran = quote_k_expr(cmd)
     check_env = without_launcher_vars(os.environ if env is None else env)
     bash_required = os.name == "nt" and needs_bash(ran)
@@ -436,7 +436,7 @@ def run_check(cmd: str, cwd: Path, timeout: int = 900, tail_chars: int = 800, *,
         broken = missing_bash + f" ({str(e).replace(';', '.')})"
         code, tail = -1, broken[-tail_chars:]
         stderr = broken
-    out = {"cmd": cmd, "exit": code, "passed": code == 0, "seconds": round(time.time() - t0, 1), "tail": tail}
+    out = {"cmd": cmd, "exit": code, "passed": code == 0, "seconds": round(time.perf_counter() - t0, 1), "tail": tail}
     if bash_required and "\\" in ran:
         out["shell_warning"] = ("Bash treats backslashes as escapes. Use forward slashes or quote Windows paths "
                                 "carefully in --check")

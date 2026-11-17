@@ -467,7 +467,10 @@ class Episode:
         self.run_ids.update(child["run_ids"])
         ledger = r5.hub_rows(self.iso.hub)
         row["side_ledger"] = [{k: entry[k] for k in
-                              ("run_id", "label", "vendor", "model", "rungs", "ae_usd", "dispatch") if k in entry}
+                              ("run_id", "label", "vendor", "model", "rungs", "ae_usd", "dispatch",
+                               # #392 handover timings (handover_overhead.py reads them)
+                               "startup_seconds", "check_seconds", "check_timing", "review_timing")
+                              if k in entry}
                              for entry in ledger[self.side_ledger_count:] if not entry.get("type")]
         self.side_ledger_count = len(ledger)
         if u["arm"] in DE.ARMS:
