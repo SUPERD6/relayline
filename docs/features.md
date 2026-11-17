@@ -291,7 +291,24 @@ In Claude Code you say: "make `loader.py` accept a custom delimiter and add test
 2. **Pick a model.** It runs `ccx run --from claude --files 2 --coupling one --clarity goal "…"`. ccx asks the
    **task-routing** skill for each agent:model:effort's success probability and cost per success. Here it picks
    `codex:gpt-6.1-sol:medium`. If doing it yourself is cheaper, or the task should be split first, ccx says so and
-   delegates nothing.
+   delegates nothing. `ccx run --dry-run …` shows the pick without running anything (no sub-agent, no ledger row,
+   no A/B sample): the rungs it would try, `planned_first_rung` (routing's pick), `first_rung` (where the run starts)
+   and `rung_why`, one short reason each for the vendor, the model and the effort, from the signals the pick
+   actually used (what you named with `--to` / `--model` / `--effort` / `--tier` / `--provider`, the role table,
+   task-routing's difficulty, learned pass rate and candidates, the tier table or keywords, quota), plus `changes`
+   when the start moved before running (the `strict_escalate` floor, cheap-first dispatch, a model this account
+   lacks, the daily budget). It does not combine with `--bg`. Unlike `ccx route`, which shows routing's pick only,
+   it goes through the run's own pre-start steps (strict floor, cheap-first, model swap, provider key, budget), so its
+   `first_rung` is where a run started now would begin. It runs no quota probe (the pick uses the readings already
+   saved) but may update the local login-check cache, as `ccx route` does. With an A/B self-run rate
+   (`ab_self_rate`) or an H11 trial on, a real run may be drawn as do-it-yourself; the dry run shows the pick
+   without that draw. A real run records the same `planned_first_rung` and
+   `rung_why`, and `actual_first_rung`: the first rung that really took the task. Attempts stopped by capacity,
+   quota or a missing model, which ccx replaced with another rung, do not count, so the two differ after such a
+   switch or a moved start (`null` when no rung took it); a climb after a failed attempt keeps them equal and shows
+   in `escalated`. The whole
+   result and `ccx show` carry all three; the one-line result adds only the two rungs, and only when they differ.
+   A person's terminal also gets a `Rung: …` line. Nothing here changes a default or the pick itself.
 3. **Run headless.** ccx runs `codex exec -m gpt-6.1-sol -c model_reasoning_effort="medium" …`. The session id is
    saved the moment it appears. Codex reads the files, edits and runs the tests on Codex's own quota.
 4. **Return a summary.** Codex must answer in a JSON schema (`status / summary / files_changed / verification / …`).
