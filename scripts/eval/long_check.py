@@ -39,7 +39,8 @@ def material(cache: Path, task: dict) -> dict:
             "tests": {p: git(bare, "show", f"{sha}:{p}", data=True) for p in task["tests"]}}
 
 
-def check_tree(tree: bytes, hidden: dict, tests: list, python: str, work: Path, raw: Path | None = None, timeout: float = 120) -> dict:
+def check_tree(tree: bytes, hidden: dict, tests: list, python: str, work: Path, raw: Path | None = None,
+               timeout: float = 120) -> dict:
     work.mkdir(parents=True)
     E.extract(tree, work)
     for rel, body in hidden.items():

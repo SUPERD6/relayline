@@ -225,7 +225,7 @@ def test_map_stopping_ctrl_c_leaves_no_future_locked(monkeypatch):
 
 
 def test_eval_scripts_use_run_tree_for_their_timed_calls():
-    """The 20 call sites of issue #332 (and strength_runner, long_environment #359) go through common.run_tree, not
+    """The 20 call sites of issue #332 (and strength_runner, long_environment #359, long_check #391) go through common.run_tree, not
     subprocess.run."""
     sites = {"c2_lead_accept.py": 1, "f9_subagents.py": 1, "r2.py": 1, "seven_ab.py": 1, "seven_func.py": 2,
              "shared_context_ab.py": 2, "preflight_e2e.py": 1, "common.py": 1, "e8_handoff.py": 1,
