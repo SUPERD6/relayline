@@ -139,6 +139,54 @@ def test_medians_per_arm_over_units(tmp_path):
     assert res["by_arm"]["A"]["cost"]["agent"]["n"] == 3
 
 
+def test_one_known_item_gives_no_share():
+    # no stream: only agent is known for every unit -> would be 100%; no share is printed
+    res = H.analyze([row()], None)
+    sh = res["all"]["cost"]["_shares"]
+    assert sh["over"] == ["agent"] and sh["share"]["agent"] is None and "fewer than two" in sh["note"]
+
+
+def test_review_and_lead_parts_kept_apart(tmp_path):
+    s = write_stream(tmp_path, "u1", full_events())
+    u = H.analyze([row(s)], tmp_path)["per_unit"][0]
+    assert u["cost"]["check_review_review"]["value"] == pytest.approx(0.1)
+    assert u["cost"]["check_review_lead_allocated"]["value"] == pytest.approx(0.5)
+
+
+def test_weights_change_allocation_and_are_recorded(tmp_path):
+    ev = [asst("m1", "2026-11-11T10:00:10Z", usage(out=100), "ccx run x", "t1"),
+          result("2026-11-11T10:01:00Z", "t1"),
+          asst("m2", "2026-11-11T10:01:05Z", usage(cr=1000))]
+    s = write_stream(tmp_path, "u1", ev)
+    default = H.analyze([row(s)], tmp_path)
+    assert default["allocation_weights"]["output"] == 5.0
+    w = H.parse_weights("input=1,cache_write=1,cache_read=1,output=1")
+    res = H.analyze([row(s)], tmp_path, weights=w)
+    assert res["allocation_weights"] == {"input": 1.0, "cache_write": 1.0, "cache_read": 1.0, "output": 1.0}
+    assert default["per_unit"][0]["cost"]["brief"]["value"] == pytest.approx(500 / 600)      # 500 vs 100
+    assert res["per_unit"][0]["cost"]["brief"]["value"] == pytest.approx(100 / 1100)         # 100 vs 1000
+    with pytest.raises(ValueError):
+        H.parse_weights("input=1")
+
+
+def test_parallel_calls_count_once_and_powershell_is_seen(tmp_path):
+    ev = [{"type": "assistant", "timestamp": "2026-11-11T10:00:10Z", "message": {"id": "m1", "usage": usage(out=10),
+           "content": [{"type": "tool_use", "id": "t1", "name": "Bash", "input": {"command": "ccx run a"}},
+                       {"type": "tool_use", "id": "t2", "name": "PowerShell", "input": {"command": "ccx run b"}}]}},
+          result("2026-11-11T10:01:10Z", "t1"), result("2026-11-11T10:01:40Z", "t2")]
+    s = write_stream(tmp_path, "u1", ev)
+    u = H.analyze([row(s)], tmp_path)["per_unit"][0]
+    assert u["delegations"] == 2
+    assert u["wall"]["call"]["value"] == pytest.approx(90.0)     # union, not 60 + 90
+
+
+def test_labels_say_allocated(tmp_path):
+    s = write_stream(tmp_path, "u1", full_events())
+    text = H.report(H.analyze([row(s)], tmp_path))
+    assert "assumed token-kind ratios" in text and "brief (allocated)" in text
+    assert "check_review (part allocated)" in text and "output=5" in text
+
+
 def test_cli_prints_unknown_and_writes_json(tmp_path):
     s = write_stream(tmp_path, "u1", full_events())
     rows = tmp_path / "rows.jsonl"

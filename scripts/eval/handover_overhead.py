@@ -16,8 +16,9 @@ delegated (self) are counted but skipped.
 
 What is measured and what is not:
   cost.brief / cost.check_review (lead part)   ALLOCATED, not measured: the row's measured lead_usd is shared out over the
-      lead's messages by usage weight (input 1, cache write 1.25, cache read 0.1, output 5: the usual Claude price
-      ratios, an assumption); the sum always equals lead_usd. cost.agent and the review cost are measured (ledger ae_usd).
+      lead's messages by usage weight (default input 1, cache write 1.25, cache read 0.1, output 5: assumed ratios, not a
+      price table; change with --weights, the values used are in the --out file); the sum always equals lead_usd.
+      cost.check_review is also written as check_review_review (measured) + check_review_lead_allocated. cost.agent and the review cost are measured (ledger ae_usd).
   wall.brief      measured as (end of the delegation message) - (last timestamped event before it). The first message of a
       stream has nothing before it, so a first delegation is Unknown ("lead stream has no start timestamp").
   wall.call       measured: `ccx` tool_use to its tool_result in the lead stream. It contains startup + agent + check +
@@ -42,8 +43,13 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from result_rows import number, rows as read_rows  # noqa: E402
 
 ITEMS = ("brief", "startup", "agent", "check_review")
+# Assumed ratios between Claude token kinds, used only to share the measured lead_usd out over messages: NOT a price
+# table. Override with --weights; the values used are written to --out.
 WEIGHTS = {"input_tokens": 1.0, "cache_creation_input_tokens": 1.25, "cache_read_input_tokens": 0.1,
            "output_tokens": 5.0}
+WEIGHT_KEYS = {"input": "input_tokens", "cache_write": "cache_creation_input_tokens",
+               "cache_read": "cache_read_input_tokens", "output": "output_tokens"}
+SHELL_TOOLS = ("Bash", "PowerShell")      # the lead's shell tools; on Windows a ccx call may come through PowerShell
 DELEGATE = re.compile(r'(?:^|[\s/\\"])(?:ccx(?:\.py)?|p4_receipt\.py)"?\s+(?:run|resume)\b')
 UNKNOWN = "Unknown"
 
@@ -93,7 +99,7 @@ def lead_messages(events):
             rec["last_ts"] = t if t is not None else rec["last_ts"]
             rec["usage"] = m.get("usage") or rec["usage"]
             for c in m.get("content") if isinstance(m.get("content"), list) else []:
-                if (c.get("type") == "tool_use" and c.get("name") == "Bash"
+                if (c.get("type") == "tool_use" and c.get("name") in SHELL_TOOLS
                         and DELEGATE.search(str((c.get("input") or {}).get("command", "")))
                         and c.get("id") not in rec["delegates"]):
                     rec["delegates"].append(c.get("id"))
@@ -113,8 +119,22 @@ def tool_result_times(events):
     return out
 
 
-def weight(usage):
-    return sum(WEIGHTS[k] * float(usage.get(k) or 0) for k in WEIGHTS)
+def weight(usage, weights=None):
+    w = weights or WEIGHTS
+    return sum(w[k] * float(usage.get(k) or 0) for k in w)
+
+
+def parse_weights(text):
+    """'input=1,cache_write=1.25,cache_read=0.1,output=5' -> WEIGHTS-shaped dict (all four keys required)."""
+    out = {}
+    for part in text.split(","):
+        k, _, v = part.partition("=")
+        if k.strip() not in WEIGHT_KEYS or not v.strip():
+            raise ValueError(f"--weights: expected {','.join(WEIGHT_KEYS)} as name=number, got {part!r}")
+        out[WEIGHT_KEYS[k.strip()]] = float(v)
+    if len(out) != 4 or any(x < 0 for x in out.values()) or not any(out.values()):
+        raise ValueError("--weights: give all four of input, cache_write, cache_read, output, nonnegative")
+    return out
 
 
 def entries_of(row):
@@ -129,7 +149,7 @@ def known(value, why):
     return {"value": value, "unknown": None} if value is not None else {"value": None, "unknown": why}
 
 
-def unit(row, events, why_no_stream, ledger_by_id):
+def unit(row, events, why_no_stream, ledger_by_id, weights=None):
     cost, wall = {}, {}
     ents = entries_of(row)
     review_ents = [e for e in ents if is_review(e)]
@@ -157,7 +177,7 @@ def unit(row, events, why_no_stream, ledger_by_id):
         why_lead = why_no_stream
     else:
         msgs = lead_messages(events)
-        total_w = sum(weight(m["usage"]) for m in msgs)
+        total_w = sum(weight(m["usage"], weights) for m in msgs)
         if not msgs or total_w <= 0:
             why_lead = "lead stream has no usable assistant usage"
         else:
@@ -165,18 +185,22 @@ def unit(row, events, why_no_stream, ledger_by_id):
             if first is None:
                 why_lead = "lead stream has no ccx run/resume call"
             else:
-                brief_c = lead * sum(weight(m["usage"]) for m in msgs if m["delegates"]) / total_w
-                post_c = lead * sum(weight(m["usage"]) for m in msgs[first + 1:] if not m["delegates"]) / total_w
+                brief_c = lead * sum(weight(m["usage"], weights) for m in msgs if m["delegates"]) / total_w
+                post_c = lead * sum(weight(m["usage"], weights) for m in msgs[first + 1:] if not m["delegates"]) / total_w
     cost["brief"] = known(brief_c, why_lead)
     cost["startup"] = known(None, "no per-attempt launch-to-first-event cost or timestamp is recorded")
     if review is None or post_c is None:
         cost["check_review"] = known(None, why_lead or "review cost unknown")
     else:
         cost["check_review"] = known(review + post_c, None)
-    cost["lead_other"] = known(None if lead is None or brief_c is None or post_c is None
-                               else max(0.0, round(lead - brief_c - post_c, 9)), why_lead)
+    # the two parts of check_review, kept apart: the review runs are measured, the lead's turns are allocated
+    cost["check_review_review"] = known(review, "review cost unknown")
+    cost["check_review_lead_allocated"] = known(post_c, why_lead)
+    other = None if lead is None or brief_c is None or post_c is None else round(lead - brief_c - post_c, 9)
+    cost["lead_other"] = known(None if other is None or other < -1e-6 else max(0.0, other),
+                               why_lead if other is None else "data anomaly: allocated parts exceed lead_usd")
     # --- wall
-    calls, gaps, gap_unknown = [], [], 0
+    spans, gaps, gap_unknown = [], [], 0
     if events is not None:
         msgs = lead_messages(events)
         back = tool_result_times(events)
@@ -184,7 +208,7 @@ def unit(row, events, why_no_stream, ledger_by_id):
             for tid in m["delegates"]:
                 start = m["last_ts"] if m["last_ts"] is not None else m["first_ts"]
                 if start is not None and back.get(tid) is not None:
-                    calls.append(back[tid] - start)
+                    spans.append((start, back[tid]))
                 if m["prev_ts"] is None or start is None:
                     gap_unknown += 1
                 else:
@@ -196,7 +220,12 @@ def unit(row, events, why_no_stream, ledger_by_id):
                            if gap_unknown else "lead stream has no ccx run/resume call"))
     wall["brief"]["delegations"] = {"known": len(gaps), "unknown": gap_unknown}
     wall["brief"]["gaps_s"] = [round(g, 3) for g in gaps]
-    call_total = sum(calls) if calls and len(calls) == n_calls else None
+    # calls issued in parallel (one message, several ccx calls, or overlapping ones) overlap in time: count the union
+    call_total, end = (0.0, None) if spans and len(spans) == n_calls else (None, None)
+    for a, b in sorted(spans) if call_total is not None else []:
+        a = a if end is None else max(a, end)
+        call_total += max(0.0, b - a)
+        end = b if end is None else max(end, b)
     wall["call"] = known(call_total, why_no_stream if events is None else "a ccx tool call has no matching tool_result")
     agent_s = None
     if ledger_by_id is not None:
@@ -223,7 +252,8 @@ def summarize(units):
     """Per item: median over units where it is known, n, how many are Unknown and why; share of the known items."""
     out = {}
     for kind in ("cost", "wall"):
-        names = list(ITEMS) + (["lead_other"] if kind == "cost" else ["call", "startup_check_review_combined"])
+        names = list(ITEMS) + (["lead_other", "check_review_review", "check_review_lead_allocated"] if kind == "cost"
+                               else ["call", "startup_check_review_combined"])
         block = {}
         for name in names:
             vals = [u[kind][name]["value"] for u in units if name in u[kind] and u[kind][name]["value"] is not None]
@@ -234,16 +264,18 @@ def summarize(units):
             gaps = [g for u in units for g in u["wall"]["brief"]["gaps_s"]]
             block["brief_per_delegation_known"] = stats(gaps)
         # shares over the items known for every unit, summed per unit (so the shares add to 100%)
-        full = [n for n in names if n in ITEMS or kind == "cost"]
+        full = [n for n in names if n in ITEMS or n == "lead_other"]
         usable = [n for n in full if all(u[kind].get(n, {}).get("value") is not None for u in units) and units]
         den = sum(block[n]["sum"] for n in usable) if usable else 0
+        enough = len(usable) >= 2 and den > 0     # one known item would show 100%: no share without a comparison
         block["_shares"] = {"over": usable, "left_out_unknown": [n for n in full if n not in usable],
-                            "share": {n: (block[n]["sum"] / den if den else None) for n in usable}}
+                            "share": {n: (block[n]["sum"] / den if enough else None) for n in usable},
+                            "note": None if enough else "fewer than two items known for every unit: no shares"}
         out[kind] = block
     return out
 
 
-def analyze(rows, artifacts: Path | None, ledger_rows=None):
+def analyze(rows, artifacts: Path | None, ledger_rows=None, weights=None):
     ledger_by_id = None if ledger_rows is None else {r.get("run_id"): r for r in ledger_rows if r.get("run_id")}
     units, skipped = [], 0
     for row in rows:
@@ -253,15 +285,16 @@ def analyze(rows, artifacts: Path | None, ledger_rows=None):
         events, why = None, "no --artifacts directory given"
         if artifacts is not None:
             events, why = load_stream(row, artifacts)
-        u = unit(row, events, why, ledger_by_id)
+        u = unit(row, events, why, ledger_by_id, weights)
         u.update(task=row.get("task"), arm=row.get("arm"), round=row.get("round"), episode=row.get("episode"))
         units.append(u)
     arms = sorted({u["arm"] for u in units}, key=str)
-    return {"units": len(units), "skipped_no_delegation": skipped, "by_arm": {
+    used = {k: (weights or WEIGHTS)[v] for k, v in WEIGHT_KEYS.items()}
+    return {"units": len(units), "skipped_no_delegation": skipped, "allocation_weights": used, "by_arm": {
         a: summarize([u for u in units if u["arm"] == a]) for a in arms}, "all": summarize(units),
         "per_unit": units, "notes": ("cost.brief and the lead part of cost.check_review are allocated from lead_usd by "
-                                     "usage weight (input 1, cache write 1.25, cache read 0.1, output 5), not measured; "
-                                     "see the module docstring for what is Unknown and which field would fix it")}
+                                     "the ratios in allocation_weights (assumed, not a price table), not measured; "
+                                     "parallel ccx calls count once (union of their intervals); see the module docstring for what is Unknown and which field would fix it")}
 
 
 def fmt(v, money=False):
@@ -271,7 +304,10 @@ def fmt(v, money=False):
 
 
 def report(result):
-    lines = [f"units {result['units']}, skipped without delegation {result['skipped_no_delegation']}"]
+    w = result["allocation_weights"]
+    lines = [f"units {result['units']}, skipped without delegation {result['skipped_no_delegation']}",
+             "(allocated) = the measured lead_usd shared out over lead messages with assumed token-kind ratios "
+             f"(not a price table): {', '.join(f'{k}={v:g}' for k, v in w.items())}; an estimate, not a measurement"]
     for arm, s in result["by_arm"].items():
         for kind in ("cost", "wall"):
             lines.append(f"\n[{arm}] {kind}")
@@ -283,11 +319,16 @@ def report(result):
                 med = fmt(b["median"], kind == "cost")
                 why = f"  Unknown in {b['unknown_units']} unit(s): {'; '.join(b['unknown_reasons'])}" \
                     if b["unknown_units"] else ""
-                lines.append(f"  {name:32} median {med:>9}  n={b['n']}  share "
+                label = name + (" (allocated)" if kind == "cost" and name in ("brief", "lead_other",
+                                                                              "check_review_lead_allocated")
+                                else " (part allocated)" if kind == "cost" and name == "check_review" else "")
+                lines.append(f"  {label:32} median {med:>9}  n={b['n']}  share "
                              f"{'-' if share is None else f'{share:.0%}'}{why}")
             if kind == "wall":
                 g = s[kind]["brief_per_delegation_known"]
                 lines.append(f"  brief, per delegation message with a known start: median {fmt(g['median'])}, n={g['n']}")
+            if sh.get("note"):
+                lines.append(f"  {sh['note']}")
             if sh["left_out_unknown"]:
                 lines.append(f"  shares leave out (Unknown): {', '.join(sh['left_out_unknown'])}")
     return "\n".join(lines)
@@ -299,8 +340,11 @@ def main(argv=None) -> int:
     ap.add_argument("--artifacts", type=Path)
     ap.add_argument("--ledger", type=Path, help="ledger rows (JSONL) for each run's seconds")
     ap.add_argument("--out", type=Path)
+    ap.add_argument("--weights", help="assumed token-kind ratios for the lead allocation, e.g. "
+                                      "input=1,cache_write=1.25,cache_read=0.1,output=5 (the default; not a price table)")
     a = ap.parse_args(argv)
-    result = analyze(read_rows(a.results), a.artifacts, read_rows(a.ledger) if a.ledger else None)
+    result = analyze(read_rows(a.results), a.artifacts, read_rows(a.ledger) if a.ledger else None,
+                     parse_weights(a.weights) if a.weights else None)
     if a.out:
         a.out.write_text(json.dumps(result, indent=1, ensure_ascii=False) + "\n", encoding="utf-8", newline="")
     print(report(result))
