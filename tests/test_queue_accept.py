@@ -505,6 +505,29 @@ class TestBranchLanded(AcceptEnv):
         wq.update(self.work, q1, verdict=True)
         self.assertFalse(self.landed(q1))                   # ccx/<run> still is not
 
+    def test_a_resumed_piece_moved_to_a_landed_branch_is_not_landed(self):
+        """#412 review: ccx/<r2> does not exist, so the worktree's commit alone cannot say ccx/<first> is in."""
+        self.repo()
+        q1 = self.piece("one", {"a.txt": "a\n"})
+        self.resume(q1, branch=None)
+        wt = self.item(q1)["worktree"]
+        git(wt, "checkout", "-q", "-b", "other", "work")     # already in work; ccx/<first> is not
+        self.assertFalse(self.landed(q1))
+        wq.update(self.work, q1, branch="HEAD")
+        self.assertFalse(self.landed(q1))
+        git(wt, "checkout", "-q", "--detach", "work")        # detached on a landed commit: not landed either
+        self.assertFalse(self.landed(q1))
+
+    def test_a_folder_left_inside_the_project_does_not_answer_for_it(self):
+        """The worktree was removed but its folder stays under the project: git there answers for the project."""
+        self.repo()
+        q1 = self.piece("one", {"a.txt": "a\n"})
+        git(self.work, "worktree", "remove", "--force", self.item(q1)["worktree"])
+        left = self.work / ".ccx" / "worktrees" / "left-412"
+        left.mkdir(parents=True)
+        wq.update(self.work, q1, worktree=str(left))
+        self.assertFalse(self.landed(q1))                   # ccx/<run> is not in; the project's HEAD is no answer
+
     def test_a_plain_piece_before_and_after_a_merge_by_hand(self):
         self.repo()
         q1 = self.piece("one", {"a.txt": "a\n"})
