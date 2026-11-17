@@ -388,6 +388,22 @@ B3 每组只有 30 个干净配对（nomem 有效 29 对），不是登记的 50
 B3 三组的中位数比分别较低（0.645、0.565、0.538），但配对统计不支持可靠节省；见[报告“中位数和配对结果相反”一节](research/2026-10-31-b3-lean-switches.zh.md)。
 本次文档不改变任何命令、选项、JSON 含义、退出码或运行默认值。
 
+### 实验性：运行干净时跳过审查（`[review] skip_when_clean`，实测前不开）
+
+**实验性，效果 Unknown，待评测**（#427）。默认 `false`，行为不变。设为 `true`（`ccx config set review.skip_when_clean
+true`）后，本该自动触发独立审查的写运行，在"干净"时不起审查。干净 = 下面全部满足，任一不满足照常审查：
+
+- 审查是自动触发的：不是 `--review on` / `[review] mode = "on"`，不是修复轮，不是 `--risk critical`；
+- ccx 的 `--check` 通过、不弱、不是在未改动的树上跑的，且 sensitivity 为 `sensitive`（在派活时的树上失败、现在通过，#333）。
+  需要 `[check] sensitivity = "warn"` 或 `"escalate"`；sensitivity 关时任何运行都不算干净；
+- 改动文件数 ≤ `skip_max_files`（3），改动行数（增 + 删，文档也算）≤ `skip_max_lines`（50）；
+- 没改既有测试（`edited_tests` 为空），验收不全是子智能体自己写的测试；
+- 子智能体没提 `open_questions`，也没自己 commit（没有 `commit_state.note`）。
+
+跳过的审查记为 `review.verdict = "skipped"`，`review.skipped` 写为什么算干净，`review.reason` 写原本要审的原因；一行回执保留
+`verdict` 和 `skipped`，recap 显示 `review=skipped`。run.json 另存 `review_skip.unmet`（跳过时为空）供评测用；跳过的审查没有
+`review_timing`。开关开且 sensitivity 开时，审查改为等检查跑完再决定，不再与检查并行。省下多少、会漏掉什么，都还没测。
+
 ### 实验性：子智能体精简开关（`[subagent]`，实测前不开）
 
 `config/tiers.toml` 里有三个开关（可在 `hub/ccx/tiers.toml` 覆盖），决定派出去的子智能体启动时加载什么。出厂都是今天的做法，

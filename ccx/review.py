@@ -860,6 +860,19 @@ def review_run(req: Request, p: Paths, cfg: dict, record: dict, cwd: Path, run_d
         weak = bool(why)
     if not why:
         return
+    if rv.skip_when_clean(rc):        # #427, default off: a clean run's automatic review is not started
+        from .workspace import commit_state
+        try:
+            committed = bool((commit_state(cwd, snap) or {}).get("committed"))
+        except Exception:  # noqa: BLE001 — git cannot answer: not shown clean, so reviewed
+            committed = True
+        miss, clean_text = rv.clean_skip(rc, mode=mode, risk=req.risk, result=res, check=record.get("check"),
+                                         actual=actual, diff=diff, edited=edited, self_checked=selfc,
+                                         committed=committed)
+        record["review_skip"] = {"unmet": miss}
+        if not miss:
+            record["review"] = {"verdict": "skipped", "reason": why, "skipped": clean_text}
+            return
     from .delegate import _capped
     if _capped(req, record, "review"):            # P0-15 --max-usd: a review was due; the lead does it instead
         if review_tests.mode(rc) == "tests":
@@ -966,6 +979,66 @@ def review_run(req: Request, p: Paths, cfg: dict, record: dict, cwd: Path, run_d
         record["review"]["edited_tests"] = edited
     if v["verdict"] == "issues":
         record["kind"] = ("review_issues" if req.review_round < fix_rounds(rc) else "review_failed")
+
+
+SKIP_MAX_FILES, SKIP_MAX_LINES = 3, 50
+
+
+def skip_when_clean(rc: dict) -> bool:
+    """#427 [review] skip_when_clean: experimental, default off; only a real true turns it on."""
+    return rc.get("skip_when_clean") is True
+
+
+def _limit(rc: dict, key: str, default: int) -> int:
+    try:
+        v = int(rc.get(key, default))
+    except (TypeError, ValueError):
+        return default
+    return v if v >= 0 else default
+
+
+def changed_lines(diff: str) -> int:
+    """Added + removed lines of a unified diff, docs included (code_lines leaves docs out)."""
+    return sum(1 for ln in diff.splitlines() if ln.startswith(("+", "-")) and not ln.startswith(("---", "+++")))
+
+
+def clean_skip(rc: dict, *, mode: str, risk: str | None, result: dict, check: dict | None, actual: list[str],
+               diff: str, edited: list[str], self_checked: bool, committed: bool) -> tuple[list[str], str]:
+    """#427: (the clean conditions this run does not meet, a short text of why it is clean). Mechanical: every one
+    must hold for the automatic review to be skipped; any unmet one keeps the review as before."""
+    chk = check or {}
+    files, lines = len(actual), changed_lines(diff)
+    max_files, max_lines = _limit(rc, "skip_max_files", SKIP_MAX_FILES), _limit(rc, "skip_max_lines", SKIP_MAX_LINES)
+    miss = []
+    if mode != "auto":
+        miss.append("review asked (not automatic)")
+    if risk == "critical":
+        miss.append("risk critical")
+    if not chk:
+        miss.append("no check")
+    elif chk.get("passed") is not True:
+        miss.append("check not passed")
+    elif chk.get("weak") or chk.get("unchanged_tree") or chk.get("broken"):
+        miss.append("check weak")
+    if chk and chk.get("sensitivity") != "sensitive":
+        miss.append(f"check sensitivity {chk.get('sensitivity') or 'off'} (not shown to fail before the change)")
+    if not actual:
+        miss.append("no changes")
+    if files > max_files:
+        miss.append(f"{files} files > skip_max_files {max_files}")
+    if lines > max_lines:
+        miss.append(f"{lines} lines > skip_max_lines {max_lines}")
+    if edited:
+        miss.append("edited tests")
+    if self_checked:
+        miss.append("check basis self-authored")
+    if result.get("open_questions"):
+        miss.append("open questions")
+    if committed:
+        miss.append("sub-agent committed")
+    text = (f"clean: check passed and sensitive, {files} file{'s' if files != 1 else ''} / {lines} "
+            f"line{'s' if lines != 1 else ''}, no edited tests, no commit")
+    return miss, text
 
 
 def fix_rounds(rc: dict) -> int:

@@ -34,8 +34,8 @@ def mode(cfg: dict) -> str:
 
 
 def clean(res: dict) -> bool:
-    """A result that asks nothing of the lead: done, ok, its check passed on this run's own work, review passed or
-    none ran."""
+    """A result that asks nothing of the lead: done, ok, its check passed on this run's own work, review passed,
+    none ran, or it was skipped as clean (#427)."""
     complete = res.get("status") == "done" or (res.get("status") == "partial"
                and res.get("reported_status") == "done" and quota_reassigned(res))
     pending = res.get("git_pending") or {}
@@ -53,8 +53,9 @@ def clean(res: dict) -> bool:
             or c.get("basis_changed") or c.get("covers_unknown"):
         return False
     rv = res.get("review") or {}
-    if rv and (rv.get("verdict") != "pass" or rv.get("error") or rv.get("downgraded") or rv.get("notes")
-               or rv.get("edited_tests")):
+    # "skipped": [review] skip_when_clean (#427) found the run clean, which only a passed, sensitive check allows
+    if rv and (rv.get("verdict") not in ("pass", "skipped") or rv.get("error") or rv.get("downgraded")
+               or rv.get("notes") or rv.get("edited_tests")):
         return False                  # a pass with [should] / [note] items: the lead reads them
     return True                       # ordinary route details stay out; role auto evidence is retained
 
@@ -206,7 +207,8 @@ def line(res: dict) -> dict:
                 out[key] = res[key]
     out["check"] = res["check"]       # as it was (cmd, passed, exit, covers): leads, scripts and the receipt read it
     if res.get("review"):
-        out["review"] = {k: res["review"][k] for k in ("verdict", "by") if res["review"].get(k)}
+        # "skipped" (#427): the review was skipped as clean, and why
+        out["review"] = {k: res["review"][k] for k in ("verdict", "by", "skipped") if res["review"].get(k)}
     if (res.get("route") or {}).get("role_effort_reason") or (res.get("route") or {}).get("self_first"):
         out["route"] = res["route"]
     notes = receipt_notes(res)

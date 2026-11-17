@@ -605,6 +605,27 @@ B3 has only 30 clean pairs per arm (nomem 29 valid), rather than the registered 
 B3 ratios of medians were lower (0.645, 0.565, 0.538), but paired statistics do not support reliable savings; see the [report, “The median and the pairs disagree”](research/2026-10-31-b3-lean-switches.md).
 No command, option, JSON meaning, exit code or runtime default is changed by this documentation.
 
+### Experimental: skip the review when the run is clean (`[review] skip_when_clean`, off until measured)
+
+**Experimental, effect Unknown, to be evaluated** (#427). Default `false`: nothing changes. With `true` (`ccx config
+set review.skip_when_clean true`), a write run whose independent review would have started automatically does not
+start it when the run is clean. Clean means every condition below holds; any one unmet and the run is reviewed as
+before:
+
+- the review is an automatic one: not `--review on` / `[review] mode = "on"`, not a fix round, not `--risk critical`;
+- ccx's `--check` passed, is not weak and did not run on an unchanged tree, and its sensitivity is `sensitive` (it
+  failed on the dispatch-time tree and passes now, #333). This needs `[check] sensitivity = "warn"` or `"escalate"`;
+  with sensitivity off no run is clean;
+- at most `skip_max_files` (3) changed files and `skip_max_lines` (50) changed lines (added + removed, docs included);
+- no pre-existing test edited (`edited_tests` empty), and the check basis is not only the sub-agent's own tests;
+- the sub-agent raised no `open_questions` and did not commit (no `commit_state.note`).
+
+A skipped review is recorded as `review.verdict = "skipped"` with `review.skipped` (why it is clean) and
+`review.reason` (the review it replaced); the one-line receipt keeps `verdict` and `skipped`, and the recap says
+`review=skipped`. run.json also keeps `review_skip.unmet` (empty when skipped) for later evaluation, and a skipped
+review has no `review_timing`. With the switch on and sensitivity on, the review waits for the check instead of
+running beside it. The saving and any missed problems have not been measured.
+
 ### Experimental: lean sub-agent switches (`[subagent]`, off until measured)
 
 Three switches in `config/tiers.toml` (override in `hub/ccx/tiers.toml`) change what a delegated sub-agent loads at

@@ -424,6 +424,14 @@ weak = true           # auto 时：证据弱也审一次，只用另一家最便
                       # --check 跑了测试、测试点名了改动的文件和函数、并且通过 = 强证据，不审（七核心 r2：审查把 33/36 提到 36/36，每任务 +$0.004）
 weak_daily = 20       # 上面这种审查每天最多几次（约 $0.005 一次）
 fix_rounds = 1        # 0 或 1（更大按 1 算）：第 5 轮评测里多轮修改更慢，也没让结果更常做对
+# #427（实验性，默认关，效果 Unknown，待评测）：true = 运行"干净"时不起本该自动触发的独立审查，回执写 review.verdict = "skipped"
+# 和 review.skipped（原因）。干净 = 下面全部满足，任一不满足照常审：审查是自动触发的（不是 --review on / mode = "on"、不是修复轮、
+# 不是 --risk critical）；--check 通过、不弱、改动前就失败（[check] sensitivity = warn/escalate 测出 sensitive）；改动文件数
+# ≤ skip_max_files、改动行数（增 + 删，文档也算）≤ skip_max_lines；没改既有测试（edited_tests 为空）；验收不全是子智能体自己写的测试；
+# 子智能体没提 open_questions；子智能体没自己 commit（commit_state.note）。sensitivity = off 时永远不算干净。
+skip_when_clean = false
+skip_max_files = 3
+skip_max_lines = 50
 # 修复轮的复审："full"（默认）= 和首轮一样审完整改动；"focus" = 仍给完整改动，另附首轮问题和“只看修复”的 diff，
 # 先逐条判首轮问题是否已解决，再查新问题（完整改动超过 max_diff_chars 时只给修复部分）。默认关：回放第 5 轮 40 次复审，
 # 中位只省 2.4 s，[must] 漏得比 full 多（24 vs 21/33），见 docs/DECISIONS.md。focus 不附 [review] context 的“改动附近的代码”，
