@@ -330,10 +330,13 @@ def test_repo_list_skips_sponsor_links_and_lists_a_repository_once(tmp_path):
     info("otel-api", {"Source": "https://github.com/o/otel-python"})
     info("otel-sdk", {"Source": "https://github.com/o/otel-python.git"})
     info("only-sponsor", {"Funding": "https://github.com/sponsors/someone"})
-    snap = {"rows": [{"project": p} for p in ("attrs", "otel-api", "otel-sdk", "only-sponsor")]}
+    info("a-utils", {"Source": "https://github.com/a/utils"})
+    info("b-utils", {"Source": "https://github.com/b/utils"})
+    snap = {"rows": [{"project": p} for p in ("attrs", "otel-api", "otel-sdk", "only-sponsor", "a-utils", "b-utils")]}
     out = R.repo_list(snap, meta, set())
     assert [(k["project"], k["url"]) for k in out["kept"]] == [
-        ("attrs", "https://github.com/python-attrs/attrs"), ("otel-api", "https://github.com/o/otel-python")]
+        ("attrs", "https://github.com/python-attrs/attrs"), ("otel-api", "https://github.com/o/otel-python"),
+        ("a-utils", "https://github.com/a/utils"), ("b-utils", "https://github.com/b/utils")]
     assert [(e["project"], e["reason"]) for e in out["excluded"]] == [
         ("otel-sdk", "same repository as rank 2 (otel-api)"),
         ("only-sponsor", "source is not a public GitHub repository")]
@@ -345,7 +348,14 @@ def test_select_walks_a_repeated_repository_once(monkeypatch):
     monkeypatch.setattr(R, "B_TAKE", 5)
     out = _select(["r1", "r1"])
     assert [t["commit"][0] for t in out["B"]] == ["a", "b"]
-    assert {"repo": "r1", "reason": "repository listed again (walked at its first rank)"} in out["exclusions"]
+    assert {"repo": "r1", "project": "r1", "reason": "repository listed again (walked at its first rank)"} \
+        in out["exclusions"]
+    # same name, different owners: two repositories, both walked
+    two = R.select_upstream(Path("x"), [{"repo": "r1", "url": "https://github.com/a/r1"},
+                                        {"repo": "r1", "url": "https://github.com/B/r1"}], "py", set(),
+                            validator=lambda *a: {"valid": True})
+    assert not [e for e in two["exclusions"] if e["reason"].startswith("repository listed again")]
+    assert R.repo_key("https://github.com/A/Utils.git") == R.repo_key({"url": "https://github.com/a/utils"}) == "a/utils"
 
 
 def test_own_package_check():
