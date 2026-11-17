@@ -631,6 +631,22 @@ parent's history on every request. Claude's Agent tool never passes the parent's
 unchanged. Such a run records `parallel_fork_turns` (`all` or `none`; `parallel_fork_turns_moved` when it
 went on to another agent). Off until measured (M3).
 
+### Experimental: slim sub-agent brief (`[brief] slim`, off, effect Unknown, to be evaluated)
+
+`[brief] slim = true` (default `false`; `ccx config set brief.slim true`) shortens the first message a sub-agent
+receives. It keeps the task as written, the scope and the read / write boundary (workspace, permission, no commit /
+no hand-off / files are reference only), the acceptance command and the receipt format. The optional advice (what to do
+with existing tests, how to test through a hook or script, answer-only tasks, the project-context / memory-index /
+shared-note lines) is written to `guidance.md` in the run's folder, and the message has one line naming it. ccx's
+own reviewer keeps its read-only text and gets no pointer. Off, the text is unchanged byte for byte
+(`tests/test_brief_slim.py` compares it with a snapshot). Not to be confused with `lead.slim_context` ([lead side](lead-slim.md))
+or `[prompt] slim` (one sentence). Estimated size, with the sample task "Add a docstring to a.py." (bytes of the whole first
+message; tokens estimated as bytes / 4, not a tokenizer): 1.2-1.8 KB instead of 1.7-2.7 KB, about 20-40 % shorter,
+a fixed saving of 0.4-1.0 KB per run that does not grow with the brief. Whether it changes the right-rate, cost or
+wall time is **Unknown**: not measured on a real sub-agent, and a sub-agent may or may not open `guidance.md`
+(a read-only sandbox may not reach the hub folder). Not recommended until a before / after run shows it does
+not lower the right-rate (#428).
+
 ### Experimental: `ccx batch --merge` (`[merge]`, off until measured)
 
 A sub-agent's input is mostly a prefix re-sent on every request, so five small pieces run separately pay that start

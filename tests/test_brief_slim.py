@@ -57,6 +57,52 @@ def test_off_is_byte_for_byte_the_text_as_before():
         assert now[name] == golden[name], name
 
 
+SLIM = "[brief]\nslim = true\n"
+NEEDED = ("[ccx sub-task]", "Add a docstring to a.py.", "## Task", "## Finish", "Workspace:", "Permission:",
+          "Final message = the JSON result", "do not commit")
+
+
+def test_default_is_off_and_only_a_real_true_turns_it_on():
+    from ccx import delegate
+    assert delegate.slim_brief({}) is False
+    assert delegate.slim_brief({"brief": {"slim": False}}) is False
+    assert delegate.slim_brief({"brief": {"slim": "false"}}) is False
+    assert delegate.slim_brief({"brief": {"slim": True}}) is True
+    assert delegate.slim_brief({"brief": {"slim": "true"}}) is True
+
+
+def test_on_keeps_only_the_needed_parts_in_every_mode():
+    for name in CASES:
+        p, off = grab(name, SLIM), grab(name)
+        assert len(p.encode()) < len(off.encode()), name
+        for s in NEEDED:
+            assert s in p, (name, s)
+        for s in (prompts.KEEP_TESTS, prompts.WIRING, prompts.ANSWER, "Project context (read first)"):
+            assert s not in p, (name, s)
+        # ccx's own reviewer runs no tests, so it has no builder advice to point at
+        assert (prompts.GUIDANCE_LINE.split("{")[0] in p) == ("review" not in name), name
+
+
+def test_on_boundaries_acceptance_command_and_reviewer_rules_stay():
+    assert "read-only" in grab("codex-read", SLIM)
+    assert "you may edit files" in grab("codex-write", SLIM)
+    for name in ("codex-write-check", "claude-write-worktree-check"):
+        assert "`python -m pytest -q tests/test_a.py`" in grab(name, SLIM), name
+    for name in ("claude-review", "codex-review"):
+        r = grab(name, SLIM)
+        assert prompts.REVIEW_FINISH in r, name           # no tests, nothing modified: the reviewer's permission
+        assert "modify nothing" in r, name
+
+
+def test_on_writes_the_guidance_file_the_line_names():
+    out = B.capture("codex", "write", tiers_extra=SLIM)
+    line = [ln for ln in out["prompt"].splitlines() if ln.startswith("Guidance")][0]
+    assert "guidance.md" in line
+    for s in (prompts.KEEP_TESTS, prompts.WIRING, prompts.ANSWER):
+        assert s.strip() in out["guidance"]
+    assert B.capture("codex", "write")["guidance"] is None      # off: no file
+
+
 if __name__ == "__main__":
     if "--make-golden" in sys.argv:
         GOLDEN_FILE.parent.mkdir(exist_ok=True)

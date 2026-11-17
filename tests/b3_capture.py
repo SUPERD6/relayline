@@ -78,7 +78,9 @@ def capture(to: str, mode: str, parallel: bool = False, subagent: dict | None = 
         todo = list(results or [])
 
         def fake_execute(cli, inv, timeout, env, **_kw):
+            g = re.search(r"Guidance[^\n]*`([^`\n]*guidance\.md)`", inv.stdin or "")   # [brief] slim: the file it names
             seen.append({"argv": list(inv.argv), "prompt": inv.stdin,
+                         "guidance": Path(g.group(1)).read_text(encoding="utf-8") if g and Path(g.group(1)).is_file() else None,
                          "env": {k: env.get(k) for k in ENV_KEYS}})
             res = todo.pop(0) if todo else {"status": "done", "summary": "ok"}
             return (Outcome(ok=True, kind="ok", result=res, session_id="s-1"), "", "")
@@ -94,7 +96,7 @@ def capture(to: str, mode: str, parallel: bool = False, subagent: dict | None = 
         subs = [(str(tmp), "<TMP>"), (str(RESULT_SCHEMA.parent.parent), "<ROOT>"), (sys.executable, "<PY>")]
         argv = ["<BIN>"] + [_norm(x, subs) for x in first["argv"][bin_len:]]
         prompt = first["prompt"].replace(codex_agent.WINDOWS_SHELL, "")
-        return {"argv": argv, "prompt": _norm(prompt, subs),
+        return {"argv": argv, "prompt": _norm(prompt, subs), "guidance": first.get("guidance"),
                 "env": {k: (_norm(v, subs) if isinstance(v, str) else v) for k, v in first["env"].items()},
                 "attempts_argv": [[_norm(x, subs) for x in a["argv"][bin_len:]] for a in seen],
                 "attempts_prompt": [_norm(a["prompt"], subs) for a in seen],
@@ -110,7 +112,7 @@ def capture(to: str, mode: str, parallel: bool = False, subagent: dict | None = 
 
 
 def golden() -> dict:
-    return {name: {k: v for k, v in capture(to, mode, parallel).items() if k != "record"}
+    return {name: {k: v for k, v in capture(to, mode, parallel).items() if k not in ("record", "guidance")}
             for name, to, mode, parallel in CASES}
 
 

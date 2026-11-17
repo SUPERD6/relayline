@@ -36,6 +36,7 @@ from .agents.codex import _add_children, _codex_growth, _codex_seen, _codex_tota
 from .ledger import write_record as _write_record  # noqa: F401
 from .plan import _fallback_plan, _plan, _provider_envs, _rung_spec, _usable, _within_budget, other  # noqa: F401
 from .prompts import (CLEAN_LANG, CHECK_RETRY, CHECK_RETRY_SAME, CHECK_RETRY_STRONGER, CHECK_TAIL_CHARS, CONTINUE, ESCALATE, FOLLOWUP, LEAD_NOTE, NEEDS_WRITE, POLICY_MARKERS, POLICY_RETRY, PROMPT,  # noqa: F401
+                      CONTINUE_SLIM, FOLLOWUP_SLIM, GUIDANCE_FILE, GUIDANCE_LINE, PROMPT_SLIM, SELFCHECK_CMD_SLIM, SELFCHECK_SLIM, guidance_text,
                       REVIEW_CALLER, REVIEW_FINISH, REVIEW_PERMISSION, SELF_CHECKED_RETRY, SELFCHECK, SELFCHECK_CMD, SELFCHECK_WRITE, _policy_rejections,
                       is_policy_line, review_permission)
 from .coverage import SELF_CHECKED, SELF_CHECKED_NOTE, on_self_checked, self_checked as coverage_self_checked
@@ -142,6 +143,14 @@ def slim_prompt(cfg: dict) -> bool:
     """[prompt] slim (default true): no answer-only sentence for a `--mode write` run without --check (P0-11 item 2)."""
     v = (cfg.get("prompt") or {}).get("slim", True)
     return v if isinstance(v, bool) else str(v).strip().lower() not in ("false", "0", "no", "off")
+def slim_brief(cfg: dict) -> bool:
+    """[brief] slim (#428, experimental, default false): the sub-agent's first message keeps only the task, the scope,
+    the acceptance command and the receipt format; the rest is one line pointing at guidance.md in the run's folder.
+    Only a real true turns it on. Not `lead.slim_context` (the lead's own context)."""
+    v = (cfg.get("brief") or {}).get("slim", False)
+    return v if isinstance(v, bool) else str(v).strip().lower() in ("true", "1", "yes", "on")
+
+
 def _capped(req: Request, record: dict, before: str) -> bool:
     """P0-15 --max-usd: the chain has spent its cap, so `before` (the next attempt, the review, the fix round) does
     not start; record["max_usd"] says so. Called only where that step would really start (the review: in review_run,
@@ -648,9 +657,11 @@ def run(req: Request, p: Paths) -> dict:
         # codex-cli 0.164 offers its multi_agent v2 tools (spawn_agent ...) even with both features disabled and
         # --ignore-user-config (checked 2026-10-24), so the rule has to be said; the spend watchdog stays as backstop
         mode_text += "; do not start sub-agents of your own (no spawn_agent / Agent tool)"
+    slim = slim_brief(cfg)               # [brief] slim (#428, experimental, default off): see prompts.PROMPT_SLIM
     selfcheck = (REVIEW_FINISH if reviewer
                  else req.finish_note if req.finish_note
-                 else SELFCHECK_CMD.format(check=req.check) if req.check
+                 else (SELFCHECK_CMD_SLIM if slim else SELFCHECK_CMD).format(check=req.check) if req.check
+                 else SELFCHECK_SLIM if slim
                  else SELFCHECK_WRITE if (req.mode == "write" and req.mode_why == "--mode given"   # the lead said so
                                           and slim_prompt(cfg))
                  else SELFCHECK)
@@ -686,7 +697,22 @@ def run(req: Request, p: Paths) -> dict:
     # "you are the implementer" only where it is true and the block it refers to is there: a write run with the
     # lead's shared context attached; never ccx's read-only reviewer or a read task
     lead_note = LEAD_NOTE if shared and req.mode == "write" and not reviewer else ""
+    def guidance_line(extra: str = "") -> str:
+        # slim: what the full text carries inline goes in a file beside the run's record, named in one line; ccx's
+        # own reviewer has no builder advice (it runs no tests), so it gets no pointer
+        if reviewer:
+            return ""
+        g = run_dir / GUIDANCE_FILE
+        g.write_text(guidance_text(build=True, extra=extra), encoding="utf-8")
+        return GUIDANCE_LINE.format(path=g)
     def make_fresh_prompt():
+        if slim:
+            notes = (f"Project context (read first): {ctx}\n" if ctx else "") + (
+                f"User background index (open only if the task needs it): {p.memory_index}\n"
+                if p.memory_index.exists() else "") + _brief_notes(p, cfg, req.to, brief, req.cwd.resolve())
+            return PROMPT_SLIM.format(
+                run_id=run_id, caller=req.caller, cwd=cwd, brief=brief, mode_text=mode_text, selfcheck=selfcheck,
+                lead_note=lead_note, guidance_line=guidance_line(notes))
         return PROMPT.format(
             run_id=run_id, caller=req.caller, cwd=cwd, brief=brief,
             mode_text=mode_text, selfcheck=selfcheck, lead_note=lead_note,
@@ -696,10 +722,13 @@ def run(req: Request, p: Paths) -> dict:
         )
     fresh_prompt = None
     if cont:
-        first_prompt = CONTINUE.format(run_id=run_id, caller=req.caller, cwd=cwd, brief=brief,
-                                       mode_text=mode_text, selfcheck=selfcheck, lead_note=lead_note)
+        first_prompt = (CONTINUE_SLIM.format(run_id=run_id, caller=req.caller, cwd=cwd, brief=brief,
+                                             mode_text=mode_text, selfcheck=selfcheck, lead_note=lead_note,
+                                             guidance_line=guidance_line()) if slim else
+                        CONTINUE.format(run_id=run_id, caller=req.caller, cwd=cwd, brief=brief,
+                                        mode_text=mode_text, selfcheck=selfcheck, lead_note=lead_note))
     elif prev:
-        first_prompt = FOLLOWUP.format(run_id=run_id, brief=req.brief)
+        first_prompt = (FOLLOWUP_SLIM if slim else FOLLOWUP).format(run_id=run_id, brief=req.brief)
     else:
         first_prompt = fresh_prompt = make_fresh_prompt()
     from . import user_words
