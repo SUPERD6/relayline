@@ -6,7 +6,8 @@ The rules come from docs/research/prereg/2026-11-16-round2.md, section 2, and ar
     repos     mechanical repository list from the snapshot + that metadata    (offline)
     prepare   clone kept repositories into --ext-cache, download wheels, install dependencies (not the package
               itself) into --ext-python                                       (network: GitHub, PyPI)
-    select    upstream commits for B (first 60) and C (next 24), every exclusion with its reason (offline)
+    select    upstream commits for B (first 60) and C (next 24), then in the same order the development tasks
+              (B: next 4, C: next 2; #371), every exclusion with its reason (offline)
     authored  validate authored tasks: hidden fails on start, passes on reference, existing suite passes
     brief     brief checks only: literal overlap with hidden asserts, trace table coverage
     leak      task ids, repository + commit and normalized briefs against every earlier task
@@ -43,6 +44,7 @@ ROOT = EVAL.parents[1]
 SINCE = "2026-07-01"
 B_SIZE, C_SIZE = (60, 3), (150, 5)  # implementation lines OR code files
 B_TAKE, C_TAKE, B_CAP, C_CAP = 60, 24, 6, 4
+B_DEV_TAKE, C_DEV_TAKE = 4, 2  # development tasks, after C's final tasks in the same order (#371)
 SUITE_TIMEOUT = 600
 ALWAYS_USED = ("more-itertools", "boltons")
 LICENSES = (("mit",), ("bsd",), ("apache",), ("isc",), ("psf", "python software foundation"))
@@ -429,15 +431,29 @@ def _why_invalid(result: dict) -> str:
     return f"hidden tests do not all pass on the commit (rc={result['reference']['rc']})"
 
 
+def _phase(b, c, b_dev, c_dev):
+    """The group the next qualifying commit goes to, in the pre-registered order B, C, B-dev, C-dev, as
+    (group, dev); (None, None) when all four are full."""
+    if len(b) < B_TAKE:
+        return "B", False
+    if len(c) < C_TAKE:
+        return "C", False
+    if len(b_dev) < B_DEV_TAKE:
+        return "B", True
+    if len(c_dev) < C_DEV_TAKE:
+        return "C", True
+    return None, None
+
+
 def select_upstream(cache: Path, repos: list[dict], python: str, used: set[str], since: str = SINCE,
                     raw_dir: Path | None = None, validator=None) -> dict:
     validator = validator or _validate
     since_ts = _since_ts(since)
-    b, c, exclusions, checked = [], [], [], []
-    per_b, per_c = Counter(), Counter()
+    b, c, b_dev, c_dev, exclusions, checked = [], [], [], [], [], []
+    per_b, per_c = Counter(), Counter()  # final and development tasks together, per repository
     for spec in repos:
         repo = spec["repo"]
-        if len(b) >= B_TAKE and len(c) >= C_TAKE:
+        if _phase(b, c, b_dev, c_dev)[0] is None:
             break
         if norm_name(repo) in used or norm_name(spec.get("project", repo)) in used:
             exclusions.append({"repo": repo, "reason": "repository used in an earlier evaluation"})
@@ -455,16 +471,17 @@ def select_upstream(cache: Path, repos: list[dict], python: str, used: set[str],
         if old:
             exclusions.append({"repo": repo, "reason": f"commit before {since}", "count": len(old)})
         for row in (r for r in history if r["timestamp"] >= since_ts):
-            if len(b) >= B_TAKE and len(c) >= C_TAKE:
+            group, dev = _phase(b, c, b_dev, c_dev)
+            if group is None:
                 break
-            group = "B" if len(b) < B_TAKE else "C"
             reason = None
             if not row["tests"]:
                 reason = "no test file added or changed"
             elif not row["code"] or not _size_ok(row, B_SIZE):
                 reason = f"implementation change below {B_SIZE[0]} lines and {B_SIZE[1]} code files"
             elif group == "C" and not _size_ok(row, C_SIZE):
-                reason = f"below C size rule ({C_SIZE[0]} lines or {C_SIZE[1]} files) after B was filled"
+                reason = (f"below C size rule ({C_SIZE[0]} lines or {C_SIZE[1]} files) "
+                          + ("for a C development task" if dev else "after B was filled"))
             elif group == "B" and per_b[repo] >= B_CAP:
                 reason = f"repository cap (B: {B_CAP})"
             elif group == "C" and per_c[repo] >= C_CAP:
@@ -475,28 +492,35 @@ def select_upstream(cache: Path, repos: list[dict], python: str, used: set[str],
                 except RuntimeError as exc:
                     reason = f"cannot read the commit's changed files ({exc})"[:300]
             if reason:
-                exclusions.append({"repo": repo, "commit": row["commit"], "reason": reason})
+                exclusions.append({"repo": repo, "commit": row["commit"], "reason": reason,
+                                   **({"dev": True} if dev else {})})
                 continue
             task = {**row, "id": f"r2-{repo}-{row['commit'][:12]}", "project": spec.get("project", repo),
-                    "url": spec.get("url"), "group": group}
+                    "url": spec.get("url"), "group": group, **({"dev": True} if dev else {})}
             try:
                 result = validator(cache, python, task, raw_dir)
             except Exception as exc:
                 result = {"valid": False, "error": f"{type(exc).__name__}: {exc}"[:300]}
             checked.append({"id": task["id"], "repo": repo, "commit": row["commit"], "group": group,
+                            **({"dev": True} if dev else {}),
                             **{k: result.get(k) for k in ("baseline", "parent", "reference", "valid", "error")}})
             if not result.get("valid"):
                 why = result.get("error") or _why_invalid(result)
-                exclusions.append({"repo": repo, "commit": row["commit"], "reason": why})
+                exclusions.append({"repo": repo, "commit": row["commit"], "reason": why,
+                                   **({"dev": True} if dev else {})})
                 continue
             task["src_layout"] = src_layout(cache, repo, row["commit"])
-            (b if group == "B" else c).append(task)
+            {("B", False): b, ("C", False): c, ("B", True): b_dev, ("C", True): c_dev}[(group, dev)].append(task)
             (per_b if group == "B" else per_c)[repo] += 1
     return {"about": "Round 2 upstream selection (#348); rules fixed in the pre-registration before running",
             "rule": {"since": since, "b_size": B_SIZE, "c_size": C_SIZE, "b_take": B_TAKE, "c_take": C_TAKE,
+                     "b_dev_take": B_DEV_TAKE, "c_dev_take": C_DEV_TAKE,
                      "b_cap_per_repo": B_CAP, "c_cap_per_repo": C_CAP, "suite_timeout_s": SUITE_TIMEOUT,
                      "order": "repositories in rank order; commits by time descending, full SHA ascending",
                      "caps": "B and C caps counted separately (pre-registration: at most 6 per repository, C: 4)",
+                     "dev": "after C's final tasks, in the same order: the next B-size commits for B, then the next "
+                            "C-size commits for C; a group's development tasks count toward that group's repository "
+                            "cap; a shortfall is filled by authored development tasks (#371)",
                      "notes": ["commits before the date limit are recorded as one count per repository",
                                "pure Python is checked on the repository HEAD (no .c/.pyx/.rs/... file anywhere)",
                                "pytest plugins are not autoloaded; PYTHONPATH is src/ (if present) then the root; "
@@ -505,7 +529,15 @@ def select_upstream(cache: Path, repos: list[dict], python: str, used: set[str],
                      "hidden": "commit's added/changed test files: parent fails (rc 1/2), commit passes, "
                                "parent's existing suite passes"},
             "models_called": False, "B": b, "C": c, "b_shortfall": B_TAKE - len(b), "c_shortfall": C_TAKE - len(c),
+            "dev": {"B": b_dev, "C": c_dev},
+            "dev_shortfall": {"B": B_DEV_TAKE - len(b_dev), "C": C_DEV_TAKE - len(c_dev)},
             "exclusions": exclusions, "checked": checked}
+
+
+def selection_tasks(selection: dict) -> list[dict]:
+    """Final tasks, then development tasks, of a selection file."""
+    dev = selection.get("dev") or {}
+    return selection.get("B", []) + selection.get("C", []) + dev.get("B", []) + dev.get("C", [])
 
 
 # ---------------------------------------------------------------- ext-python: own package check
@@ -536,7 +568,7 @@ def own_package(python: str, project: str, commit_ts: int, meta: dict | None = N
 
 def env_check(selection: dict, python: str, meta_dir: Path | None, run=subprocess.run) -> dict:
     rows = []
-    for task in selection.get("B", []) + selection.get("C", []):
+    for task in selection_tasks(selection):
         path = Path(meta_dir) / f"{norm_name(task['project'])}.json" if meta_dir else None
         meta = read_json(path) if path and path.is_file() else None
         rows.append({"id": task["id"], **own_package(python, task["project"], task["timestamp"], meta, run)})
@@ -664,7 +696,12 @@ def main(argv=None) -> int:
                                corpus(exclude=[a.out, a.repos_json])["repos"],
                                raw_dir=a.raw_dir)
         write_json(a.out, data)
-        print(f"B {len(data['B'])}/{B_TAKE}, C {len(data['C'])}/{C_TAKE}")
+        dev, short = data["dev"], data["dev_shortfall"]
+        print(f"B {len(data['B'])}/{B_TAKE}, C {len(data['C'])}/{C_TAKE}; "
+              f"dev B {len(dev['B'])}/{B_DEV_TAKE}, C {len(dev['C'])}/{C_DEV_TAKE}")
+        if short["B"] or short["C"]:
+            print(f"development shortfall: author {short['B']} B and {short['C']} C development task(s) before "
+                  "any final authored task (pre-registration, section 2)")
         return 0 if not data["b_shortfall"] and not data["c_shortfall"] else 1
     if a.cmd == "authored":
         rows = [check_authored(d, a.python) for d in a.task_dirs]
@@ -678,7 +715,7 @@ def main(argv=None) -> int:
         return 0 if result["trace_complete"] and not result["literal_overlap"] else 1
     if a.cmd == "leak":
         source = read_json(a.tasks)
-        tasks = source.get("tasks") or source.get("B", []) + source.get("C", []) if isinstance(source, dict) else source
+        tasks = (source.get("tasks") or selection_tasks(source)) if isinstance(source, dict) else source
         data = leak_check(tasks, corpus(exclude=[a.tasks, a.out, *a.exclude]))
         write_json(a.out, data)
         return 0 if data["clean"] else 1
