@@ -229,7 +229,7 @@ def test_eval_scripts_use_run_tree_for_their_timed_calls():
     sites = {"c2_lead_accept.py": 1, "f9_subagents.py": 1, "r2.py": 1, "seven_ab.py": 1, "seven_func.py": 2,
              "shared_context_ab.py": 2, "preflight_e2e.py": 1, "common.py": 1, "e8_handoff.py": 1,
              "j0_baseline.py": 1, "r3.py": 1, "r4.py": 3, "harness_audit.py": 1, "p2_review_replay.py": 1,
-             "review_replay.py": 1, "rereview_replay.py": 1, "strength_runner.py": 2}
+             "review_replay.py": 1, "rereview_replay.py": 1, "strength_runner.py": 2, "long_check.py": 1}
     for name, n in sites.items():
         text = (ROOT / "scripts/eval" / name).read_text(encoding="utf-8")
         calls = text.count("run_tree(") - text.count("def run_tree(")

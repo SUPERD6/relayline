@@ -9,6 +9,7 @@ from pathlib import Path
 import subprocess
 import tempfile
 import ext_repo as E
+from common import run_tree  # a timeout ends the whole tree, not only the first child (#391)
 from long_candidates import REPOS, RULE, bare_path, candidates
 
 OLD_RULE = {"rule": "non-test lines >= 80 OR non-test files >= 3, including docs and .pyi",
@@ -38,7 +39,7 @@ def material(cache: Path, task: dict) -> dict:
             "tests": {p: git(bare, "show", f"{sha}:{p}", data=True) for p in task["tests"]}}
 
 
-def check_tree(tree: bytes, hidden: dict, tests: list, python: str, work: Path, raw: Path | None = None) -> dict:
+def check_tree(tree: bytes, hidden: dict, tests: list, python: str, work: Path, raw: Path | None = None, timeout: float = 120) -> dict:
     work.mkdir(parents=True)
     E.extract(tree, work)
     for rel, body in hidden.items():
@@ -48,9 +49,9 @@ def check_tree(tree: bytes, hidden: dict, tests: list, python: str, work: Path, 
     env = {**os.environ, "PYTHONPATH": str(work / "src" if (work / "src").is_dir() else work), "PYTEST_DISABLE_PLUGIN_AUTOLOAD": "1",
            "PIP_NO_INDEX": "1", "PYTHONDONTWRITEBYTECODE": "1"}
     try:
-        r = subprocess.run([python, "-m", "pytest", "-q", "-o", "addopts=", "-p", "no:cacheprovider", *tests],
-                           cwd=work, env=env, capture_output=True, timeout=120)
-        out = normalize_output((r.stdout + r.stderr).decode("utf-8", "replace"), work)
+        r = run_tree([python, "-m", "pytest", "-q", "-o", "addopts=", "-p", "no:cacheprovider", *tests],
+                     cwd=work, env=env, timeout=timeout)
+        out = normalize_output(r.stdout + r.stderr, work)
         result = {"rc": r.returncode, "summary": out.strip().splitlines()[-1] if out.strip() else "empty",
                   "errors": [line for line in out.splitlines() if line.startswith(("E   ", "FAILED "))][:8]}
         if raw:

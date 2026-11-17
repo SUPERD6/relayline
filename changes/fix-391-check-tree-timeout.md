@@ -1,0 +1,1 @@
+- Evaluation: `scripts/eval/long_check.py` `check_tree()` now runs pytest through `common.run_tree`, so a timeout ends the whole process tree, not only the direct child (#391). New `timeout` parameter (default 120 s, unchanged).
