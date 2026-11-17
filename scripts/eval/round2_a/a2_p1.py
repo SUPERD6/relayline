@@ -7,8 +7,7 @@ TASKS = [
             def dollars(cents):
                 return f"${cents / 100:,.2f}"
         """)},
-        brief="Add euro_text(cents) to money.py: format an amount of euro cents for the invoices sent to German "
-              "customers.",
+        brief="Add euro_text(cents) to money.py: format an amount of euro cents for the invoices.",
         memory="Convention for euro amounts on invoices: comma as the decimal separator and a period between "
                "thousands (1.234,56), always two decimals. The euro sign comes after the number, separated by a "
                "space (12,50 €). Negative amounts start with a minus sign before the number.",

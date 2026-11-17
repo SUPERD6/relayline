@@ -213,14 +213,14 @@ TASKS = [
 
 
             def test_lon_first():
-                a, b = (0.0, 0.0), (90.0, 0.0)
-                assert distance_km(a, b) == round(_hav(0, 0, 90, 0, 6371.0), 2)
                 c, d = (10.0, 50.0), (11.0, 50.0)
-                assert distance_km(c, d) == round(_hav(10, 50, 11, 50, 6371.0), 2)
+                assert abs(distance_km(c, d) - _hav(10, 50, 11, 50, 6371.0)) <= 0.006
+                e, f = (-74.0, 40.7), (2.35, 48.86)
+                assert abs(distance_km(e, f) - _hav(-74.0, 40.7, 2.35, 48.86, 6371.0)) <= 0.006
 
 
             def test_radius_and_rounding():
-                assert distance_km((0.0, 0.0), (180.0, 0.0)) == 20015.09
+                assert abs(distance_km((0.0, 0.0), (180.0, 0.0)) - 20015.09) < 1e-6
         """),
         reference={"routes.py": D(r"""
             import math

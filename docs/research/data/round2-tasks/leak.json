@@ -99,6 +99,11 @@
         },
         {
           "source": "new",
+          "id": "r2a2-13-joined-list",
+          "ratio": 0.4111
+        },
+        {
+          "source": "new",
           "id": "r2a1-13-ticket-queue",
           "ratio": 0.4064
         },
@@ -374,13 +379,13 @@
         },
         {
           "source": "new",
-          "id": "r2a1-42-short-number",
-          "ratio": 0.4954
+          "id": "r2a2-01-euro-amount",
+          "ratio": 0.5055
         },
         {
           "source": "new",
-          "id": "r2a2-01-euro-amount",
-          "ratio": 0.4831
+          "id": "r2a1-42-short-number",
+          "ratio": 0.4954
         },
         {
           "source": "new",
@@ -426,13 +431,13 @@
       "listed_above_0.4": [
         {
           "source": "new",
-          "id": "r2a2-47-spreadsheet-cell",
-          "ratio": 0.5042
+          "id": "r2a2-13-joined-list",
+          "ratio": 0.5526
         },
         {
           "source": "new",
-          "id": "r2a2-13-joined-list",
-          "ratio": 0.4904
+          "id": "r2a2-47-spreadsheet-cell",
+          "ratio": 0.5042
         },
         {
           "source": "new",
@@ -938,6 +943,11 @@
           "source": "new",
           "id": "r2a1-08-duration-parse",
           "ratio": 0.4065
+        },
+        {
+          "source": "new",
+          "id": "r2a2-13-joined-list",
+          "ratio": 0.4018
         }
       ],
       "clean": true
@@ -954,7 +964,7 @@
         {
           "source": "new",
           "id": "r2a2-13-joined-list",
-          "ratio": 0.4387
+          "ratio": 0.4477
         },
         {
           "source": "new",
@@ -1576,6 +1586,11 @@
         },
         {
           "source": "new",
+          "id": "r2a2-13-joined-list",
+          "ratio": 0.4057
+        },
+        {
+          "source": "new",
           "id": "r2a2-48-count-label",
           "ratio": 0.4019
         },
@@ -1620,11 +1635,6 @@
           "source": "new",
           "id": "r2a1-28-whitespace",
           "ratio": 0.4096
-        },
-        {
-          "source": "new",
-          "id": "r2a2-01-euro-amount",
-          "ratio": 0.4094
         },
         {
           "source": "new",
@@ -1981,6 +1991,11 @@
         },
         {
           "source": "new",
+          "id": "r2a2-01-euro-amount",
+          "ratio": 0.4199
+        },
+        {
+          "source": "new",
           "id": "r2a1-24-hex-color",
           "ratio": 0.419
         },
@@ -2070,6 +2085,11 @@
           "source": "new",
           "id": "r2a1-26-text-table",
           "ratio": 0.4164
+        },
+        {
+          "source": "new",
+          "id": "r2a2-13-joined-list",
+          "ratio": 0.4118
         },
         {
           "source": "new",
@@ -2276,11 +2296,6 @@
           "source": "new",
           "id": "r2a1-48-dict-diff",
           "ratio": 0.4016
-        },
-        {
-          "source": "new",
-          "id": "r2a2-13-joined-list",
-          "ratio": 0.4016
         }
       ],
       "clean": true
@@ -2397,6 +2412,11 @@
           "source": "new",
           "id": "r2a2-33-count-by",
           "ratio": 0.4242
+        },
+        {
+          "source": "new",
+          "id": "r2a2-13-joined-list",
+          "ratio": 0.4156
         },
         {
           "source": "new",
@@ -2551,6 +2571,11 @@
           "source": "scripts/eval/tasks_r2.py",
           "id": "c",
           "ratio": 0.4062
+        },
+        {
+          "source": "new",
+          "id": "r2a2-13-joined-list",
+          "ratio": 0.4059
         },
         {
           "source": "new",
@@ -2799,6 +2824,11 @@
           "ratio": 0.4268
         },
         {
+          "source": "new",
+          "id": "r2a2-13-joined-list",
+          "ratio": 0.4223
+        },
+        {
           "source": "scripts/eval/r3.py",
           "id": null,
           "ratio": 0.4211
@@ -2859,11 +2889,6 @@
           "source": "new",
           "id": "r2a1-36-progress-bar",
           "ratio": 0.4127
-        },
-        {
-          "source": "new",
-          "id": "r2a2-13-joined-list",
-          "ratio": 0.412
         },
         {
           "source": "new",
@@ -2995,6 +3020,11 @@
           "source": "new",
           "id": "r2a1-44-quote-reply",
           "ratio": 0.4202
+        },
+        {
+          "source": "new",
+          "id": "r2a2-13-joined-list",
+          "ratio": 0.4103
         },
         {
           "source": "new",
@@ -3280,11 +3310,6 @@
         },
         {
           "source": "new",
-          "id": "r2a2-01-euro-amount",
-          "ratio": 0.4566
-        },
-        {
-          "source": "new",
           "id": "r2a2-37-host-list",
           "ratio": 0.4464
         },
@@ -3305,8 +3330,18 @@
         },
         {
           "source": "new",
+          "id": "r2a2-13-joined-list",
+          "ratio": 0.4305
+        },
+        {
+          "source": "new",
           "id": "r2a2-08-event-line",
           "ratio": 0.4261
+        },
+        {
+          "source": "new",
+          "id": "r2a2-01-euro-amount",
+          "ratio": 0.4227
         },
         {
           "source": "new",
@@ -3337,6 +3372,11 @@
         },
         {
           "source": "new",
+          "id": "r2a2-13-joined-list",
+          "ratio": 0.4603
+        },
+        {
+          "source": "new",
           "id": "r2a2-33-count-by",
           "ratio": 0.4603
         },
@@ -3364,11 +3404,6 @@
           "source": "new",
           "id": "r2a2-38-duration-text",
           "ratio": 0.427
-        },
-        {
-          "source": "new",
-          "id": "r2a2-13-joined-list",
-          "ratio": 0.4211
         },
         {
           "source": "scripts/eval/l5_memory.py",
@@ -3444,13 +3479,13 @@
         },
         {
           "source": "new",
-          "id": "r2a2-13-joined-list",
-          "ratio": 0.4118
+          "id": "r2a1-48-dict-diff",
+          "ratio": 0.4045
         },
         {
           "source": "new",
-          "id": "r2a1-48-dict-diff",
-          "ratio": 0.4045
+          "id": "r2a2-13-joined-list",
+          "ratio": 0.4017
         }
       ],
       "clean": true
@@ -3555,11 +3590,6 @@
         },
         {
           "source": "new",
-          "id": "r2a2-13-joined-list",
-          "ratio": 0.4444
-        },
-        {
-          "source": "new",
           "id": "r2a2-42-report-day",
           "ratio": 0.4345
         },
@@ -3629,11 +3659,6 @@
           "source": "new",
           "id": "r2a2-03-record-ids",
           "ratio": 0.4118
-        },
-        {
-          "source": "new",
-          "id": "r2a2-01-euro-amount",
-          "ratio": 0.4083
         },
         {
           "source": "new",
@@ -3826,52 +3851,47 @@
         {
           "source": "new",
           "id": "r2a2-25-ride-speed",
-          "ratio": 0.4739
+          "ratio": 0.4946
         },
         {
           "source": "new",
           "id": "r2a2-14-week-start",
-          "ratio": 0.4444
-        },
-        {
-          "source": "new",
-          "id": "r2a2-30-vat-line",
-          "ratio": 0.4298
-        },
-        {
-          "source": "new",
-          "id": "r2a2-13-joined-list",
-          "ratio": 0.4245
-        },
-        {
-          "source": "new",
-          "id": "r2a2-48-count-label",
-          "ratio": 0.4206
-        },
-        {
-          "source": "new",
-          "id": "r2a2-33-count-by",
-          "ratio": 0.4151
+          "ratio": 0.4855
         },
         {
           "source": "new",
           "id": "r2a2-45-aspect-ratio",
-          "ratio": 0.4131
+          "ratio": 0.4574
         },
         {
           "source": "new",
-          "id": "r2a2-39-parcel-cost",
-          "ratio": 0.404
+          "id": "r2a2-11-geo-point",
+          "ratio": 0.4318
         },
         {
           "source": "new",
-          "id": "r2a2-21-identifier-words",
-          "ratio": 0.4033
+          "id": "r2a2-48-count-label",
+          "ratio": 0.4233
         },
         {
           "source": "new",
-          "id": "r2a2-23-status-colour",
-          "ratio": 0.402
+          "id": "r2a2-13-joined-list",
+          "ratio": 0.4171
+        },
+        {
+          "source": "new",
+          "id": "r2a2-33-count-by",
+          "ratio": 0.4171
+        },
+        {
+          "source": "new",
+          "id": "r2a2-16-player-level",
+          "ratio": 0.407
+        },
+        {
+          "source": "new",
+          "id": "r2a2-38-duration-text",
+          "ratio": 0.4059
         }
       ],
       "clean": true
@@ -4520,22 +4540,37 @@
         {
           "source": "new",
           "id": "r2a2-36-cache-names",
-          "ratio": 0.5197
+          "ratio": 0.5158
         },
         {
           "source": "new",
           "id": "r2a2-33-count-by",
-          "ratio": 0.4418
+          "ratio": 0.4907
         },
         {
           "source": "new",
           "id": "r2a2-43-competition-rank",
-          "ratio": 0.4062
+          "ratio": 0.4215
+        },
+        {
+          "source": "scripts/eval/l5_memory.py",
+          "id": "mem-paths",
+          "ratio": 0.4182
         },
         {
           "source": "new",
           "id": "r2a2-15-token-mask",
-          "ratio": 0.4014
+          "ratio": 0.4065
+        },
+        {
+          "source": "new",
+          "id": "r2a2-39-parcel-cost",
+          "ratio": 0.4059
+        },
+        {
+          "source": "new",
+          "id": "r2a2-17-sheet-column",
+          "ratio": 0.4041
         }
       ],
       "clean": true
@@ -5736,7 +5771,7 @@
         {
           "source": "new",
           "id": "r2a1-32-key-values",
-          "ratio": 0.451
+          "ratio": 0.4386
         }
       ],
       "clean": true
@@ -5779,20 +5814,14 @@
         {
           "source": "new",
           "id": "r2a2-01-euro-amount",
-          "ratio": 0.43
+          "ratio": 0.4343
         }
       ],
       "clean": true
     },
     {
       "id": "r2a2-dev-04-csv-row",
-      "listed_above_0.4": [
-        {
-          "source": "new",
-          "id": "r2a1-29-cache-key",
-          "ratio": 0.4139
-        }
-      ],
+      "listed_above_0.4": [],
       "clean": true
     },
     {
@@ -5818,13 +5847,7 @@
     },
     {
       "id": "r2a1-04-username-check",
-      "listed_above_0.4": [
-        {
-          "source": "new",
-          "id": "r2a1-30-password-score",
-          "ratio": 0.4081
-        }
-      ],
+      "listed_above_0.4": [],
       "clean": true
     },
     {
@@ -5859,7 +5882,12 @@
         {
           "source": "new",
           "id": "r2a1-38-coordinates",
-          "ratio": 0.4139
+          "ratio": 0.4282
+        },
+        {
+          "source": "new",
+          "id": "r2a1-37-bill-split",
+          "ratio": 0.4095
         }
       ],
       "clean": true
@@ -5902,13 +5930,7 @@
     },
     {
       "id": "r2a1-15-mask-email",
-      "listed_above_0.4": [
-        {
-          "source": "new",
-          "id": "r2a2-15-token-mask",
-          "ratio": 0.4089
-        }
-      ],
+      "listed_above_0.4": [],
       "clean": true
     },
     {
@@ -5923,13 +5945,7 @@
     },
     {
       "id": "r2a1-18-discount-codes",
-      "listed_above_0.4": [
-        {
-          "source": "new",
-          "id": "r2a2-30-vat-line",
-          "ratio": 0.4021
-        }
-      ],
+      "listed_above_0.4": [],
       "clean": true
     },
     {
@@ -5965,7 +5981,18 @@
     },
     {
       "id": "r2a1-24-hex-color",
-      "listed_above_0.4": [],
+      "listed_above_0.4": [
+        {
+          "source": "new",
+          "id": "r2a1-30-password-score",
+          "ratio": 0.4206
+        },
+        {
+          "source": "new",
+          "id": "r2a1-44-quote-reply",
+          "ratio": 0.4038
+        }
+      ],
       "clean": true
     },
     {
@@ -6004,7 +6031,7 @@
         {
           "source": "new",
           "id": "r2a1-34-comment-html",
-          "ratio": 0.4041
+          "ratio": 0.4118
         }
       ],
       "clean": true
@@ -6031,24 +6058,12 @@
     },
     {
       "id": "r2a1-36-progress-bar",
-      "listed_above_0.4": [
-        {
-          "source": "new",
-          "id": "r2a1-42-short-number",
-          "ratio": 0.4305
-        }
-      ],
+      "listed_above_0.4": [],
       "clean": true
     },
     {
       "id": "r2a1-37-bill-split",
-      "listed_above_0.4": [
-        {
-          "source": "new",
-          "id": "r2a1-n3-median",
-          "ratio": 0.4011
-        }
-      ],
+      "listed_above_0.4": [],
       "clean": true
     },
     {
@@ -6057,7 +6072,7 @@
         {
           "source": "new",
           "id": "r2a1-45-quota-size",
-          "ratio": 0.4268
+          "ratio": 0.4048
         }
       ],
       "clean": true
@@ -6073,7 +6088,7 @@
         {
           "source": "new",
           "id": "r2a1-47-ticket-title",
-          "ratio": 0.4047
+          "ratio": 0.4017
         }
       ],
       "clean": true
@@ -6084,7 +6099,7 @@
         {
           "source": "new",
           "id": "r2a2-25-ride-speed",
-          "ratio": 0.4033
+          "ratio": 0.4006
         }
       ],
       "clean": true
@@ -6116,13 +6131,7 @@
     },
     {
       "id": "r2a1-47-ticket-title",
-      "listed_above_0.4": [
-        {
-          "source": "new",
-          "id": "r2a2-32-page-title",
-          "ratio": 0.4035
-        }
-      ],
+      "listed_above_0.4": [],
       "clean": true
     },
     {
@@ -6201,18 +6210,7 @@
     },
     {
       "id": "r2a2-01-euro-amount",
-      "listed_above_0.4": [
-        {
-          "source": "new",
-          "id": "r2a2-48-count-label",
-          "ratio": 0.4052
-        },
-        {
-          "source": "new",
-          "id": "r2a2-25-ride-speed",
-          "ratio": 0.4026
-        }
-      ],
+      "listed_above_0.4": [],
       "clean": true
     },
     {

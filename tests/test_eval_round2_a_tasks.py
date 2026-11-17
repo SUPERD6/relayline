@@ -41,6 +41,23 @@ def test_counts_follow_the_preregistration():
     assert all(2 <= len(t["conventions"]) <= 3 for t in settled + a2)        # (b) two or three conventions
     assert all(not t["conventions"] and t["reversed"] is None for t in a1 if t["neutral"])
     assert all(len(t["distractors"]) > len(A.SHARED_DISTRACTORS) for t in a2)   # (d) adjacent-topic notes
+    assert all(t["distractor"] and R.normalize_brief(t["distractor"]) in R.normalize_brief(t["settle"])
+               for t in settled)                                                   # (d) for A1 too (#407 review)
+    for t in settled + a2:                                  # conventions only in the conversation / memory
+        assert not any(R.normalize_brief(c) in R.normalize_brief(t["brief"]) for c in t["conventions"]), t["id"]
+
+
+def test_check_flags_conventions_in_brief_and_neutral_trace_outside_brief():
+    dev = A.load_specs("a1-dev")
+    settled = next(s for s in dev if not s["neutral"])
+    leaky = {**settled, "brief": settled["brief"] + " " + settled["conventions"][0] + "."}
+    assert any("appears in the brief" in p for p in A.check_task(leaky, A.frozen_task(leaky, True))["problems"])
+    no_d = {**settled, "distractor": None}
+    assert any("distractor" in p for p in A.check_task(no_d, A.frozen_task(no_d, True))["problems"])
+    neutral = next(s for s in dev if s["neutral"])
+    test = next(iter(neutral["trace"]))
+    bad = {**neutral, "trace": {**neutral["trace"], test: neutral["trace"][test] + ["weekly sync"]}}
+    assert any("brief only" in p for p in A.check_task(bad, A.frozen_task(bad, True))["problems"])
 
 
 def test_ids_unique_across_files_and_new():

@@ -12,7 +12,9 @@ TASKS = [
         reversed="Plain arithmetic mean of all the ratings, rounded to two decimals.",
         settle="New rule for the product card: a rating of 0 means 'not rated' and is ignored. The average is "
                "rounded to the nearest half star (3.74 shows 3.5, 3.75 shows 4.0), with exact quarters going up. "
-               "A product with no real ratings gives None.",
+               "A product with no real ratings gives None."
+               " count() on the card still counts every rating, zeros included.",
+        distractor='count() on the card still counts every rating, zeros included.',
         conventions=["a rating of 0 means 'not rated' and is ignored",
                      "rounded to the nearest half star (3.74 shows 3.5, 3.75 shows 4.0)",
                      "A product with no real ratings gives None"],
@@ -72,7 +74,9 @@ TASKS = [
               "the style we agreed on.",
         settle="Profile header style: a lower-case k for thousands, a capital M for millions and B for billions, "
                "with at most one decimal. The decimal is truncated, not rounded, so 1999 is 1.9k, and a trailing "
-               ".0 is dropped (2000 is 2k). Numbers below 1000 are shown as they are.",
+               ".0 is dropped (2000 is 2k). Numbers below 1000 are shown as they are."
+               " with_commas() for the stats page stays as it is.",
+        distractor='with_commas() for the stats page stays as it is.',
         conventions=["a lower-case k for thousands, a capital M for millions and B for billions",
                      "The decimal is truncated, not rounded, so 1999 is 1.9k",
                      "a trailing .0 is dropped (2000 is 2k)"],
@@ -136,7 +140,9 @@ TASKS = [
         settle="Directory index: the group key is the first letter in upper case, so 'alice' and 'Adam' share 'A'. "
                "Names that start with anything other than a letter go under '#', and '#' is the last group. Inside "
                "a group, names are sorted ignoring case. Return a dict whose keys are in that order (letters A to "
-               "Z, then '#').",
+               "Z, then '#')."
+               " sort_names() for the export stays case-sensitive.",
+        distractor='sort_names() for the export stays case-sensitive.',
         conventions=["the group key is the first letter in upper case",
                      "Names that start with anything other than a letter go under '#', and '#' is the last group",
                      "Inside a group, names are sorted ignoring case"],
@@ -197,7 +203,9 @@ TASKS = [
         reversed="Just put '> ' in front of every line, nothing else.",
         settle="Final quoting format: first a line '<author> wrote:', then every original line with '> ' in front. "
                "Empty lines get a bare '>' with no trailing space, and a line that is already quoted (starts with "
-               "'>') gets just '>' added, giving '>>' rather than '> >'. Lines are joined with newlines.",
+               "'>') gets just '>' added, giving '>>' rather than '> >'. Lines are joined with newlines."
+               " signature() keeps its '-- ' line.",
+        distractor="signature() keeps its '-- ' line.",
         conventions=["first a line '<author> wrote:'", "Empty lines get a bare '>' with no trailing space",
                      "a line that is already quoted (starts with '>') gets just '>' added, giving '>>' rather than "
                      "'> >'"],
@@ -256,6 +264,7 @@ TASKS = [
         settle="Quota units: KB, MB, GB and TB are binary here (1 MB = 1024 * 1024 bytes), because the storage "
                "backend counts that way; mb() for the UI stays decimal. Units are case-insensitive and may have a "
                "space before them. A bare number without a unit means megabytes, not bytes.",
+        distractor='mb() for the UI stays decimal.',
         conventions=["KB, MB, GB and TB are binary here (1 MB = 1024 * 1024 bytes)",
                      "Units are case-insensitive and may have a space before them",
                      "A bare number without a unit means megabytes, not bytes"],
@@ -323,7 +332,9 @@ TASKS = [
               "canonical form we agreed to store.",
         settle="Stored ISBN form: digits only, hyphens and spaces removed. ISBN-10 values are converted to ISBN-13 "
                "(prefix 978, drop the old check digit, compute the new one). An ISBN with a wrong check digit, or "
-               "the wrong length, returns None. The trailing X of an ISBN-10 check digit may be lower case.",
+               "the wrong length, returns None. The trailing X of an ISBN-10 check digit may be lower case."
+               " clean() for the barcode scanner stays a plain strip.",
+        distractor='clean() for the barcode scanner stays a plain strip.',
         conventions=["digits only, hyphens and spaces removed", "ISBN-10 values are converted to ISBN-13",
                      "An ISBN with a wrong check digit, or the wrong length, returns None"],
         hidden=D(r"""
@@ -393,7 +404,9 @@ TASKS = [
         reversed="Put the id in front in brackets: '[#42] subject'.",
         settle="Changed: the subject comes first, then a space and the id in parentheses with a '#' and padded to "
                "five digits: 'Printer broken (#00042)'. Surrounding spaces of the subject are stripped, and a "
-               "subject longer than 50 characters is cut to 49 characters plus '…'.",
+               "subject longer than 50 characters is cut to 49 characters plus '…'."
+               " ticket_url() keeps the bare id without padding.",
+        distractor='ticket_url() keeps the bare id without padding.',
         conventions=["the subject comes first, then a space and the id in parentheses with a '#' and padded to five "
                      "digits", "a subject longer than 50 characters is cut to 49 characters plus '…'"],
         hidden=D(r"""
@@ -441,7 +454,9 @@ TASKS = [
         brief="Write diff_settings(old, new) in audit.py: describe what changed between two settings dicts for the "
               "audit trail, in the format we settled on.",
         settle="Audit trail format: a list of (sign, key) pairs where '+' marks a key only in new, '-' a key only "
-               "in old and '~' a key whose value changed. Unchanged keys are not listed. Sort by key, not by sign.",
+               "in old and '~' a key whose value changed. Unchanged keys are not listed. Sort by key, not by sign."
+               " changed_keys() for the old audit view stays as it is.",
+        distractor='changed_keys() for the old audit view stays as it is.',
         conventions=["'+' marks a key only in new, '-' a key only in old and '~' a key whose value changed",
                      "Sort by key, not by sign"],
         hidden=D(r"""

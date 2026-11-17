@@ -187,8 +187,8 @@ TASKS = [
 
 
             def test_slashes():
-                assert join_url('https://api.x.org/v1/', '/users/', '42') == 'https://api.x.org/v1/users/42'
-                assert join_url('https://api.x.org/v1', 'items') == 'https://api.x.org/v1/items'
+                assert join_url('https://api.example.org/v1/', '/users/', '42') == 'https://api.example.org/v1/users/42'
+                assert join_url('https://api.example.org/v1', 'items') == 'https://api.example.org/v1/items'
 
 
             def test_encoding():

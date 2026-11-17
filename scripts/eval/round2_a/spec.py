@@ -19,10 +19,12 @@ def D(text: str) -> str:
 
 
 def ctx(id, *, files, brief, settle, hidden, reference, trace, naive=None, reversed=None, conventions=(),
-        neutral=False):
+        neutral=False, distractor=None):
+    """distractor: the adjacent-topic sentence of the settle text (another function or module that stays as it
+    is), required for settled tasks (pre-registration (d))."""
     return {"kind": "context", "id": id, "files": files, "brief": brief, "settle": settle, "reversed": reversed,
             "hidden": hidden, "reference": reference, "naive": naive, "conventions": list(conventions),
-            "trace": trace, "neutral": neutral}
+            "trace": trace, "neutral": neutral, "distractor": distractor}
 
 
 def mem(id, *, files, brief, memory, hidden, reference, trace, naive, conventions, distractors=(), visible=None):

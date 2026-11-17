@@ -22,6 +22,7 @@ TASKS = [
                "list of (account, cents) tuples sorted by cents, largest first, and accounts with equal totals in "
                "alphabetical order. The CSV exporter keeps its float amounts, so leave parse_amount and "
                "format_amount as they are.",
+        distractor='The CSV exporter keeps its float amounts, so leave parse_amount and format_amount as they are.',
         conventions=["totals are integer cents, never floats",
                      "list of (account, cents) tuples sorted by cents, largest first",
                      "accounts with equal totals in alphabetical order"],
@@ -107,7 +108,9 @@ TASKS = [
         reversed="For retries let's just double each time, starting from 1 second: 1, 2, 4, 8 and so on.",
         settle="Change of plan for the retry waits: start at 0.5 seconds and multiply by 3 each time, and no single "
                "wait may exceed 10 seconds (clamp it to 10). delays() returns the waits in milliseconds as ints, "
-               "because the scheduler takes milliseconds. Zero attempts gives an empty list.",
+               "because the scheduler takes milliseconds. Zero attempts gives an empty list."
+               " wait() keeps taking seconds; only delays() uses milliseconds.",
+        distractor='wait() keeps taking seconds; only delays() uses milliseconds.',
         conventions=["start at 0.5 seconds and multiply by 3 each time",
                      "no single wait may exceed 10 seconds (clamp it to 10)",
                      "returns the waits in milliseconds as ints"],
@@ -170,6 +173,7 @@ TASKS = [
                "of a tag. Keep the case the user typed (normalize() is only for search). Drop empty tags and "
                "repeated ones, keeping the first occurrence order. Separately, the search box should stay "
                "case-insensitive, but that is another ticket.",
+        distractor='Separately, the search box should stay case-insensitive, but that is another ticket.',
         conventions=["tags are separated by semicolons, not commas", "Keep the case the user typed",
                      "Drop empty tags and repeated ones, keeping the first occurrence order"],
         hidden=D(r"""

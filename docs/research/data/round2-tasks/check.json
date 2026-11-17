@@ -6,7 +6,7 @@
       "summary": {
         "tasks": 4,
         "loaded_by_strength_retest": 4,
-        "sha256": "a4cb1f263f2543745a3ffbc5728df96616e02e71b022a6a36be64895481f6372",
+        "sha256": "34aec1ab75549dced8eeb1692bc235eb3c28bda7acb3fb966afc35d5ffb858b9",
         "neutral": 1,
         "settled_or_memory": 3,
         "start_fails": "4/4",
@@ -15,6 +15,7 @@
         "trace_complete": "4/4",
         "valid": "4/4",
         "modified_mid_conversation": "1/3",
+        "adjacent_topic_distractor": "3/3",
         "conventions_per_task": {
           "2": 0,
           "3": 3
@@ -59,7 +60,7 @@
           "problems": [],
           "valid": true,
           "settle_whole_in_context": true,
-          "context_chars": 1395,
+          "context_chars": 1457,
           "clauses_dropped": 0,
           "naive_rc": 1,
           "naive_failed": [
@@ -116,7 +117,7 @@
       "summary": {
         "tasks": 4,
         "loaded_by_strength_retest": 4,
-        "sha256": "20c53e2839bce49283029cb26e090184f3c525fb8c408988795b221cdea19493",
+        "sha256": "6b6b8e16b9106eed29eb61bed73f42bec6baeefedbc32e8cb68c3a4da60f5b9e",
         "neutral": 0,
         "settled_or_memory": 4,
         "start_fails": "4/4",
@@ -219,7 +220,7 @@
       "summary": {
         "tasks": 56,
         "loaded_by_strength_retest": 56,
-        "sha256": "7640879d203574f2a5df07acdcb469d4fac6fd3702efc6cc5540e69b2dfdb01e",
+        "sha256": "291b63c388624eebfc2cc07b8a30154a84cbba8f0df991bfd01876adf2858201",
         "neutral": 8,
         "settled_or_memory": 48,
         "start_fails": "56/56",
@@ -228,6 +229,7 @@
         "trace_complete": "56/56",
         "valid": "56/56",
         "modified_mid_conversation": "19/48",
+        "adjacent_topic_distractor": "48/48",
         "conventions_per_task": {
           "2": 18,
           "3": 30
@@ -320,7 +322,7 @@
           "problems": [],
           "valid": true,
           "settle_whole_in_context": true,
-          "context_chars": 1834,
+          "context_chars": 1903,
           "clauses_dropped": 0,
           "naive_rc": 1,
           "naive_failed": [
@@ -392,7 +394,7 @@
           "problems": [],
           "valid": true,
           "settle_whole_in_context": true,
-          "context_chars": 1480,
+          "context_chars": 1540,
           "clauses_dropped": 0,
           "naive_rc": 1,
           "naive_failed": [
@@ -439,7 +441,7 @@
           "problems": [],
           "valid": true,
           "settle_whole_in_context": true,
-          "context_chars": 1237,
+          "context_chars": 1272,
           "clauses_dropped": 0,
           "naive_rc": 1,
           "naive_failed": [
@@ -463,7 +465,7 @@
           "problems": [],
           "valid": true,
           "settle_whole_in_context": true,
-          "context_chars": 1347,
+          "context_chars": 1407,
           "clauses_dropped": 0,
           "naive_rc": 1,
           "naive_failed": [
@@ -510,7 +512,7 @@
           "problems": [],
           "valid": true,
           "settle_whole_in_context": true,
-          "context_chars": 1407,
+          "context_chars": 1451,
           "clauses_dropped": 0,
           "naive_rc": 1,
           "naive_failed": [
@@ -558,7 +560,7 @@
           "problems": [],
           "valid": true,
           "settle_whole_in_context": true,
-          "context_chars": 1304,
+          "context_chars": 1364,
           "clauses_dropped": 0,
           "naive_rc": 1,
           "naive_failed": [
@@ -581,7 +583,7 @@
           "problems": [],
           "valid": true,
           "settle_whole_in_context": true,
-          "context_chars": 1438,
+          "context_chars": 1495,
           "clauses_dropped": 0,
           "naive_rc": 1,
           "naive_failed": [
@@ -604,7 +606,7 @@
           "problems": [],
           "valid": true,
           "settle_whole_in_context": true,
-          "context_chars": 1219,
+          "context_chars": 1278,
           "clauses_dropped": 0,
           "naive_rc": 1,
           "naive_failed": [
@@ -651,7 +653,7 @@
           "problems": [],
           "valid": true,
           "settle_whole_in_context": true,
-          "context_chars": 1604,
+          "context_chars": 1665,
           "clauses_dropped": 0,
           "naive_rc": 1,
           "naive_failed": [
@@ -699,7 +701,7 @@
           "problems": [],
           "valid": true,
           "settle_whole_in_context": true,
-          "context_chars": 1319,
+          "context_chars": 1368,
           "clauses_dropped": 0,
           "naive_rc": 1,
           "naive_failed": [
@@ -723,7 +725,7 @@
           "problems": [],
           "valid": true,
           "settle_whole_in_context": true,
-          "context_chars": 1440,
+          "context_chars": 1498,
           "clauses_dropped": 0,
           "naive_rc": 1,
           "naive_failed": [
@@ -770,7 +772,7 @@
           "problems": [],
           "valid": true,
           "settle_whole_in_context": true,
-          "context_chars": 1226,
+          "context_chars": 1273,
           "clauses_dropped": 0,
           "naive_rc": 1,
           "naive_failed": [
@@ -794,7 +796,7 @@
           "problems": [],
           "valid": true,
           "settle_whole_in_context": true,
-          "context_chars": 1415,
+          "context_chars": 1443,
           "clauses_dropped": 0,
           "naive_rc": 1,
           "naive_failed": [
@@ -818,7 +820,7 @@
           "problems": [],
           "valid": true,
           "settle_whole_in_context": true,
-          "context_chars": 1322,
+          "context_chars": 1379,
           "clauses_dropped": 0,
           "naive_rc": 1,
           "naive_failed": [
@@ -842,7 +844,7 @@
           "problems": [],
           "valid": true,
           "settle_whole_in_context": true,
-          "context_chars": 1227,
+          "context_chars": 1272,
           "clauses_dropped": 0,
           "naive_rc": 1,
           "naive_failed": [
@@ -866,7 +868,7 @@
           "problems": [],
           "valid": true,
           "settle_whole_in_context": true,
-          "context_chars": 1357,
+          "context_chars": 1403,
           "clauses_dropped": 0,
           "naive_rc": 1,
           "naive_failed": [
@@ -890,7 +892,7 @@
           "problems": [],
           "valid": true,
           "settle_whole_in_context": true,
-          "context_chars": 1323,
+          "context_chars": 1369,
           "clauses_dropped": 0,
           "naive_rc": 1,
           "naive_failed": [
@@ -914,7 +916,7 @@
           "problems": [],
           "valid": true,
           "settle_whole_in_context": true,
-          "context_chars": 1259,
+          "context_chars": 1313,
           "clauses_dropped": 0,
           "naive_rc": 1,
           "naive_failed": [
@@ -938,7 +940,7 @@
           "problems": [],
           "valid": true,
           "settle_whole_in_context": true,
-          "context_chars": 1341,
+          "context_chars": 1407,
           "clauses_dropped": 0,
           "naive_rc": 1,
           "naive_failed": [
@@ -961,7 +963,7 @@
           "problems": [],
           "valid": true,
           "settle_whole_in_context": true,
-          "context_chars": 1402,
+          "context_chars": 1451,
           "clauses_dropped": 0,
           "naive_rc": 1,
           "naive_failed": [
@@ -985,7 +987,7 @@
           "problems": [],
           "valid": true,
           "settle_whole_in_context": true,
-          "context_chars": 1290,
+          "context_chars": 1351,
           "clauses_dropped": 0,
           "naive_rc": 1,
           "naive_failed": [
@@ -1033,7 +1035,7 @@
           "problems": [],
           "valid": true,
           "settle_whole_in_context": true,
-          "context_chars": 1491,
+          "context_chars": 1542,
           "clauses_dropped": 0,
           "naive_rc": 1,
           "naive_failed": [
@@ -1056,7 +1058,7 @@
           "problems": [],
           "valid": true,
           "settle_whole_in_context": true,
-          "context_chars": 1203,
+          "context_chars": 1286,
           "clauses_dropped": 0,
           "naive_rc": 1,
           "naive_failed": [
@@ -1080,7 +1082,7 @@
           "problems": [],
           "valid": true,
           "settle_whole_in_context": true,
-          "context_chars": 1270,
+          "context_chars": 1296,
           "clauses_dropped": 0,
           "naive_rc": 1,
           "naive_failed": [
@@ -1104,7 +1106,7 @@
           "problems": [],
           "valid": true,
           "settle_whole_in_context": true,
-          "context_chars": 1305,
+          "context_chars": 1361,
           "clauses_dropped": 0,
           "naive_rc": 1,
           "naive_failed": [
@@ -1127,7 +1129,7 @@
           "problems": [],
           "valid": true,
           "settle_whole_in_context": true,
-          "context_chars": 1242,
+          "context_chars": 1288,
           "clauses_dropped": 0,
           "naive_rc": 1,
           "naive_failed": [
@@ -1151,7 +1153,7 @@
           "problems": [],
           "valid": true,
           "settle_whole_in_context": true,
-          "context_chars": 1272,
+          "context_chars": 1327,
           "clauses_dropped": 0,
           "naive_rc": 1,
           "naive_failed": [
@@ -1175,7 +1177,7 @@
           "problems": [],
           "valid": true,
           "settle_whole_in_context": true,
-          "context_chars": 1450,
+          "context_chars": 1489,
           "clauses_dropped": 0,
           "naive_rc": 1,
           "naive_failed": [
@@ -1199,7 +1201,7 @@
           "problems": [],
           "valid": true,
           "settle_whole_in_context": true,
-          "context_chars": 1335,
+          "context_chars": 1398,
           "clauses_dropped": 0,
           "naive_rc": 1,
           "naive_failed": [
@@ -1223,7 +1225,7 @@
           "problems": [],
           "valid": true,
           "settle_whole_in_context": true,
-          "context_chars": 1255,
+          "context_chars": 1304,
           "clauses_dropped": 0,
           "naive_rc": 1,
           "naive_failed": [
@@ -1247,7 +1249,7 @@
           "problems": [],
           "valid": true,
           "settle_whole_in_context": true,
-          "context_chars": 1304,
+          "context_chars": 1354,
           "clauses_dropped": 0,
           "naive_rc": 1,
           "naive_failed": [
@@ -1271,7 +1273,7 @@
           "problems": [],
           "valid": true,
           "settle_whole_in_context": true,
-          "context_chars": 1371,
+          "context_chars": 1405,
           "clauses_dropped": 0,
           "naive_rc": 1,
           "naive_failed": [
@@ -1319,7 +1321,7 @@
           "problems": [],
           "valid": true,
           "settle_whole_in_context": true,
-          "context_chars": 1281,
+          "context_chars": 1334,
           "clauses_dropped": 0,
           "naive_rc": 1,
           "naive_failed": [
@@ -1343,7 +1345,7 @@
           "problems": [],
           "valid": true,
           "settle_whole_in_context": true,
-          "context_chars": 1345,
+          "context_chars": 1393,
           "clauses_dropped": 0,
           "naive_rc": 1,
           "naive_failed": [
@@ -1366,7 +1368,7 @@
           "problems": [],
           "valid": true,
           "settle_whole_in_context": true,
-          "context_chars": 1187,
+          "context_chars": 1241,
           "clauses_dropped": 0,
           "naive_rc": 1,
           "naive_failed": [
@@ -1527,7 +1529,7 @@
       "summary": {
         "tasks": 48,
         "loaded_by_strength_retest": 48,
-        "sha256": "3b5182892088ba899cc4e50d7e03e899e7d5178c9a986992e050336462ae93e3",
+        "sha256": "e6b20eb978986a040fc880f52766b8530326b0de0a5458f1e28e1aa94abd3560",
         "neutral": 0,
         "settled_or_memory": 48,
         "start_fails": "48/48",

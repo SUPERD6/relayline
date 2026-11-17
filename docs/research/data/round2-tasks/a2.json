@@ -5,6 +5,7 @@
   "author": "Claude Opus 5.5 (claude-opus-5-5), task-writing session that takes part in no evaluation",
   "preregistration": "docs/research/prereg/2026-11-16-round2.md, section 2 (A1, A2)",
   "issue": 375,
+  "trace_granularity": "per hidden test function: every assert of a test maps to that test's sentences; a reviewer reads each assert against them",
   "tasks": [
     {
       "id": "r2a2-01-euro-amount",
@@ -13,7 +14,7 @@
       "files": {
         "money.py": "def dollars(cents):\n    return f\"${cents / 100:,.2f}\"\n"
       },
-      "brief": "Add euro_text(cents) to money.py: format an amount of euro cents for the invoices sent to German customers.",
+      "brief": "Add euro_text(cents) to money.py: format an amount of euro cents for the invoices.",
       "neutral": false,
       "kind": "convention",
       "memory": "Convention for euro amounts on invoices: comma as the decimal separator and a period between thousands (1.234,56), always two decimals. The euro sign comes after the number, separated by a space (12,50 €). Negative amounts start with a minus sign before the number.",
@@ -779,10 +780,10 @@
       "files": {
         "phrases.py": "def comma_list(items):\n    return ', '.join(items)\n"
       },
-      "brief": "Write join_names(names) in phrases.py: turn a list of names into the English phrase used in notifications such as 'Ann, Bo and Cy liked your post'.",
+      "brief": "Write join_names(names) in phrases.py: turn a list of names into the English phrase used in like notifications.",
       "neutral": false,
       "kind": "convention",
-      "memory": "Copy style for notifications: use the serial (Oxford) comma, so three or more names read 'Ann, Bo, and Cy'. Two names are joined with ' and ' and no comma. More than four names show the first three and then 'and N others' (with N the rest), still with the serial comma.",
+      "memory": "Copy style for notifications: use the serial (Oxford) comma, so three or more names read 'Ann, Bo, and Cy'. Two names are joined with ' and ' and no comma. More than four names show the first three and then 'and N others' (with N the rest), still with the serial comma. A single name is shown alone and an empty list gives the empty string.",
       "distractors": [
         [
           "tooling",
@@ -828,7 +829,7 @@
         },
         {
           "assertion": "test_zz_hidden_eval.py::test_two_and_one#1",
-          "brief": "turn a list of names into the English phrase"
+          "brief": "A single name is shown alone and an empty list gives the empty string"
         },
         {
           "assertion": "test_zz_hidden_eval.py::test_two_and_one#2",
@@ -836,7 +837,7 @@
         },
         {
           "assertion": "test_zz_hidden_eval.py::test_two_and_one#2",
-          "brief": "turn a list of names into the English phrase"
+          "brief": "A single name is shown alone and an empty list gives the empty string"
         },
         {
           "assertion": "test_zz_hidden_eval.py::test_two_and_one#3",
@@ -844,7 +845,7 @@
         },
         {
           "assertion": "test_zz_hidden_eval.py::test_two_and_one#3",
-          "brief": "turn a list of names into the English phrase"
+          "brief": "A single name is shown alone and an empty list gives the empty string"
         },
         {
           "assertion": "test_zz_hidden_eval.py::test_others#1",
@@ -2169,7 +2170,7 @@
           "Flight distances on the booking page are shown in nautical miles."
         ]
       ],
-      "hidden": "import math\nfrom routes import distance_km\n\n\ndef _hav(lon1, lat1, lon2, lat2, r):\n    p1, p2 = math.radians(lat1), math.radians(lat2)\n    dp, dl = p2 - p1, math.radians(lon2 - lon1)\n    h = math.sin(dp / 2) ** 2 + math.cos(p1) * math.cos(p2) * math.sin(dl / 2) ** 2\n    return 2 * r * math.asin(math.sqrt(h))\n\n\ndef test_lon_first():\n    a, b = (0.0, 0.0), (90.0, 0.0)\n    assert distance_km(a, b) == round(_hav(0, 0, 90, 0, 6371.0), 2)\n    c, d = (10.0, 50.0), (11.0, 50.0)\n    assert distance_km(c, d) == round(_hav(10, 50, 11, 50, 6371.0), 2)\n\n\ndef test_radius_and_rounding():\n    assert distance_km((0.0, 0.0), (180.0, 0.0)) == 20015.09\n",
+      "hidden": "import math\nfrom routes import distance_km\n\n\ndef _hav(lon1, lat1, lon2, lat2, r):\n    p1, p2 = math.radians(lat1), math.radians(lat2)\n    dp, dl = p2 - p1, math.radians(lon2 - lon1)\n    h = math.sin(dp / 2) ** 2 + math.cos(p1) * math.cos(p2) * math.sin(dl / 2) ** 2\n    return 2 * r * math.asin(math.sqrt(h))\n\n\ndef test_lon_first():\n    c, d = (10.0, 50.0), (11.0, 50.0)\n    assert abs(distance_km(c, d) - _hav(10, 50, 11, 50, 6371.0)) <= 0.006\n    e, f = (-74.0, 40.7), (2.35, 48.86)\n    assert abs(distance_km(e, f) - _hav(-74.0, 40.7, 2.35, 48.86, 6371.0)) <= 0.006\n\n\ndef test_radius_and_rounding():\n    assert abs(distance_km((0.0, 0.0), (180.0, 0.0)) - 20015.09) < 1e-6\n",
       "reference": {
         "routes.py": "import math\n\n\ndef total(legs):\n    return sum(legs)\n\n\ndef distance_km(a, b):\n    lon1, lat1 = a\n    lon2, lat2 = b\n    p1, p2 = math.radians(lat1), math.radians(lat2)\n    dp, dl = p2 - p1, math.radians(lon2 - lon1)\n    h = math.sin(dp / 2) ** 2 + math.cos(p1) * math.cos(p2) * math.sin(dl / 2) ** 2\n    return round(2 * 6371.0 * math.asin(math.sqrt(h)), 2)\n"
       },
@@ -2869,7 +2870,7 @@
           "Links in emails always carry utm_source=email."
         ]
       ],
-      "hidden": "from links import join_url\n\n\ndef test_slashes():\n    assert join_url('https://api.x.org/v1/', '/users/', '42') == 'https://api.x.org/v1/users/42'\n    assert join_url('https://api.x.org/v1', 'items') == 'https://api.x.org/v1/items'\n\n\ndef test_encoding():\n    assert join_url('https://h/api', 'a b', 'c/d') == 'https://h/api/a%20b/c%2Fd'\n",
+      "hidden": "from links import join_url\n\n\ndef test_slashes():\n    assert join_url('https://api.example.org/v1/', '/users/', '42') == 'https://api.example.org/v1/users/42'\n    assert join_url('https://api.example.org/v1', 'items') == 'https://api.example.org/v1/items'\n\n\ndef test_encoding():\n    assert join_url('https://h/api', 'a b', 'c/d') == 'https://h/api/a%20b/c%2Fd'\n",
       "reference": {
         "links.py": "from urllib.parse import quote, urljoin\n\n\ndef absolute(base, path):\n    return urljoin(base, path)\n\n\ndef join_url(base, *parts):\n    url = base.rstrip('/')\n    for p in parts:\n        url += '/' + quote(p.strip('/'), safe='')\n    return url\n"
       },

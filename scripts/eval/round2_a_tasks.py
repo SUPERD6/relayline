@@ -92,7 +92,7 @@ def frozen_task(spec: dict, dev: bool) -> dict:
     common = {"id": spec["id"], "dev": dev, "source": "authored", "files": spec["files"], "brief": spec["brief"]}
     if spec["kind"] == "context":
         task = {**common, "neutral": spec["neutral"], "settle": spec["settle"], "reversed": spec["reversed"],
-                "modified": spec["reversed"] is not None}
+                "modified": spec["reversed"] is not None, "distractor": spec["distractor"]}
     else:
         task = {**common, "neutral": False, "kind": "convention", "memory": spec["memory"],
                 "distractors": SHARED_DISTRACTORS + spec["distractors"]}
@@ -111,7 +111,10 @@ def build(only=None) -> dict:
         tasks = [frozen_task(s, dev) for s in load_specs(stem)]
         data = {"kind": kind, "group": stem.upper(), "dev": dev, "author": AUTHOR,
                 "preregistration": "docs/research/prereg/2026-11-16-round2.md, section 2 (A1, A2)",
-                "issue": 375, "tasks": tasks}
+                "issue": 375,
+                "trace_granularity": "per hidden test function: every assert of a test maps to that test's "
+                                     "sentences; a reviewer reads each assert against them",
+                "tasks": tasks}
         if kind == "memory":
             data["distractors"] = SHARED_DISTRACTORS
         raw = (json.dumps(data, indent=2, ensure_ascii=False) + "\n").encode("utf-8")
@@ -218,8 +221,21 @@ def check_task(spec: dict, task: dict) -> dict:
                 problems.append(f"naive implementation does not fail the hidden tests (rc={naive['rc']})")
     elif spec["conventions"] or spec["naive"]:
         problems.append("a neutral task has no conventions and no naive implementation")
+    brief_flat = R.normalize_brief(task["brief"])
+    leaked = [c for c in spec["conventions"] if R.normalize_brief(c) in brief_flat]
+    if leaked:
+        problems.append(f"convention text appears in the brief: {leaked}")
+    if spec["kind"] == "context" and spec["neutral"]:
+        outside = sorted({f for frags in spec["trace"].values() for f in frags
+                          if R.normalize_brief(f) not in brief_flat})
+        if outside:
+            problems.append(f"a neutral task's trace must come from the brief only: {outside}")
     if spec["kind"] == "memory" and len(spec["distractors"]) < 1:
         problems.append("no adjacent-topic distractor")
+    if spec["kind"] == "context" and not spec["neutral"]:
+        d = spec.get("distractor")
+        if not d or R.normalize_brief(d) not in flat:
+            problems.append("no adjacent-topic distractor sentence in the settle text (field 'distractor')")
     reach = None
     if spec["kind"] == "context":
         reach = context_reaches(task)
@@ -273,6 +289,7 @@ def check(jobs: int = 8, only=None) -> dict:
                    "valid": f"{sum(r['valid'] for r in rows)}/{len(rows)}"}
         if kind == "context":
             summary["modified_mid_conversation"] = f"{sum(t['modified'] for t in settled)}/{len(settled)}"
+            summary["adjacent_topic_distractor"] = f"{sum(bool(t['distractor']) for t in settled)}/{len(settled)}"
         summary["conventions_per_task"] = {str(n): sum(len(t["conventions"]) == n for t in settled) for n in (2, 3)}
         report["files"][stem] = {"summary": summary, "tasks": rows}
     report["valid"] = all(r["valid"] for f in report["files"].values() for r in f["tasks"])

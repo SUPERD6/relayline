@@ -12,7 +12,9 @@ TASKS = [
         reversed="Round up to the next .99, like most shops do, and return a float.",
         settle="The shop owner changed her mind: cash amounts round to the nearest 0.05, with exact halves going up "
                "(4.025 becomes 4.05). cash_round returns a string with exactly two "
-               "decimals, like '4.10', never a float.",
+               "decimals, like '4.10', never a float."
+               " to_float() for the sales reports stays as it is.",
+        distractor='to_float() for the sales reports stays as it is.',
         conventions=["cash amounts round to the nearest 0.05, with exact halves going up",
                      "returns a string with exactly two decimals, like '4.10', never a float"],
         hidden=D(r"""
@@ -72,7 +74,9 @@ TASKS = [
         settle="Device settings rules: pairs are separated by semicolons, keys are lower-cased and both sides are "
                "stripped. A value made only of digits becomes an int, everything else stays a string. If a key "
                "appears twice, the first value wins, the later ones are ignored. Empty pieces between semicolons "
-               "are skipped.",
+               "are skipped."
+               " parse_line() is also used by the INI reader, leave it alone.",
+        distractor='parse_line() is also used by the INI reader, leave it alone.',
         conventions=["keys are lower-cased and both sides are stripped", "A value made only of digits becomes an int",
                      "If a key appears twice, the first value wins"],
         hidden=D(r"""
@@ -138,6 +142,7 @@ TASKS = [
         settle="HR counting: only Monday to Friday count, weekends never. Both end dates are included, so the same "
                "weekday twice gives 1. The order of the two dates does not matter, the answer is never negative. "
                "Public holidays are handled by the payroll module, not here.",
+        distractor='Public holidays are handled by the payroll module, not here.',
         conventions=["only Monday to Friday count, weekends never", "Both end dates are included",
                      "The order of the two dates does not matter"],
         hidden=D(r"""
@@ -202,7 +207,9 @@ TASKS = [
         reversed="Use html.escape with quotes escaped too, like attr(), and keep line breaks as they are.",
         settle="Final rule for comments: escape only &, < and >, leave quote characters alone because comments are "
                "never put in attributes. Each line break becomes <br>, and leading and trailing whitespace of the "
-               "whole comment is removed first.",
+               "whole comment is removed first."
+               " attr() for attribute values keeps escaping quotes.",
+        distractor='attr() for attribute values keeps escaping quotes.',
         conventions=["escape only &, < and >, leave quote characters alone", "Each line break becomes <br>"],
         hidden=D(r"""
             from render import comment_html
@@ -255,7 +262,9 @@ TASKS = [
               "the room calendar, following what we decided about adjacent bookings.",
         settle="For the room calendar, bookings that only touch, like (1, 3) and (3, 5), stay separate: there is a "
                "changeover between them. Only real overlaps merge. The input can be in any order; return a sorted "
-               "list of tuples.",
+               "list of tuples."
+               " overlaps() for the conflict warning still treats touching bookings as overlapping.",
+        distractor='overlaps() for the conflict warning still treats touching bookings as overlapping.',
         conventions=["bookings that only touch, like (1, 3) and (3, 5), stay separate",
                      "The input can be in any order; return a sorted list of tuples"],
         hidden=D(r"""
@@ -314,7 +323,9 @@ TASKS = [
               "drawn in the style we settled on.",
         settle="Progress bar style: '#' for done and '.' for the rest inside square brackets, width characters "
                "between the brackets, then a space and the percentage as a whole number rounded down (99.9% "
-               "shows 99%). The number of '#' is also rounded down. Fractions outside 0 to 1 are clamped.",
+               "shows 99%). The number of '#' is also rounded down. Fractions outside 0 to 1 are clamped."
+               " spinner() stays as it is.",
+        distractor='spinner() stays as it is.',
         conventions=["'#' for done and '.' for the rest inside square brackets",
                      "the percentage as a whole number rounded down (99.9% shows 99%)",
                      "Fractions outside 0 to 1 are clamped"],
@@ -373,7 +384,9 @@ TASKS = [
               "agreed.",
         reversed="Give everyone the same share and put all the leftover cents on the last person.",
         settle="Change: the leftover cents are spread one each over the first people in the list, so 10 split three "
-               "ways is [4, 3, 3]. n below 1 raises ValueError, and a negative total also raises ValueError.",
+               "ways is [4, 3, 3]. n below 1 raises ValueError, and a negative total also raises ValueError."
+               " per_head() for the estimate screen keeps rounding down.",
+        distractor='per_head() for the estimate screen keeps rounding down.',
         conventions=["the leftover cents are spread one each over the first people in the list",
                      "a negative total also raises ValueError"],
         hidden=D(r"""
@@ -428,7 +441,9 @@ TASKS = [
               "as numbers, following the conventions we agreed for the map.",
         settle="Map conventions: the result is a (lat, lon) tuple of floats, latitude first. South and West make "
                "the value negative. The hemisphere letters may be lower or upper case and the space before them is "
-               "optional. Anything that does not match raises ValueError.",
+               "optional. Anything that does not match raises ValueError."
+               " fmt() for the share link keeps four decimals.",
+        distractor='fmt() for the share link keeps four decimals.',
         conventions=["the result is a (lat, lon) tuple of floats, latitude first",
                      "South and West make the value negative",
                      "The hemisphere letters may be lower or upper case and the space before them is optional"],
@@ -497,7 +512,9 @@ TASKS = [
               "we agreed on in the release discussion.",
         settle="Release mapping: main deploys to 'production' (the full word, even though ENVIRONMENTS still says "
                "prod), and any release/... branch deploys to 'staging'. Every other branch gets a preview "
-               "environment named 'preview-' plus the branch name lower-cased with each '/' replaced by '-'.",
+               "environment named 'preview-' plus the branch name lower-cased with each '/' replaced by '-'."
+               " The local dev environment is not part of this mapping.",
+        distractor='The local dev environment is not part of this mapping.',
         conventions=["main deploys to 'production' (the full word, even though ENVIRONMENTS still says prod)",
                      "any release/... branch deploys to 'staging'",
                      "the branch name lower-cased with each '/' replaced by '-'"],
@@ -556,7 +573,9 @@ TASKS = [
         settle="Final audit format: the time first, converted to UTC and written as ISO 8601 with a Z and no "
                "fractions (2026-01-02T03:04:05Z), then the level in capitals with WARNING shortened to WARN, then "
                "the message, separated by single spaces. Newlines inside the message are written as the two "
-               "characters backslash and n so each entry stays on one line.",
+               "characters backslash and n so each entry stays on one line."
+               " simple() stays for the console output.",
+        distractor='simple() stays for the console output.',
         conventions=["converted to UTC and written as ISO 8601 with a Z and no fractions (2026-01-02T03:04:05Z)",
                      "the level in capitals with WARNING shortened to WARN",
                      "Newlines inside the message are written as the two characters backslash and n"],

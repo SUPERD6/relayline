@@ -131,11 +131,12 @@ TASKS = [
             def comma_list(items):
                 return ', '.join(items)
         """)},
-        brief="Write join_names(names) in phrases.py: turn a list of names into the English phrase used in "
-              "notifications such as 'Ann, Bo and Cy liked your post'.",
+        brief="Write join_names(names) in phrases.py: turn a list of names into the English phrase used in like "
+              "notifications.",
         memory="Copy style for notifications: use the serial (Oxford) comma, so three or more names read 'Ann, Bo, "
                "and Cy'. Two names are joined with ' and ' and no comma. More than four names show the first three "
-               "and then 'and N others' (with N the rest), still with the serial comma.",
+               "and then 'and N others' (with N the rest), still with the serial comma. A single name is shown "
+               "alone and an empty list gives the empty string.",
         conventions=["use the serial (Oxford) comma, so three or more names read 'Ann, Bo, and Cy'",
                      "Two names are joined with ' and ' and no comma",
                      "More than four names show the first three and then 'and N others'"],
@@ -185,7 +186,7 @@ TASKS = [
         """)},
         trace={"test_serial_comma": ["use the serial (Oxford) comma, so three or more names read 'Ann, Bo, and Cy'"],
                "test_two_and_one": ["Two names are joined with ' and ' and no comma",
-                                    "turn a list of names into the English phrase"],
+                                    "A single name is shown alone and an empty list gives the empty string"],
                "test_others": ["More than four names show the first three and then 'and N others'",
                                "still with the serial comma"]}),
 

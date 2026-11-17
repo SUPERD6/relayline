@@ -5,6 +5,7 @@
   "author": "Claude Opus 5.5 (claude-opus-5-5), task-writing session that takes part in no evaluation",
   "preregistration": "docs/research/prereg/2026-11-16-round2.md, section 2 (A1, A2)",
   "issue": 375,
+  "trace_granularity": "per hidden test function: every assert of a test maps to that test's sentences; a reviewer reads each assert against them",
   "tasks": [
     {
       "id": "r2a2-dev-01-env-flag",

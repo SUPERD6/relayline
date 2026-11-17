@@ -3,19 +3,19 @@
   "files": [
     {
       "path": "docs/research/data/round2-tasks/a1-dev.json",
-      "sha256": "a4cb1f263f2543745a3ffbc5728df96616e02e71b022a6a36be64895481f6372"
+      "sha256": "34aec1ab75549dced8eeb1692bc235eb3c28bda7acb3fb966afc35d5ffb858b9"
     },
     {
       "path": "docs/research/data/round2-tasks/a1.json",
-      "sha256": "7640879d203574f2a5df07acdcb469d4fac6fd3702efc6cc5540e69b2dfdb01e"
+      "sha256": "291b63c388624eebfc2cc07b8a30154a84cbba8f0df991bfd01876adf2858201"
     },
     {
       "path": "docs/research/data/round2-tasks/a2-dev.json",
-      "sha256": "20c53e2839bce49283029cb26e090184f3c525fb8c408988795b221cdea19493"
+      "sha256": "6b6b8e16b9106eed29eb61bed73f42bec6baeefedbc32e8cb68c3a4da60f5b9e"
     },
     {
       "path": "docs/research/data/round2-tasks/a2.json",
-      "sha256": "3b5182892088ba899cc4e50d7e03e899e7d5178c9a986992e050336462ae93e3"
+      "sha256": "e6b20eb978986a040fc880f52766b8530326b0de0a5458f1e28e1aa94abd3560"
     },
     {
       "path": "scripts/eval/round2_a/__init__.py",
@@ -23,7 +23,7 @@
     },
     {
       "path": "scripts/eval/round2_a/a1_dev.py",
-      "sha256": "4c3d1e95eee960433e3687e12c4132076adc212a3a2fd1fa9dfa2d3a4f4384e0"
+      "sha256": "b4a9fec10110fce8db777a1bcad7a178e7bbeeb74501e3ca3be91c5c9c6e2e43"
     },
     {
       "path": "scripts/eval/round2_a/a1_neutral.py",
@@ -31,23 +31,23 @@
     },
     {
       "path": "scripts/eval/round2_a/a1_p1.py",
-      "sha256": "4e5fec9c34829defcc6c0b14ff1371a2a8e6dda74dc22b32ccfd32f6ea0cf52e"
+      "sha256": "d77c4b96b71b88992447e80528495a64e01324247802f6d93d7b644eff92dd9f"
     },
     {
       "path": "scripts/eval/round2_a/a1_p2.py",
-      "sha256": "fea3a71c919a11c45b60bfd616e381ac03bf933fda038265a973e4e537584d74"
+      "sha256": "59e7d58cfaae58bd7cf14d0e6d4605c0bf28eb423bc355ce528c0becb166c6f4"
     },
     {
       "path": "scripts/eval/round2_a/a1_p3.py",
-      "sha256": "9695701b38c859627ec9c9fff246e1d1b1fb0e157fd6a493dd7d292aae680ae7"
+      "sha256": "76a753b61a95712b1642bdb02b8659f32ed99ae3e1156fc2cdfe2a3bf58bed40"
     },
     {
       "path": "scripts/eval/round2_a/a1_p4.py",
-      "sha256": "fbcd2466f45b08b3b3cef1cdbec5f2264013ca4d3c37c1e7e6fee4e5c683c4ac"
+      "sha256": "e6b34f0105d8a7071aca939dc96f839400a22934f3cfa2f1ccdc398dc6e76617"
     },
     {
       "path": "scripts/eval/round2_a/a1_p5.py",
-      "sha256": "b009186d10c389546b6724e05837419798b19bc60676494ed5b2c8b13538860c"
+      "sha256": "a3a38034e1347153d491f506d797cbf2f297ae48074bb82b92578c8cdb8c1e84"
     },
     {
       "path": "scripts/eval/round2_a/a2_dev.py",
@@ -55,11 +55,11 @@
     },
     {
       "path": "scripts/eval/round2_a/a2_p1.py",
-      "sha256": "07b2dbaf8177037f9e891f511c540dc4176cde71d7d8dda5b936a43092a7f8f3"
+      "sha256": "2d695c539df0019ebcf2f31e0d91da643b940a4a15e6e1ad8b424ba232f0c147"
     },
     {
       "path": "scripts/eval/round2_a/a2_p2.py",
-      "sha256": "e6ce784430d67f2d40348c14438dfac5fd878e5658309a3356bc04fa4ca03697"
+      "sha256": "b62aaf7edca1216ca06a2d518c69a3237e22086c7c4c0a2978368cb67c415ef2"
     },
     {
       "path": "scripts/eval/round2_a/a2_p3.py",
@@ -67,20 +67,20 @@
     },
     {
       "path": "scripts/eval/round2_a/a2_p4.py",
-      "sha256": "91489f1a9ea74841848e6adb316f1e84ef0650d19e2829f0cf76b735da772e4d"
+      "sha256": "e891e57bb02eb390f6b788c98f89b2361a539312d9f29af4a1449521547bee7e"
     },
     {
       "path": "scripts/eval/round2_a/a2_p5.py",
-      "sha256": "7f765118fc57a43576cb9892db895515e95cfcc983a3a22377d940102b3807c7"
+      "sha256": "bc13a7b83bd8b6aa598e677036fcb8924c411614147003a3a0bcf6d468cf71ad"
     },
     {
       "path": "scripts/eval/round2_a/spec.py",
-      "sha256": "01a0b07e45d4b0296e080b422a0615980c3b7eb9b890c78b0e3c4120f743143a"
+      "sha256": "14c9614ac9d122b9c1325044828b570cb00bfb107d49c17d40270794f72b8b75"
     },
     {
       "path": "scripts/eval/round2_a_tasks.py",
-      "sha256": "502db7ceb30a95121e8642d876f2762d044b3a90f473b24f8d7757de82c3a89d"
+      "sha256": "d201e5b98e4f9a05e853f171c23ca73ffe76a4b1901846a4886e7face530957f"
     }
   ],
-  "sha256": "1ae89332671950ffa2b944d6e3803ca24d31fddcbcf3a261350cbd5dc736fcdd"
+  "sha256": "c7bc6a6d0977e89798d95c509db5999281c3d348e92591636c5abaf019dee0bb"
 }

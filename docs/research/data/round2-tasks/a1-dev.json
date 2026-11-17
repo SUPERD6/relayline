@@ -5,6 +5,7 @@
   "author": "Claude Opus 5.5 (claude-opus-5-5), task-writing session that takes part in no evaluation",
   "preregistration": "docs/research/prereg/2026-11-16-round2.md, section 2 (A1, A2)",
   "issue": 375,
+  "trace_granularity": "per hidden test function: every assert of a test maps to that test's sentences; a reviewer reads each assert against them",
   "tasks": [
     {
       "id": "r2a1-dev-01-ledger-totals",
@@ -18,6 +19,7 @@
       "settle": "For summarize(): totals are integer cents, never floats, so '12.50' counts as 1250. It returns a list of (account, cents) tuples sorted by cents, largest first, and accounts with equal totals in alphabetical order. The CSV exporter keeps its float amounts, so leave parse_amount and format_amount as they are.",
       "reversed": null,
       "modified": false,
+      "distractor": "The CSV exporter keeps its float amounts, so leave parse_amount and format_amount as they are.",
       "hidden": "from ledger import summarize, parse_amount\n\n\ndef test_cents_are_ints():\n    out = summarize([{'account': 'rent', 'amount': '0.10'}, {'account': 'rent', 'amount': '0.20'}])\n    assert out == [('rent', 30)]\n    assert isinstance(out[0][1], int)\n\n\ndef test_largest_first():\n    rows = [{'account': 'food', 'amount': '3.00'}, {'account': 'rent', 'amount': '900.00'},\n            {'account': 'food', 'amount': '4.25'}]\n    assert summarize(rows) == [('rent', 90000), ('food', 725)]\n\n\ndef test_ties_alphabetical():\n    rows = [{'account': 'b', 'amount': '1.00'}, {'account': 'a', 'amount': '1.00'}]\n    assert summarize(rows) == [('a', 100), ('b', 100)]\n\n\ndef test_exporter_untouched():\n    assert parse_amount(' 12.50 ') == 12.5\n",
       "reference": {
         "ledger.py": "'''Ledger helpers used by the CSV exporter.'''\nfrom decimal import Decimal\n\n\ndef parse_amount(text):\n    '''\"12.50\" -> 12.5'''\n    return float(text.strip())\n\n\ndef format_amount(value):\n    return f\"{value:.2f}\"\n\n\ndef summarize(entries):\n    totals = {}\n    for e in entries:\n        cents = int(Decimal(e['amount'].strip()) * 100)\n        totals[e['account']] = totals.get(e['account'], 0) + cents\n    return sorted(totals.items(), key=lambda kv: (-kv[1], kv[0]))\n"
@@ -70,9 +72,10 @@
       },
       "brief": "Write delays(attempts) in backoff.py: the list of waits before each retry for a job that may be retried `attempts` times. Use the schedule we settled with the person, not the first idea.",
       "neutral": false,
-      "settle": "Change of plan for the retry waits: start at 0.5 seconds and multiply by 3 each time, and no single wait may exceed 10 seconds (clamp it to 10). delays() returns the waits in milliseconds as ints, because the scheduler takes milliseconds. Zero attempts gives an empty list.",
+      "settle": "Change of plan for the retry waits: start at 0.5 seconds and multiply by 3 each time, and no single wait may exceed 10 seconds (clamp it to 10). delays() returns the waits in milliseconds as ints, because the scheduler takes milliseconds. Zero attempts gives an empty list. wait() keeps taking seconds; only delays() uses milliseconds.",
       "reversed": "For retries let's just double each time, starting from 1 second: 1, 2, 4, 8 and so on.",
       "modified": true,
+      "distractor": "wait() keeps taking seconds; only delays() uses milliseconds.",
       "hidden": "from backoff import delays\n\n\ndef test_growth():\n    assert delays(3) == [500, 1500, 4500]\n\n\ndef test_clamped():\n    assert delays(6) == [500, 1500, 4500, 10000, 10000, 10000]\n\n\ndef test_ints_and_empty():\n    assert all(type(x) is int for x in delays(4))\n    assert delays(0) == []\n",
       "reference": {
         "backoff.py": "import time\n\n\ndef wait(seconds, sleep=time.sleep):\n    sleep(seconds)\n\n\ndef delays(attempts):\n    out, ms = [], 500\n    for _ in range(attempts):\n        out.append(min(ms, 10000))\n        ms *= 3\n    return out\n"
@@ -128,6 +131,7 @@
       "settle": "Tag field rules for parse_tags: tags are separated by semicolons, not commas, and a comma is part of a tag. Keep the case the user typed (normalize() is only for search). Drop empty tags and repeated ones, keeping the first occurrence order. Separately, the search box should stay case-insensitive, but that is another ticket.",
       "reversed": null,
       "modified": false,
+      "distractor": "Separately, the search box should stay case-insensitive, but that is another ticket.",
       "hidden": "from tags import parse_tags\n\n\ndef test_semicolons():\n    assert parse_tags('red, blue;green') == ['red, blue', 'green']\n\n\ndef test_case_kept():\n    assert parse_tags('Python;SQL') == ['Python', 'SQL']\n\n\ndef test_dedupe_in_order():\n    assert parse_tags(' b ;a;; b;') == ['b', 'a']\n",
       "reference": {
         "tags.py": "def normalize(tag):\n    return tag.strip().lower()\n\n\ndef parse_tags(text):\n    out = []\n    for part in text.split(';'):\n        part = part.strip()\n        if part and part not in out:\n            out.append(part)\n    return out\n"
@@ -171,6 +175,7 @@
       "settle": "Let's move the weekly sync to Thursday from next week.",
       "reversed": null,
       "modified": false,
+      "distractor": null,
       "hidden": "from names import initials\n\n\ndef test_initials():\n    assert initials('ada king lovelace') == 'AKL'\n    assert initials('  grace   hopper ') == 'GH'\n\n\ndef test_blank():\n    assert initials('') == ''\n    assert initials('   ') == ''\n",
       "reference": {
         "names.py": "def initials(full_name):\n    return ''.join(w[0].upper() for w in full_name.split())\n"

@@ -13,7 +13,9 @@ TASKS = [
                  "(first, last) tuple.",
         settle="Final version of split_name: it returns a dict with the keys 'given' and 'family'. The lower-case "
                "particles van, von, de, da and del belong to the family name together with everything after them "
-               "(Ludwig van Beethoven: family 'van Beethoven'). A single word is the family name with given ''.",
+               "(Ludwig van Beethoven: family 'van Beethoven'). A single word is the family name with given ''."
+               " display() for the badges keeps first name then last name.",
+        distractor='display() for the badges keeps first name then last name.',
         conventions=["it returns a dict with the keys 'given' and 'family'",
                      "The lower-case particles van, von, de, da and del belong to the family name",
                      "A single word is the family name with given ''"],
@@ -78,6 +80,7 @@ TASKS = [
                "capital W, e.g. 2026-W05. The year is the ISO week-numbering year, not the calendar year, so 1 "
                "January can belong to the previous year's last week. month_key keeps its unpadded format for the "
                "old export.",
+        distractor='month_key keeps its unpadded format for the old export.',
         conventions=["the week always two digits and a capital W, e.g. 2026-W05",
                      "The year is the ISO week-numbering year, not the calendar year"],
         hidden=D(r"""
@@ -131,7 +134,9 @@ TASKS = [
               "earlier calls, say whether one more call is allowed right now, under the limit we settled on.",
         settle="Gateway limit: at most 5 calls in any 60-second window, so a sixth call is refused. Timestamps and "
                "now are integers in milliseconds, not seconds like now(). A call exactly 60 000 ms old no longer "
-               "counts; only calls newer than that do.",
+               "counts; only calls newer than that do."
+               " now() stays in seconds for the log timestamps.",
+        distractor='now() stays in seconds for the log timestamps.',
         conventions=["at most 5 calls in any 60-second window", "Timestamps and now are integers in milliseconds",
                      "A call exactly 60 000 ms old no longer counts"],
         hidden=D(r"""
@@ -190,7 +195,9 @@ TASKS = [
         reversed="Upper case hex with all six digits, e.g. #FFAA00, and raise ValueError for values outside 0-255.",
         settle="Change for to_hex: lower-case hex, and use the three-digit short form whenever every pair is a "
                "repeated digit (#ffaa00 becomes #fa0). Values outside 0 to 255 are clamped into range instead of "
-               "raising.",
+               "raising."
+               " NAMED keeps its RGB tuples.",
+        distractor='NAMED keeps its RGB tuples.',
         conventions=["lower-case hex, and use the three-digit short form whenever every pair is a repeated digit",
                      "Values outside 0 to 255 are clamped into range instead of raising"],
         hidden=D(r"""
@@ -246,7 +253,9 @@ TASKS = [
               "age group, with the groups and output we agreed on.",
         settle="Survey groups: '0-17', '18-64' and '65+'. The result is a dict that always has all three keys in "
                "that order, with 0 for an empty group. Negative ages and None are data errors and are skipped, not "
-               "counted anywhere.",
+               "counted anywhere."
+               " is_adult() for the consent form keeps 18 as the cut-off.",
+        distractor='is_adult() for the consent form keeps 18 as the cut-off.',
         conventions=["'0-17', '18-64' and '65+'", "always has all three keys in that order, with 0 for an empty group",
                      "Negative ages and None are data errors and are skipped"],
         hidden=D(r"""
@@ -303,7 +312,9 @@ TASKS = [
               "output, each cell padded to its column width, in the style we settled.",
         settle="Table style for the CLI: numbers (int or float) are right-aligned and everything else left-aligned. "
                "Columns are joined with ' | ' and there is no border at the ends. A cell longer than its width is "
-               "cut to width - 1 characters plus '~'.",
+               "cut to width - 1 characters plus '~'."
+               " csv_row() for the export keeps plain commas.",
+        distractor='csv_row() for the export keeps plain commas.',
         conventions=["numbers (int or float) are right-aligned and everything else left-aligned",
                      "Columns are joined with ' | ' and there is no border at the ends",
                      "A cell longer than its width is cut to width - 1 characters plus '~'"],
@@ -361,7 +372,9 @@ TASKS = [
         reversed="Just use Python's hash(key) % n.",
         settle="Not hash(): it changes between processes. pick_shard uses zlib.crc32 of the key's UTF-8 bytes, "
                "modulo n. Keys are lower-cased before hashing, so 'User1' and 'user1' land on the same shard. n "
-               "must be a power of two; any other n raises ValueError.",
+               "must be a power of two; any other n raises ValueError."
+               " shard_count() stays at 8 for the old cluster.",
+        distractor='shard_count() stays at 8 for the old cluster.',
         conventions=["uses zlib.crc32 of the key's UTF-8 bytes, modulo n", "Keys are lower-cased before hashing",
                      "n must be a power of two; any other n raises ValueError"],
         hidden=D(r"""
@@ -421,7 +434,9 @@ TASKS = [
               "notes.",
         settle="For notes, tidy() keeps line breaks, unlike squash(): within each line, runs of spaces and tabs "
                "become one space and spaces at the end of a line are removed. Never more than one empty line in a "
-               "row. Leading spaces of a line are kept as they are, because they indent lists.",
+               "row. Leading spaces of a line are kept as they are, because they indent lists."
+               " squash() stays as it is for the search index.",
+        distractor='squash() stays as it is for the search index.',
         conventions=["within each line, runs of spaces and tabs become one space and spaces at the end of a line "
                      "are removed", "Never more than one empty line in a row",
                      "Leading spaces of a line are kept as they are"],
@@ -482,7 +497,9 @@ TASKS = [
               "function name and a list of arguments, using the key format we settled on.",
         settle="Cache key format: the name and the arguments are joined with '|', not ':', because names contain "
                "colons. None is written as '~' and booleans as 1 and 0. A dict argument is written as its items "
-               "sorted by key, as k=v joined by commas, so {'b': 2, 'a': 1} becomes a=1,b=2.",
+               "sorted by key, as k=v joined by commas, so {'b': 2, 'a': 1} becomes a=1,b=2."
+               " simple_key() for the metrics labels keeps its colons.",
+        distractor='simple_key() for the metrics labels keeps its colons.',
         conventions=["joined with '|', not ':'", "None is written as '~' and booleans as 1 and 0",
                      "A dict argument is written as its items sorted by key, as k=v joined by commas"],
         hidden=D(r"""
@@ -542,7 +559,9 @@ TASKS = [
         reversed="Score by length only: one point per four characters, up to 5.",
         settle="Scoring changed: one point for each kind of character present (lower-case letter, upper-case "
                "letter, digit, anything else), plus one more point when the password is at least 12 characters "
-               "long. So the maximum is 5. The empty password scores 0.",
+               "long. So the maximum is 5. The empty password scores 0."
+               " long_enough() for the old signup page keeps its 8-character rule.",
+        distractor='long_enough() for the old signup page keeps its 8-character rule.',
         conventions=["one point for each kind of character present (lower-case letter, upper-case letter, digit, "
                      "anything else)", "plus one more point when the password is at least 12 characters long"],
         hidden=D(r"""

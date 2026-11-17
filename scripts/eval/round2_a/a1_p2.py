@@ -13,6 +13,7 @@ TASKS = [
                "toward the width. Cut at the last space that still fits, dropping that space, so a word is never "
                "split; only when the first word alone is too long do you cut inside it. Text that already fits is "
                "returned unchanged. shorten() is still used by the email subject line.",
+        distractor='shorten() is still used by the email subject line.',
         conventions=["the ellipsis is the single character '…', not three dots, and it counts toward the width",
                      "Cut at the last space that still fits, dropping that space, so a word is never split"],
         hidden=D(r"""
@@ -76,7 +77,9 @@ TASKS = [
         reversed="percent() can just return a float between 0 and 100, rounded to two decimals.",
         settle="Revised: percent() returns a string, the percentage with exactly one decimal followed by '%', like "
                "'12.5%'. Halves round up (0.125 of the whole is '12.5%', 1/16 is '6.3%'). When whole is 0 it returns "
-               "'n/a' instead of raising.",
+               "'n/a' instead of raising."
+               " ratio() stays a plain float for the charts.",
+        distractor='ratio() stays a plain float for the charts.',
         conventions=["the percentage with exactly one decimal followed by '%'", "Halves round up",
                      "When whole is 0 it returns 'n/a' instead of raising"],
         hidden=D(r"""
@@ -137,6 +140,7 @@ TASKS = [
         settle="The support lead's order: highest priority first using PRIORITY; within the same priority the "
                "oldest ticket comes first (unlike by_created, which is newest first for the archive). Tickets "
                "whose status is 'closed' or 'merged' are left out entirely.",
+        distractor='unlike by_created, which is newest first for the archive',
         conventions=["highest priority first using PRIORITY", "within the same priority the oldest ticket comes first",
                      "Tickets whose status is 'closed' or 'merged' are left out entirely"],
         hidden=D(r"""
@@ -197,7 +201,9 @@ TASKS = [
         settle="Rules for our release names: a leading 'v' is allowed and ignored, and missing parts count as zero, "
                "so 1.4 and 1.4.0 are the same version. A pre-release suffix such as -rc1 or -beta2 makes it older "
                "than the same version without one; two pre-releases of one version compare by their number "
-               "(rc2 newer than rc1).",
+               "(rc2 newer than rc1)."
+               " parts() is still used by the build script and stays strict.",
+        distractor='parts() is still used by the build script and stays strict.',
         conventions=["a leading 'v' is allowed and ignored, and missing parts count as zero",
                      "A pre-release suffix such as -rc1 or -beta2 makes it older than the same version without one"],
         hidden=D(r"""
@@ -269,7 +275,9 @@ TASKS = [
         settle="New masking rule after the privacy review: keep the first two characters of the local part, then "
                "exactly three asterisks whatever the length, then the domain unchanged (jo***@example.com). A local "
                "part of two characters or fewer is replaced by the three asterisks alone. Addresses without '@' "
-               "raise ValueError.",
+               "raise ValueError."
+               " mask_name() for the audit log keeps one star per letter.",
+        distractor='mask_name() for the audit log keeps one star per letter.',
         conventions=["keep the first two characters of the local part, then exactly three asterisks whatever the "
                      "length", "A local part of two characters or fewer is replaced by the three asterisks alone"],
         hidden=D(r"""
@@ -331,7 +339,9 @@ TASKS = [
               "bulk upload, following what we agreed about the groups.",
         settle="For the bulk upload, batches() returns a list of tuples, not lists, and a final group shorter than "
                "size is dropped, because the API only takes full batches (the leftovers go in the next run). A size "
-               "below 1 raises ValueError.",
+               "below 1 raises ValueError."
+               " pairs() for the comparison view keeps its short last pair.",
+        distractor='pairs() for the comparison view keeps its short last pair.',
         conventions=["returns a list of tuples, not lists", "a final group shorter than size is dropped"],
         hidden=D(r"""
             import pytest
@@ -388,6 +398,7 @@ TASKS = [
                "is H:MM:SS, again with no padding on the leading number (1:02:03). Fractions of a second are cut "
                "off, never rounded up (59.9 shows 0:59). Negative input raises ValueError. hms() is the log format "
                "and stays.",
+        distractor='hms() is the log format and stays.',
         conventions=["under an hour it is M:SS with minutes not zero-padded (2:03)",
                      "Fractions of a second are cut off, never rounded up (59.9 shows 0:59)"],
         hidden=D(r"""
@@ -467,7 +478,9 @@ TASKS = [
         reversed="Apply the percentage and round down to the cent, like tax(); an unknown code should raise KeyError.",
         settle="Final checkout rules: the discounted price rounds to the nearest cent with halves going up, not "
                "down. A discount never takes a price below 100 cents (a price already under 100 is left as it "
-               "is). An unknown code, or None, returns the price unchanged instead of raising.",
+               "is). An unknown code, or None, returns the price unchanged instead of raising."
+               " tax() keeps rounding down; the accountant wants it that way.",
+        distractor='tax() keeps rounding down; the accountant wants it that way.',
         conventions=["the discounted price rounds to the nearest cent with halves going up",
                      "A discount never takes a price below 100 cents",
                      "An unknown code, or None, returns the price unchanged instead of raising"],
@@ -539,6 +552,7 @@ TASKS = [
                "surrounding spaces. Of the duplicates keep the one with the largest updated value, not the first "
                "one seen. Return the kept contacts sorted by name, case-insensitively. The phone-number dedupe for "
                "the CRM is a different job, ignore it here.",
+        distractor='The phone-number dedupe for the CRM is a different job, ignore it here.',
         conventions=["emails match ignoring case and surrounding spaces", "keep the one with the largest updated value",
                      "sorted by name, case-insensitively"],
         hidden=D(r"""
@@ -613,7 +627,9 @@ TASKS = [
         reversed="Let's write each run as count then character, like 3a1b, matching decode_pairs.",
         settle="Final encoding: character first, then the count (a3b), and a run of length one has no count at all, "
                "so 'aaab' encodes to 'a3b'. Upper and lower case are different characters. The empty string "
-               "encodes to ''.",
+               "encodes to ''."
+               " decode_pairs() keeps taking (count, char) pairs.",
+        distractor='decode_pairs() keeps taking (count, char) pairs.',
         conventions=["character first, then the count (a3b)", "a run of length one has no count at all"],
         hidden=D(r"""
             from codec import rle_encode

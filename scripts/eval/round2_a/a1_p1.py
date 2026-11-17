@@ -14,6 +14,7 @@ TASKS = [
                "(SKU, shortfall) pairs where shortfall is threshold minus units plus one, with SKUs in upper case "
                "even though the stock dict keeps them lower case. Biggest shortfall first; equal shortfalls by SKU. "
                "The level() lookup keeps lower-case keys.",
+        distractor='The level() lookup keeps lower-case keys.',
         conventions=["an item at the threshold also needs reordering",
                      "shortfall is threshold minus units plus one, with SKUs in upper case",
                      "Biggest shortfall first; equal shortfalls by SKU"],
@@ -77,6 +78,7 @@ TASKS = [
                "leading country code 1 on an 11-digit number is dropped. Anything that is not 10 digits after that "
                "returns None instead of raising, unlike format_zip. The address autocomplete is a separate thing "
                "and still uses dashes for now.",
+        distractor='The address autocomplete is a separate thing and still uses dashes for now.',
         conventions=["write them with dots, like 555.010.9999", "A leading country code 1 on an 11-digit number is "
                      "dropped", "returns None instead of raising"],
         hidden=D(r"""
@@ -151,6 +153,7 @@ TASKS = [
                "long names overall() uses. Missing readings arrive as None and are skipped. avg is rounded to one "
                "decimal with halves going up (21.25 shows as 21.3), not Python's round(). A day with no readings "
                "returns None. Note the weekly report still uses overall(), keep it.",
+        distractor='Note the weekly report still uses overall(), keep it.',
         conventions=["a dict with exactly the keys lo, hi and avg", "Missing readings arrive as None and are skipped",
                      "rounded to one decimal with halves going up (21.25 shows as 21.3)"],
         hidden=D(r"""
@@ -225,7 +228,9 @@ TASKS = [
         settle="We changed the username rules: 3 to 16 characters, only lower-case letters, digits and the "
                "underscore (no dots any more), and the first character must be a letter. check_username never "
                "raises: it returns (True, None) when valid, otherwise (False, reason) with the first rule broken, "
-               "checked in this order: 'length', 'chars', 'start'.",
+               "checked in this order: 'length', 'chars', 'start'."
+               " Display names are a separate field and may keep spaces and capitals.",
+        distractor='Display names are a separate field and may keep spaces and capitals.',
         conventions=["3 to 16 characters, only lower-case letters, digits and the underscore (no dots any more)",
                      "the first character must be a letter",
                      "it returns (True, None) when valid, otherwise (False, reason)"],
@@ -312,6 +317,7 @@ TASKS = [
                "89.5 is an A. Then the top three points of the B, C and D bands get a plus (87 to 89 is B+, but "
                "there is no A+). Scores below 0 or above 100 raise ValueError. passed() is used by the old report "
                "and stays as it is.",
+        distractor='passed() is used by the old report and stays as it is.',
         conventions=["round the score to a whole number with halves going up, so 89.5 is an A",
                      "the top three points of the B, C and D bands get a plus (87 to 89 is B+, but there is no A+)"],
         hidden=D(r"""
@@ -401,6 +407,7 @@ TASKS = [
                "are left out, and a list value becomes one parameter with the items joined by commas (tags=a,b), "
                "not repeated keys. Spaces must be %20, never '+'. legacy_query stays on urlencode for the old "
                "endpoints.",
+        distractor='legacy_query stays on urlencode for the old endpoints.',
         conventions=["keys sorted alphabetically, parameters whose value is None are left out",
                      "a list value becomes one parameter with the items joined by commas (tags=a,b), not repeated keys",
                      "Spaces must be %20, never '+'"],
@@ -474,7 +481,9 @@ TASKS = [
         reversed="Count every word as written, case-sensitive, and break ties alphabetically like letter_counts.",
         settle="Final word counting: case-insensitive, and the words come back in lower case. A word is a run of "
                "letters and apostrophes, so don't is one word. Words shorter than three letters are ignored. Ties "
-               "go to the word that appears first in the text, not alphabetical order.",
+               "go to the word that appears first in the text, not alphabetical order."
+               " letter_counts() for the cipher puzzle stays case-sensitive.",
+        distractor='letter_counts() for the cipher puzzle stays case-sensitive.',
         conventions=["case-insensitive, and the words come back in lower case",
                      "Words shorter than three letters are ignored",
                      "Ties go to the word that appears first in the text"],
@@ -540,6 +549,7 @@ TASKS = [
                "and m (days, hours, minutes); there is no s unit, and a bare number like '45' means minutes. "
                "Anything else, including an empty string, raises ValueError. parse_seconds stays for the old "
                "timer.",
+        distractor='parse_seconds stays for the old timer.',
         conventions=["it returns a datetime.timedelta, not a number",
                      "there is no s unit, and a bare number like '45' means minutes"],
         hidden=D(r"""
@@ -615,7 +625,9 @@ TASKS = [
               "and today's date, return the next one in the format the accountant wants.",
         settle="The accountant's format: INV-<year>-<four-digit counter>, for example INV-2026-0042, unlike our "
                "order refs. The counter starts again at 0001 when the year changes, using today's year. With no "
-               "last number, it's the first invoice of today's year.",
+               "last number, it's the first invoice of today's year."
+               " Order refs keep their ord_ format.",
+        distractor='Order refs keep their ord_ format.',
         conventions=["INV-<year>-<four-digit counter>, for example INV-2026-0042",
                      "The counter starts again at 0001 when the year changes"],
         hidden=D(r"""
@@ -676,7 +688,9 @@ TASKS = [
         reversed="A plain shallow update like load() does is fine for merge_config.",
         settle="Change of plan for merge_config: nested dicts are merged key by key (deep merge), and a list in "
                "override is added to the end of the base list, skipping items the base list already has. A key "
-               "whose override value is None is removed from the result.",
+               "whose override value is None is removed from the result."
+               " load() keeps its shallow update for the command-line flags.",
+        distractor='load() keeps its shallow update for the command-line flags.',
         conventions=["nested dicts are merged key by key (deep merge)",
                      "a list in override is added to the end of the base list, skipping items the base list "
                      "already has",
