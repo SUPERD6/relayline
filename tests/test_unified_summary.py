@@ -209,6 +209,34 @@ def test_p4_dispatch_metrics_and_stop_reason_by_subset(tmp_path):
     assert unknown["stop_reason"] == "dispatch_evidence_unknown"
 
 
+def test_p4_dispatch_block_for_round2_cheapfirst2_arm():
+    # Issue #370: round 2's group B arm (ccxcheapfirst2) needs escalation rate and first-rung vs escalation spend.
+    arm = U.P4.DE.ARM2
+    def dispatch(escalated):
+        return [{"dispatch": {"cheap_first": True, "attempted": 1, "escalated": escalated,
+                              "first_usd": .1, "escalation_usd": .3 if escalated else 0}},
+                {"review": True, "usd": .05}]
+    rows = [p4_row("self", 1, 10),
+            p4_row(arm, 1, 20, side_ledger=dispatch(0), dispatch_observed=True),
+            p4_row(arm, 1, 40, False, side_ledger=dispatch(1), dispatch_observed=True)]
+    result = U.p4(rows, "synthetic", ("self", arm))
+    assert "dispatch" not in result["all"]["arms"]["self"]
+    # Pre-registration section 4: no escalation-rate stop for this arm (--max-escalation-rate none).
+    assert result["all"]["arms"][arm]["dispatch"] == {
+        "attempted": 2, "escalated": 1, "escalation_rate": .5, "first_usd": .2, "escalation_usd": .3,
+        "status": "Pass", "stop_reason": None}
+    assert result["env_clean"]["arms"][arm]["dispatch"]["escalation_rate"] == 0
+    text = U.text_report(result)
+    assert f"{arm} dispatch" in text and "escalation_usd" in text
+    missing = U.p4([p4_row("self", 1, 1), p4_row(arm, None, None)], "synthetic", ("self", arm))
+    assert missing["all"]["arms"][arm]["dispatch"]["stop_reason"] == "dispatch_evidence_unknown"
+    no_cost = [{"dispatch": {"cheap_first": True, "attempted": 1, "escalated": 1,
+                             "first_usd": .1, "escalation_usd": None}}]
+    cost = U.p4([p4_row("self", 1, 1), p4_row(arm, 1, 1, side_ledger=no_cost, dispatch_observed=True)],
+                "synthetic", ("self", arm))["all"]["arms"][arm]["dispatch"]
+    assert cost["escalation_usd"] is None and cost["stop_reason"] == "dispatch_cost_unknown"
+
+
 def test_p4_default_input_matches_existing_parser():
     assert U.P4.parser().get_default("out") == EVAL.parents[1] / ".ccx/eval/p4/results.jsonl"
 
