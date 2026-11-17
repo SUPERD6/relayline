@@ -315,11 +315,13 @@ def score(repo: Path, task: dict, material: dict, python: str, native=False) -> 
             E._git(target, "commit", "-q", "--no-verify", "-m", "score snapshot")
             LE.checkout(target)
         # check_tree extracts a supplied tar; score the already assembled copy.
-        return run_hidden(target, task["tests"], python)
+        return run_hidden(target, task["tests"], python, src_layout=task.get("src_layout") is True)
 
 
-def run_hidden(repo: Path, tests: list[str], python: str) -> dict:
-    env = {**PF.base_env(), "PYTHONPATH": str(repo), "PYTEST_DISABLE_PLUGIN_AUTOLOAD": "1",
+def run_hidden(repo: Path, tests: list[str], python: str, src_layout: bool = False) -> dict:
+    # A task that round2_tasks validated with src/ on the path (#364 records src_layout) is scored the same way (#367).
+    path = (str(repo / "src") + os.pathsep if src_layout else "") + str(repo)
+    env = {**PF.base_env(), "PYTHONPATH": path, "PYTEST_DISABLE_PLUGIN_AUTOLOAD": "1",
            "PYTHONDONTWRITEBYTECODE": "1", "PIP_NO_INDEX": "1"}
     out, err, rc, _ = PF.run([python, "-m", "pytest", "-q", "-o", "addopts=", "-p", "no:cacheprovider", *tests],
                              cwd=repo, env=env, timeout=180)
@@ -826,7 +828,8 @@ def main(argv=None) -> int:
                             "evidence": "not run", "policy": "independent check only; check.baseline on_fail; new failures only"}
     if a.split in ROUND2:
         digest = PF.sha256_file(Path(a.tasks_file))
-        plan.update(tasks_file=str(a.tasks_file), tasks_file_sha256=digest, selection_sha256=digest)
+        plan.update(tasks_file=str(a.tasks_file), tasks_file_sha256=digest, selection_sha256=digest,
+                    src_layout_tasks=sum(t.get("src_layout") is True for t in tasks))
     if a.split in ROUND2 or set(DE.ARMS) & set(arms):
         plan.update(plan_settings(a, arms))
     if a.split == "p5" and len(tasks) != 8:

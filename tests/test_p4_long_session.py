@@ -64,7 +64,7 @@ def fake_engine(tmp_path, monkeypatch):
                            "tests": {"tests/test_hidden.py": b"# HIDDEN_GRADE_SENTINEL"}} for t in ts}
     monkeypatch.setattr(P.LC, "material", lambda _, t: material[t["id"]])
 
-    def hidden(repo, names, python):
+    def hidden(repo, names, python, **_):
         assert (repo / "tests/test_hidden.py").read_text() == "# HIDDEN_GRADE_SENTINEL"
         return {"ok": True, "rc": 0, "summary": "HIDDEN_GRADE_SENTINEL", "output": "HIDDEN_GRADE_SENTINEL",
                 "environment_error": False}
