@@ -11,24 +11,34 @@ Inputs (explicit files only; a path under `eval-codex-home` is refused):
 Per run:
 - first rung: actual_first_rung (#379), else first_rung (run.json), else dispatch.first_rung (cheap-first), else
   rungs[0] (the first attempt actually made). The source counts are in input.first_rung_source.
-- category (--by auto): category, task_type, task, `role:<role>`, `mode:<mode>`, else unknown.
-- outcome: a result row's `ok`, else the last non-probable `verify` event of the run. The ledger row's own `ok` only
-  says the run finished, never that the work was right. A probable (soft) verdict counts only with
+- category (--by auto): category, task_type, `role:<role>`, `mode:<mode>`, else unknown. `task` is not in auto (an
+  evaluation's task field would cut every task into its own one-run category); ask for it with --by task.
+- outcome: a scorable result row's `ok`, else the last non-probable `verify` event of the run. The ledger row's own
+  `ok` only says the run finished, never that the work was right. A result row is scorable when `ok` is a bool and
+  it carries no `error`, `invalid`, `environment_error`, `invalid_reason`, `receipt_error` or status "error" (as
+  receipt_fp / unified_summary.valid, without the usd rule: an outcome needs no cost); the others are counted in
+  results_unscorable and the run falls back to verify. A result row goes to ONE run: the last of its `ccx_run_ids`
+  (or `run_id`) that is in the ledger and is not a review run, else the last ledger run with its `label`;
+  results_multi_run counts rows that had several candidate runs. A probable (soft) verdict counts only with
   --include-probable. Runs without an outcome are in n, not in n_judged.
 - ok_final: judged right in the end. ok_first: right and attempts <= 1 (an escalated or retried run missed on its
-  first rung; a lower bound, because attempts also counts same-rung retries and vendor fallbacks).
+  first rung; a lower bound, because attempts also counts same-rung retries and vendor fallbacks). attempts is the
+  ledger's number, or len() of run.json's list, else len(rungs), else 1.
 - cost: the ledger row's ae_usd (API-equivalent, all attempts, so escalation spend is in the first rung's cost).
+  cost.mean_usd is over every run of the cell with a known cost, judged_mean_usd over the judged ones (the runs
+  the rates and the rule estimate are about).
 
 Calibration: p (and chain_p) of the routing pick vs the observed rate. p is the pick's own success chance, so it is
 compared with ok_first, and chain_p (with escalation) with ok_final. It is used only when the pick's rung
-(planned_first_rung, else route.rung) is the rung the run started on; p of another rung is not evidence for
+(route.rung, else planned_first_rung) is the rung the run started on; p of another rung is not evidence for
 this one (p_other_rung / p_rung_unknown count the rows left out). gap = mean_p - actual (positive = over-confident),
 brier = mean (p - outcome)^2.
 
 --rule (JSON file or literal {...}): {"name": "...", "default": RUNG, "by_category": {CATEGORY: RUNG}}. Per category,
 the estimate is that (category, rung) cell's observed ok_final rate and mean cost when the cell has at least
---min-n judged runs; otherwise the category is `unsupported` and stays out of the totals (coverage says how much of
-the history that leaves). It is not a forecast: history was not randomized (routing chose each rung for the task it
+--min-n judged runs (with its Wilson interval: 10 of 10 right still only bounds the rate at about 72%);
+otherwise the category is `unsupported` and stays out of the totals (coverage says how much of the history that
+leaves). Categories the rule names but the history has none of are listed in categories_without_history. It is not a forecast: history was not randomized (routing chose each rung for the task it
 saw), so a cell's rate describes the tasks it got, not the tasks the rule would send there.
 
 Examples:
@@ -72,7 +82,11 @@ def rate(k: int, n: int) -> dict:
 
 def _check_path(path) -> Path:
     path = Path(path)
-    if FORBIDDEN in (part.lower() for part in path.parts):
+    try:
+        resolved = path.resolve()                      # a link or junction can lead there under another name
+    except OSError:
+        resolved = path
+    if any(FORBIDDEN in part.lower() for part in (*path.parts, *resolved.parts)):
         raise SystemExit(f"refusing to read {path}: paths under {FORBIDDEN} are not inputs of this script")
     return path
 
@@ -107,9 +121,17 @@ def load_runs(runs_dir) -> dict[str, dict]:
     return out
 
 
-def index_results(rows: list[dict]) -> dict[str, dict]:
-    """label -> scored row (the last one when a label was scored twice)."""
-    return {r["label"]: r for r in rows if isinstance(r, dict) and r.get("label")}
+def index_results(rows: list[dict]) -> list[dict]:
+    """The result rows (dicts) in order; linked to ledger runs by outcomes()."""
+    return [r for r in rows if isinstance(r, dict)]
+
+
+def scorable(row: dict) -> bool:
+    """A result row whose `ok` is a real hidden-test outcome: a bool, and no error, invalid, environment or
+    receipt failure (an environment fault is not the model being wrong)."""
+    return (type(row.get("ok")) is bool and not row.get("error") and row.get("invalid") is not True
+            and not row.get("invalid_reason") and row.get("environment_error") is not True
+            and row.get("receipt_error") is not True and row.get("status") != "error")
 
 
 def load_results(path) -> list[dict]:
@@ -137,8 +159,18 @@ def category(row: dict, by: str = "auto") -> str:
     fields = {"category": row.get("category"), "task_type": row.get("task_type"), "task": row.get("task"),
               "role": row.get("role") and f"role:{row['role']}", "mode": row.get("mode") and f"mode:{row['mode']}"}
     if by == "auto":
-        return next((str(fields[k]) for k in ("category", "task_type", "task", "role", "mode") if fields[k]), "unknown")
+        return next((str(fields[k]) for k in ("category", "task_type", "role", "mode") if fields[k]), "unknown")
     return str(fields[by]) if fields.get(by) else "unknown"
+
+
+def _attempts(row: dict) -> int:
+    """Attempts made: the ledger's number, or len() of run.json's list; else one per rung; else one."""
+    a = row.get("attempts")
+    if isinstance(a, list):
+        return len(a) or 1
+    if isinstance(a, int) and not isinstance(a, bool) and a >= 1:
+        return a
+    return len(row.get("rungs") or []) or 1
 
 
 def _num(x):
@@ -149,40 +181,54 @@ def _p(x):
     return float(x) if isinstance(x, (int, float)) and not isinstance(x, bool) and 0 <= x <= 1 else None
 
 
-def outcomes(rows: list[dict], results: dict[str, dict] | None, include_probable: bool) -> dict[str, tuple]:
-    """run id -> (ok, source). Result row > last hard verify > (opt in) last probable verify."""
+def outcomes(rows: list[dict], results: list[dict] | None, include_probable: bool) -> tuple[dict, Counter]:
+    """(run id -> (ok, source), counters). Scorable result row > last hard verify > (opt in) last probable verify."""
     hard, soft = {}, {}
     for r in rows:
         if r.get("type") == "verify" and r.get("run_id") and isinstance(r.get("ok"), bool):
             (soft if r.get("soft") else hard)[r["run_id"]] = r["ok"]
-    out = {}
-    for r in rows:
-        rid = r.get("run_id")
-        if r.get("type") or rid is None:
+    runs = {r["run_id"]: r for r in rows if not r.get("type") and r.get("run_id") is not None}
+    by_label: dict[str, list[str]] = defaultdict(list)
+    for rid, r in runs.items():
+        if r.get("label"):
+            by_label[r["label"]].append(rid)
+    n, from_result = Counter(), {}
+    for res in results or []:
+        if not scorable(res):
+            n["results_unscorable"] += 1
             continue
-        res = (results or {}).get(r.get("label"))
-        if res is not None and isinstance(res.get("ok"), bool):
-            out[rid] = (res["ok"], "result")
+        ids = res.get("ccx_run_ids") or ([res["run_id"]] if res.get("run_id") else [])
+        cand = [i for i in ids if i in runs and not str(runs[i].get("label") or "").startswith("review:")]
+        if not cand:
+            cand = by_label.get(res.get("label"), [])
+        if not cand:
+            n["results_unmatched"] += 1
+            continue
+        n["results_multi_run"] += len(cand) > 1
+        from_result[cand[-1]] = res["ok"]
+    out = {}
+    for rid in runs:
+        if rid in from_result:
+            out[rid] = (from_result[rid], "result")
         elif rid in hard:
             out[rid] = (hard[rid], "verify")
         elif include_probable and rid in soft:
             out[rid] = (soft[rid], "probable")
-    return out
+    return out, n
 
 
-def replay(rows: list[dict], run_records: dict[str, dict] | None = None, results: dict[str, dict] | None = None,
+def replay(rows: list[dict], run_records: dict[str, dict] | None = None, results: list[dict] | None = None,
            only: str = "all", by: str = "auto", include_probable: bool = False, min_n: int = MIN_N,
            rule: dict | None = None) -> dict:
     run_records = run_records or {}
     rows = _ledger._mark_dismissed([dict(r) for r in rows])
-    outs = outcomes(rows, results, include_probable)
+    outs, res_n = outcomes(rows, results, include_probable)
     probable_only = len({r["run_id"] for r in rows if r.get("type") == "verify" and r.get("soft")
                          and r.get("run_id")} - {r["run_id"] for r in rows if r.get("type") == "verify"
                                                   and not r.get("soft") and r.get("run_id")})
     inp = Counter()
     sources, osrc = Counter(), Counter()
     cells: dict[tuple, dict] = {}
-    seen_labels = set()
     for r in rows:
         if r.get("type") or r.get("run_id") is None:
             continue
@@ -203,12 +249,15 @@ def replay(rows: list[dict], run_records: dict[str, dict] | None = None, results
             inp["no_first_rung"] += 1
             continue
         sources[src] += 1
-        seen_labels.add(r.get("label"))
         cat = category(r, by)
         c = cells.setdefault((cat, rung), {"category": cat, "first_rung": rung, "n": 0, "judged": 0, "final": 0,
                                            "first": 0, "usd": [], "cal": [], "chain": []})
         c["n"] += 1
-        attempts = r.get("attempts") if isinstance(r.get("attempts"), int) else None
+        attempts = _attempts(r)
+        planned = r.get("planned_first_rung")
+        if planned:
+            inp["planned_known"] += 1
+            inp["planned_differs"] += planned != rung
         if (usd := _num(r.get("ae_usd"))) is not None:
             c["usd"].append((usd, r["run_id"]))
         ok = outs.get(r["run_id"])
@@ -218,39 +267,35 @@ def replay(rows: list[dict], run_records: dict[str, dict] | None = None, results
             osrc[ok[1]] += 1
             c["judged"] += 1
             c["final"] += ok[0]
-            first_ok = ok[0] and (attempts or 1) <= 1
+            first_ok = ok[0] and attempts <= 1
             c["first"] += first_ok
             c.setdefault("rows", []).append((r["run_id"], ok[0]))
             c["judged_usd"] = c.get("judged_usd", []) + ([usd] if usd is not None else [None])
             route = r.get("route") if isinstance(r.get("route"), dict) else {}
             p, chain = _p(route.get("p", r.get("p"))), _p(route.get("chain_p", r.get("chain_p")))
-            planned = r.get("planned_first_rung")
-            if planned:
-                inp["planned_known"] += 1
-                inp["planned_differs"] += planned != rung
             if p is not None or chain is not None:
-                pick = planned or route.get("rung")
+                pick = route.get("rung") or planned
                 if pick is None:
-                    inp["p_rung_unknown"] += 1
+                    inp["p_rung_unknown_judged"] += 1
                 elif pick != rung:
-                    inp["p_other_rung"] += 1
+                    inp["p_other_rung_judged"] += 1
                 else:
                     if p is not None:
                         c["cal"].append((p, 1.0 if first_ok else 0.0))
                     if chain is not None:
                         c["chain"].append((chain, 1.0 if ok[0] else 0.0))
-    inp["results_unmatched"] = sum(1 for lab in (results or {}) if lab not in seen_labels)
     table = [_cell_report(c, min_n) for _, c in sorted(cells.items())]
     cal_all = [x for c in cells.values() for x in c["cal"]]
     chain_all = [x for c in cells.values() for x in c["chain"]]
     report = {
         "input": {**{k: inp.get(k, 0) for k in ("ledger_runs", "dismissed", "filtered_out", "no_first_rung",
                                                  "run_json_matched", "planned_known", "planned_differs",
-                                                 "p_other_rung", "p_rung_unknown", "results_unmatched")},
+                                                 "p_other_rung_judged", "p_rung_unknown_judged")},
+                  **{k: res_n.get(k, 0) for k in ("results_unscorable", "results_unmatched", "results_multi_run")},
                   "probable_only": probable_only, "first_rung_source": dict(sources), "outcome_source": dict(osrc),
                   "only": only, "by": by, "min_n": min_n, "include_probable": include_probable},
         "cells": table,
-        "calibration_overall": _calibration(cal_all, chain_all),
+        "calibration_overall": _calibration(cal_all, chain_all, min_n),
         "limitations": LIMITATIONS,
     }
     if rule is not None:
@@ -262,6 +307,8 @@ LIMITATIONS = [
     "History was not randomized: routing chose each rung for the task it saw, so cells are not comparable "
     "with each other and a rate is not a rung's strength.",
     "Rates and costs describe runs judged by a person, the lead or a scored result row; unjudged runs are in n only.",
+    "A rungs[0] first rung is the first attempt actually made: when the start was moved (a budget or model swap) "
+    "it can differ from the rung routing planned; actual_first_rung / first_rung say it exactly.",
     "ok_first counts an escalated, retried or fallen-back run as a miss on its first rung (a lower bound).",
     "Cost is the whole run's ae_usd (escalation spend included), not the first attempt's alone.",
     "p is compared only for rows whose routing pick is the rung the run started on; old ledger rows keep no p.",
@@ -283,12 +330,13 @@ def _cell_report(c: dict, min_n: int) -> dict:
             "ok_final": rate(c["final"], c["judged"]), "ok_first": rate(c["first"], c["judged"]),
             "cost": {"n_known": len(allk), "mean_usd": round(sum(allk) / len(allk), 6) if allk else None,
                      "judged_known": len(known),
+                     "judged_mean_usd": round(sum(known) / len(known), 6) if known else None,
                      "usd_per_success": round(sum(known) / c["final"], 6)
                      if c["final"] and len(known) == c["judged"] else None},
-            "calibration": _calibration(c["cal"], c["chain"], bare=True), "flags": flags}
+            "calibration": _calibration(c["cal"], c["chain"], min_n), "flags": flags}
 
 
-def _calibration(cal: list, chain: list, bare: bool = False):
+def _calibration(cal: list, chain: list, min_n: int = MIN_N):
     if not cal and not chain:
         return None
 
@@ -300,7 +348,7 @@ def _calibration(cal: list, chain: list, bare: bool = False):
         act = sum(o for _, o in xs) / n
         return {"n": n, "mean_p": round(mp, 4), "actual": round(act, 4), "gap": round(mp - act, 4),
                 "brier": round(sum((p - o) ** 2 for p, o in xs) / n, 4),
-                "flags": ["small_sample"] if n < MIN_N else []}
+                "flags": ["small_sample"] if n < min_n else []}
     first = stats(cal)
     out = dict(first) if first else {"n": 0}
     out["chain"] = stats(chain)
@@ -321,6 +369,7 @@ def check_rule(rule) -> dict:
 def apply_rule(cells: dict, rule: dict, min_n: int) -> dict:
     cats = sorted({cat for cat, _ in cells})
     out, sup_runs, tot_runs = [], 0, 0
+    missing = sorted(c for c in (rule.get("by_category") or {}) if c not in set(cats))
     tot_ok = tot_usd = base_n = base_ok = 0.0
     usd_den = 0.0
     for cat in cats:
@@ -338,7 +387,9 @@ def apply_rule(cells: dict, rule: dict, min_n: int) -> dict:
             row["reason"] = f"cell n={cell['judged']} < min_n {min_n}"
         else:
             known = [u for u in cell.get("judged_usd", []) if u is not None]
+            ci = wilson(cell["final"], cell["judged"])
             row.update(supported=True, cell_n=cell["judged"], est_ok_final=cell["final"] / cell["judged"],
+                       est_ci95=[round(ci[0], 4), round(ci[1], 4)],
                        est_cost_usd=round(sum(known) / len(known), 6) if known else None,
                        cell_cost_known=len(known))
             sup_runs += weight
@@ -355,6 +406,7 @@ def apply_rule(cells: dict, rule: dict, min_n: int) -> dict:
     return {
         "rule": {k: v for k, v in rule.items()},
         "categories": out,
+        "categories_without_history": missing,
         "coverage": {"supported_runs": int(sup_runs), "total_runs": int(tot_runs),
                      "share": round(sup_runs / tot_runs, 4) if tot_runs else None,
                      "supported_categories": sum(r["supported"] for r in out), "categories": len(out)},
@@ -366,7 +418,8 @@ def apply_rule(cells: dict, rule: dict, min_n: int) -> dict:
                     "this rule would send there (not an out-of-sample forecast)",
                     "only categories with a cell of at least min_n judged runs are estimated; the rest are "
                     "unsupported, not guessed",
-                    "ok_final is end-to-end (escalation included); cost is mean ae_usd of the cell's runs"],
+                    "ok_final is end-to-end (escalation included); cost is the mean ae_usd of the cell's judged runs "
+                    "(the same runs as the rate); est_ci95 is the Wilson 95% interval of the cell's rate"],
     }
 
 
@@ -402,7 +455,12 @@ def text(report: dict) -> str:
                       f"covering {cov['supported_runs']}/{cov['total_runs']} judged runs "
                       f"({cov['supported_categories']}/{cov['categories']} categories)",
                   f"  history on the same categories: {r['history_same_categories']}"]
+        lines += [f"  {c['category']} -> {c['rung']}: right {_pct(c['est_ok_final'])} "
+                  f"[{c['est_ci95'][0]:.0%}-{c['est_ci95'][1]:.0%}] n={c['cell_n']}"
+                  for c in r["categories"] if c["supported"]]
         lines += [f"  unsupported {c['category']}: {c['reason']}" for c in r["categories"] if not c["supported"]]
+        if r["categories_without_history"]:
+            lines.append(f"  rule names categories the history does not have: {r['categories_without_history']}")
         lines += [f"  note: {c}" for c in r["caveats"]]
     lines += ["", *[f"limit: {s}" for s in report["limitations"]]]
     return "\n".join(lines) + "\n"
@@ -416,7 +474,8 @@ def main(argv=None) -> int:
     p.add_argument("--results", action="append", type=Path, default=[], help="scored result rows, joined by label")
     p.add_argument("--only", choices=("all", "eval", "real"), default="all",
                    help="evaluation runs (label eval-..., --no-ab, probes) vs real use")
-    p.add_argument("--by", choices=("auto", "category", "task_type", "task", "role", "mode"), default="auto")
+    p.add_argument("--by", choices=("auto", "category", "task_type", "task", "role", "mode"), default="auto",
+                   help="auto = category, task_type, role, mode (the first a run has); task only on request")
     p.add_argument("--include-probable", action="store_true", help="count probable (soft) verdicts as outcomes")
     p.add_argument("--min-n", type=int, default=MIN_N, help="judged runs below this are flagged small_sample and "
                    "cannot support a rule estimate (default %(default)s)")

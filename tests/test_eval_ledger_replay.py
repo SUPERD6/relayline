@@ -34,6 +34,7 @@ def cell(report, category, rung):
 
 
 def replay(tmp_path, rows, **kw):
+    kw.setdefault("by", "task")                 # the tests name their categories with `task`; auto is tested apart
     return L.replay(L.load_ledger(write_jsonl(tmp_path / "ledger.jsonl", rows)), **kw)
 
 
@@ -105,8 +106,14 @@ def test_only_filter_splits_eval_from_real_use(tmp_path):
 def test_category_fallback_chain(tmp_path):
     rows = [run(0, task=None, category="cat"), run(1, task=None, role="build"), run(2, task=None, mode="read"),
             run(3, task=None, mode=None)]
-    cats = {c["category"] for c in replay(tmp_path, rows)["cells"]}
+    cats = {c["category"] for c in replay(tmp_path, rows, by="auto")["cells"]}
     assert cats == {"cat", "role:build", "mode:read", "unknown"}
+
+
+def test_auto_does_not_cut_by_task(tmp_path):
+    rows = [run(0, task="x1", mode="write"), run(1, task="x2", mode="write")]
+    assert [c["category"] for c in replay(tmp_path, rows, by="auto")["cells"]] == ["mode:write"]
+    assert {c["category"] for c in replay(tmp_path, rows, by="task")["cells"]} == {"x1", "x2"}
 
 
 # ---- new fields (#379): planned_first_rung / actual_first_rung / rung_why ----
@@ -149,7 +156,7 @@ def test_p_of_another_rung_is_not_used(tmp_path):
             run(1, rungs=(R2,), route={"p": 0.7}), verify(0, True), verify(1, True)]
     rep = replay(tmp_path, rows)
     assert cell(rep, "t1", R2)["calibration"] is None
-    assert rep["input"]["p_other_rung"] == 1 and rep["input"]["p_rung_unknown"] == 1
+    assert rep["input"]["p_other_rung_judged"] == 1 and rep["input"]["p_rung_unknown_judged"] == 1
 
 
 def test_run_json_enriches_old_rows(tmp_path):
@@ -188,6 +195,77 @@ def test_result_rows_give_the_outcome_by_label_and_win_over_verify(tmp_path):
     assert rep["input"]["outcome_source"] == {"result": 2}
 
 
+def test_result_rows_with_environment_faults_are_not_outcomes(tmp_path):
+    rows = [run(i) for i in range(6)] + [verify(5, True)]
+    results = [{"label": "eval-x:0", "ok": False, "error": "timeout"},
+               {"label": "eval-x:1", "ok": False, "invalid": True},
+               {"label": "eval-x:2", "ok": False, "environment_error": True},
+               {"label": "eval-x:3", "ok": False, "status": "error"},
+               {"label": "eval-x:4", "ok": False, "invalid": False},
+               {"label": "eval-x:5", "ok": False, "receipt_error": True}]
+    rep = replay(tmp_path, rows, results=L.index_results(results))
+    c = cell(rep, "t1", R1)
+    assert rep["input"]["results_unscorable"] == 5
+    assert c["n_judged"] == 2 and c["ok_final"]["k"] == 1            # r4 scored wrong; r5 falls back to its verdict
+    assert rep["input"]["outcome_source"] == {"result": 1, "verify": 1}
+
+
+def test_result_rows_link_by_ccx_run_ids_and_count_only_once(tmp_path):
+    rows = [run(0, label="eval-x:u1"), run(1, label="eval-x:u1"), run(2, label="review:r1"),
+            run(3, label="eval-x:u2")]
+    results = [{"label": "u1-unit", "ok": True, "ccx_run_ids": ["r0", "r1", "r2"]},   # resumed unit + its review run
+               {"label": "other", "ok": False, "run_id": "r3"},
+               {"label": "ghost", "ok": True, "ccx_run_ids": ["nope"]}]
+    rep = replay(tmp_path, rows, results=L.index_results(results))
+    c = cell(rep, "t1", R1)
+    assert c["n"] == 4 and c["n_judged"] == 2 and c["ok_final"]["k"] == 1     # r1 (last) right, r3 wrong
+    assert rep["input"]["results_multi_run"] == 1 and rep["input"]["results_unmatched"] == 1
+
+
+def test_same_label_runs_get_the_result_once(tmp_path):
+    rows = [run(0, label="eval-x:u"), run(1, label="eval-x:u")]
+    rep = replay(tmp_path, rows, results=L.index_results([{"label": "eval-x:u", "ok": True}]))
+    assert cell(rep, "t1", R1)["n_judged"] == 1 and rep["input"]["results_multi_run"] == 1
+
+
+# ---- attempts ----
+
+def test_attempts_list_from_run_json_counts_its_length(tmp_path):
+    runs = tmp_path / "runs"
+    for i, atts in enumerate(([{}, {}], [{}], [])):
+        d = runs / f"r{i}"
+        d.mkdir(parents=True)
+        (d / "run.json").write_text(json.dumps({"run_id": f"r{i}", "attempts": atts}), encoding="utf-8")
+    rows = [{k: v for k, v in run(i).items() if k != "attempts"} for i in range(3)]
+    rows.append({k: v for k, v in run(3, rungs=(R1, R2)).items() if k != "attempts"})        # no run.json: len(rungs)
+    rows += [verify(i, True) for i in range(4)]
+    c = cell(replay(tmp_path, rows, run_records=L.load_runs(runs)), "t1", R1)
+    assert c["ok_final"]["k"] == 4 and c["ok_first"]["k"] == 2         # r0 two attempts, r3 two rungs: not first-rung
+
+
+def test_attempts_helper():
+    assert L._attempts({"attempts": [1, 2, 3]}) == 3 and L._attempts({"attempts": []}) == 1
+    assert L._attempts({"attempts": 2}) == 2 and L._attempts({"rungs": ["a", "b"]}) == 2
+    assert L._attempts({}) == 1 and L._attempts({"attempts": True, "rungs": ["a"]}) == 1
+
+
+def test_route_rung_wins_over_planned_for_the_pick(tmp_path):
+    rows = [run(0, route={"p": 0.9, "rung": R1}, planned_first_rung=R2), verify(0, True)]
+    assert cell(replay(tmp_path, rows), "t1", R1)["calibration"]["n"] == 1
+
+
+def test_calibration_small_sample_follows_min_n(tmp_path):
+    rows = [run(i, route={"p": 0.8, "rung": R1}) for i in range(4)] + [verify(i, True) for i in range(4)]
+    assert cell(replay(tmp_path, rows, min_n=3), "t1", R1)["calibration"]["flags"] == []
+    assert cell(replay(tmp_path, rows, min_n=5), "t1", R1)["calibration"]["flags"] == ["small_sample"]
+
+
+def test_planned_counts_cover_all_kept_rows_not_only_judged(tmp_path):
+    rows = [run(0, planned_first_rung=R2, actual_first_rung=R1)]               # not judged
+    inp = replay(tmp_path, rows)["input"]
+    assert inp["planned_known"] == 1 and inp["planned_differs"] == 1
+
+
 # ---- candidate rule ----
 
 def rule_rows(tmp_path):
@@ -218,6 +296,27 @@ def test_rule_estimates_only_where_history_supports_it(tmp_path):
     base = r["history_same_categories"]                              # what history actually did there
     assert base["n"] == 30 and base["ok_final"] == pytest.approx((6 + 9 + 2) / 30, abs=1e-3)
     assert any("not randomized" in s for s in r["caveats"])
+    lo, hi = cats["A"]["est_ci95"]
+    assert lo == pytest.approx(L.wilson(9, 10)[0], abs=1e-3) and hi == pytest.approx(L.wilson(9, 10)[1], abs=1e-3)
+    assert r["categories_without_history"] == []
+    assert "est_ci95" not in cats["C"]
+
+
+def test_rule_ten_of_ten_still_has_a_wide_interval_and_lists_unknown_categories(tmp_path):
+    rows = [run(i, task="A") for i in range(10)] + [verify(i, True) for i in range(10)]
+    rep = replay(tmp_path, rows, rule={"by_category": {"A": R1, "Z": R2}})
+    a = rep["rule"]["categories"][0]
+    assert a["est_ok_final"] == 1.0 and a["est_ci95"][0] == pytest.approx(0.7225, abs=1e-3)
+    assert rep["rule"]["categories_without_history"] == ["Z"]
+    assert "72%" in L.text(rep) and "Z" in L.text(rep)
+
+
+def test_rule_cost_is_over_the_judged_runs_like_the_rate(tmp_path):
+    rows = [run(i, usd=0.1) for i in range(10)] + [run(10, usd=5.0)] + [verify(i, True) for i in range(10)]
+    rep = replay(tmp_path, rows, rule={"default": R1})
+    c = cell(rep, "t1", R1)
+    assert c["cost"]["judged_mean_usd"] == pytest.approx(0.1) and c["cost"]["mean_usd"] > 0.4
+    assert rep["rule"]["categories"][0]["est_cost_usd"] == pytest.approx(0.1)
 
 
 def test_rule_default_and_missing_rung(tmp_path):
@@ -276,6 +375,18 @@ def test_cli_rule_file_and_literal_json(tmp_path):
     rf.write_text(json.dumps({"default": R1}), encoding="utf-8")
     assert json.loads(cli("--ledger", led, "--rule", rf).stdout)["rule"]["rule"] == {"default": R1}
     assert json.loads(cli("--ledger", led, "--rule", json.dumps({"default": R2})).stdout)["rule"]["coverage"]
+
+
+def test_cli_refuses_a_link_into_the_eval_codex_home(tmp_path):
+    target = tmp_path / "eval-codex-home"
+    write_jsonl(target / "ledger.jsonl", [run(0)])
+    link = tmp_path / "innocent"
+    try:
+        link.symlink_to(target, target_is_directory=True)
+    except (OSError, NotImplementedError):
+        pytest.skip("symbolic links are not available here")
+    out = cli("--ledger", link / "ledger.jsonl")
+    assert out.returncode != 0 and "eval-codex-home" in out.stderr
 
 
 def test_cli_refuses_the_eval_codex_home_and_missing_input(tmp_path):
