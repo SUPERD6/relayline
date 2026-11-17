@@ -99,6 +99,7 @@ class Request:
     user_task: str | None = None    # original task, before role/project wrapping; explicit callers may supply it
     user_words_file: str | None = None  # explicit original wording; otherwise opt-in Claude transcript
     brief_warnings: list[dict[str, str]] | None = None  # additive, advisory dispatch diagnostics
+    given: dict | None = None       # what the person named (to/model/effort/tier/provider): rung reasons only (#379)
 
 
 def _busy(p: Paths, prev: dict, scan: int = 300) -> str | None:
@@ -486,14 +487,61 @@ def _child_env(to: str, run_id: str, extra: dict | None = None, provider: bool =
     return env
 
 
+def max_escalations(req: Request, cfg: dict) -> int:
+    escalate = cfg["defaults"].get("auto_escalate", True) if req.escalate is None else req.escalate
+    return int(cfg["defaults"].get("max_escalations", 1)) if escalate else 0
+
+
+def first_plan(req: Request, p: Paths, cfg: dict, max_esc: int) -> tuple[list[dict], dict, bool, dict]:
+    """(rungs to try, routing's first rung, cheap-first dispatch on, provider envs): the steps run() takes before
+    anything starts, shared with `ccx run --dry-run` so both name the same first rung (#379)."""
+    if req.provider:
+        req.to = req.provider                  # a provider is its own agent: own rungs, prices and learning
+    elif provider_of(cfg, req.to):
+        req.provider = req.to
+    plan = _plan(req, p, cfg, max_esc)
+    requested = plan[0]
+    plan, cheap_dispatch = dispatch.prepare(req, cfg, plan, max_esc)
+    plan = [_usable(p, x) for x in plan]
+    pv_env = _provider_envs(cfg, plan)       # missing key for the first rung -> clear error before anything runs
+    plan = _within_budget(p, cfg, plan)
+    return plan, requested, cheap_dispatch, pv_env
+
+
+def rung_why(req: Request, plan: list[dict], requested: dict, cheap: bool) -> dict:
+    """The planned first rung (routing's pick, before the strict floor, cheap-first, a model swap or the budget), the
+    rung the run starts on, and why (#379). Recorded and shown; it decides nothing."""
+    from .plan import pick_reasons, plan_changes
+    planned = requested.get("raised_from") or requested["rung"]
+    kw = {"to": requested["agent"], "model": requested["model"], "effort": requested["effort"],
+          "tier": requested.get("tier")}
+    why = {"planned_first_rung": planned, "first_rung": plan[0]["rung"],
+           **pick_reasons(req.route, kw, req.caller, req.given)}
+    if req.resume_run and not req.continued:
+        why["model"] += "; resumed: keeps the last attempt's model"
+    changes = plan_changes(planned, plan, cheap, requested)
+    if changes:
+        why["changes"] = changes
+    return why
+
+
+# attempts that did no work and were replaced by another rung: capacity, quota, a model this account lacks
+_REPLACED = ("capacity", "quota", "model")
+
+
+def actual_first_rung(attempts: list[dict]) -> str | None:
+    """The first rung that really took the task: attempts stopped by capacity, quota or a missing model, which ccx
+    replaced with another rung, do not count (#379). None while no rung has (or none ever did)."""
+    return next((a.get("rung") for a in attempts if a.get("kind") not in _REPLACED), None)
+
+
 @quota.reading_scope()
 def run(req: Request, p: Paths) -> dict:
     cfg = load_config(p)
     depth_guard(cfg)
     if req.subagents == "off":
         req.allow_subagents = False
-    escalate = cfg["defaults"].get("auto_escalate", True) if req.escalate is None else req.escalate
-    max_esc = int(cfg["defaults"].get("max_escalations", 1)) if escalate else 0
+    max_esc = max_escalations(req, cfg)
     timeout = int(cfg["defaults"].get("timeout_sec", 1800))
     stall_sec = stall_seconds(cfg)
 
@@ -638,16 +686,8 @@ def run(req: Request, p: Paths) -> dict:
         # the person's own brief: `ccx task resume` restarts from it when the run was killed before its session began
         (run_dir / "brief.md").write_text(req.brief, encoding="utf-8")
 
-    if req.provider:
-        req.to = req.provider                  # a provider is its own agent: own rungs, prices and learning
-    elif provider_of(cfg, req.to):
-        req.provider = req.to
-    plan = _plan(req, p, cfg, max_esc)
-    requested = plan[0]
-    plan, cheap_dispatch = dispatch.prepare(req, cfg, plan, max_esc)
-    plan = [_usable(p, x) for x in plan]
-    pv_env = _provider_envs(cfg, plan)       # missing key for the first rung -> clear error before anything runs
-    plan = _within_budget(p, cfg, plan)
+    plan, requested, cheap_dispatch, pv_env = first_plan(req, p, cfg, max_esc)
+    why_rung = rung_why(req, plan, requested, cheap_dispatch)
     from . import quota
     quota.maybe_refresh(p, cfg, [req.to], (req.route or {}).get("quota"))
     if req.route and req.route.get("role_effort_auto"):
@@ -667,6 +707,8 @@ def run(req: Request, p: Paths) -> dict:
         "route": req.route, "task": req.task, "step": req.step, "learned": None, "ts": time.time(),
         "provider": req.provider, "lead_session": req.lead_session, "continued": cont,
         "first_rung": plan[0]["rung"],
+        # #379: routing's first rung, the first rung that really took the task (set after each attempt), and why
+        "planned_first_rung": why_rung["planned_first_rung"], "actual_first_rung": None, "rung_why": why_rung,
         "quota_at_start": quota.at_start(p),
         "continue_depth": (int(prev.get("continue_depth", 0)) + 1) if cont else 0,
         # follow-ups of the same task in a row (ccx resume, review fix rounds, resuming an interrupted run); a
@@ -939,6 +981,7 @@ def run(req: Request, p: Paths) -> dict:
         record["session_id"] = session
         record["tier"] = spec.get("tier", "rung")
         record.update(agent=to, model=spec["model"], effort=spec["effort"])
+        record["actual_first_rung"] = actual_first_rung(record["attempts"])
         _write_record(run_dir, record)
         if oc.kind == "quota":
             try:                       # H2: what made this a quota stop, kept to check the call later
@@ -1561,6 +1604,11 @@ def compact(record: dict) -> dict:
     for key in ("requested_agent", "requested_model"):
         if key in record:
             out[key] = record[key]
+    if "planned_first_rung" in record:          # #379 (older records have none)
+        out["planned_first_rung"] = record["planned_first_rung"]
+        out["actual_first_rung"] = record.get("actual_first_rung") or actual_first_rung(record.get("attempts") or [])
+        if record.get("rung_why"):
+            out["rung_why"] = record["rung_why"]
     if record.get("brief_warnings"):
         out["brief_warnings"] = record["brief_warnings"]
     for key in ("credential_guard", "credential_guard_warnings"):
