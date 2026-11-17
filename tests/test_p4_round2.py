@@ -420,3 +420,5 @@ def test_src_layout_prompt_only_changes_the_pythonpath():
         flat = P.prompt(task, arm, 1.0, child_agent="claude")
         src = P.prompt({**task, "src_layout": True}, arm, 1.0, child_agent="claude")
         assert src == flat.replace("PYTHONPATH=.", f"PYTHONPATH='src{os.pathsep}.'") and src != flat
+    odd = {**task, "brief": "Keep PYTHONPATH=. in docs.", "src_layout": True}
+    assert "Keep PYTHONPATH=. in docs." in P.prompt(odd, "self", 1.0)   # the brief itself is not rewritten

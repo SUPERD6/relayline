@@ -233,9 +233,13 @@ def pythonpath(task: dict) -> str:
 
 def prompt(task: dict, arm: str, child_cap: float, receipt: Path | None = None,
            check_command=None, focused=False, child_agent: str = "codex") -> str:
-    text = _prompt(task, arm, child_cap, receipt, check_command, focused, child_agent)
-    # Only src-layout tasks change; quoted, since os.pathsep is ";" on Windows and the lead runs a POSIX shell.
-    return text.replace("PYTHONPATH=.", f"PYTHONPATH='{pythonpath(task)}'") if task.get("src_layout") else text
+    if not task.get("src_layout"):
+        return _prompt(task, arm, child_cap, receipt, check_command, focused, child_agent)
+    # Only src-layout tasks change, and only the instructions: the brief (pasted verbatim) is kept out of the
+    # replacement. Quoted, since os.pathsep is ";" on Windows and the lead runs a POSIX shell.
+    hole = "\x00BRIEF\x00"
+    text = _prompt({**task, "brief": hole}, arm, child_cap, receipt, check_command, focused, child_agent)
+    return text.replace("PYTHONPATH=.", f"PYTHONPATH='{pythonpath(task)}'").replace(hole, task["brief"])
 
 
 def _prompt(task: dict, arm: str, child_cap: float, receipt: Path | None,
