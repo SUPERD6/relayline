@@ -421,11 +421,28 @@ def test_job_object_catches_a_detached_grandchild_and_after_unit_closes_it(tmp_p
     grandchild = int(out.strip())
     assert rc == 0 and grandchild in left and PF.alive(grandchild)
     assert grandchild in PF.job_pids_all()               # busy() counts it as this run's
-    work = tmp_path / "w"
-    u = PF.Unit(key="k", work=work, repo=work / "k", hub=work / "h-k")
-    res = PF.after_unit(u, [], job)
-    assert grandchild in [x["pid"] for x in res["procs"]] and res["unkilled"] == []
-    assert not PF.alive(grandchild) and job.h is None
+    # #362: check the grandchild by a handle, not its pid: a busy machine soon gives a freed pid to someone else
+    import ctypes
+    from ctypes import wintypes
+    k = ctypes.WinDLL("kernel32", use_last_error=True)
+    k.OpenProcess.restype = wintypes.HANDLE
+    k.OpenProcess.argtypes = (wintypes.DWORD, wintypes.BOOL, wintypes.DWORD)
+    k.WaitForSingleObject.restype = wintypes.DWORD
+    k.WaitForSingleObject.argtypes = (wintypes.HANDLE, wintypes.DWORD)
+    k.CloseHandle.argtypes = (wintypes.HANDLE,)
+    h = k.OpenProcess(0x00100000, False, grandchild)    # SYNCHRONIZE
+    assert h and grandchild in job.pids()                # opened while in the job: the handle is the grandchild
+    try:
+        work = tmp_path / "w"
+        u = PF.Unit(key="k", work=work, repo=work / "k", hub=work / "h-k")
+        res = PF.after_unit(u, [], job)
+        assert grandchild in [x["pid"] for x in res["procs"]] and res["unkilled"] == [], res
+        # after_unit waits until the job's processes have exited, so no wait here: it must be gone already
+        state = k.WaitForSingleObject(h, 0)
+        assert state == 0, f"grandchild {grandchild} still running when after_unit returned (wait={state}, {res})"
+        assert job.h is None
+    finally:
+        k.CloseHandle(h)
 
 
 def test_flags_mode_removes_only_this_units_claude_session_folders(machine):

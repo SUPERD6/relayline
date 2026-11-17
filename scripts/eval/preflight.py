@@ -804,6 +804,11 @@ class Job:
             k.QueryInformationJobObject.argtypes = (wintypes.HANDLE, ctypes.c_int, ctypes.c_void_p, wintypes.DWORD,
                                                     ctypes.c_void_p)
             k.CloseHandle.argtypes = (wintypes.HANDLE,)
+            k.OpenProcess.restype = wintypes.HANDLE
+            k.OpenProcess.argtypes = (wintypes.DWORD, wintypes.BOOL, wintypes.DWORD)
+            k.IsProcessInJob.argtypes = (wintypes.HANDLE, wintypes.HANDLE, ctypes.POINTER(wintypes.BOOL))
+            k.WaitForSingleObject.restype = wintypes.DWORD
+            k.WaitForSingleObject.argtypes = (wintypes.HANDLE, wintypes.DWORD)
             nt = ctypes.WinDLL("ntdll")
             nt.NtResumeProcess.argtypes = (wintypes.HANDLE,)
 
@@ -866,13 +871,39 @@ class Job:
         if self.h:
             self.k.TerminateJobObject(self.h, 1)
 
-    def close(self) -> None:
-        if self.h:
-            self.k.TerminateJobObject(self.h, 1)
-            self.k.CloseHandle(self.h)
-            self.h = None
-            with _JOBS_LOCK:
-                _JOBS.discard(self)
+    def close(self, wait: float = 10.0) -> list[int]:
+        """Kill everything in the job, wait up to `wait` seconds until those processes have really exited, then
+        drop the job. Returns the pids still running when the wait ran out. TerminateJobObject only starts the
+        kill: a process leaves the job's pid list at once but exits later, much later under load (#362), so the
+        wait is on a handle to each process, opened while it was still in the job (no pid-reuse mix-up)."""
+        if not self.h:
+            return []
+        ct = self.ctypes
+        held = []
+        for pid in self.pids():
+            if pid == os.getpid():
+                continue
+            h = self.k.OpenProcess(0x00100000 | 0x1000, False, pid)   # SYNCHRONIZE | PROCESS_QUERY_LIMITED_INFO
+            if not h:
+                continue                                              # gone already (or not ours to open)
+            in_job = ct.wintypes.BOOL(0)
+            if self.k.IsProcessInJob(h, self.h, ct.byref(in_job)) and in_job.value:
+                held.append((pid, h))
+            else:                                                     # the pid was reused between list and open
+                self.k.CloseHandle(h)
+        self.k.TerminateJobObject(self.h, 1)
+        end = time.monotonic() + wait
+        left = []
+        for pid, h in held:
+            ms = max(0, int((end - time.monotonic()) * 1000))
+            if self.k.WaitForSingleObject(h, ms) != 0:               # 0 = WAIT_OBJECT_0: the process has exited
+                left.append(pid)
+            self.k.CloseHandle(h)
+        self.k.CloseHandle(self.h)
+        self.h = None
+        with _JOBS_LOCK:
+            _JOBS.discard(self)
+        return left
 
 
 def run(argv: list[str], *, cwd: Path, env: dict, timeout: float, input: str | None = None,
@@ -1176,17 +1207,13 @@ def after_unit(u: Unit, before: list[dict] | None, job: Job | None = None, sids:
     in_job = [x for x in (job.pids() if job else []) if x != os.getpid()]
     ports = listening_ports(sorted({p["pid"] for p in procs} | set(in_job)))
     cmd_of = {p["pid"]: p["cmd"] for p in after or []}
-    if job:
-        job.close()
+    # close() waits on a handle to each job process until it has exited (#362): what it returns is still running,
+    # no fixed sleep and no process listing (which could miss them or hit a reused pid) needed
+    still = job.close() if job else []
     outside = [p for p in procs if p["pid"] not in in_job]
-    still = []
     if outside:
         now = {(p["pid"], p["cmd"]) for p in snapshot() or []}
         still += kill([p["pid"] for p in outside if (p["pid"], cmd_of.get(p["pid"])) in now])
-    if in_job:
-        time.sleep(0.5)
-        now = {(p["pid"], p["cmd"]) for p in snapshot() or []}
-        still += [x for x in in_job if (x, cmd_of.get(x)) in now]
     wts = []
     if (u.repo / ".git").exists():
         r = subprocess.run(["git", "worktree", "list", "--porcelain"], cwd=u.repo, capture_output=True, text=True,
