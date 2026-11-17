@@ -655,6 +655,25 @@ trigger counts every piece; a follow-up and a spun-off run may be reviewed again
 code is 2 when any merged piece is not done (a piece run alone keeps `ccx run`'s exit code). An explicit `--merge`
 wins over `[lanes] default` and an explicit `--lanes` over `[merge] default`; both on the command line is an error.
 
+### Experimental: cold-start table (`routing.cold_start`, off until measured)
+
+Off by default (`routing.cold_start = false`); with it off, every pick is byte for byte what it was before (locked
+by `tests/test_cold_start.py`). Switch it on with `ccx config set routing.cold_start on`. It acts only on
+task-routing's pick (a run given the rubric, `--minutes` or `--b`) and only when task-routing has no learned outcome
+yet for any candidate vendor, so its pick would rest on priors alone. Then the first rung's tier comes from the
+`[cold_start]` table in `config/tiers.toml` (override in `hub/ccx/tiers.toml`): one row per kind of work (`code`,
+`read`, `research`, `write`; `default` for the rest), difficulty b at most the bound gives that tier, above every
+bound T4. The table names tiers, never a vendor: the vendor is still task-routing's pick, and its model and effort for
+that tier come from `[tiers]`; the next tiers become the escalation path. The shipped bounds are provisional, not
+measured. As soon as one run has been recorded for a candidate vendor, task-routing's own pick is used again.
+
+A choice the person fixed is left alone: `--to`, `--model`, `--effort`, `--tier`, `--provider`, or a role. The table
+changes none of it, and `rung_why.user_fixed` says so (`user-fixed / 用户固定: --to codex; automatic selection keeps
+them as given`); that line appears whenever something was fixed, with the table on or off. When the table is on,
+the run's and the dry run's `route.cold_start` says whether it applied and why (`applied`, `why`, and when applied
+`kind`, `b`, `tier`, `from`: task-routing's rung), and `rung_why.model` / `rung_why.effort` name the table. The dry
+run's first rung and the real run's are the same.
+
 ## Quota awareness
 
 Before a large task, run `ccx quota --refresh`. Claude's windows come from `rate_limit_event` /

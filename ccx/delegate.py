@@ -537,7 +537,7 @@ def rung_why(req: Request, plan: list[dict], requested: dict, cheap: bool,
              before_budget: list[dict] | None = None) -> dict:
     """The planned first rung (routing's pick, before the strict floor, cheap-first, a model swap or the budget), the
     rung the run starts on, and why (#379). Recorded and shown; it decides nothing."""
-    from .plan import pick_reasons, plan_changes
+    from .plan import pick_reasons, plan_changes, user_fixed_text
     planned = requested.get("raised_from") or requested["rung"]
     kw = {"to": requested["agent"], "model": requested["model"], "effort": requested["effort"],
           "tier": requested.get("tier")}
@@ -548,6 +548,9 @@ def rung_why(req: Request, plan: list[dict], requested: dict, cheap: bool,
     changes = plan_changes(planned, plan, cheap, requested, before_budget)
     if changes:
         why["changes"] = changes
+    fixed = user_fixed_text(req.route, req.given)    # #426: what the person / a role fixed; selection leaves it alone
+    if fixed:
+        why["user_fixed"] = fixed
     return why
 
 

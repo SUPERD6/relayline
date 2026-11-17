@@ -591,7 +591,7 @@ def _cmd_run(a) -> int:
 
 ROUTE_KEYS = ("source", "b", "rung", "p", "chain_p", "tier", "stale", "mode", "trial", "cheaper_self", "role",
               "role_effort_auto", "role_fallback", "why", "rubric", "difficulty", "role_effort_reason",
-              "strict_escalate", "self_first")
+              "strict_escalate", "self_first", "cold_start")
 
 
 def _dry_run(p, cfg: dict, req: Request, route: dict) -> int:
