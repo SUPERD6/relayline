@@ -46,9 +46,10 @@ def checkout_evidence(repo: Path) -> dict:
             "attributes": "respected", "eol_counts": counts}
 
 
-def build(tree: bytes, repo: Path, stubs=()):
-    """`stubs`: install-time version files the task records (round2_tasks, #415), written with ext_repo's stub."""
-    E.repo_from_tar(tree, {"stubs": list(stubs or ())}, repo)
+def build(tree: bytes, repo: Path, stubs=(), stub_version: str | None = None):
+    """`stubs`: install-time version files the task records (round2_tasks, #415), written with ext_repo's stub
+    reporting `stub_version` (the task's tag version, #424; default 0.0)."""
+    E.repo_from_tar(tree, {"stubs": list(stubs or ()), "stub_version": stub_version}, repo)
     return checkout(repo)
 
 
@@ -58,11 +59,12 @@ def command(python: str) -> str:
     return quoted + " " + CHECK
 
 
-def environment(repo: Path, python: str, tmp: Path, src_layout: bool = False, utf8: bool = False):
+def environment(repo: Path, python: str, tmp: Path, src_layout: bool = False, utf8: bool = False, plugins=()):
     """src/ (if present) goes before the root when round2_tasks validates (SRC_ON_PATH) or the task was selected
     with src_layout (#365); P4/P5 tasks without it keep the root only. PYTHONUTF8=1 when round2_tasks validates
     (UTF8_MODE) or the task was selected with pythonutf8 (#415): tests that open UTF-8 files without an encoding
-    then do not depend on the machine's code page."""
+    then do not depend on the machine's code page. `plugins`: the pytest plugin modules a round-2 task declares
+    (#424), loaded through PYTEST_PLUGINS while autoload stays off."""
     tmp.mkdir(parents=True, exist_ok=True)
     src = (SRC_ON_PATH or src_layout) and (repo / "src").is_dir()
     env = {**os.environ, "PATH": str(Path(python).resolve().parent) + os.pathsep + os.environ.get("PATH", ""),
@@ -71,13 +73,16 @@ def environment(repo: Path, python: str, tmp: Path, src_layout: bool = False, ut
            "PIP_NO_INDEX": "1", **{k: str(tmp) for k in ("TMP", "TEMP", "TMPDIR")}}
     if UTF8_MODE or utf8:
         env["PYTHONUTF8"] = "1"
+    env.pop("PYTEST_PLUGINS", None)  # only the task's own declared plugins, never one inherited from this shell
+    if plugins:
+        env["PYTEST_PLUGINS"] = ",".join(plugins)
     return env
 
 
 def baseline(repo: Path, python: str, tmp: Path, raw: Path | None = None, timeout: int = 180,
-             src_layout: bool = False, utf8: bool = False):
+             src_layout: bool = False, utf8: bool = False, plugins=()):
     """Exactly the unit acceptance command, original parent tests, no hidden test injection."""
-    env = environment(repo, python, tmp, src_layout, utf8)
+    env = environment(repo, python, tmp, src_layout, utf8, plugins)
     argv = [str(Path(python).resolve()), *CHECK.split()]    # command(python) without a shell in between (#359)
     try:
         r = run_tree(argv, cwd=repo, env=env, timeout=timeout)
@@ -100,19 +105,21 @@ def baseline(repo: Path, python: str, tmp: Path, raw: Path | None = None, timeou
 def validate_task(cache: Path, python: str, task: dict, raw_dir: Path | None = None, baseline_timeout: int = 180):
     m = LC.material(cache, task)
     src, utf8, stubs = bool(task.get("src_layout")), bool(task.get("pythonutf8")), task.get("stubs") or ()
+    version, plugins = task.get("stub_version"), task.get("pytest_plugins") or ()
     with tempfile.TemporaryDirectory(prefix="p5-native-") as tmp:
         root = Path(tmp)
         repo = root / "repo"
-        policy = build(m["tar"], repo, stubs)
+        policy = build(m["tar"], repo, stubs, version)
         stem = task["commit"]
         base = baseline(repo, python, repo / ".ccx-eval-tmp-acceptance",
-                        raw_dir / (stem + "-baseline.txt") if raw_dir else None, baseline_timeout, src, utf8)
+                        raw_dir / (stem + "-baseline.txt") if raw_dir else None, baseline_timeout, src, utf8,
+                        plugins)
         # Remove all generated baseline state; hidden validation uses fresh identical checkouts.
         checks = {}
         if base["rc"] == 0:
             for name, tree in (("parent", m["tar"]), ("reference", m["reference"])):
                 target = root/name
-                build(tree, target, stubs)
+                build(tree, target, stubs, version)
                 # Hidden tests are evaluator-only and receive the same native checkout policy.
                 for rel, body in m["tests"].items():
                     path = target/rel
@@ -123,7 +130,8 @@ def validate_task(cache: Path, python: str, task: dict, raw_dir: Path | None = N
                     E._git(target, "commit", "-q", "--no-verify", "-m", "hidden snapshot")
                 checkout(target)
                 checks[name] = hidden(target, task["tests"], python,
-                                      raw_dir/(stem+f"-{name}.txt") if raw_dir else None, src, utf8=utf8)
+                                      raw_dir/(stem+f"-{name}.txt") if raw_dir else None, src, utf8=utf8,
+                                      plugins=plugins)
         else:
             checks = {k: {"rc": None, "summary": "not run: original parent baseline failed"}
                       for k in ("parent", "reference")}
@@ -131,10 +139,10 @@ def validate_task(cache: Path, python: str, task: dict, raw_dir: Path | None = N
     return {"baseline": base, **checks, "valid": valid, "checkout": policy}
 
 
-def hidden(repo, tests, python, raw=None, src_layout=False, timeout=180, utf8=False):
+def hidden(repo, tests, python, raw=None, src_layout=False, timeout=180, utf8=False, plugins=()):
     try:
         r = run_tree([python, "-m", "pytest", "-q", "-o", "addopts=", "-p", "no:cacheprovider", *tests],
-                     cwd=repo, env=environment(repo, python, repo/".ccx-eval-tmp-hidden", src_layout, utf8),
+                     cwd=repo, env=environment(repo, python, repo/".ccx-eval-tmp-hidden", src_layout, utf8, plugins),
                      timeout=timeout)
         output = LC.normalize_output(r.stdout+r.stderr, repo)
         result = {"rc": r.returncode, "summary": output.strip().splitlines()[-1] if output.strip() else "empty",

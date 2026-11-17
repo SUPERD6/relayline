@@ -480,6 +480,143 @@ def version_stubs(cache: Path, repo: str, sha: str) -> list[str]:
     return [f for f in files if f not in present]
 
 
+TAG_VERSION = re.compile(r"^v?(\d+(?:\.\d+)+)")
+
+
+def stub_version(cache: Path, repo: str, sha: str) -> str:
+    """The version a task's install-time version stub reports (#424): the nearest tag reachable from the parent that
+    starts with a version (`git describe --tags --abbrev=0 --match 'v[0-9]*' --match '[0-9]*'`), its leading
+    `v?digits.digits...` part (v8.4.1 -> 8.4.1); "0.0" when there is no such tag (tags like py3.8-compat or another
+    package's `name-1.2` in a monorepo are not used). A stub reporting 0.0 broke pytest's own minversion check."""
+    try:
+        tag = E._git(None, f"--git-dir={LCand.bare_path(cache, repo)}", "describe", "--tags", "--abbrev=0",
+                     "--match", "v[0-9]*", "--match", "[0-9]*", f"{sha}^").strip()
+    except (FileNotFoundError, RuntimeError):
+        return "0.0"
+    m = TAG_VERSION.match(tag)
+    return m.group(1) if m else "0.0"
+
+
+REQUIREMENT_FILE = re.compile(r"(^|/)((test|dev)[-_]?requirements[^/]*|requirements[^/]*)\.(txt|in)$|"
+                              r"(^|/)requirements/[^/]+\.(txt|in)$", re.I)
+PLUGIN_GROUPS = (*TEST_EXTRAS, "dev")
+
+
+def _req_name(text: str) -> str | None:
+    m = re.match(r"\s*([A-Za-z0-9][A-Za-z0-9._-]*)", text or "")
+    return norm_name(m.group(1)) if m and not text.lstrip().startswith(("-", "#")) else None
+
+
+def _self_extras(text: str, project: str) -> set[str]:
+    """Extras a requirement line asks of the project itself: `pkg[testing]`, `-e .[test]`, `.[test,dev]`."""
+    m = re.match(r"\s*(?:-e\s+)?(\.|[A-Za-z0-9][A-Za-z0-9._-]*)\s*\[([^\]]*)\]", text or "")
+    if not m or (m.group(1) != "." and norm_name(m.group(1)) != norm_name(project or "")):
+        return set()
+    return {norm_name(x) for x in m.group(2).split(",") if x.strip()}
+
+
+DECLARED_NOT_READ = ("setup.py (extras_require, tests_require)", "[tool.poetry] dependencies and groups",
+                     "[tool.hatch.envs] dependencies", "[tool.pdm.dev-dependencies]", "tox.ini deps")
+
+
+def declared(cache: Path, repo: str, sha: str) -> dict:
+    """What the parent declares, read mechanically (#424): requirement names from pyproject.toml (project.dependencies,
+    optional-dependencies and [dependency-groups] test/tests/testing/dev), setup.cfg (install_requires,
+    extras_require of the same groups) and requirements files (requirements*.txt/.in, test-/dev-requirements*,
+    requirements/*.txt), plus the pytest11 entry points the project itself declares (pyproject or setup.cfg).
+    A requirement on the project itself with extras (`pkg[cov]`, `-e .[test]`) found in what was read reads those
+    extras too, transitively. Not read (DECLARED_NOT_READ): setup.py, poetry, hatch envs, pdm, tox."""
+    import configparser
+    import tomllib
+    try:
+        bare = LCand.bare_path(cache, repo)
+    except FileNotFoundError:  # no clone: validation reports it
+        return {"requirements": [], "own_plugins": []}
+    lines, own, extras, project_name = [], [], {}, None  # extras: group -> requirement lines
+
+    def show(path):
+        try:
+            return E._git(None, f"--git-dir={bare}", "show", f"{sha}^:{path}")
+        except RuntimeError:
+            return None
+    groups = set(PLUGIN_GROUPS)
+    text = show("pyproject.toml")
+    if text:
+        try:
+            config = tomllib.loads(text)
+        except tomllib.TOMLDecodeError:
+            config = {}
+        project = config.get("project") or {}
+        project_name = project.get("name")
+        lines += [r for r in project.get("dependencies") or [] if isinstance(r, str)]
+        for group, items in (project.get("optional-dependencies") or {}).items():
+            extras.setdefault(norm_name(group), []).extend(r for r in items or [] if isinstance(r, str))
+        lines += dependency_groups(config, PLUGIN_GROUPS)
+        own += [str(v) for v in ((project.get("entry-points") or {}).get("pytest11") or {}).values()]
+    text = show("setup.cfg")
+    if text:
+        cfg = configparser.ConfigParser(interpolation=None)
+        try:
+            cfg.read_string(text)
+        except configparser.Error:
+            cfg = configparser.ConfigParser()
+        project_name = project_name or cfg.get("metadata", "name", fallback=None)
+        lines += cfg.get("options", "install_requires", fallback="").splitlines()
+        if cfg.has_section("options.extras_require"):
+            for group, value in cfg.items("options.extras_require"):
+                extras.setdefault(norm_name(group), []).extend(value.splitlines())
+        if cfg.has_section("options.entry_points"):
+            for line in cfg.get("options.entry_points", "pytest11", fallback="").splitlines():
+                if "=" in line:
+                    own.append(line.split("=", 1)[1].strip())
+    try:
+        files = E._git(None, "-c", "core.quotepath=false", f"--git-dir={bare}", "ls-tree", "-r", "--name-only",
+                       f"{sha}^").splitlines()
+    except RuntimeError:
+        files = []
+    for path in (p for p in files if REQUIREMENT_FILE.search(p)):
+        lines += (show(path) or "").splitlines()
+    todo, done = sorted(groups), set()
+    while todo:  # the test/dev extras, then any extra that a line read so far asks of the project itself
+        group = todo.pop(0)
+        if group in done:
+            continue
+        done.add(group)
+        lines += extras.get(group, [])
+        for line in lines:
+            todo += sorted(g for g in _self_extras(line, project_name or repo) if g not in done)
+    names = {n for n in map(_req_name, lines) if n}
+    return {"requirements": sorted(names), "own_plugins": sorted({v.split(":")[0].strip() for v in own if v.strip()})}
+
+
+PLUGIN_QUERY = ("import importlib.metadata as m, json\n"
+                "print(json.dumps(sorted({(ep.dist.name if ep.dist else '', ep.value) "
+                "for ep in m.entry_points(group='pytest11')})))\n")
+
+
+def ext_plugins(python: str, run=subprocess.run) -> list[tuple[str, str]]:
+    """(distribution, module) of every pytest11 entry point registered in --ext-python."""
+    r = run([python, "-c", PLUGIN_QUERY], capture_output=True, text=True, encoding="utf-8", timeout=120)
+    if r.returncode:
+        raise RuntimeError(f"cannot list pytest plugins in --ext-python (rc={r.returncode})")
+    return [(norm_name(d), v.split(":")[0].strip()) for d, v in json.loads(r.stdout)]
+
+
+# plugins that can change a run's outcome by themselves (order, reruns, ignored failures, options added for other
+# plugins such as `-n auto`); never loaded even when declared (#424 review)
+PLUGIN_DENY = ("pytest-randomly", "pytest-random-order", "pytest-enabler", "pytest-rerunfailures", "pytest-retry",
+               "flaky", "pytest-ignore-flaky")
+
+
+def pytest_plugins(decl: dict, registered: list[tuple[str, str]], project: str) -> list[str]:
+    """Plugin modules a task loads through PYTEST_PLUGINS (#424): those of --ext-python distributions the parent
+    declares as a requirement (not the task's own distribution: its installed copy is an older release; not those in
+    PLUGIN_DENY), plus the project's own pytest11 entry points (imported from the repository, first on PYTHONPATH)."""
+    wanted = set(decl.get("requirements") or ()) - {norm_name(project)} - {norm_name(d) for d in PLUGIN_DENY}
+    mods = {mod for dist, mod in registered if dist in wanted} | set(decl.get("own_plugins") or ())
+    return sorted(mods)
+
+
 def src_layout(cache: Path, repo: str, sha: str) -> bool:
     """The parent tree has a top-level src/ folder; the evaluation run must then put src/ on PYTHONPATH too."""
     bare = LCand.bare_path(cache, repo)
@@ -801,9 +938,12 @@ def _phase(b, c, b_dev, c_dev):
 
 
 def select_upstream(cache: Path, repos: list[dict], python: str, used: set[str], since: str = SINCE,
-                    raw_dir: Path | None = None, validator=None, overlap=None) -> dict:
-    overlap = overlap or installed_overlap  # `overlap` is for tests (a fake --ext-python)
+                    raw_dir: Path | None = None, validator=None, overlap=None, registered=None) -> dict:
+    overlap = overlap or installed_overlap  # `overlap` and `registered` are for tests (a fake --ext-python)
     validator = validator or _validate
+    # pytest11 entry points of --ext-python, listed once up front so a broken interpreter fails at once (#424)
+    plugins_in_env = registered if registered is not None else ext_plugins(python)
+    slow = {}  # repository -> the commit whose full suite first ran past SUITE_TIMEOUT (a repository condition, #424)
     since_ts = _since_ts(since)
     b, c, b_dev, c_dev, exclusions, checked = [], [], [], [], [], []
     scan_errors = set()  # vendored scan errors (#417), recorded once in the output; env-check fails on them
@@ -849,6 +989,9 @@ def select_upstream(cache: Path, repos: list[dict], python: str, used: set[str],
                 reason = f"repository cap (B: {B_CAP})"
             elif group == "C" and per_c[repo] >= C_CAP:
                 reason = f"repository cap (C: {C_CAP})"
+            elif repo in slow:
+                reason = (f"repository's pytest suite does not run offline within {SUITE_TIMEOUT // 60} minutes "
+                          f"(timed out on the parent of {slow[repo][:12]}; a repository condition, #424)")
             if not reason:
                 try:
                     reason = test_changes(cache, repo, row["commit"])
@@ -870,11 +1013,19 @@ def select_upstream(cache: Path, repos: list[dict], python: str, used: set[str],
             task = {**row, "id": f"r2-{E.cache_key(repo)}-{row['commit'][:12]}", "project": spec.get("project", repo),
                     "url": spec.get("url"), "group": group, **({"dev": True} if dev else {})}
             try:
-                # validated, and later run and scored, with these (#415)
-                task.update(stubs=version_stubs(cache, repo, row["commit"]), pythonutf8=True)
+                # validated, and later run and scored, with these (#415, #424)
+                stubs = version_stubs(cache, repo, row["commit"])
+                task.update(stubs=stubs, pythonutf8=True,
+                            pytest_plugins=pytest_plugins(declared(cache, repo, row["commit"]), plugins_in_env,
+                                                          spec.get("project", repo)))
+                if stubs:
+                    task["stub_version"] = stub_version(cache, repo, row["commit"])
                 result = validator(cache, python, task, raw_dir)
             except Exception as exc:
                 result = {"valid": False, "error": f"{type(exc).__name__}: {exc}"[:300]}
+            if (result.get("baseline") or {}).get("rc") is None and \
+                    str((result.get("baseline") or {}).get("summary", "")).endswith("timeout"):
+                slow.setdefault(repo, row["commit"])
             checked.append({"id": task["id"], "repo": repo, "commit": row["commit"], "group": group,
                             **({"dev": True} if dev else {}),
                             **{k: result.get(k) for k in ("baseline", "parent", "reference", "valid", "error")}})
@@ -901,7 +1052,24 @@ def select_upstream(cache: Path, repos: list[dict], python: str, used: set[str],
                                "a task's src_layout tells the evaluation run to do the same",
                                "commits changing test support files or deleting/renaming tests are excluded",
                                "install-time version files the parent's pyproject.toml declares are written as stubs "
-                               "(task `stubs`); validation, run and scoring use PYTHONUTF8=1 (task `pythonutf8`) (#415)"],
+                               "(task `stubs`); validation, run and scoring use PYTHONUTF8=1 (task `pythonutf8`) (#415)",
+                               "the 10-minute suite limit is read as a repository condition (pre-registration section "
+                               "2 lists it among the repository conditions but says 'on the parent'): after the first "
+                               "candidate whose parent's full suite times out, the repository's other candidates are "
+                               "excluded; tasks already taken from it stay; a repository near the limit can lose its "
+                               "other candidates to one slow run (#424)",
+                               "pytest plugins: the --ext-python pytest11 entry points of distributions the parent "
+                               "declares (pyproject dependencies, test/tests/testing/dev extras and dependency "
+                               "groups, setup.cfg install_requires and those extras, requirements files, extras the "
+                               "project asks of itself such as `pkg[cov]` or `-e .[test]`; not the task's own "
+                               "distribution) plus the project's own pytest11 entry points, loaded with PYTEST_PLUGINS "
+                               "(task `pytest_plugins`); autoload stays off; never loaded: " + ", ".join(PLUGIN_DENY)
+                               + "; not read: " + "; ".join(DECLARED_NOT_READ) + " (#424)",
+                               "declared() reads the dev groups too, while prepare installs only the test extras and "
+                               "the test/tests/testing/dev dependency groups; a plugin not installed is not loaded",
+                               "version stubs report the leading v?digits.digits... of the nearest parent tag that "
+                               "starts with a version (`git describe --tags --abbrev=0 --match 'v[0-9]*' --match "
+                               "'[0-9]*'`), else 0.0 (task `stub_version`) (#424)"],
                      "installed_overlap": OVERLAP_RULE,
                      "hidden": "commit's added/changed test files: parent fails (rc 1/2), commit passes, "
                                "parent's existing suite passes"},
@@ -909,6 +1077,12 @@ def select_upstream(cache: Path, repos: list[dict], python: str, used: set[str],
             "dev": {"B": b_dev, "C": c_dev},
             "dev_shortfall": {"B": B_DEV_TAKE - len(b_dev), "C": C_DEV_TAKE - len(c_dev)},
             "exclusions": exclusions, "checked": checked,
+            # for review before freezing: every selected task's loaded plugins, and how often each plugin is loaded
+            "pytest_plugins_loaded": {"by_task": {t["id"]: t.get("pytest_plugins") or []
+                                                  for t in b + c + b_dev + c_dev},
+                                      "counts": dict(sorted(Counter(p for t in b + c + b_dev + c_dev
+                                                                    for p in t.get("pytest_plugins") or []).items()))},
+            "repositories_over_time_limit": dict(sorted(slow.items())),
             **({"vendored_scan_errors": sorted(scan_errors)} if scan_errors else {})}
 
 
