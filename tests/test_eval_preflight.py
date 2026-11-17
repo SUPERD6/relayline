@@ -430,9 +430,10 @@ def test_job_object_catches_a_detached_grandchild_and_after_unit_closes_it(tmp_p
     k.WaitForSingleObject.restype = wintypes.DWORD
     k.WaitForSingleObject.argtypes = (wintypes.HANDLE, wintypes.DWORD)
     k.CloseHandle.argtypes = (wintypes.HANDLE,)
-    h = k.OpenProcess(0x00100000, False, grandchild)    # SYNCHRONIZE
-    assert h and grandchild in job.pids()                # opened while in the job: the handle is the grandchild
+    h = None
     try:
+        h = k.OpenProcess(0x00100000, False, grandchild)    # SYNCHRONIZE
+        assert h and grandchild in job.pids()                # opened while in the job: the handle is the grandchild
         work = tmp_path / "w"
         u = PF.Unit(key="k", work=work, repo=work / "k", hub=work / "h-k")
         res = PF.after_unit(u, [], job)
@@ -442,7 +443,43 @@ def test_job_object_catches_a_detached_grandchild_and_after_unit_closes_it(tmp_p
         assert state == 0, f"grandchild {grandchild} still running when after_unit returned (wait={state}, {res})"
         assert job.h is None
     finally:
-        k.CloseHandle(h)
+        if h:
+            k.CloseHandle(h)
+
+
+@pytest.mark.skipif(not NT, reason="Job Objects are Windows-only")
+def test_job_close_reports_a_process_it_could_not_open_while_still_alive(tmp_path):
+    """#394 review: OpenProcess failing with anything but 'no such pid' (here access denied) must not count as
+    killed; close() then checks that pid until its wait runs out and reports it."""
+    import ctypes
+    code = ("import subprocess, sys; p = subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(120)'], "
+            "creationflags=subprocess.CREATE_NEW_PROCESS_GROUP, stdin=subprocess.DEVNULL, "
+            "stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL); print(p.pid)")
+    job = PF.Job()
+    if not job.h:
+        pytest.skip("no job object here")
+    out, _err, rc, _left = PF.run([sys.executable, "-c", code], cwd=tmp_path, env=dict(os.environ), timeout=60,
+                                  job=job)
+    grandchild = int(out.strip())
+    real = job.k
+
+    class Denied:                       # access denied on open; terminating does nothing, so it stays alive
+        def __getattr__(self, name):
+            return getattr(real, name)
+
+        def OpenProcess(self, *a):
+            ctypes.set_last_error(5)
+            return None
+
+        def TerminateJobObject(self, *a):
+            return 1
+
+    job.k = Denied()
+    try:            # closing the job's handle at the end of close() (kill-on-close) is what finally ends it
+        assert job.close(wait=0.5) == [grandchild] and job.h is None and job not in PF._JOBS
+    finally:
+        if PF.alive(grandchild):
+            PF.kill([grandchild])
 
 
 def test_flags_mode_removes_only_this_units_claude_session_folders(machine):

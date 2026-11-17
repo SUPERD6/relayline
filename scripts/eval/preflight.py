@@ -875,34 +875,45 @@ class Job:
         """Kill everything in the job, wait up to `wait` seconds until those processes have really exited, then
         drop the job. Returns the pids still running when the wait ran out. TerminateJobObject only starts the
         kill: a process leaves the job's pid list at once but exits later, much later under load (#362), so the
-        wait is on a handle to each process, opened while it was still in the job (no pid-reuse mix-up)."""
+        wait is on a handle to each process, opened while it was still in the job (no pid-reuse mix-up). A process
+        that cannot be opened (e.g. access denied) is checked by pid instead, so it is never taken as killed unseen."""
         if not self.h:
             return []
         ct = self.ctypes
-        held = []
-        for pid in self.pids():
-            if pid == os.getpid():
-                continue
-            h = self.k.OpenProcess(0x00100000 | 0x1000, False, pid)   # SYNCHRONIZE | PROCESS_QUERY_LIMITED_INFO
-            if not h:
-                continue                                              # gone already (or not ours to open)
-            in_job = ct.wintypes.BOOL(0)
-            if self.k.IsProcessInJob(h, self.h, ct.byref(in_job)) and in_job.value:
-                held.append((pid, h))
-            else:                                                     # the pid was reused between list and open
+        held, unopened, left = [], [], []
+        try:
+            for pid in self.pids():
+                if pid == os.getpid():
+                    continue
+                h = self.k.OpenProcess(0x00100000 | 0x1000, False, pid)   # SYNCHRONIZE | PROCESS_QUERY_LIMITED_INFO
+                if not h:
+                    if ct.get_last_error() != 87:     # 87 = ERROR_INVALID_PARAMETER: no such pid, it is gone
+                        unopened.append(pid)          # e.g. 5 = access denied: still there, check it by pid below
+                    continue
+                in_job = ct.wintypes.BOOL(0)
+                if self.k.IsProcessInJob(h, self.h, ct.byref(in_job)) and in_job.value:
+                    held.append((pid, h))
+                else:                                 # the pid was reused between list and open
+                    self.k.CloseHandle(h)
+            self.k.TerminateJobObject(self.h, 1)
+            end = time.monotonic() + wait
+            for pid, h in held:
+                ms = max(0, int((end - time.monotonic()) * 1000))
+                if self.k.WaitForSingleObject(h, ms) != 0:           # 0 = WAIT_OBJECT_0: the process has exited
+                    left.append(pid)
+            while unopened:
+                unopened = [pid for pid in unopened if alive(pid)]
+                if not unopened or time.monotonic() >= end:
+                    break
+                time.sleep(0.1)
+            left += unopened
+        finally:                                      # also on Ctrl-C during the wait: no handle or job is leaked
+            for _pid, h in held:
                 self.k.CloseHandle(h)
-        self.k.TerminateJobObject(self.h, 1)
-        end = time.monotonic() + wait
-        left = []
-        for pid, h in held:
-            ms = max(0, int((end - time.monotonic()) * 1000))
-            if self.k.WaitForSingleObject(h, ms) != 0:               # 0 = WAIT_OBJECT_0: the process has exited
-                left.append(pid)
-            self.k.CloseHandle(h)
-        self.k.CloseHandle(self.h)
-        self.h = None
-        with _JOBS_LOCK:
-            _JOBS.discard(self)
+            self.k.CloseHandle(self.h)
+            self.h = None
+            with _JOBS_LOCK:
+                _JOBS.discard(self)
         return left
 
 
