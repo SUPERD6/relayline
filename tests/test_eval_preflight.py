@@ -483,13 +483,15 @@ def test_job_close_reports_a_process_it_could_not_open_while_still_alive(tmp_pat
 
 
 class _FakeWin:
-    """kernel32 stand-in for kill() (#396): the process 'exits' `exit_after` seconds after taskkill; `opened` says
-    what OpenProcess answers: a handle, or None with the given last error."""
+    """kernel32 stand-in for kill() (#396): the process 'exits' `exit_after` seconds after taskkill; `err` is None
+    (OpenProcess returns a handle) or the last error OpenProcess fails with. `events` logs opens and taskkills."""
 
     def __init__(self, exit_after=0.0, err=None):
         self.exit_after, self.err, self.killed_at, self.closed, self.waits = exit_after, err, None, [], 0
+        self.events = []
 
-    def OpenProcess(self, *_a):
+    def OpenProcess(self, _access, _inherit, pid):
+        self.events.append(("open", pid))
         if self.err is not None:
             import ctypes
             ctypes.set_last_error(self.err)
@@ -513,10 +515,11 @@ class _FakeWin:
 
 def _fake_kill_env(monkeypatch, fake, alive_answer):
     import ctypes
-    monkeypatch.setattr(PF, "_wait_kernel", lambda: (fake, ctypes))
+    monkeypatch.setattr(PF, "_wait_kernel", lambda: (fake, ctypes), raising=False)
     monkeypatch.setattr(PF.os, "name", "nt")
 
     def run(argv, **_kw):
+        fake.events.append(("kill", int(argv[-1])))
         fake.killed_at = time.monotonic()
         return None
     monkeypatch.setattr(PF.subprocess, "run", run)
@@ -527,7 +530,17 @@ def _fake_kill_env(monkeypatch, fake, alive_answer):
 def test_kill_waits_on_the_handle_for_a_process_that_exits_slower_than_half_a_second(monkeypatch):
     fake = _FakeWin(exit_after=0.9)
     _fake_kill_env(monkeypatch, fake, alive_answer=True)      # by pid it would still look alive after 0.5 s
-    assert PF.kill([4242], wait=5) == [] and fake.closed == [777]
+    assert PF.kill([4242]) == [] and fake.closed == [777]
+
+
+@pytest.mark.skipif(not NT, reason="the Windows branch of kill()")
+def test_kill_opens_every_handle_before_the_first_taskkill(monkeypatch):
+    """A parent's taskkill /T takes its child down too; the child's pid must already be pinned by a handle then,
+    or it could be reused and the next taskkill would hit an unrelated process tree."""
+    fake = _FakeWin()
+    _fake_kill_env(monkeypatch, fake, alive_answer=False)
+    assert PF.kill([10, 11]) == []
+    assert fake.events == [("open", 10), ("open", 11), ("kill", 10), ("kill", 11)] and fake.closed == [777, 777]
 
 
 @pytest.mark.skipif(not NT, reason="the Windows branch of kill()")

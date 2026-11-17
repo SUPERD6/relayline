@@ -748,18 +748,23 @@ def kill(pids: list[int], wait: float = 10.0) -> list[int]:
     """Kill these processes and their trees; returns the ones still alive afterwards. On Windows TerminateProcess is
     asynchronous and a pid can be handed to a new process, so a handle to each process is opened before the kill and
     waited on for up to `wait` seconds, not a fixed sleep plus a lookup by pid (#396). A process that cannot be
-    opened is checked by pid instead (only ERROR_INVALID_PARAMETER, 87, means it is already gone)."""
+    opened is checked by pid instead (only ERROR_INVALID_PARAMETER, 87, means it is already gone). All handles are
+    opened before the first taskkill: killing a parent takes its children down too, and while a handle is open
+    Windows does not reuse that pid, so a later `taskkill /T /F /PID` cannot hit an unrelated process that was
+    handed a freed pid. The window between the caller listing the pids (after_unit's snapshot()) and the opens
+    here, some tens of milliseconds, is unchanged."""
     held, unopened = [], []
     win = _wait_kernel() if os.name == "nt" else None
     try:
-        for pid in pids:
-            if win:
-                k, ct = win
+        if win:
+            k, ct = win
+            for pid in pids:
                 h = k.OpenProcess(_SYNCHRONIZE_QUERY, False, pid)
                 if h:
                     held.append((pid, h))
                 elif ct.get_last_error() != 87:
                     unopened.append(pid)
+        for pid in pids:
             try:
                 if os.name == "nt":
                     subprocess.run(["taskkill", "/T", "/F", "/PID", str(pid)], capture_output=True, timeout=30)
