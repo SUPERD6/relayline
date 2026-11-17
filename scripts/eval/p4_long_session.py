@@ -225,8 +225,25 @@ def prompt_v2(task: dict, child_cap: float, receipt: Path | None, agent: str) ->
             "delegation path or run in the background.\nFinish with one line DONE: <summary>.")
 
 
+def pythonpath(task: dict) -> str:
+    """PYTHONPATH for the lead, its sub-agents and the acceptance check: relative (so a ccx worktree uses its own
+    tree); a task selected with src_layout (round2_tasks, #364) gets src/ before the root, as it was validated (#365)."""
+    return "src" + os.pathsep + "." if task.get("src_layout") else "."
+
+
 def prompt(task: dict, arm: str, child_cap: float, receipt: Path | None = None,
            check_command=None, focused=False, child_agent: str = "codex") -> str:
+    if not task.get("src_layout"):
+        return _prompt(task, arm, child_cap, receipt, check_command, focused, child_agent)
+    # Only src-layout tasks change, and only the instructions: the brief (pasted verbatim) is kept out of the
+    # replacement. Quoted, since os.pathsep is ";" on Windows and the lead runs a POSIX shell.
+    hole = "\x00BRIEF\x00"
+    text = _prompt({**task, "brief": hole}, arm, child_cap, receipt, check_command, focused, child_agent)
+    return text.replace("PYTHONPATH=.", f"PYTHONPATH='{pythonpath(task)}'").replace(hole, task["brief"])
+
+
+def _prompt(task: dict, arm: str, child_cap: float, receipt: Path | None,
+            check_command, focused, child_agent: str) -> str:
     if arm == DE.ARM2:
         return prompt_v2(task, child_cap, receipt, child_agent)
     common = ("The repository has been reset to a different historical parent for this task. "
@@ -401,6 +418,7 @@ class Episode:
                     "cost_cumulative_check": False, "cost_basis": COST_BASIS})
         self.rows.append(row)
         lead_cap, child_cap = task_caps(a, u["arm"])
+        self.env["PYTHONPATH"] = pythonpath(task)   # inherited by sub-agents and ccx --check (#365)
         self.env["CCX_P4_CHILD_LIMIT"] = str(child_cap)
         self.env["CCX_P4_CHILD_START"] = str(self.child_total)
         checks_root = self.iso.hub/"ccx"/"check-artifacts"/str(u["turn"])

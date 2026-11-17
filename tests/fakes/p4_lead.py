@@ -16,9 +16,16 @@ repo = Path.cwd()
 assert not (repo / "left-by-fake.txt").exists(), "task workspace was not reset"
 assert "HIDDEN_GRADE_SENTINEL" not in prompt, "grade leaked to lead"
 turn = len(previous) + 1
+# What the lead's (and its sub-agents' and ccx's --check) Python sees: a src-layout tree's package must import.
+importable = None
+if (repo / "src").is_dir():
+    import subprocess
+    importable = subprocess.run([sys.executable, "-c", "import srcpkg"], cwd=repo, env=dict(os.environ),
+                                capture_output=True).returncode == 0
 with log.open("a", encoding="utf-8", newline="") as f:
     f.write(json.dumps({"session": sid, "flag": sid_flag, "turn": turn, "prompt": prompt,
-                        "parent": (repo / "source.py").read_text(encoding="utf-8")}) + "\n")
+                        "parent": (repo / "source.py").read_text(encoding="utf-8"),
+                        "pythonpath": os.environ.get("PYTHONPATH"), "importable": importable}) + "\n")
 (repo / "left-by-fake.txt").write_text("changed", encoding="utf-8")
 usage = {
     "input_tokens": 10, "cache_read_input_tokens": turn * 100, "cache_creation_input_tokens": 5,

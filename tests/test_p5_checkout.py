@@ -46,3 +46,33 @@ def test_explicit_lf_attributes_override_windows_default(tmp_path):
     evidence = L.build(data.getvalue(), repo)
     assert (repo/"fixture.txt").read_bytes() == b"first\nsecond\n"
     assert evidence["eol_counts"].get("i/lf w/lf", 0) >= 1
+
+
+def _tar(files):
+    import tarfile as _t
+    data = io.BytesIO()
+    with _t.open(fileobj=data, mode="w") as tar:
+        for name, text in files.items():
+            body = text.encode()
+            info = _t.TarInfo(name)
+            info.size = len(body)
+            tar.addfile(info, io.BytesIO(body))
+    return data.getvalue()
+
+
+def test_validate_task_puts_src_on_path_for_src_layout_task(monkeypatch, tmp_path):
+    """#365: --validate-native (p4 pre-check for B/C) validates a src_layout task the way round2_tasks selected it."""
+    old = "from srcpkg import f\n\ndef test_f():\n    assert f() == 1\n"
+    material = {"tar": _tar({"src/srcpkg/__init__.py": "def f():\n    return 1\n", "tests/test_old.py": old}),
+                "reference": _tar({"src/srcpkg/__init__.py": "def f():\n    return 1\n\ndef g():\n    return 2\n",
+                                   "tests/test_old.py": old}),
+                "tests": {"tests/test_new.py": b"from srcpkg import g\n\ndef test_g():\n    assert g() == 2\n"}}
+    monkeypatch.setattr(L.LC, "material", lambda cache, task: material)
+    task = {"id": "t", "commit": "c" * 40, "tests": ["tests/test_new.py"]}
+    assert L.SRC_ON_PATH is False
+    flat = L.validate_task(tmp_path, sys.executable, task)
+    assert flat["baseline"]["rc"] != 0 and flat["valid"] is False   # root only: srcpkg does not import
+    src = L.validate_task(tmp_path, sys.executable, {**task, "src_layout": True})
+    assert src["baseline"]["rc"] == 0 and src["parent"]["rc"] in (1, 2) and src["reference"]["rc"] == 0
+    assert src["valid"] is True
+    assert L.environment(tmp_path, sys.executable, tmp_path/"t1")["PYTHONPATH"] == str(tmp_path)
