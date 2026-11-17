@@ -26,6 +26,13 @@ are B/A of known costs and median wall times, for all and env_clean separately;
 cost_unknown remains visible, so a partial cost ratio is not a complete-cost claim.
 This script reports observations only, without deciding preregistered gates.
 
+p4 adds a "dispatch" block (dispatch_eval.metrics: attempted, escalated, escalation_rate,
+first_usd, escalation_usd, status, plus stop_reason) to each cheap-first arm in
+dispatch_eval.ARMS: ccxcheapfirst (round 1; stop_reason includes its 30% escalation
+stop) and ccxcheapfirst2 (round 2, issue #370; no escalation-rate stop, as the
+pre-registration runs it with --max-escalation-rate none, so stop_reason only reports
+missing dispatch evidence or cost).
+
 Strength pairs also report effect_rate = (b - c) / n_pairs (null when n_pairs is 0).
 
 p4 --paired (round-2 pre-registration, section 4) adds a task-level "paired" block
@@ -447,8 +454,12 @@ def p4(rows: list[dict], tag: str, pair: tuple[str, str], paired: bool = False,
                          ("attempted", "right", "cost_known_usd", "cost_unknown", "wall_median_s")}
             arms[arm]["env_clean"] = sum(row.get("env_clean") is True for row in group)
             arms[arm]["valid"] = sum(map(valid, group))
-            if arm == P4.DE.ARM:
-                arms[arm]["dispatch"] = {**P4.DE.metrics(group), "stop_reason": P4.DE.stop_reason(group)}
+            if arm in P4.DE.ARMS:
+                # Round 1's arm keeps its 30% escalation stop; round 2's arm runs with
+                # --max-escalation-rate none (pre-registration section 4), so only evidence/cost stops apply.
+                max_rate = .3 if arm == P4.DE.ARM else None
+                arms[arm]["dispatch"] = {**P4.DE.metrics(group, arm),
+                                         "stop_reason": P4.DE.stop_reason(group, arm, max_rate)}
         a, b = (arms[arm] for arm in pair)
         result[name] = {"arms": arms, "ratios": {
             "cost": P4._ratio(b["cost_known_usd"], a["cost_known_usd"]),
