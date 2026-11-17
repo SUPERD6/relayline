@@ -4,5 +4,7 @@
   while the old branch was merged; a resumed piece with no noted branch tried `ccx/<its own run_id>`, which does not
   exist. Accept now uses the same check as `ccx autonomy merge` (#374, `autonomy.run_branch`): it merges the branch
   the worktree has checked out, only when that is `ccx/<id>` of the piece's run or of a run up its resume chain,
-  and refuses a detached or moved worktree with the reason. A piece noted as `HEAD` is no longer taken for already
+  and refuses a detached or moved worktree with the reason and what to do (switch it back with
+  `git -C <worktree> switch ccx/<id>` and accept again, or merge by hand and `ccx q done <id> --ok 1`); a worktree
+  that moves between those checks and the merge is refused too, with what waits on it. A piece noted as `HEAD` is no longer taken for already
   landed. Pieces on their own run's branch (`--base head` or upstream) land as before.

@@ -322,11 +322,20 @@ class TestAcceptBranch(AcceptEnv):
         wq.update(self.work, q, **fields)
         return r2
 
+    def first(self, q):
+        """The run whose branch the piece's worktree should be on (as the queue noted it, else the item's run)."""
+        noted = self.item(q).get("branch") or ""
+        return noted[4:] if noted.startswith("ccx/") else self.item(q)["run"]
+
     def assert_refused(self, q, words):
         before = git(self.work, "rev-parse", "HEAD")
         out = self.accept(q, code=2)
         self.assertEqual(out["accepted"], [])
-        self.assertIn(words, out["refused"][0]["why"])
+        why = out["refused"][0]["why"]
+        self.assertIn(words, why)
+        self.assertNotIn("the person merges it", why)                          # autonomy's wording, not here
+        self.assertIn(f"switch ccx/{self.first(q)}`) and accept again", why)  # what to do instead
+        self.assertIn(f"`ccx q done {q} --ok 1`", why)
         self.assertEqual(git(self.work, "rev-parse", "HEAD"), before)          # nothing merged
         self.assertIsNone(self.item(q).get("verdict"))
         self.assertFalse(self.item(q).get("merged"))
@@ -402,6 +411,52 @@ class TestAcceptBranch(AcceptEnv):
         self.assertEqual([x["id"] for x in out["accepted"]], [q1])
         self.assertEqual(self.ledger_rows("q_accept")[0]["branch"], f"ccx/{first}")
         self.assertTrue((self.work / "r.txt").exists())
+
+    def test_a_warm_lane_piece_lands_on_the_lanes_first_branch(self):
+        """A warm lane's later piece is its own item whose run continues the lane's first run (resumed_from,
+        continued) in that run's worktree, so its branch is ccx/<lane's first run>."""
+        self.repo()
+        q1 = self.piece("lane first", {"a.txt": "a\n"})
+        lane = self.item(q1)
+        q2 = wq.add(self.work, "lane second", "lane second")["id"]
+        r2 = f"{lane['run']}-{q2}"
+        (Path(lane["worktree"]) / "b.txt").write_text("b\n", encoding="utf-8")
+        git(lane["worktree"], "add", "-A")
+        git(lane["worktree"], "commit", "-qm", f"ccx run {r2}: q:{q2} (ok)")
+        d = self.hub / "ccx" / "runs" / r2
+        d.mkdir(parents=True)
+        (d / "run.json").write_text(json.dumps({**self.rec(lane["run"]), "run_id": r2, "label": f"q:{q2}",
+                                                "resumed_from": lane["run"], "continued": True}), encoding="utf-8")
+        wq.update(self.work, q2, status="done", run=r2, agent="codex", worktree=lane["worktree"],
+                  branch=lane["branch"], verdict=None)                       # what _tree_fields notes for it
+        dry = self.accept(q2, "--dry-run")
+        self.assertEqual(dry["plan"][0]["branch"], f"ccx/{lane['run']}")
+        out = self.accept(q2)
+        self.assertEqual([x["id"] for x in out["accepted"]], [q2])
+        self.assertEqual(self.ledger_rows("q_accept")[0]["branch"], f"ccx/{lane['run']}")
+        self.assertTrue((self.work / "b.txt").exists())
+
+    def test_a_worktree_moved_after_the_checks_is_refused_with_what_waits_on_it(self):
+        """The worktree leaves its branch between why_not and the merge: no None branch reaches git merge."""
+        from unittest import mock
+        from ccx import accept as acc
+        from ccx.config import load_config
+        self.repo()
+        q1 = self.piece("one", {"a.txt": "a\n"})
+        q2 = self.piece("after one", {"b.txt": "b\n"}, deps=[q1])
+        git(self.item(q1)["worktree"], "checkout", "-q", "--detach")
+        p = Paths(self.hub)
+        before = git(self.work, "rev-parse", "HEAD")
+        with mock.patch.object(acc, "why_not", return_value=None), \
+                mock.patch.object(acc.autonomy, "merge_branch", side_effect=AssertionError("merged")):
+            for dry in (True, False):
+                out, code = acc.accept(p, load_config(p), self.work, [q1, q2], dry_run=dry)
+                self.assertEqual(code, 2)
+                why = {r["id"]: r["why"] for r in out["refused"]}
+                self.assertIn("detached HEAD", why[q1])
+                self.assertIn(f"waits on {q1}", why[q2])
+                self.assertFalse(out.get("plan") or out.get("accepted"))
+        self.assertEqual(git(self.work, "rev-parse", "HEAD"), before)
 
 
 class TestPipelineEndToEnd(AcceptEnv):

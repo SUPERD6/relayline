@@ -228,7 +228,8 @@ put back files the run did not change, such as a later commit or your own edits,
 `ccx undo <id>` in a terminal), and a run whose independent review still finds problems has **The review is
 wrong: accept** (`ccx verify <id> --ok 1` with a note saying so). A queue piece in a worktree goes in one order, in the
 page and in `ccx q ls` alike: your verdict first (`ccx q done`), then **Merge into the project** (`ccx q accept`, in
-the background, after its `--dry-run` says it would merge: a protected branch checked out is said on the page). After a verdict the side panel moves on to the next piece that waits for you (also j / k). Each
+the background, after its `--dry-run` says it would merge: a protected branch checked out is said on the page; it merges the branch the piece's worktree has checked out
+and refuses a detached or moved worktree, see [Safety](#safety)). After a verdict the side panel moves on to the next piece that waits for you (also j / k). Each
 project card says who leads it, with a link to its switch-lead panel; text meant for your lead (not a command) is
 labelled "paste this to your lead".
 Its **Agent conversation** page shows what the agents wrote to each other on the board (`ccx say`), newest thread first; a thread stopped by the machine-message cap and a message that asks you (`@person`) show as to-dos, and you can reply from the page: shown first, written on a second click as you (via ui), at most 4000 characters, never run ([board](board.md#seeing-it-and-answering-in-ccx-ui)). `ccx ui --export snapshot.html` writes a static copy; `ccx config set ui.lang zh|en` picks the language.
@@ -738,7 +739,8 @@ check; no improvement in task success or savings has been measured here.
   Both merges (for `--base head` and upstream runs alike) take the branch the run's worktree has checked out, and
   only when it is `ccx/<id>` of the run or of a run up its resume chain; a worktree on a detached HEAD or moved to
   another branch is refused (`the worktree is not on a branch` / `the worktree is on X, not ...`) rather than merged
-  by the branch name the queue noted when the run ended.
+  by the branch name the queue noted when the run ended; `ccx q accept` then says to switch the worktree back
+  (`git -C <worktree> switch ccx/<id>`) and accept again, or to merge it by hand and `ccx q done <id> --ok 1`.
   Both layouts are recognized in run results, queues and acceptance, lane commits, automatic merging, check-trust
   grouping and UI project grouping, even after the setting changes. Inside placement is experimental: checked
   with fake agent CLIs and Git, not yet with real agent CLIs or Codex project trust inheritance.
