@@ -582,7 +582,7 @@
       "brief": "Implement email_key(addr) in signup.py: the normalized form of an email address used to detect duplicate sign-ups.",
       "neutral": false,
       "kind": "convention",
-      "memory": "Duplicate sign-up rule: only the domain part is lower-cased; the local part keeps its case because some of our mail servers are case-sensitive. A +tag in the local part is removed (ann+news@x.org is ann@x.org). Dots in the local part are kept, even for gmail.com. Surrounding spaces are stripped.",
+      "memory": "Duplicate sign-up rule: only the domain part is lower-cased; the local part keeps its case because some of our mail servers are case-sensitive. A +tag in the local part is removed (ann+news@example.org is ann@example.org). Dots in the local part are kept, even for the webmail domain mail.example.com, whose servers ignore them. Surrounding spaces are stripped.",
       "distractors": [
         [
           "tooling",
@@ -601,17 +601,17 @@
           "Usernames are compared case-insensitively and stored lower-case."
         ]
       ],
-      "hidden": "from signup import email_key\n\n\ndef test_domain_only_lower():\n    assert email_key(' Ann.Lee@Example.ORG ') == 'Ann.Lee@example.org'\n\n\ndef test_plus_tag():\n    assert email_key('ann+news@x.org') == 'ann@x.org'\n    assert email_key('Bo+a+b@X.org') == 'Bo@x.org'\n\n\ndef test_dots_kept():\n    assert email_key('first.last@gmail.com') == 'first.last@gmail.com'\n",
+      "hidden": "from signup import email_key\n\n\ndef test_domain_only_lower():\n    assert email_key(' Ann.Lee@Example.ORG ') == 'Ann.Lee@example.org'\n\n\ndef test_plus_tag():\n    assert email_key('ann+news@example.org') == 'ann@example.org'\n    assert email_key('Bo+a+b@EXAMPLE.org') == 'Bo@example.org'\n\n\ndef test_dots_kept():\n    assert email_key('first.last@mail.example.com') == 'first.last@mail.example.com'\n",
       "reference": {
         "signup.py": "def clean(text):\n    return text.strip().lower()\n\n\ndef email_key(addr):\n    local, _, domain = addr.strip().rpartition('@')\n    local = local.split('+', 1)[0]\n    return f'{local}@{domain.lower()}'\n"
       },
       "naive": {
-        "signup.py": "def clean(text):\n    return text.strip().lower()\n\n\ndef email_key(addr):\n    local, _, domain = clean(addr).rpartition('@')\n    if domain == 'gmail.com':\n        local = local.replace('.', '')\n    return f'{local}@{domain}'\n"
+        "signup.py": "def clean(text):\n    return text.strip().lower()\n\n\ndef email_key(addr):\n    local, _, domain = clean(addr).rpartition('@')\n    if domain == \"mail.example.com\":\n        local = local.replace('.', '')\n    return f'{local}@{domain}'\n"
       },
       "conventions": [
         "only the domain part is lower-cased; the local part keeps its case",
-        "A +tag in the local part is removed (ann+news@x.org is ann@x.org)",
-        "Dots in the local part are kept, even for gmail.com"
+        "A +tag in the local part is removed (ann+news@example.org is ann@example.org)",
+        "Dots in the local part are kept, even for the webmail domain mail.example.com"
       ],
       "trace": [
         {
@@ -624,15 +624,15 @@
         },
         {
           "assertion": "test_zz_hidden_eval.py::test_plus_tag#1",
-          "brief": "A +tag in the local part is removed (ann+news@x.org is ann@x.org)"
+          "brief": "A +tag in the local part is removed (ann+news@example.org is ann@example.org)"
         },
         {
           "assertion": "test_zz_hidden_eval.py::test_plus_tag#2",
-          "brief": "A +tag in the local part is removed (ann+news@x.org is ann@x.org)"
+          "brief": "A +tag in the local part is removed (ann+news@example.org is ann@example.org)"
         },
         {
           "assertion": "test_zz_hidden_eval.py::test_dots_kept#1",
-          "brief": "Dots in the local part are kept, even for gmail.com"
+          "brief": "Dots in the local part are kept, even for the webmail domain mail.example.com"
         }
       ]
     },

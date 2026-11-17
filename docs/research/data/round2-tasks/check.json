@@ -219,7 +219,7 @@
       "summary": {
         "tasks": 56,
         "loaded_by_strength_retest": 56,
-        "sha256": "fd2265ed21b4a99d17635a1d5a2e520d1f167a01f892d6e2a3d63c8947cb48c8",
+        "sha256": "7640879d203574f2a5df07acdcb469d4fac6fd3702efc6cc5540e69b2dfdb01e",
         "neutral": 8,
         "settled_or_memory": 48,
         "start_fails": "56/56",
@@ -1527,7 +1527,7 @@
       "summary": {
         "tasks": 48,
         "loaded_by_strength_retest": 48,
-        "sha256": "bc4de25018a96135981b8c9a9edc72b9f1375ef356ee7d9d043da3a8d22ab216",
+        "sha256": "3b5182892088ba899cc4e50d7e03e899e7d5178c9a986992e050336462ae93e3",
         "neutral": 0,
         "settled_or_memory": 48,
         "start_fails": "48/48",

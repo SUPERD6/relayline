@@ -279,12 +279,12 @@ TASKS = [
 
             def test_two_chars_three_stars():
                 assert mask_email('johnny@example.com') == 'jo***@example.com'
-                assert mask_email('abc@x.org') == 'ab***@x.org'
+                assert mask_email('abc@example.org') == 'ab***@example.org'
 
 
             def test_short_local():
-                assert mask_email('al@x.org') == '***@x.org'
-                assert mask_email('a@x.org') == '***@x.org'
+                assert mask_email('al@example.org') == '***@example.org'
+                assert mask_email('a@example.org') == '***@example.org'
 
 
             def test_no_at():
@@ -550,13 +550,13 @@ TASKS = [
 
 
             def test_email_case():
-                out = dedupe_contacts([C('Ann', 'ann@x.org', 1), C('Ann B', ' ANN@x.org ', 2)])
+                out = dedupe_contacts([C('Ann', 'ann@example.org', 1), C('Ann B', ' ANN@example.org ', 2)])
                 assert len(out) == 1
 
 
             def test_latest_kept():
-                out = dedupe_contacts([C('Old', 'a@x.org', 5), C('New', 'a@x.org', 9), C('Mid', 'a@x.org', 7)])
-                assert out == [C('New', 'a@x.org', 9)]
+                out = dedupe_contacts([C('Old', 'a@example.org', 5), C('New', 'a@example.org', 9), C('Mid', 'a@example.org', 7)])
+                assert out == [C('New', 'a@example.org', 9)]
 
 
             def test_sorted_by_name():

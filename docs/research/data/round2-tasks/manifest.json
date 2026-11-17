@@ -7,7 +7,7 @@
     },
     {
       "path": "docs/research/data/round2-tasks/a1.json",
-      "sha256": "fd2265ed21b4a99d17635a1d5a2e520d1f167a01f892d6e2a3d63c8947cb48c8"
+      "sha256": "7640879d203574f2a5df07acdcb469d4fac6fd3702efc6cc5540e69b2dfdb01e"
     },
     {
       "path": "docs/research/data/round2-tasks/a2-dev.json",
@@ -15,7 +15,7 @@
     },
     {
       "path": "docs/research/data/round2-tasks/a2.json",
-      "sha256": "bc4de25018a96135981b8c9a9edc72b9f1375ef356ee7d9d043da3a8d22ab216"
+      "sha256": "3b5182892088ba899cc4e50d7e03e899e7d5178c9a986992e050336462ae93e3"
     },
     {
       "path": "scripts/eval/round2_a/__init__.py",
@@ -35,7 +35,7 @@
     },
     {
       "path": "scripts/eval/round2_a/a1_p2.py",
-      "sha256": "843ea6d0d9e2e23cfe749f3be8f7a16462c1168971ebdf5ebd924f2179bc5b1c"
+      "sha256": "fea3a71c919a11c45b60bfd616e381ac03bf933fda038265a973e4e537584d74"
     },
     {
       "path": "scripts/eval/round2_a/a1_p3.py",
@@ -55,7 +55,7 @@
     },
     {
       "path": "scripts/eval/round2_a/a2_p1.py",
-      "sha256": "1bab4b1d46381120d57d35be07b2ac57b2bf5c03e114ae6b95fc30dc9104c7c4"
+      "sha256": "07b2dbaf8177037f9e891f511c540dc4176cde71d7d8dda5b936a43092a7f8f3"
     },
     {
       "path": "scripts/eval/round2_a/a2_p2.py",
@@ -82,5 +82,5 @@
       "sha256": "502db7ceb30a95121e8642d876f2762d044b3a90f473b24f8d7757de82c3a89d"
     }
   ],
-  "sha256": "c4eed79f650b8f240588450f24357fec90c58de139b4b8a0e2fe1cb8a23ab303"
+  "sha256": "1ae89332671950ffa2b944d6e3803ca24d31fddcbcf3a261350cbd5dc736fcdd"
 }

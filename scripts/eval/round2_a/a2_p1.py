@@ -555,12 +555,12 @@ TASKS = [
         brief="Implement email_key(addr) in signup.py: the normalized form of an email address used to detect "
               "duplicate sign-ups.",
         memory="Duplicate sign-up rule: only the domain part is lower-cased; the local part keeps its case because "
-               "some of our mail servers are case-sensitive. A +tag in the local part is removed (ann+news@x.org "
-               "is ann@x.org). Dots in the local part are kept, even for gmail.com. Surrounding spaces are "
-               "stripped.",
+               "some of our mail servers are case-sensitive. A +tag in the local part is removed "
+               "(ann+news@example.org is ann@example.org). Dots in the local part are kept, even for the webmail "
+               "domain mail.example.com, whose servers ignore them. Surrounding spaces are stripped.",
         conventions=["only the domain part is lower-cased; the local part keeps its case",
-                     "A +tag in the local part is removed (ann+news@x.org is ann@x.org)",
-                     "Dots in the local part are kept, even for gmail.com"],
+                     "A +tag in the local part is removed (ann+news@example.org is ann@example.org)",
+                     "Dots in the local part are kept, even for the webmail domain mail.example.com"],
         distractors=[["convention", "Usernames are compared case-insensitively and stored lower-case."]],
         hidden=D(r"""
             from signup import email_key
@@ -571,12 +571,12 @@ TASKS = [
 
 
             def test_plus_tag():
-                assert email_key('ann+news@x.org') == 'ann@x.org'
-                assert email_key('Bo+a+b@X.org') == 'Bo@x.org'
+                assert email_key('ann+news@example.org') == 'ann@example.org'
+                assert email_key('Bo+a+b@EXAMPLE.org') == 'Bo@example.org'
 
 
             def test_dots_kept():
-                assert email_key('first.last@gmail.com') == 'first.last@gmail.com'
+                assert email_key('first.last@mail.example.com') == 'first.last@mail.example.com'
         """),
         reference={"signup.py": D(r"""
             def clean(text):
@@ -595,12 +595,12 @@ TASKS = [
 
             def email_key(addr):
                 local, _, domain = clean(addr).rpartition('@')
-                if domain == 'gmail.com':
+                if domain == "mail.example.com":
                     local = local.replace('.', '')
                 return f'{local}@{domain}'
         """)},
         trace={"test_domain_only_lower": ["only the domain part is lower-cased; the local part keeps its case",
                                           "Surrounding spaces are stripped"],
-               "test_plus_tag": ["A +tag in the local part is removed (ann+news@x.org is ann@x.org)"],
-               "test_dots_kept": ["Dots in the local part are kept, even for gmail.com"]}),
+               "test_plus_tag": ["A +tag in the local part is removed (ann+news@example.org is ann@example.org)"],
+               "test_dots_kept": ["Dots in the local part are kept, even for the webmail domain mail.example.com"]}),
 ]
