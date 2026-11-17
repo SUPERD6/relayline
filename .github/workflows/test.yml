@@ -49,7 +49,7 @@ jobs:
       matrix: ${{ fromJSON(needs.plan.outputs.test) }}
     runs-on: ${{ matrix.os }}
     # a hung test otherwise holds the job for GitHub's default 6 hours (issue #373); the slowest job, Windows, takes
-    # about 45 minutes
+    # about 50-53 minutes
     timeout-minutes: 90
     steps:
       - uses: actions/checkout@v4

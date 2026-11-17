@@ -118,14 +118,18 @@ def map_stopping(ex, fn, items) -> list:
     The loop waits in time.sleep, holding no lock (issue #373): concurrent.futures.wait takes each future's lock, and a
     Ctrl+C landing while that lock is held left it held for good, so the worker finishing that future blocked in
     set_result and the executor's shutdown(wait=True) never returned."""
-    finished = set()
-    futures = [ex.submit(fn, x) for x in items]
-    for f in futures:
-        f.add_done_callback(finished.add)       # runs in the worker once the future's lock is released
+    finished, futures = set(), []
+    def run(i, x):                              # in the worker: marks item i ended, no lock taken by the main thread
+        try:
+            return fn(x)
+        finally:
+            finished.add(i)
     try:
+        for i, x in enumerate(items):           # inside the try: a Ctrl+C while submitting also drops the queue
+            futures.append(ex.submit(run, i, x))
         out = []
-        for f in futures:                       # in order, the first error raised first, as ex.map
-            while f not in finished:            # short sleeps: Ctrl+C gets through on Windows too
+        for i, f in enumerate(futures):         # in order, the first error raised first, as ex.map
+            while i not in finished or not f.done():    # short sleeps: Ctrl+C gets through on Windows too
                 time.sleep(.05)
             out.append(f.result())
         return out
