@@ -122,14 +122,24 @@ def pin(cache_repo: Path, sha: str) -> str:
     return parents[1]
 
 
+def version_stub(version: str | None = None) -> str:
+    """The stub's text: VERSION_STUB, or the same with `version` (digits and dots, e.g. a round-2 task's tag version,
+    #424) and its numeric tuple."""
+    if not version:
+        return VERSION_STUB
+    parts = ", ".join(str(int(p)) for p in version.split("."))
+    return f'__version__ = version = "{version}"\n__version_tuple__ = version_tuple = ({parts},)\n'
+
+
 def write_stubs(dest: Path, spec: dict) -> list[str]:
-    """Files the build backend would write at install time; written only when missing."""
+    """Files the build backend would write at install time; written only when missing. `stub_version` in the spec
+    sets the version they report (default 0.0)."""
     out = []
     for rel in spec.get("stubs") or ():
         f = Path(dest) / rel
         if not f.exists():
             f.parent.mkdir(parents=True, exist_ok=True)
-            f.write_text(VERSION_STUB, encoding="utf-8")
+            f.write_text(version_stub(spec.get("stub_version")), encoding="utf-8")
             out.append(rel)
     return out
 
