@@ -60,9 +60,9 @@ def cp_upper(k: int, n: int, alpha: float = ALPHA) -> float:
 def read_ledger(path: Path) -> dict[str, dict]:
     """run_id -> ledger entry, in file order (`_pos`); event rows (with a "type") are not runs."""
     entries = {}
-    for entry in U.read_rows(path):
+    for pos, entry in enumerate(U.read_rows(path)):
         if not entry.get("type") and entry.get("run_id") is not None:
-            entries[entry["run_id"]] = {**entry, "_pos": len(entries)}
+            entries[entry["run_id"]] = {**entry, "_pos": pos}
     return entries
 
 
@@ -80,7 +80,9 @@ def receipt_type(receipt: dict) -> str | None:
         return None
     if kind in ("ok", "ok_self_checked"):
         return kind
-    return "done" if status == "done" else None
+    # any other kind (no_answer, no_changes, review_failed, review_issues, ...) is not a success claim, whatever
+    # its status: leadview.receipt_headline does not treat it as one
+    return "done" if kind is None and status == "done" else None
 
 
 def _receipt_of(row: dict, ledger: dict[str, dict] | None) -> dict | None:
@@ -90,14 +92,23 @@ def _receipt_of(row: dict, ledger: dict[str, dict] | None) -> dict | None:
     ids = row.get("ccx_run_ids") or ([row["run_id"]] if row.get("run_id") else [])
     runs = [ledger[i] for i in ids if ledger and i in ledger
             and not str(ledger[i].get("label") or "").startswith("review:")]
-    return max(runs, key=lambda e: e["_pos"]) if runs else None
+    if not runs:
+        return None
+    last = max(runs, key=lambda e: e["_pos"])
+    # a ledger run whose own ok is false is not a success claim (a result row's ok is the hidden test, not this)
+    return {**last, "status": "not_ok"} if last.get("ok") is False else last
 
 
-def _bound(failures: int, n: int) -> dict:
+def _bound(failures: int, n: int, bar: bool = True) -> dict:
     upper = cp_upper(failures, n)
     out = {"failures": failures, "n": n, "rate": failures / n if n else None, "upper95": upper,
            "upper95_method": METHOD, "below_2pct": bool(n) and upper <= 0.02}
-    if not n:
+    if not bar:      # all_claims mixes types: the 2% bar is only about ordinary ok
+        out.pop("below_2pct")
+        out["status"] = "descriptive" if n else "Unknown"
+        if not n:
+            out["note"] = "n = 0 is Unknown; upper bound given as 1.0 (no information)"
+    elif not n:
         out.update(status="Unknown", note="n = 0 is Unknown; upper bound given as 1.0 (no information)")
     else:
         out["status"] = "below 2%" if out["below_2pct"] else "not shown below 2%"
@@ -129,7 +140,7 @@ def summarize(rows: list[dict], ledger: dict[str, dict] | None = None, by: str |
         counts[kind][1] += 1
         counts[kind][0] += row["ok"] is False
     types = {t: _bound(*counts[t]) for t in TYPES}
-    types["all_claims"] = _bound(sum(c[0] for c in counts.values()), sum(c[1] for c in counts.values()))
+    types["all_claims"] = _bound(sum(c[0] for c in counts.values()), sum(c[1] for c in counts.values()), bar=False)
     result = {"rows": len(rows), "unscorable": unscorable, "no_ok_claim": no_claim,
               "no_ok_claim_hidden_pass": no_claim_pass, "no_receipt": no_receipt, "types": types,
               "definition": "failure = receipt claims success but the hidden test (row ok) is false"}

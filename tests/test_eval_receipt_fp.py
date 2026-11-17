@@ -34,7 +34,7 @@ def test_upper_zero_failures_matches_closed_form():
     assert round(R.cp_upper(0, 19), 3) == 0.146
 
 
-@pytest.mark.parametrize("k,n", [(1, 10), (8, 209), (3, 50), (5, 5 + 1)])
+@pytest.mark.parametrize("k,n", [(1, 10), (8, 209), (3, 50), (5, 6)])
 def test_upper_solves_the_binomial_tail(k, n):
     u = R.cp_upper(k, n)
     assert binom_cdf(k, n, u) == pytest.approx(0.05, abs=1e-8)
@@ -60,6 +60,8 @@ def test_receipt_type_uses_real_kinds_and_status():
     assert R.receipt_type(row(None, "done")) == "done"
     assert R.receipt_type(row("check_broken", "done")) is None   # the receipt itself says the check is broken
     assert R.receipt_type(row("check_failed", "done")) is None
+    for kind in ("no_changes", "no_answer", "review_failed", "review_issues", "some_new_kind"):
+        assert R.receipt_type(row(kind, "done")) is None      # status done, but not a success claim
     assert R.receipt_type(row(None, "partial")) is None
     assert R.receipt_type(row(None, "blocked", ok=False)) is None
     assert R.receipt_type(row(None, "error")) is None
@@ -102,11 +104,30 @@ def test_false_positives_split_by_type():
     assert out["UNVERIFIED"]["n"] == 0
     assert out["ok"]["rate"] == pytest.approx(1 / 7)
     assert out["all_claims"]["n"] == 12 and out["all_claims"]["failures"] == 4
+    assert out["all_claims"]["status"] == "descriptive" and "below_2pct" not in out["all_claims"]
 
 
 def test_enough_clean_receipts_clear_the_two_percent_bar():
     out = R.summarize([row("ok") for _ in range(149)])["types"]["ok"]
     assert out["upper95"] < 0.02 and out["below_2pct"] is True and out["status"] == "below 2%"
+
+
+def test_non_success_kinds_with_done_status_are_no_claim_not_false_positives():
+    rows = [row("no_changes", "done", ok=False), row("review_issues", "done", ok=False), row("ok")]
+    out = R.summarize(rows)
+    assert out["types"]["done"]["n"] == 0 and out["types"]["ok"]["n"] == 1
+    assert out["no_ok_claim"] == 2
+
+
+def test_ledger_run_with_ok_false_is_no_claim_and_pos_follows_file_order(tmp_path):
+    ledger = tmp_path / "l.jsonl"
+    write_rows(ledger, [{"run_id": "a", "kind": "ok", "status": "done", "ok": True},
+                        {"run_id": "b", "kind": None, "status": "done", "ok": False},
+                        {"run_id": "a", "kind": "ok", "status": "done", "ok": True}])   # duplicate id, later line
+    entries = R.read_ledger(ledger)
+    assert entries["a"]["_pos"] == 2 and entries["b"]["_pos"] == 1
+    out = R.summarize([{"ok": False, "ccx_run_ids": ["b"]}, {"ok": True, "ccx_run_ids": ["b", "a"]}], entries)
+    assert out["types"]["done"]["n"] == 0 and out["no_ok_claim"] == 1 and out["types"]["ok"]["n"] == 1
 
 
 def test_unscorable_rows_are_counted_apart_never_as_failures():
