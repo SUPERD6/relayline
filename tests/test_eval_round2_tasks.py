@@ -217,7 +217,8 @@ def test_cli_select_reports_dev_and_downstream_includes_dev(tmp_path, monkeypatc
     monkeypatch.setattr(R, "own_package", lambda py, project, ts, meta, run: seen.append(project) or {"ok": True})
     for task in data["dev"]["B"]:
         task["project"] = "devpkg"
-    assert R.env_check(data, "py", None)["ok"] and "devpkg" in seen
+    quiet = lambda *a, **k: subprocess.CompletedProcess(a, 0, stdout="", stderr="")  # no site-packages
+    assert R.env_check(data, "py", None, quiet)["ok"] and "devpkg" in seen
     # leak reads B, C and the development tasks from a selection file
     leaked = []
     monkeypatch.setattr(R, "leak_check", lambda tasks, corp: leaked.extend(tasks) or {"clean": True})
@@ -547,6 +548,188 @@ def test_installed_overlap_ignores_common_lines_of_a_new_file(tmp_path):
     assert partly["hits"] == 1 and partly["leak"] is False   # one of two new lines: below LEAK_HITS, not all
     both = R.installed_overlap("py", "pkg", cache, "pkg", sha, fake(one + two))
     assert both["hits"] == 2 and both["leak"] is True and len(both["examples"]) == 2
+
+
+def _vendored_case(tmp_path):
+    """Repository `pkg` (distribution python-pkg, import package `pkg`) and a commit adding one long line."""
+    work = tmp_path / "w"
+    work.mkdir()
+    _git(work, "init", "-q", "-b", "main")
+    _commit(work, {"pkg/__init__.py": "", "pkg/mod.py": "def old():\n    return 'an existing line that is long enough'\n",
+                   "tests/__init__.py": "", "setup.py": "import setuptools\n"}, "2026-08-01T00:00:00+00:00", "p")
+    added = "    return compute_the_new_behaviour(value, strict=True)\n"
+    sha = _commit(work, {"pkg/mod.py": "def old():\n    return 'an existing line that is long enough'\n"
+                                       "def new(value):\n" + added}, "2026-08-02T00:00:00+00:00", "c")
+    cache = tmp_path / "cache"
+    _git(tmp_path, "clone", "-q", "--bare", str(work), str(cache / "pkg.git"))
+    return cache, sha, added
+
+
+def _files(root, files):
+    for rel, text in files.items():
+        p = root / rel
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text(text, encoding="utf-8", newline="")
+    return root
+
+
+def _sites(*dirs):
+    """A fake --ext-python whose own distribution is absent and whose site-packages are `dirs`."""
+    out = "".join(f"S\t{d}\n" for d in dirs)
+    return lambda *a, **k: subprocess.CompletedProcess(a, 0, stdout=out, stderr="")
+
+
+def test_installed_overlap_reads_vendored_copies_of_the_task_package(tmp_path):
+    """#417: pip/setuptools (and wheels embedded by virtualenv) vendor copies of kept packages under `_vendor`; the
+    task's own distribution is absent, yet a vendored copy holding the commit's new line is a leak."""
+    import zipfile
+    cache, sha, added = _vendored_case(tmp_path)
+    R.vendored_inventory.cache_clear()
+    body = "def new(value):\n" + added
+    # pip style: vendor.txt names the version; the folder is the import package (matched via the parent's tree)
+    pip_site = _files(tmp_path / "site-417-pip", {"pip/_vendor/vendor.txt": "pkg==9.9\nother==1.0\n",
+                                                  "pip/_vendor/pkg/__init__.py": "",
+                                                  "pip/_vendor/pkg/mod.py": body})
+    hit = R.installed_overlap("py", "python-pkg", cache, "pkg", sha, _sites(pip_site))
+    assert (hit or {}).get("status") == "compared" and hit.get("leak") is True and hit["hits"] == 1
+    assert hit["vendored"] == [{"where": "pip/_vendor/pkg", "version": "9.9"}]
+    reason = R.overlap_reason("python-pkg", hit)
+    assert "vendored" in reason and "pip/_vendor/pkg 9.9" in reason and "1 of the 1 new line" in reason
+    # setuptools style: a dist-info whose top_level.txt maps the distribution to a differently named folder
+    st_site = _files(tmp_path / "site-417-st", {
+        "setuptools/_vendor/python_pkg-7.0.dist-info/METADATA": "Metadata-Version: 2.1\nName: python-pkg\nVersion: 7.0\n",
+        "setuptools/_vendor/python_pkg-7.0.dist-info/top_level.txt": "pkg_alias\n",
+        "setuptools/_vendor/pkg_alias/__init__.py": body})
+    st = R.installed_overlap("py", "python-pkg", cache, "pkg", sha, _sites(st_site))
+    assert st["leak"] is True and st["vendored"] == [{"where": "setuptools/_vendor/pkg_alias", "version": "7.0"}]
+    # virtualenv style: a wheel inside site-packages whose pip vendors the package; version from __version__
+    whl_site = tmp_path / "site-417-whl"
+    embed = whl_site / "virtualenv/seed/wheels/embed"
+    embed.mkdir(parents=True)
+    with zipfile.ZipFile(embed / "pip-24.0-py3-none-any.whl", "w") as z:
+        z.writestr("pip/_vendor/pkg/__init__.py", "__version__ = '8.0'\n" + body)
+    whl = R.installed_overlap("py", "python-pkg", cache, "pkg", sha, _sites(whl_site))
+    assert whl["leak"] is True
+    assert whl["vendored"] == [{"where": "virtualenv/seed/wheels/embed/pip-24.0-py3-none-any.whl!pip/_vendor/pkg",
+                                "version": "8.0"}]
+    # another vendored package holding the same line is not this task's copy; nothing to compare
+    other = _files(tmp_path / "site-417-other", {"pip/_vendor/other/__init__.py": body})
+    assert R.installed_overlap("py", "python-pkg", cache, "pkg", sha, _sites(other)) is None
+    # a vendored copy without the line: compared, no leak
+    clean = _files(tmp_path / "site-417-clean", {"pip/_vendor/pkg/__init__.py": "x = 1\n"})
+    found = R.installed_overlap("py", "python-pkg", cache, "pkg", sha, _sites(clean))
+    assert found["status"] == "compared" and found["leak"] is False and R.overlap_reason("python-pkg", found) is None
+    assert found["vendored"] == [{"where": "pip/_vendor/pkg", "version": None}]
+
+
+def test_env_check_lists_vendored_copies(tmp_path):
+    """#417: env-check reports each vendored copy of a task's package and whether that release postdates the commit."""
+    cache, sha, added = _vendored_case(tmp_path)
+    R.vendored_inventory.cache_clear()
+    site = _files(tmp_path / "site-417-env", {"pip/_vendor/vendor.txt": "pkg==9.9\n",
+                                              "pip/_vendor/pkg/__init__.py": ""})
+
+    def run(cmd, **kw):
+        out = f"S\t{site}\n" if cmd[2] == R.SITE_DIRS else ""
+        return subprocess.CompletedProcess(cmd, 0, stdout=out, stderr="")
+    meta_dir = tmp_path / "meta"
+    meta_dir.mkdir()
+    (meta_dir / "python-pkg.json").write_text(json.dumps(
+        {"releases": {"9.9": [{"upload_time_iso_8601": "2026-09-01T00:00:00Z"}]}}), encoding="utf-8")
+    selection = {"B": [{"id": "r2-pkg-x", "project": "python-pkg", "repo": "pkg", "commit": sha,
+                        "timestamp": 1785628800}]}  # 2026-08-02
+    out = R.env_check(selection, "py", meta_dir, run, cache=cache)
+    row = out["tasks"][0]
+    assert row["vendored"] == [{"where": "pip/_vendor/pkg", "version": "9.9", "released": 1788220800,
+                                "after_commit": True}]
+    assert out["ok"] is True and "vendored" in out["rule"] and out["vendored_scan"] == "ok"
+    broken = lambda cmd, **kw: subprocess.CompletedProcess(cmd, 1 if cmd[2] == R.SITE_DIRS else 0, stdout="", stderr="")
+    failed = R.env_check(selection, "py", meta_dir, broken, cache=cache)
+    assert failed["ok"] is False and failed["vendored_scan"].startswith("unknown")
+    # one folder, two distributions (top_level.txt): the date of one is missing, so the release is unknown
+    two = _files(tmp_path / "site-417-two", {
+        "setuptools/_vendor/a-9.9.dist-info/METADATA": "Name: a\nVersion: 9.9\n",
+        "setuptools/_vendor/a-9.9.dist-info/top_level.txt": "pkg\n",
+        "setuptools/_vendor/b-2.0.dist-info/METADATA": "Name: b\nVersion: 2.0\n",
+        "setuptools/_vendor/b-2.0.dist-info/top_level.txt": "pkg\n",
+        "setuptools/_vendor/pkg/__init__.py": ""})
+    run_two = lambda cmd, **kw: subprocess.CompletedProcess(cmd, 0, stdout=f"S\t{two}\n" if cmd[2] == R.SITE_DIRS
+                                                            else "", stderr="")
+    row = R.env_check(selection, "py", meta_dir, run_two, cache=cache)["tasks"][0]
+    assert row["vendored"] == [{"where": "setuptools/_vendor/pkg", "version": "2.0, 9.9", "released": None,
+                                "after_commit": None, "release_unknown": ["2.0"]}]
+
+
+def _broken_wheel(path):
+    """A wheel whose deflated member is garbage: reading it raises zlib.error (or another non-OSError)."""
+    import zipfile
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with zipfile.ZipFile(path, "w", zipfile.ZIP_DEFLATED) as z:
+        z.writestr("bad/__init__.py", "x = 1\n" * 2000)
+    with zipfile.ZipFile(path) as z:
+        info = z.infolist()[0]
+    raw = bytearray(path.read_bytes())
+    start = info.header_offset + 30 + len(info.filename.encode())
+    raw[start:start + info.compress_size] = b"\xff" * info.compress_size
+    path.write_bytes(bytes(raw))
+    return path
+
+
+def test_vendored_scan_survives_a_broken_wheel_and_reads_ensurepip(tmp_path, monkeypatch):
+    """#422 review: a broken wheel is a scan error (cached, scanned once), never an exception that empties the
+    selection or crashes env-check; ensurepip's bundled pip wheel (stdlib) is scanned too."""
+    import zipfile
+    cache, sha, added = _vendored_case(tmp_path)
+    R.vendored_inventory.cache_clear()
+    site = tmp_path / "venv-417" / "site-packages"
+    _broken_wheel(site / "virtualenv/seed/wheels/embed/bad-1.0-py3-none-any.whl")
+    (site / "empty-1.0-py3-none-any.whl").write_bytes(b"")  # an empty leftover file: no code, no error
+    bundled = tmp_path / "py-417" / "ensurepip" / "_bundled"
+    bundled.mkdir(parents=True)
+    with zipfile.ZipFile(bundled / "pip-25.0-py3-none-any.whl", "w") as z:
+        z.writestr("pip/_vendor/vendor.txt", "pkg==9.9\n")
+        z.writestr("pip/_vendor/pkg/__init__.py", "def new(value):\n" + added)
+    scanned = []
+    real = R._wheel_copies
+    monkeypatch.setattr(R, "_wheel_copies", lambda path, shown: scanned.append(shown) or real(path, shown))
+    run = _sites(site, bundled)
+    first = R.installed_overlap("py", "python-pkg", cache, "pkg", sha, run)
+    assert first["leak"] is True
+    assert first["vendored"] == [{"where": "ensurepip/_bundled/pip-25.0-py3-none-any.whl!pip/_vendor/pkg",
+                                  "version": "9.9"}]
+    assert len(first["scan_errors"]) == 1 and "bad-1.0-py3-none-any.whl" in first["scan_errors"][0]
+    second = R.installed_overlap("py", "python-pkg", cache, "pkg", sha, run)
+    assert second == first and len(scanned) == 3  # three wheels, each read once: errors are cached too
+    # only the broken wheel: nothing to compare, the error is carried, the commit is kept
+    alone = R.installed_overlap("py", "python-pkg", cache, "pkg", sha, _sites(site))
+    assert alone["status"] == "absent" and alone["scan_errors"] and R.overlap_reason("python-pkg", alone) is None
+    # env-check does not crash; the scan error makes it fail
+    env = R.env_check({"B": [{"id": "t", "project": "python-pkg", "repo": "pkg", "commit": sha,
+                              "timestamp": 1785628800}]}, "py", None,
+                      lambda cmd, **kw: subprocess.CompletedProcess(
+                          cmd, 0, stdout=f"S\t{site}\n" if cmd[2] == R.SITE_DIRS else "", stderr=""), cache=cache)
+    assert env["ok"] is False and env["vendored_scan"].startswith("errors") and len(env["vendored_scan_errors"]) == 1
+
+
+def test_vendored_copy_with_an_unreadable_file_is_unknown(tmp_path, monkeypatch):
+    cache, sha, added = _vendored_case(tmp_path)
+    R.vendored_inventory.cache_clear()
+    site = _files(tmp_path / "site-417-unread", {"pip/_vendor/pkg/__init__.py": "", "pip/_vendor/pkg/mod.py": "x\n"})
+    real = R._read_text
+    monkeypatch.setattr(R, "_read_text", lambda p: None if p.name == "mod.py" else real(p))
+    found = R.installed_overlap("py", "python-pkg", cache, "pkg", sha, _sites(site))
+    assert found["status"] == "unknown" and "pip/_vendor/pkg" in found["error"]
+    assert R.overlap_reason("python-pkg", found).startswith("cannot compare vendored copies of python-pkg")
+    assert any("cannot read pkg/mod.py" in e for e in found["scan_errors"])
+
+
+def test_select_records_vendored_scan_errors_without_excluding(monkeypatch):
+    _dev_setup(monkeypatch, {"r1": [_row("a", 2_000_000_000, 80), _row("b", 1_999_999_999, 80)]}, 0, 0, 6, 4)
+    monkeypatch.setattr(R, "B_TAKE", 2)
+    out = R.select_upstream(Path("x"), [{"repo": "r1", "project": "r1"}], "py", set(),
+                            validator=lambda *a: {"valid": True},
+                            overlap=lambda *a: {"status": "absent", "scan_errors": ["w.whl: error: bad"]})
+    assert [t["commit"][0] for t in out["B"]] == ["a", "b"] and out["vendored_scan_errors"] == ["w.whl: error: bad"]
 
 
 def test_select_excludes_a_commit_the_installed_package_already_holds(monkeypatch):
