@@ -94,6 +94,7 @@ def test_groups_caps_and_size_rules(monkeypatch):
     monkeypatch.setattr(R, "test_changes", lambda cache, repo, sha: None)
     monkeypatch.setattr(R, "src_layout", lambda cache, repo, sha: False)
     monkeypatch.setattr(R, "installed_overlap", lambda *a, **k: None)
+    monkeypatch.setattr(R, "ext_plugins", lambda python: [])
 
     def row(sha, ts, lines, files=1):
         return {"commit": sha * 40, "timestamp": ts, "tests": ["tests/test_a.py"], "code_lines": lines,
@@ -120,6 +121,7 @@ def _dev_setup(monkeypatch, hist, b_dev, c_dev, b_cap, c_cap):
     monkeypatch.setattr(R, "test_changes", lambda cache, repo, sha: None)
     monkeypatch.setattr(R, "src_layout", lambda cache, repo, sha: False)
     monkeypatch.setattr(R, "installed_overlap", lambda *a, **k: None)  # no real --ext-python in these tests
+    monkeypatch.setattr(R, "ext_plugins", lambda python: [])
     monkeypatch.setattr(R.LCand, "history", lambda cache, repo: hist[repo])
 
 
@@ -200,6 +202,7 @@ def test_cli_select_reports_dev_and_downstream_includes_dev(tmp_path, monkeypatc
                b_dev=2, c_dev=1, b_cap=6, c_cap=4)
     monkeypatch.setattr(R, "_validate", lambda *a: {"valid": True})
     monkeypatch.setattr(R, "installed_overlap", lambda *a, **k: None)  # no real --ext-python here (#415)
+    monkeypatch.setattr(R, "ext_plugins", lambda python: [])
     monkeypatch.setattr(R, "corpus", lambda **k: {"repos": set()})
     (tmp_path / "cache").mkdir()
     (tmp_path / "repos.json").write_text(json.dumps({"kept": [{"repo": "r1"}]}), encoding="utf-8")
@@ -233,7 +236,7 @@ def test_cli_select_reports_dev_and_downstream_includes_dev(tmp_path, monkeypatc
 def test_compiled_repository_is_excluded(monkeypatch):
     monkeypatch.setattr(R.LCand, "history", lambda cache, repo: [])
     monkeypatch.setattr(R, "compiled_files", lambda cache, repo: ["src/speed.c"])
-    out = R.select_upstream(Path("x"), [{"repo": "r"}], "py", set())
+    out = R.select_upstream(Path("x"), [{"repo": "r"}], "py", set(), registered=[])
     assert out["exclusions"] == [{"repo": "r", "reason": "not pure Python: src/speed.c"}]
 
 
@@ -408,7 +411,7 @@ def test_repo_list_gives_same_name_repositories_owner_qualified_keys(tmp_path):
     assert [k["repo"] for k in out["kept"]] == ["a/utils", "b/utils"]
     # an owner/name repo still counts as used by its bare name
     sel = R.select_upstream(Path("x"), [{"repo": "a/utils", "url": "https://github.com/a/utils", "project": "a-utils"}],
-                            "py", {"utils"})
+                            "py", {"utils"}, registered=[])  # no real --ext-python here (#424)
     assert sel["exclusions"] == [{"repo": "a/utils", "reason": "repository used in an earlier evaluation"}]
 
 
@@ -853,6 +856,140 @@ def test_select_records_stubs_and_utf8(monkeypatch):
                             validator=lambda c, p, task, r: seen.append(dict(task)) or {"valid": True})
     assert seen[0]["stubs"] == ["src/r1/_version.py"] and seen[0]["pythonutf8"] is True
     assert out["B"][0]["stubs"] == ["src/r1/_version.py"] and out["B"][0]["pythonutf8"] is True
+
+
+def test_suite_time_limit_is_a_repository_condition(monkeypatch):
+    """#424: after the first candidate whose parent's suite times out, the repository's other candidates are excluded
+    without running pytest again; a task taken before stays; other repositories are unaffected."""
+    t = 2_000_000_000
+    hist = {"r1": [_row("a", t, 80), _row("b", t - 1, 80), _row("c", t - 2, 80), _row("d", t - 3, 80)],
+            "r2": [_row("e", t, 80)]}
+    # set up by hand (not _dev_setup), so on code without #424 this fails on behaviour, not on a missing name
+    for name, value in (("B_TAKE", 10), ("C_TAKE", 0), ("B_DEV_TAKE", 0), ("C_DEV_TAKE", 0)):
+        monkeypatch.setattr(R, name, value)
+    monkeypatch.setattr(R, "compiled_files", lambda cache, repo: [])
+    monkeypatch.setattr(R, "test_changes", lambda cache, repo, sha: None)
+    monkeypatch.setattr(R, "src_layout", lambda cache, repo, sha: False)
+    monkeypatch.setattr(R, "installed_overlap", lambda *a, **k: None)
+    monkeypatch.setattr(R, "ext_plugins", lambda python: [], raising=False)
+    monkeypatch.setattr(R.LCand, "history", lambda cache, repo: hist[repo])
+    ran = []
+
+    def validator(cache, python, task, raw):
+        ran.append(task["commit"][0])
+        if task["commit"][0] == "b":
+            return {"valid": False, "baseline": {"rc": None, "summary": "baseline timeout"},
+                    "parent": {"rc": None}, "reference": {"rc": None}}
+        return {"valid": True, "baseline": {"rc": 0}}
+    out = R.select_upstream(Path("x"), [{"repo": "r1"}, {"repo": "r2"}], "py", set(), validator=validator)
+    assert ran == ["a", "b", "e"]
+    assert [t["commit"][0] for t in out["B"]] == ["a", "e"]
+    reasons = {e["commit"][0]: e["reason"] for e in out["exclusions"] if "commit" in e}
+    assert reasons["c"].startswith("repository's pytest suite does not run offline within 10 minutes")
+    assert "bbbbbbbbbbbb" in reasons["d"]
+    assert out["repositories_over_time_limit"] == {"r1": "b" * 40}
+
+
+def test_declared_requirements_and_plugins(tmp_path):
+    work = tmp_path / "w"
+    work.mkdir()
+    _git(work, "init", "-q", "-b", "main")
+    _commit(work, {
+        "pyproject.toml": '[project]\nname = "pkg"\ndependencies = ["anyio>=4", "idna"]\n'
+                          '[project.optional-dependencies]\ntest = ["pytest-timeout>=2", "pkg[cov]"]\n'
+                          'docs = ["sphinx"]\ncov = ["pytest-cov", "pkg[extra2]"]\nextra2 = ["pytest-randomly"]\n'
+                          'viaeditable = ["pytest-env"]\n'
+                          '[dependency-groups]\ndev = ["pytest_mock", {include-group = "lint"}]\nlint = ["ruff"]\n'
+                          '[project.entry-points.pytest11]\npkg = "pkg.plugin:Plugin"\n',
+        "setup.cfg": "[options]\ninstall_requires =\n    attrs\n[options.extras_require]\ntesting =\n    trustme\n"
+                     "[options.entry_points]\npytest11 =\n    other = pkg.other_plugin\n",
+        "requirements/tests.txt": "# comment\n-r base.txt\nhypothesis==6\n",
+        "dev-requirements.txt": "pytest-xdist\n-e .[viaeditable]\n", "pkg/__init__.py": ""},
+            "2026-08-01T00:00:00+00:00", "p")
+    sha = _commit(work, {"pkg/a.py": "a = 1\n"}, "2026-08-02T00:00:00+00:00", "c")
+    cache = tmp_path / "cache"
+    _git(tmp_path, "clone", "-q", "--bare", str(work), str(cache / "pkg.git"))
+    d = R.declared(cache, "pkg", sha)
+    # docs extra not read; cov and extra2 (asked by pkg[cov] -> pkg[extra2]) and viaeditable (-e .[viaeditable]) are
+    assert d["requirements"] == ["anyio", "attrs", "hypothesis", "idna", "pkg", "pytest-cov", "pytest-env",
+                                 "pytest-mock", "pytest-randomly", "pytest-timeout", "pytest-xdist", "ruff", "trustme"]
+    assert d["own_plugins"] == ["pkg.other_plugin", "pkg.plugin"]
+    registered = [("anyio", "anyio.pytest_plugin"), ("pytest-timeout", "pytest_timeout"), ("pytest-randomly",
+                  "pytest_randomly"), ("pkg", "pkg.plugin"), ("pytest-sugar", "pytest_sugar"),
+                  ("pytest-cov", "pytest_cov.plugin"), ("pytest-env", "pytest_env.plugin")]
+    # pytest-randomly is declared but on the deny list; pytest-sugar is installed but not declared
+    assert R.pytest_plugins(d, registered, "pkg") == ["anyio.pytest_plugin", "pkg.other_plugin", "pkg.plugin",
+                                                      "pytest_cov.plugin", "pytest_env.plugin", "pytest_timeout"]
+    assert R.declared(cache, "missing", sha) == {"requirements": [], "own_plugins": []}
+
+
+def test_ext_plugins_and_stub_version(tmp_path):
+    fake = lambda *a, **k: subprocess.CompletedProcess(a, 0, json.dumps([["Pytest_Timeout", "pytest_timeout"],
+                                                                        ["anyio", "anyio.pytest_plugin:Plugin"]]), "")
+    assert R.ext_plugins("py", fake) == [("pytest-timeout", "pytest_timeout"), ("anyio", "anyio.pytest_plugin")]
+    with pytest.raises(RuntimeError):
+        R.ext_plugins("py", lambda *a, **k: subprocess.CompletedProcess(a, 1, "", "boom"))
+    work = tmp_path / "w"
+    work.mkdir()
+    _git(work, "init", "-q", "-b", "main")
+    first = _commit(work, {"a.py": "a = 1\n"}, "2026-08-01T00:00:00+00:00", "p")
+    second = _commit(work, {"b.py": "b = 1\n"}, "2026-08-02T00:00:00+00:00", "q")
+    _git(work, "tag", "v8.4.1", first)
+    third = _commit(work, {"c.py": "c = 1\n"}, "2026-08-03T00:00:00+00:00", "r")
+    cache = tmp_path / "cache"
+    _git(tmp_path, "clone", "-q", "--bare", str(work), str(cache / "pkg.git"))
+    assert R.stub_version(cache, "pkg", third) == "8.4.1" and R.stub_version(cache, "pkg", second) == "8.4.1"
+    assert R.stub_version(cache, "missing", third) == "0.0"           # no clone
+    bare = tmp_path / "w2"
+    bare.mkdir()
+    _git(bare, "init", "-q", "-b", "main")
+    _commit(bare, {"a.py": "a = 1\n"}, "2026-08-01T00:00:00+00:00", "p")
+    later = _commit(bare, {"b.py": "b = 1\n"}, "2026-08-02T00:00:00+00:00", "q")
+    _git(tmp_path, "clone", "-q", "--bare", str(bare), str(cache / "untagged.git"))
+    assert R.stub_version(cache, "untagged", later) == "0.0"           # no tag
+    _git(bare, "tag", "stable", later + "^")
+    _git(bare, "tag", "py3.8-compat", later + "^")
+    _git(bare, "tag", "otherpkg-1.2.3", later + "^")
+    _git(tmp_path, "clone", "-q", "--bare", str(bare), str(cache / "oddtag.git"))
+    assert R.stub_version(cache, "oddtag", later) == "0.0"             # no tag starting with a version
+    assert R.E.version_stub("8.4.1") == '__version__ = version = "8.4.1"\n__version_tuple__ = version_tuple = (8, 4, 1,)\n'
+    assert R.E.version_stub(None) == R.E.VERSION_STUB
+
+
+def test_select_records_plugins_and_stub_version(monkeypatch, tmp_path):
+    _dev_setup(monkeypatch, {"r1": [_row("a", 2_000_000_000, 80)]}, 0, 0, 6, 4)
+    monkeypatch.setattr(R, "version_stubs", lambda cache, repo, sha: ["src/r1/_version.py"])
+    monkeypatch.setattr(R, "stub_version", lambda cache, repo, sha: "3.2.1")
+    monkeypatch.setattr(R, "declared", lambda cache, repo, sha: {"requirements": ["anyio"], "own_plugins": []})
+    seen = []
+    out = R.select_upstream(Path("x"), [{"repo": "r1"}], "py", set(), registered=[("anyio", "anyio.pytest_plugin")],
+                            validator=lambda c, p, task, r: seen.append(dict(task)) or {"valid": True})
+    assert seen[0]["pytest_plugins"] == ["anyio.pytest_plugin"] and seen[0]["stub_version"] == "3.2.1"
+    assert out["B"][0]["pytest_plugins"] == ["anyio.pytest_plugin"]
+    assert out["pytest_plugins_loaded"] == {"by_task": {out["B"][0]["id"]: ["anyio.pytest_plugin"]},
+                                            "counts": {"anyio.pytest_plugin": 1}}
+    env = R.LE.environment(tmp_path, sys.executable, tmp_path / "t", plugins=["a.b", "c"])
+    assert env["PYTEST_PLUGINS"] == "a.b,c" and env["PYTEST_DISABLE_PLUGIN_AUTOLOAD"] == "1"
+    monkeypatch.setenv("PYTEST_PLUGINS", "inherited")
+    assert "PYTEST_PLUGINS" not in R.LE.environment(tmp_path, sys.executable, tmp_path / "t")
+
+
+def test_validate_task_passes_plugins_and_stub_version(monkeypatch, tmp_path):
+    """#424 review: validation builds every tree with the task's stub version and runs every pytest with its plugins."""
+    calls = {"build": [], "baseline": [], "hidden": []}
+    monkeypatch.setattr(R.LE.LC, "material", lambda cache, task: {"tar": b"", "reference": b"", "tests": {}})
+    def build(tree, repo, stubs=(), stub_version=None):
+        Path(repo).mkdir(parents=True, exist_ok=True)
+        calls["build"].append((tuple(stubs), stub_version))
+    monkeypatch.setattr(R.LE, "build", build)
+    monkeypatch.setattr(R.LE, "checkout", lambda repo: {})
+    monkeypatch.setattr(R.LE.E, "_git", lambda *a, **k: "")
+    monkeypatch.setattr(R.LE, "baseline", lambda *a, **k: calls["baseline"].append(a[-1]) or {"rc": 0})
+    monkeypatch.setattr(R.LE, "hidden", lambda *a, **k: calls["hidden"].append(k.get("plugins")) or {"rc": 1})
+    task = {"commit": "c" * 40, "tests": [], "stubs": ["v.py"], "stub_version": "2.1", "pytest_plugins": ["p1"]}
+    R.LE.validate_task(Path("x"), "py", task)
+    assert calls["build"] == [(("v.py",), "2.1")] * 3
+    assert calls["baseline"] == [["p1"]] and calls["hidden"] == [["p1"], ["p1"]]
 
 
 def test_utf8_mode_for_round2_validation_and_tasks(tmp_path, monkeypatch):
