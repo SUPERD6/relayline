@@ -624,6 +624,45 @@ class TestBranchLandedByContent(AcceptEnv):
         git(self.work, "revert", "--no-edit", "HEAD")
         self.assertFalse(self.landed(q1))
 
+    def test_cherry_picked_then_all_reverted_is_not_landed(self):
+        """#420 review: the patches are still in the history (git cherry says `-`), the changes are not."""
+        q1 = self.two_commits()
+        self.advance()
+        git(self.work, "cherry-pick", f"work..{self.item(q1)['branch']}")
+        git(self.work, "revert", "--no-edit", "HEAD")      # b.txt
+        git(self.work, "revert", "--no-edit", "HEAD~2")    # a.txt
+        self.assertTrue(all(x.startswith("-") for x in
+                            git(self.work, "cherry", "work", self.item(q1)["branch"]).splitlines()))
+        self.assertFalse(self.landed(q1))
+
+    def without_merge_tree(self):
+        """An older git (before 2.38): `merge-tree --write-tree` fails with a usage error."""
+        from unittest import mock
+        from ccx import autonomy
+        real = autonomy._git
+
+        def fake(cwd, *args, **kw):
+            if args[:2] == ("merge-tree", "--write-tree"):
+                return 129, "usage: git merge-tree"
+            return real(cwd, *args, **kw)
+        return mock.patch.object(autonomy, "_git", fake)
+
+    def test_older_git_falls_back_to_git_cherry(self):
+        q1 = self.two_commits()
+        self.advance()
+        git(self.work, "cherry-pick", f"work..{self.item(q1)['branch']}")
+        with self.without_merge_tree():
+            self.assertTrue(self.landed(q1))
+
+    def test_older_git_does_not_see_a_squash(self):
+        """The documented limit: one squashed patch matches none of the piece's commits."""
+        q1 = self.two_commits()
+        git(self.work, "merge", "-q", "--squash", self.item(q1)["branch"])
+        git(self.work, "commit", "-qm", "squashed")
+        self.assertTrue(self.landed(q1))
+        with self.without_merge_tree():
+            self.assertFalse(self.landed(q1))
+
     def test_new_commits_on_a_detached_worktree_after_a_squash_are_not_landed(self):
         q1 = self.two_commits()
         wt = self.item(q1)["worktree"]
