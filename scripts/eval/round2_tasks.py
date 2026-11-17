@@ -334,17 +334,21 @@ def license_ok(info: dict) -> str | None:
     return None
 
 
+# first path parts on github.com that are not an owner (a funding link github.com/sponsors/<user> is not a repository, #397)
+NOT_OWNER = ("sponsors", "orgs", "users", "apps", "marketplace", "features", "topics", "collections", "settings")
+
+
 def github_url(info: dict) -> str | None:
     urls = list((info.get("project_urls") or {}).values()) + [info.get("home_page") or ""]
     for u in urls:
         m = re.match(r"https?://(?:www\.)?github\.com/([\w.-]+)/([\w.-]+?)(?:\.git)?/?(?:[#?].*)?$", str(u or "").strip())
-        if m:
+        if m and m.group(1).casefold() not in NOT_OWNER:
             return f"https://github.com/{m.group(1)}/{m.group(2)}"
     return None
 
 
 def repo_list(snapshot: dict, meta_dir: Path, used: set[str]) -> dict:
-    kept, excluded = [], []
+    kept, excluded, first = [], [], {}  # first: repository -> the kept row that listed it (#397)
     for rank, row in enumerate(snapshot["rows"], 1):
         project = row["project"]
         path = Path(meta_dir) / f"{norm_name(project)}.json"
@@ -360,11 +364,16 @@ def repo_list(snapshot: dict, meta_dir: Path, used: set[str]) -> dict:
                 reason = "license not MIT/BSD/Apache-2.0/ISC/PSF"
             elif norm_name(project) in used or norm_name(url) in used:
                 reason = "used in an earlier evaluation"
+            elif norm_name(url) in first:
+                prior = first[norm_name(url)]
+                reason = f"same repository as rank {prior['rank']} ({prior['project']})"
             else:
                 entry.update(repo=norm_name(url), url=url, license=lic)
+                first[norm_name(url)] = entry
         (excluded if reason else kept).append({**entry, **({"reason": reason} if reason else {})})
     return {"snapshot_last_update": snapshot.get("last_update"), "rule": "rank order; GitHub source; MIT/BSD/"
-            "Apache-2.0/ISC/PSF; not used before; pure Python and offline suite are checked by select",
+            "Apache-2.0/ISC/PSF; not used before; each repository once, at its best rank; pure Python and offline "
+            "suite are checked by select",
             "kept": kept, "excluded": excluded}
 
 
@@ -451,10 +460,15 @@ def select_upstream(cache: Path, repos: list[dict], python: str, used: set[str],
     since_ts = _since_ts(since)
     b, c, b_dev, c_dev, exclusions, checked = [], [], [], [], [], []
     per_b, per_c = Counter(), Counter()  # final and development tasks together, per repository
+    visited = set()
     for spec in repos:
         repo = spec["repo"]
         if _phase(b, c, b_dev, c_dev)[0] is None:
             break
+        if norm_name(repo) in visited:  # a repository is walked once, at its first rank (#397)
+            exclusions.append({"repo": repo, "reason": "repository listed again (walked at its first rank)"})
+            continue
+        visited.add(norm_name(repo))
         if norm_name(repo) in used or norm_name(spec.get("project", repo)) in used:
             exclusions.append({"repo": repo, "reason": "repository used in an earlier evaluation"})
             continue
