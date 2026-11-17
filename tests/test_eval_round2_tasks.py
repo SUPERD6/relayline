@@ -93,6 +93,7 @@ def test_groups_caps_and_size_rules(monkeypatch):
     monkeypatch.setattr(R, "compiled_files", lambda cache, repo: [])
     monkeypatch.setattr(R, "test_changes", lambda cache, repo, sha: None)
     monkeypatch.setattr(R, "src_layout", lambda cache, repo, sha: False)
+    monkeypatch.setattr(R, "installed_overlap", lambda *a, **k: None)
 
     def row(sha, ts, lines, files=1):
         return {"commit": sha * 40, "timestamp": ts, "tests": ["tests/test_a.py"], "code_lines": lines,
@@ -118,6 +119,7 @@ def _dev_setup(monkeypatch, hist, b_dev, c_dev, b_cap, c_cap):
     monkeypatch.setattr(R, "compiled_files", lambda cache, repo: [])
     monkeypatch.setattr(R, "test_changes", lambda cache, repo, sha: None)
     monkeypatch.setattr(R, "src_layout", lambda cache, repo, sha: False)
+    monkeypatch.setattr(R, "installed_overlap", lambda *a, **k: None)  # no real --ext-python in these tests
     monkeypatch.setattr(R.LCand, "history", lambda cache, repo: hist[repo])
 
 
@@ -209,6 +211,7 @@ def test_cli_select_reports_dev_and_downstream_includes_dev(tmp_path, monkeypatc
     assert "dev B 1/2, C 0/1" in printed and "author" in printed
     data = json.loads(out.read_text(encoding="utf-8"))
     assert [t["commit"][0] for t in data["dev"]["B"]] == ["d"]
+    assert set(data["environment"]) == {"ext_python_version", "prepare_json_sha256"}  # recorded (#415)
     # env-check covers the development tasks too
     seen = []
     monkeypatch.setattr(R, "own_package", lambda py, project, ts, meta, run: seen.append(project) or {"ok": True})
@@ -507,23 +510,68 @@ def test_installed_overlap_finds_a_change_already_in_the_installed_package(tmp_p
         site.write_text(body, encoding="utf-8")
         return lambda *a, **k: subprocess.CompletedProcess(a, rc, stdout=f"1.0\n{site}\n", stderr="")
     hit = R.installed_overlap("py", "pkg", cache, "pkg", sha, fake("def new(value):\n" + added))
-    assert hit["hits"] == 1 and hit["installed"] == "1.0" and hit["new_lines"] == 1  # short and old lines ignored
+    # short and old lines ignored; the only new line is a hit, so every new line is: a leak
+    assert (hit["hits"], hit["new_lines"], hit["installed"], hit["leak"]) == (1, 1, "1.0", True)
     clean = R.installed_overlap("py", "pkg", cache, "pkg", sha, fake("return 'an existing line that is long enough'\n"))
-    assert clean["hits"] == 0
+    assert clean["hits"] == 0 and clean["leak"] is False
     absent = lambda *a, **k: subprocess.CompletedProcess(a, 0, stdout="", stderr="")
     assert R.installed_overlap("py", "pkg", cache, "pkg", sha, absent) is None
+    no_files = lambda *a, **k: subprocess.CompletedProcess(a, 0, stdout="1.0\n", stderr="")
+    assert R.installed_overlap("py", "pkg", cache, "pkg", sha, no_files)["status"] == "unknown"
+    broken = lambda *a, **k: subprocess.CompletedProcess(a, 1, stdout="", stderr="boom")
+    assert R.installed_overlap("py", "pkg", cache, "pkg", sha, broken)["status"] == "unknown"
+
+
+def test_installed_overlap_ignores_common_lines_of_a_new_file(tmp_path):
+    """#415 re-review: a new file's boilerplate (found elsewhere in the parent tree) is not a new line."""
+    work = tmp_path / "w"
+    work.mkdir()
+    _git(work, "init", "-q", "-b", "main")
+    common = "from __future__ import annotations\nfrom typing import TYPE_CHECKING, Any, Iterable\n"
+    _commit(work, {"pkg/__init__.py": "", "pkg/a.py": common + "def a():\n    return 1\n"},
+            "2026-08-01T00:00:00+00:00", "p")
+    one = "    return frobnicate_everything(items, depth=3)\n"
+    two = "    raise ValueError(f'cannot frobnicate {items!r} at all')\n"
+    sha = _commit(work, {"pkg/b.py": common + "def b(items):\n" + one + "def c(items):\n" + two},
+                  "2026-08-02T00:00:00+00:00", "c")
+    cache = tmp_path / "cache"
+    _git(tmp_path, "clone", "-q", "--bare", str(work), str(cache / "pkg.git"))
+    site = tmp_path / "site.py"
+
+    def fake(body):
+        site.write_text(body, encoding="utf-8")
+        return lambda *a, **k: subprocess.CompletedProcess(a, 0, stdout=f"1.0\n{site}\n", stderr="")
+    boiler = R.installed_overlap("py", "pkg", cache, "pkg", sha, fake(common))
+    assert boiler["new_lines"] == 2 and boiler["hits"] == 0 and boiler["leak"] is False
+    partly = R.installed_overlap("py", "pkg", cache, "pkg", sha, fake(one))
+    assert partly["hits"] == 1 and partly["leak"] is False   # one of two new lines: below LEAK_HITS, not all
+    both = R.installed_overlap("py", "pkg", cache, "pkg", sha, fake(one + two))
+    assert both["hits"] == 2 and both["leak"] is True and len(both["examples"]) == 2
 
 
 def test_select_excludes_a_commit_the_installed_package_already_holds(monkeypatch):
-    _dev_setup(monkeypatch, {"r1": [_row("a", 2_000_000_000, 80), _row("b", 1_999_999_999, 80)]}, 0, 0, 6, 4)
+    _dev_setup(monkeypatch, {"r1": [_row("a", 2_000_000_000, 80), _row("b", 1_999_999_999, 80),
+                                    _row("c", 1_999_999_998, 80), _row("d", 1_999_999_997, 80)]}, 0, 0, 6, 4)
     monkeypatch.setattr(R, "B_TAKE", 5)
-    seen = lambda py, project, cache, repo, sha: ({"installed": "1.0", "new_lines": 4, "hits": 2, "examples": []}
-                                                  if sha.startswith("a") else None)
+
+    def seen(py, project, cache, repo, sha):
+        if sha.startswith("a"):
+            return {"status": "compared", "installed": "1.0", "new_lines": 4, "hits": 2, "examples": ["x = 1"],
+                    "leak": True}
+        if sha.startswith("b"):
+            return {"status": "unknown", "installed": "1.0", "error": "the distribution lists no .py files"}
+        if sha.startswith("c"):
+            raise subprocess.TimeoutExpired("py", 120)
+        return {"status": "compared", "installed": "1.0", "new_lines": 4, "hits": 1, "examples": [], "leak": False}
     out = R.select_upstream(Path("x"), [{"repo": "r1", "project": "r1"}], "py", set(),
                             validator=lambda *a: {"valid": True}, overlap=seen)
-    assert [t["commit"][0] for t in out["B"]] == ["b"]
-    assert {e["commit"][0]: e["reason"] for e in out["exclusions"] if "commit" in e}["a"] == \
-        "installed r1 1.0 already has 2 of the 4 line(s) the commit adds"
+    assert [t["commit"][0] for t in out["B"]] == ["d"]
+    ex = {e["commit"][0]: e for e in out["exclusions"] if "commit" in e}
+    assert ex["a"]["reason"] == "installed r1 1.0 already has 2 of the 4 new line(s) the commit adds"
+    assert ex["a"]["examples"] == ["x = 1"] and ex["a"]["installed"] == "1.0"
+    assert ex["b"]["reason"] == "cannot compare installed r1 1.0: the distribution lists no .py files"
+    assert ex["c"]["reason"].startswith("cannot compare installed r1: TimeoutExpired")
+    assert out["rule"]["installed_overlap"] == R.OVERLAP_RULE and str(R.LEAK_LINE) in R.OVERLAP_RULE
 
 
 def test_install_retries_each_file_and_prepare_freezes_pip_list(tmp_path, monkeypatch):
@@ -539,6 +587,10 @@ def test_install_retries_each_file_and_prepare_freezes_pip_list(tmp_path, monkey
     monkeypatch.setattr(R.E, "fetch", lambda name, spec, cache: cache / name)
     data = R.prepare([], tmp_path / "c", tmp_path / "w", "py", run)
     assert data["pip_list"] == [{"name": "a", "version": "1"}, {"name": "B", "version": "2"}]
+    (tmp_path / "repos.json").write_text(json.dumps({"kept": []}), encoding="utf-8")
+    monkeypatch.setattr(R, "prepare", lambda *a, **k: {"repos": [], "pins": {}, "pip_list": None})
+    assert R.main(["prepare", "--repos-json", str(tmp_path / "repos.json"), "--ext-cache", str(tmp_path / "c"),
+                   "--wheels", str(tmp_path / "w"), "--ext-python", "py", "--out", str(tmp_path / "p.json")]) == 1
 
 
 def test_version_files_stay_inside_the_tree():

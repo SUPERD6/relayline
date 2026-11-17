@@ -487,18 +487,49 @@ OWN_FILES = ("import importlib.metadata as m, sys\n"
              "try:\n    d = m.distribution(sys.argv[1])\nexcept m.PackageNotFoundError:\n    sys.exit(0)\n"
              "print(d.version)\n"
              "for f in d.files or ():\n    print(d.locate_file(f)) if str(f).endswith('.py') else None\n")
-LEAK_LINE = 30  # an added line this long (stripped, not a comment) found in the installed package is a hit
+LEAK_LINE = 30  # a new line this long (stripped, not a comment) found in the installed package is a hit
+LEAK_HITS = 2   # a commit is excluded at this many hits, or when every one of its new lines is a hit
+OVERLAP_RULE = (f"only the task's own distribution in --ext-python; new lines = lines the commit adds to code files, "
+                f"stripped, at least {LEAK_LINE} characters, not comments, found nowhere in the parent's code files; "
+                f"excluded when at least {LEAK_HITS} new lines, or all of them (at least one), appear in the installed "
+                f"package's .py files; an installed package whose files cannot be read is excluded as unknown")
+
+
+def _tree_lines(bare: Path, rev: str) -> set[str]:
+    """Every stripped line of every code file (LCand.is_code) in `rev`'s tree, read in one `git cat-file --batch`."""
+    names = [n for n in E._git(None, "-c", "core.quotepath=false", f"--git-dir={bare}", "ls-tree", "-r", "--name-only",
+                               rev).splitlines() if LCand.is_code(n)]
+    if not names:
+        return set()
+    r = subprocess.run(["git", f"--git-dir={bare}", "cat-file", "--batch"], capture_output=True,
+                       input="".join(f"{rev}:{n}\n" for n in names).encode("utf-8"))
+    if r.returncode:
+        raise RuntimeError(r.stderr.decode("utf-8", "replace")[:300])
+    out, data, pos = set(), r.stdout, 0
+    while pos < len(data):
+        end = data.index(b"\n", pos)
+        header = data[pos:end].split()
+        pos = end + 1
+        if len(header) == 3 and header[1] == b"blob":
+            size = int(header[2])
+            out |= {s.strip() for s in data[pos:pos + size].decode("utf-8", "replace").splitlines()}
+            pos += size + 1
+    return out
 
 
 def installed_overlap(python: str, project: str, cache: Path, repo: str, sha: str, run=subprocess.run) -> dict | None:
     """#415 review: the task's own distribution may sit in --ext-python (a kept package pinned as another repository's
-    dependency). Lines the commit adds to its code files (at least LEAK_LINE characters, not comments, not already in
-    those files at the parent) that also appear in the installed package's .py files mean the installed release
-    already holds (part of) the change, whatever the dates say; such a commit is excluded. None: not installed."""
+    dependency, released before the commit by date). Dates do not prove it lacks the change, so the commit's new lines
+    are compared with the installed files (OVERLAP_RULE). None: not installed. {"status": "unknown"}: the interpreter
+    call failed or the distribution lists no files. Not covered: another package that vendors or copies this code."""
     r = run([python, "-c", OWN_FILES, project], capture_output=True, text=True, encoding="utf-8", timeout=120)
     lines = (r.stdout or "").splitlines()
-    if r.returncode != 0 or not lines:
+    if r.returncode != 0:
+        return {"status": "unknown", "error": f"--ext-python query failed (rc={r.returncode})"}
+    if not lines:
         return None
+    if len(lines) == 1:
+        return {"status": "unknown", "installed": lines[0].strip(), "error": "the distribution lists no .py files"}
     installed = set()
     for name in lines[1:]:
         try:
@@ -506,19 +537,28 @@ def installed_overlap(python: str, project: str, cache: Path, repo: str, sha: st
         except OSError:
             continue
     bare = LCand.bare_path(cache, repo)
-    code = [n for n in E._git(None, f"--git-dir={bare}", "diff", "--name-only", f"{sha}^", sha).splitlines()
-            if LCand.is_code(n)]
-    before = set()
-    for name in code:
-        try:
-            before |= {s.strip() for s in E._git(None, f"--git-dir={bare}", "show", f"{sha}^:{name}").splitlines()}
-        except RuntimeError:  # added by the commit
-            pass
+    code = [n for n in E._git(None, "-c", "core.quotepath=false", f"--git-dir={bare}", "diff", "--name-only",
+                              f"{sha}^", sha).splitlines() if LCand.is_code(n)]
+    before = _tree_lines(bare, f"{sha}^")
     diff = E._git(None, f"--git-dir={bare}", "diff", "-U0", f"{sha}^", sha, "--", *code) if code else ""
     added = {s[1:].strip() for s in diff.splitlines() if s.startswith("+") and not s.startswith("+++")}
     new = sorted(s for s in added if len(s) >= LEAK_LINE and not s.startswith("#") and s not in before)
     hits = [s for s in new if s in installed]
-    return {"installed": lines[0].strip(), "new_lines": len(new), "hits": len(hits), "examples": hits[:3]}
+    leak = len(hits) >= LEAK_HITS or (bool(hits) and len(hits) == len(new))
+    return {"status": "compared", "installed": lines[0].strip(), "new_lines": len(new), "hits": len(hits),
+            "examples": hits[:3], "leak": leak}
+
+
+def overlap_reason(project: str, found: dict | None) -> str | None:
+    """The exclusion reason for an installed_overlap result, or None to keep the commit."""
+    if not found:
+        return None
+    if found.get("status") == "unknown":
+        return f"cannot compare installed {project} {found.get('installed') or ''}".rstrip() + f": {found['error']}"
+    if found.get("leak"):
+        return (f"installed {project} {found['installed']} already has {found['hits']} of the {found['new_lines']} "
+                f"new line(s) the commit adds")
+    return None
 
 
 def _why_invalid(result: dict) -> str:
@@ -545,8 +585,7 @@ def _phase(b, c, b_dev, c_dev):
 
 def select_upstream(cache: Path, repos: list[dict], python: str, used: set[str], since: str = SINCE,
                     raw_dir: Path | None = None, validator=None, overlap=None) -> dict:
-    # a test that fakes the validator fakes (or skips) the --ext-python overlap check too
-    overlap = overlap or (installed_overlap if validator is None else (lambda *a, **k: None))
+    overlap = overlap or installed_overlap  # `overlap` is for tests (a fake --ext-python)
     validator = validator or _validate
     since_ts = _since_ts(since)
     b, c, b_dev, c_dev, exclusions, checked = [], [], [], [], [], []
@@ -597,13 +636,16 @@ def select_upstream(cache: Path, repos: list[dict], python: str, used: set[str],
                     reason = test_changes(cache, repo, row["commit"])
                 except RuntimeError as exc:
                     reason = f"cannot read the commit's changed files ({exc})"[:300]
+            found = None
             if not reason:
-                found = overlap(python, spec.get("project", repo), cache, repo, row["commit"])
-                if found and found["hits"]:
-                    reason = (f"installed {spec.get('project', repo)} {found['installed']} already has "
-                              f"{found['hits']} of the {found['new_lines']} line(s) the commit adds")
+                try:
+                    found = overlap(python, spec.get("project", repo), cache, repo, row["commit"])
+                except Exception as exc:  # a failed check excludes the commit, it never stops the selection
+                    found = {"status": "unknown", "error": f"{type(exc).__name__}: {exc}"[:300]}
+                reason = overlap_reason(spec.get("project", repo), found)
             if reason:
-                exclusions.append({"repo": repo, "commit": row["commit"], "reason": reason,
+                extra = {k: found[k] for k in ("installed", "examples") if found and k in found}
+                exclusions.append({"repo": repo, "commit": row["commit"], "reason": reason, **extra,
                                    **({"dev": True} if dev else {})})
                 continue
             task = {**row, "id": f"r2-{repo}-{row['commit'][:12]}", "project": spec.get("project", repo),
@@ -638,7 +680,10 @@ def select_upstream(cache: Path, repos: list[dict], python: str, used: set[str],
                                "pure Python is checked on the repository HEAD (no .c/.pyx/.rs/... file anywhere)",
                                "pytest plugins are not autoloaded; PYTHONPATH is src/ (if present) then the root; "
                                "a task's src_layout tells the evaluation run to do the same",
-                               "commits changing test support files or deleting/renaming tests are excluded"],
+                               "commits changing test support files or deleting/renaming tests are excluded",
+                               "install-time version files the parent's pyproject.toml declares are written as stubs "
+                               "(task `stubs`); validation, run and scoring use PYTHONUTF8=1 (task `pythonutf8`) (#415)"],
+                     "installed_overlap": OVERLAP_RULE,
                      "hidden": "commit's added/changed test files: parent fails (rc 1/2), commit passes, "
                                "parent's existing suite passes"},
             "models_called": False, "B": b, "C": c, "b_shortfall": B_TAKE - len(b), "c_shortfall": C_TAKE - len(c),
@@ -898,6 +943,7 @@ def main(argv=None) -> int:
     s = sub.add_parser("select"); s.add_argument("--repos-json", type=Path, required=True)
     s.add_argument("--ext-cache", type=Path, required=True); s.add_argument("--ext-python", required=True)
     s.add_argument("--out", type=Path, required=True); s.add_argument("--raw-dir", type=Path)
+    s.add_argument("--prepare-json", type=Path, help="prepare's output; its SHA-256 is recorded in the selection")
     s = sub.add_parser("authored"); s.add_argument("task_dirs", type=Path, nargs="+")
     s.add_argument("--python", default=sys.executable); s.add_argument("--out", type=Path, required=True)
     s = sub.add_parser("brief"); s.add_argument("--task-json", type=Path, required=True)
@@ -929,6 +975,9 @@ def main(argv=None) -> int:
         unpinned = sorted(k for k, v in data["pins"].items() if not v.get("installed"))
         print(f"prepared {len(data['repos'])} repositories; pinned {len(data['pins'])} kept dependencies"
               + (f"; not installed: {', '.join(unpinned)}" if unpinned else ""))
+        if data["pip_list"] is None:
+            print("error: `pip list` of --ext-python could not be read; the environment is not frozen")
+            return 1
         return 0
     if a.cmd == "select":
         if not a.ext_cache.is_dir():
@@ -936,6 +985,14 @@ def main(argv=None) -> int:
         data = select_upstream(a.ext_cache, read_json(a.repos_json)["kept"], a.ext_python,
                                corpus(exclude=[a.out, a.repos_json])["repos"],
                                raw_dir=a.raw_dir)
+        try:
+            version = subprocess.run([a.ext_python, "-c", "import sys; print(sys.version)"], capture_output=True,
+                                     text=True, encoding="utf-8", errors="replace", timeout=60).stdout
+        except (OSError, subprocess.SubprocessError):
+            version = ""
+        data["environment"] = {"ext_python_version": (version or "").strip() or None,
+                               "prepare_json_sha256": hashlib.sha256(a.prepare_json.read_bytes()).hexdigest()
+                               if a.prepare_json else None}
         write_json(a.out, data)
         dev, short = data["dev"], data["dev_shortfall"]
         print(f"B {len(data['B'])}/{B_TAKE}, C {len(data['C'])}/{C_TAKE}; "
