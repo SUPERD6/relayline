@@ -156,6 +156,13 @@ class Outcome:
     retry_after: str | None = None
     permission_denials: int | None = None   # tool calls the CLI refused (Claude's result event); None: not reported
     stalled: bool = False       # kind "timeout" because no stdout line came for stall_sec (run.stall_minutes)
+    # #392 timing (None: the process never started, or no stdout line came): when the CLI process started and when
+    # its first stdout line arrived, wall clock (UTC ISO 8601); startup_seconds is the gap on a monotonic clock. That
+    # line is usually the CLI's start event (Claude's system init, Codex's thread.started): process start-up, not the
+    # first model request's latency; a non-JSON warning line printed first counts as well
+    started_at: str | None = None
+    first_event_at: str | None = None
+    startup_seconds: float | None = None
 
 
 # Usage is normalized to the same four buckets for every agent (billing differs per bucket):
@@ -254,6 +261,13 @@ def pid_alive(pid: int | None) -> bool:
     return True
 
 
+def wall_now() -> str:
+    """The wall-clock moment, UTC ISO 8601 with milliseconds (a timestamp to read back, never to subtract: durations
+    come from a monotonic clock, time.perf_counter, which wall-clock changes cannot move on Windows or POSIX)."""
+    from datetime import datetime, timezone
+    return datetime.now(timezone.utc).isoformat(timespec="milliseconds")
+
+
 def execute(agent: str, inv: Invocation, timeout: int, env: dict, on_session=None, watch=None,
             watch_every: float = 20.0, on_start=None, stop_file: Path | None = None,
             stall_sec: float = 0) -> tuple[Outcome, str, str]:
@@ -272,6 +286,8 @@ def execute(agent: str, inv: Invocation, timeout: int, env: dict, on_session=Non
     except OSError as e:
         oc = Outcome(ok=False, error=f"could not start {agent}: {e}", kind="error")
         return oc, "", ""
+    started_at, t_launch = wall_now(), time.perf_counter()       # #392: launch moment
+    first_event: list = []                                         # [(wall, monotonic)] of the first stdout line
     if on_start:
         try:
             on_start(proc.pid)
@@ -341,6 +357,8 @@ def execute(agent: str, inv: Invocation, timeout: int, env: dict, on_session=Non
     try:
         for raw in proc.stdout:
             last_event[0] = time.monotonic()
+            if not first_event:
+                first_event.append((wall_now(), time.perf_counter()))
             line = decode_output(raw)
             out_lines.append(line)
             if not seen and on_session:
@@ -362,6 +380,10 @@ def execute(agent: str, inv: Invocation, timeout: int, env: dict, on_session=Non
     t_err.join(timeout=5)
     so, se = "".join(out_lines), "".join(err_chunks)
     oc = PARSERS[agent](so, se, rc, inv.last_message_file)
+    oc.started_at = started_at
+    if first_event:
+        oc.first_event_at = first_event[0][0]
+        oc.startup_seconds = round(max(0.0, first_event[0][1] - t_launch), 3)
     if timed_out and not oc.ok:
         oc.error, oc.kind = f"timed out after {timeout}s", "timeout"
     if not stopped and stop_file and stop_file.exists() and not oc.ok:

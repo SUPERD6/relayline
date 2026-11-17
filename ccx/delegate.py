@@ -30,7 +30,7 @@ from pathlib import Path
 from . import agents, context_share, dispatch, learn, ledger, quota, recover, subagents
 from .check_baseline import BASELINE_FAILED, Checks, only_baseline
 from .config import DELEGATE_AGENTS, SUBAGENT_SWITCHES, Paths, load_config, provider_of, subagent_switches  # noqa: F401
-from .runners import BUILDERS, Outcome, execute, usage_dict, without_launcher_vars
+from .runners import BUILDERS, Outcome, execute, usage_dict, wall_now, without_launcher_vars
 # split out by job (J11); re-exported so `from ccx.delegate import ...` keeps working
 from .agents.codex import _add_children, _codex_growth, _codex_seen, _codex_total  # noqa: F401
 from .ledger import write_record as _write_record  # noqa: F401
@@ -166,14 +166,31 @@ def _start_review(req: Request, p: Paths, cfg: dict, record: dict, cwd: Path, ru
     cancel = threading.Event()
 
     def go() -> None:
-        try:
-            _review(req, p, cfg, shadow, cwd, run_dir, cancel=cancel)
-        except Exception as e:  # noqa: BLE001 — a review that can't run never fails the work itself
-            shadow["review"] = {"verdict": "not-run", "error": f"{type(e).__name__}: {e}"[:200]}
+        _timed_review(req, p, cfg, shadow, cwd, run_dir, cancel=cancel, background=True)
 
     t = threading.Thread(target=go, name=f"ccx-review-{record['run_id']}", daemon=True)
     t.start()
     return {"thread": t, "cancel": cancel, "shadow": shadow, "run_id": record["run_id"]}
+
+
+def _timed_review(req: Request, p: Paths, cfg: dict, record: dict, cwd: Path, run_dir: Path, cancel=None,
+                  background: bool = False) -> None:
+    """Run the review (review_run) and, when it recorded one, stamp record["review"] with when it started and ended
+    (wall clock, UTC ISO 8601), how long it took (monotonic `seconds`) and whether it ran beside the check (#392).
+    A review that can't run never fails the work itself: it is recorded as not-run, timed the same way."""
+    before = record.get("review")
+    started, t0 = wall_now(), time.perf_counter()
+    try:
+        _review(req, p, cfg, record, cwd, run_dir, **({"cancel": cancel} if cancel is not None else {}))
+    except Exception as e:  # noqa: BLE001 — a review that can't run never fails the work itself
+        record["review"] = {"verdict": "not-run", "error": f"{type(e).__name__}: {e}"[:200]}
+    rv = record.get("review")
+    # identity, not equality: review_run (and review_tests.run_review) always assign a new dict to record["review"]
+    # when they record a review, so the same object as before means no review was recorded this time. If one ever
+    # updates record["review"] in place instead, this check must change (it would then leave that review untimed)
+    if isinstance(rv, dict) and rv is not before:      # no review due (nothing recorded): nothing to time
+        rv.update(started_at=started, ended_at=wall_now(), seconds=round(time.perf_counter() - t0, 3),
+                  background=background)
 
 
 def _stop_reviews(p: Paths, run_id: str, scan: int = 50) -> None:
@@ -212,6 +229,13 @@ def _finish_review(bg: dict, record: dict, p: Paths, keep: bool, wait: float = 1
     while t.is_alive() and time.time() < end:
         _stop_reviews(p, bg["run_id"])
         t.join(0.5)
+
+
+def _time_check(attempt: dict, chk: dict, started_at: str) -> None:
+    """#392: every check on an attempt keeps its time, passed or not (before, only a failed one kept check_seconds):
+    check_started_at (wall clock) and check_seconds (the check's own measure; None when no command ran)."""
+    attempt["check_started_at"] = started_at
+    attempt["check_seconds"] = chk.get("seconds")
 
 
 def stall_seconds(cfg: dict) -> float:
@@ -965,6 +989,9 @@ def run(req: Request, p: Paths) -> dict:
             "effort": spec["effort"], "ok": oc.ok, "kind": oc.kind, "seconds": dt, "usage": oc.usage,
             **({"timeout_context": timeout_detail} if timeout_detail is not None else {}),
             **({"stalled": True} if oc.stalled else {}),
+            # #392: CLI launch and first event (wall clock), the gap between them (monotonic); absent: never started
+            **({"started_at": oc.started_at, "first_event_at": oc.first_event_at,
+                "startup_seconds": oc.startup_seconds} if oc.started_at else {}),
             # through a provider the CLI still prices with its own vendor's table: only ccx's price is right
             "cost_usd": None if extra else oc.cost_usd, "ae_usd": round(ae, 6) if ae is not None else None,
             "error": oc.error, "auth_problem": oc.auth_problem, "retry_after": oc.retry_after,
@@ -1088,8 +1115,10 @@ def run(req: Request, p: Paths) -> dict:
             # did this attempt change anything: told before the check runs, so files the check writes don't count
             left = _left_unchanged(p, record) if req.mode == "write" else None
             focused = focused_retry(cfg)
+            chk_started = wall_now()
             chk = (_namecheck(req, p, cfg, record, cwd)         # mode fail + a hit: the command is not run
                    or checks(req.check, **({"tail_chars": CHECK_TAIL_CHARS} if focused else {})))
+            _time_check(record["attempts"][-1], chk, chk_started)
             early_check = (len(record["attempts"]), chk, left)
             insensitive_retry = (dispatch.sensitivity_retry(cfg, chk, cheap_dispatch, dispatch_phase)
                                  and spec["rung"] != requested["rung"])
@@ -1217,7 +1246,13 @@ def run(req: Request, p: Paths) -> dict:
             # the review runs while ccx runs the check (it needs only the command, not its result); it counts
             # only if the check passes, and is stopped otherwise
             bg_review = _start_review(req, p, cfg, record, cwd, run_dir, oc.result)
-        record["check"] = early_check[1] if reuse else checks(req.check)
+        if reuse:
+            record["check"] = early_check[1]
+        else:
+            chk_started = wall_now()
+            record["check"] = checks(req.check)
+            if record["attempts"]:
+                _time_check(record["attempts"][-1], record["check"], chk_started)
         check_passed = record["check"]["passed"]
         if record["check"].get("broken"):
             # the command tested nothing (pytest exit 4/5): no verdict on the work, the lead fixes the check
@@ -1234,10 +1269,7 @@ def run(req: Request, p: Paths) -> dict:
     if bg_review is not None:
         _finish_review(bg_review, record, p, keep=record.get("kind") not in ("check_failed", "check_broken", BASELINE_FAILED))
     elif want_review and record.get("kind") not in ("check_failed", "check_broken", BASELINE_FAILED):
-        try:
-            _review(req, p, cfg, record, cwd, run_dir)
-        except Exception as e:  # noqa: BLE001 — a review that can't run never fails the work itself
-            record["review"] = {"verdict": "not-run", "error": f"{type(e).__name__}: {e}"[:200]}
+        _timed_review(req, p, cfg, record, cwd, run_dir)
     res_now = oc.result or {}
     if (req.mode == "read" and oc.ok and status in ("done", "partial") and record.get("kind") in (None, "ok")
             and not str(req.label or "").startswith("discuss") and no_answer(res_now)):
