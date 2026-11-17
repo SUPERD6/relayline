@@ -189,6 +189,7 @@ ccx show <run_id> --wait [SECONDS]    # block until it (and a review fix round) 
                                       # same result as ccx run, else status=running: call it again
 ccx stats [--summary]                 # per agent × tier; --summary: spend first, then a labelled saving estimate, cache share
 ccx report [--days 30] [--publish]    # offline one-file dashboard; --publish commits it to your private repo
+ccx report --daily [DAY] [--tz +08:00]     # one Markdown page for a day of real use (default today): delegations, right/failed/unverified, spend, wall clock, quota events, runs you marked wrong; read-only, written to <hub>/ccx/daily/DAY.md
 ccx ui [--project DIR] [--no-open] [--export FILE]   # live page on 127.0.0.1 (never calls a model; writes only yes/no on suggested notes)
 ccx demo [--no-open] [--keep] [--export FILE]       # the same page on made-up data in a temp folder: no account, offline
 ccx config set ui.lang zh            # language of ccx ui and of the lines ccx writes into conversations
