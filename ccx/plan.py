@@ -209,7 +209,120 @@ def _strict_start(req: Request, p: Paths, cfg: dict, out: list[dict]) -> list[di
         req.route = {}
     req.route["strict_escalate"] = {"from": first["rung"], "to": stronger[0]["rung"],
                                     "unchecked_write": unchecked, "strict_interface": strict}
-    return stronger
+    # a marker only (#379): the rung routing chose before this floor, for planned_first_rung and the reasons
+    return [{**stronger[0], "raised_from": first["rung"]}, *stronger[1:]]
+
+
+def pick_reasons(route: dict | None, kw: dict, caller: str, given: dict | None) -> dict:
+    """Why this vendor, model and effort (#379), from the signals the pick actually used: what the person named
+    (given: --to/--model/--effort/--tier/--provider), the role table, task-routing's difficulty, learned pass rate and
+    candidates, the tier table or keywords, quota and readiness. Text only: it changes no choice."""
+    route, given = route or {}, given or {}
+    src = str(route.get("source") or "")
+    agent, model, effort, tier = kw.get("to"), kw.get("model"), kw.get("effort"), kw.get("tier") or route.get("tier")
+    role = route.get("role")
+    flags = set(route.get("explicit_flags") or [])
+    ranked = route.get("quota_routing") or {}
+    quota = route.get("quota_note") or ""
+    if src.startswith("provider:"):
+        why_agent = f"--provider {src.split(':', 1)[1]}"
+    elif role and "--to" not in flags and not given.get("to"):
+        why_agent = (f"role {role}: {route['role_fallback']}" if route.get("role_fallback")
+                     else f"role {role} ({_role_where(route.get('role_source'))} role table)")
+    elif given.get("to"):
+        why_agent = f"--to {given['to']} (named)"
+    elif src == "explicit":
+        why_agent = f"vendor of --model {model}"
+    elif src == "task-routing":
+        cands = ", ".join(ranked.get("eligible") or []) or agent
+        b, pr = route.get("b"), route.get("p")
+        why_agent = (f"task-routing (tradeoff {route.get('tradeoff', 'save')}) among {cands}"
+                     + (f": difficulty b={b:.2f}" if isinstance(b, (int, float)) else "")
+                     + (f", learned pass rate p={pr:.2f}" if isinstance(pr, (int, float)) else ""))
+    else:
+        # the rule of commands.common._target, stated as the code has it; then the swap resolve() makes when that
+        # target's quota is tight or it is known not logged in (the first eligible candidate instead)
+        from .commands.common import _target
+        default = _target("auto", caller)
+        why_agent = f"--to auto: codex unless the caller is codex, then claude (caller {caller}: {default})"
+        if agent and agent != default:
+            if default in (ranked.get("tight") or {}):
+                why = "quota tight" + (f" ({quota})" if quota else "")
+            elif default in (ranked.get("unready") or {}):
+                why = f"not logged in ({ranked['unready'][default]})"
+            else:
+                why = "not eligible"
+            why_agent += f"; {default} skipped: {why}; first eligible: {agent}"
+    if quota and src == "task-routing":
+        why_agent += f"; quota: {quota}"
+    tier_src = ("--tier" if given.get("tier") or src == "tier" else
+                "keywords: " + "; ".join((route.get("why") or {}).get("reasons") or ["none matched"])
+                if isinstance(route.get("why"), dict) and "reasons" in route["why"] else "keywords")
+    if given.get("model"):
+        why_model = "--model (named)"
+    elif src.startswith("provider:"):
+        why_model = "the provider's last listed model"
+    elif route.get("role_fixed_model"):
+        why_model = f"role {role} fixes the model"
+    elif src == "task-routing":
+        why_model = f"task-routing pick (tradeoff {route.get('tradeoff', 'save')})"
+    elif tier:
+        why_model = f"tiers.{tier}.{agent} in tiers.toml (tier {tier} from {tier_src})"
+    else:
+        why_model = "routing"
+    if given.get("effort"):
+        why_effort = "--effort (named)"
+    elif route.get("role_effort_reason"):
+        why_effort = str(route["role_effort_reason"])
+    elif src == "explicit":
+        why_effort = f"default ({effort}) when --effort is not given"
+    elif src.startswith("provider:"):
+        why_effort = f"provider default ({effort})"
+    elif src == "task-routing":
+        why_effort = "task-routing pick"
+    elif tier:
+        why_effort = f"tiers.{tier}.{agent} in tiers.toml"
+    else:
+        why_effort = "routing"
+    return {"agent": why_agent, "model": why_model, "effort": why_effort}
+
+
+def _role_where(source) -> str:
+    """Where a role came from, without a path (paths carry user names): project, global, or the word given."""
+    import re
+    s = str(source or "")
+    parts = [x for x in re.split(r"[\\/]", s) if x]
+    if len(parts) < 2:
+        return s or "global"
+    return "project" if parts[-2] == ".ccx" else "global"
+
+
+def plan_changes(planned: str, plan: list[dict], cheap: bool, routed: dict | None = None,
+                 before_budget: list[dict] | None = None) -> list[str]:
+    """What moved the first rung between routing's pick and the start (#379): the strict floor, cheap-first dispatch,
+    a model this account lacks, the daily budget (before_budget: the rungs before that check). Text only."""
+    out = []
+    routed = routed or {}
+    pre = (before_budget or plan or [{}])[0]
+    first = plan[0] if plan else {}
+    if routed.get("raised_from"):
+        out.append(f"strict_escalate: {routed['raised_from']} -> {routed['rung']}")
+    if cheap and pre.get("rung") != routed.get("rung"):
+        out.append(f"cheap-first dispatch: starts on {pre.get('rung')}, then the planned rungs")
+    if pre.get("substituted_for"):
+        out.append(f"model not available on this account: {pre['substituted_for']} -> {pre['rung']}")
+    if first.get("rung") and pre.get("rung") and first["rung"] != pre["rung"]:
+        out.append(f"daily budget: {pre['rung']} skipped, starts on {first['rung']}")
+    return out
+
+
+def reasons_text(why: dict) -> str:
+    """One plain line of the reasons (a person's terminal, a dry-run's tail)."""
+    head = why.get("first_rung") or why.get("planned_first_rung") or "?"
+    text = f"{head}: vendor {why.get('agent')}; model {why.get('model')}; effort {why.get('effort')}"
+    if why.get("changes"):
+        text += "; changed: " + "; ".join(why["changes"])
+    return text
 
 
 def _fallback_plan(req: Request, p: Paths, cfg: dict, failed: dict) -> dict | None:

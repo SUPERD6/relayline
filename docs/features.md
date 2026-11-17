@@ -228,7 +228,8 @@ put back files the run did not change, such as a later commit or your own edits,
 `ccx undo <id>` in a terminal), and a run whose independent review still finds problems has **The review is
 wrong: accept** (`ccx verify <id> --ok 1` with a note saying so). A queue piece in a worktree goes in one order, in the
 page and in `ccx q ls` alike: your verdict first (`ccx q done`), then **Merge into the project** (`ccx q accept`, in
-the background, after its `--dry-run` says it would merge: a protected branch checked out is said on the page). After a verdict the side panel moves on to the next piece that waits for you (also j / k). Each
+the background, after its `--dry-run` says it would merge: a protected branch checked out is said on the page; it merges the branch the piece's worktree has checked out
+and refuses a detached or moved worktree, see [Safety](#safety)). After a verdict the side panel moves on to the next piece that waits for you (also j / k). Each
 project card says who leads it, with a link to its switch-lead panel; text meant for your lead (not a command) is
 labelled "paste this to your lead".
 Its **Agent conversation** page shows what the agents wrote to each other on the board (`ccx say`), newest thread first; a thread stopped by the machine-message cap and a message that asks you (`@person`) show as to-dos, and you can reply from the page: shown first, written on a second click as you (via ui), at most 4000 characters, never run ([board](board.md#seeing-it-and-answering-in-ccx-ui)). `ccx ui --export snapshot.html` writes a static copy; `ccx config set ui.lang zh|en` picks the language.
@@ -291,7 +292,24 @@ In Claude Code you say: "make `loader.py` accept a custom delimiter and add test
 2. **Pick a model.** It runs `ccx run --from claude --files 2 --coupling one --clarity goal "…"`. ccx asks the
    **task-routing** skill for each agent:model:effort's success probability and cost per success. Here it picks
    `codex:gpt-6.1-sol:medium`. If doing it yourself is cheaper, or the task should be split first, ccx says so and
-   delegates nothing.
+   delegates nothing. `ccx run --dry-run …` shows the pick without running anything (no sub-agent, no ledger row,
+   no A/B sample): the rungs it would try, `planned_first_rung` (routing's pick), `first_rung` (where the run starts)
+   and `rung_why`, one short reason each for the vendor, the model and the effort, from the signals the pick
+   actually used (what you named with `--to` / `--model` / `--effort` / `--tier` / `--provider`, the role table,
+   task-routing's difficulty, learned pass rate and candidates, the tier table or keywords, quota), plus `changes`
+   when the start moved before running (the `strict_escalate` floor, cheap-first dispatch, a model this account
+   lacks, the daily budget). It does not combine with `--bg`. Unlike `ccx route`, which shows routing's pick only,
+   it goes through the run's own pre-start steps (strict floor, cheap-first, model swap, provider key, budget), so its
+   `first_rung` is where a run started now would begin. It runs no quota probe (the pick uses the readings already
+   saved) but may update the local login-check cache, as `ccx route` does. With an A/B self-run rate
+   (`ab_self_rate`) or an H11 trial on, a real run may be drawn as do-it-yourself; the dry run shows the pick
+   without that draw. A real run records the same `planned_first_rung` and
+   `rung_why`, and `actual_first_rung`: the first rung that really took the task. Attempts stopped by capacity,
+   quota or a missing model, which ccx replaced with another rung, do not count, so the two differ after such a
+   switch or a moved start (`null` when no rung took it); a climb after a failed attempt keeps them equal and shows
+   in `escalated`. The whole
+   result and `ccx show` carry all three; the one-line result adds only the two rungs, and only when they differ.
+   A person's terminal also gets a `Rung: …` line. Nothing here changes a default or the pick itself.
 3. **Run headless.** ccx runs `codex exec -m gpt-6.1-sol -c model_reasoning_effort="medium" …`. The session id is
    saved the moment it appears. Codex reads the files, edits and runs the tests on Codex's own quota.
 4. **Return a summary.** Codex must answer in a JSON schema (`status / summary / files_changed / verification / …`).
@@ -735,6 +753,11 @@ check; no improvement in task success or savings has been measured here.
   those commits in too, an implicit pull. A resumed run uses the base of the run it continued; when that resume
   chain breaks (a record missing or unreadable, a loop, over 20 resumes), the merge is refused with `cannot tell
   where this run started` rather than measured from the merge-base.
+  Both merges (for `--base head` and upstream runs alike) take the branch the run's worktree has checked out, and
+  only when it is `ccx/<id>` of the run or of a run up its resume chain; a worktree on a detached HEAD or moved to
+  another branch is refused (`the worktree is not on a branch` / `the worktree is on X, not ...`) rather than merged
+  by the branch name the queue noted when the run ended; `ccx q accept` then says to switch the worktree back
+  (`git -C <worktree> switch ccx/<id>`) and accept again, or to merge it by hand and `ccx q done <id> --ok 1`.
   Both layouts are recognized in run results, queues and acceptance, lane commits, automatic merging, check-trust
   grouping and UI project grouping, even after the setting changes. Inside placement is experimental: checked
   with fake agent CLIs and Git, not yet with real agent CLIs or Codex project trust inheritance.

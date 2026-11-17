@@ -347,6 +347,17 @@ def cmd_run(a) -> int:
         from ..wake import after_bg
         with after_bg(paths(), rid):
             return _cmd_run(a)
+    if getattr(a, "dry_run", False):
+        # no quota probe (it may run a CLI and write quota readings): the pick uses the readings already saved
+        old = os.environ.get("CCX_NO_QUOTA_PROBE")
+        os.environ["CCX_NO_QUOTA_PROBE"] = "1"
+        try:
+            return _cmd_run(a)
+        finally:
+            if old is None:
+                os.environ.pop("CCX_NO_QUOTA_PROBE", None)
+            else:
+                os.environ["CCX_NO_QUOTA_PROBE"] = old
     return _cmd_run(a)
 
 
@@ -394,6 +405,9 @@ def _cmd_run(a) -> int:
         raise ValueError("--bg needs the task as text or --brief-file (stdin is not passed on)")
     if a.wait is not None and not a.bg:
         raise ValueError("--wait N goes with --bg (a foreground run already waits until it is done)")
+    dry_run = bool(getattr(a, "dry_run", False))
+    if dry_run and a.bg:
+        raise ValueError("--dry-run only shows the plan, in the foreground: drop --bg")
     from .. import briefcheck
     text = _brief(a)
     # Cache stdin too; check the caller's task before role/project/context wrapping and before detaching.
@@ -415,6 +429,9 @@ def _cmd_run(a) -> int:
         a.brief, a.brief_file = [text], None
         advice = run_advice(p, cfg, a, text, _caller(a.caller), _small_self)
         if advice:
+            if dry_run:
+                _out({"dry_run": True, **advice})
+                return 0
             ledger.append_event(p, {"type": "small_self_run", **advice})
             _bg_not_delegated(p, a, advice, _caller(a.caller))
             _out(advice)
@@ -437,6 +454,13 @@ def _cmd_run(a) -> int:
     spec = _run_spec(a, text)
     if person_named_to(caller, a.to, a.force) and not a.proposal and not (proj or a.autonomy):
         spec["person_to"] = True
+    if dry_run:
+        spec["no_ab"] = True                     # a dry run opens no A/B self-run sample
+    # what the person named on the command line: the rung reasons say so (#379); it changes no choice
+    given = {k: v for k, v in (("to", a.to if a.to != "auto" else None), ("model", a.model), ("effort", a.effort),
+                               ("tier", a.tier if a.tier != "auto" else None), ("provider", a.provider)) if v}
+    if role and hasattr(a, "_explicit"):          # a role's run defaults are not something the person named
+        given = {k: v for k, v in given.items() if f"--{k}" in a._explicit}
     preauth, tier_self = None, False
     if a.proposal:
         from .. import proposals
@@ -459,7 +483,7 @@ def _cmd_run(a) -> int:
     else:
         kw, route = resolve(spec, caller, p, cfg)
     route["mode"] = mode
-    if a.proposal:
+    if a.proposal and not dry_run:
         if preauth:
             # the run row keeps the proposal's tier and planned mode, with this run's own band and estimate. Its
             # answer (source "tier") is written only when the run really starts, below
@@ -474,8 +498,8 @@ def _cmd_run(a) -> int:
         ranked = route.get("quota_routing") or {}
         hint = (f"建议自己做或等重置到 {quota.reset_text(ranked.get('resets_at'))}" if ranked.get("all_tight")
                 else "add --force to delegate anyway")
-        _out({"delegated": False, "advice": route.get("advice"), "route": route,
-              "hint": hint})
+        _out({**({"dry_run": True} if dry_run else {}), "delegated": False, "advice": route.get("advice"),
+              "route": route, "hint": hint})
         human_tail([f"Not delegated: {route.get('advice')}", "Cost: $0 (nothing ran)",
                     hint if ranked.get("all_tight") else "Next: do it yourself, or add --force to delegate anyway"])
         return 0
@@ -483,7 +507,7 @@ def _cmd_run(a) -> int:
         print(f"ccx: {route['cheaper_self']}", file=sys.stderr, flush=True)
     if mode["mode"] == "write" and not a.check:  # stderr only: stdout (the JSON a lead reads) stays as it was
         print(NO_CHECK_NUDGE, file=sys.stderr, flush=True)
-    if auto:
+    if auto and not dry_run:
         plan = {"to": kw["to"], "model": kw.get("model"), "effort": kw.get("effort"), "mode": mode["mode"],
                 **{k: route[k] for k in ("rung", "p", "expected_usd") if route.get(k) is not None},
                 **({"check": a.check} if a.check else {}), **({"budget_usd": a.budget} if a.budget else {}),
@@ -525,7 +549,9 @@ def _cmd_run(a) -> int:
                   subagents="off" if a.no_subagents else subagents_spec(a.subagents), budget_usd=a.budget,
                   max_usd=max_usd(a, cfg), parallel=True if a.parallel else None, share_context=a.context,
                   user_words_file=str(Path(a.user_words_file).resolve()) if a.user_words_file else None,
-                  progress=not os.environ.get("CCX_RUN_ID"), **kw)    # not the detached child of --bg
+                  progress=not os.environ.get("CCX_RUN_ID"), given=given, **kw)    # not the detached child of --bg
+    if dry_run:
+        return _dry_run(p, cfg, req, route)
     if preauth:
         # the run of a proposal the picked tier pre-authorised starts now: only now is it used (once), and only now
         # did it go out (actual_mode). Source "tier": not counted as a yes in proposals.stats. The claim is atomic:
@@ -543,10 +569,7 @@ def _cmd_run(a) -> int:
         res = {"role": role, "role_receipt": role_line, **res}
     if prev:
         res["continued_from"] = prev          # same sub-session: it remembers the earlier task(s)
-    res["route"] = {k: v for k, v in route.items() if k in ("source", "b", "rung", "p", "chain_p", "tier",
-                                                              "stale", "mode", "trial", "cheaper_self", "role",
-                                                              "role_effort_auto", "role_fallback", "why", "rubric",
-                                                              "difficulty", "role_effort_reason", "strict_escalate", "self_first")}
+    res["route"] = {k: v for k, v in route.items() if k in ROUTE_KEYS}
     if proj:
         res["project"] = {k: proj[k] for k in ("name", "path", "approval_rules") if proj.get(k)}
     if auto:
@@ -560,8 +583,35 @@ def _cmd_run(a) -> int:
         res["route"]["learns"] = "no: give --minutes (or the rubric flags) so this run's verdict can teach routing"
     res["recap"] = recap(rec, res)              # last key: survives `| tail`
     lead_out(res, {**cfg, "output": {**cfg.get("output", {}), "lead": "full"}} if role else cfg)
-    human_tail(([role_line] if role_line else []) + human_summary(rec, res))
+    from ..plan import reasons_text
+    why_line = [f"Rung: {reasons_text(rec['rung_why'])}"] if rec.get("rung_why") else []
+    human_tail(([role_line] if role_line else []) + why_line + human_summary(rec, res))
     return 0 if exit_ok(rec) else 2
+
+
+ROUTE_KEYS = ("source", "b", "rung", "p", "chain_p", "tier", "stale", "mode", "trial", "cheaper_self", "role",
+              "role_effort_auto", "role_fallback", "why", "rubric", "difficulty", "role_effort_reason",
+              "strict_escalate", "self_first")
+
+
+def _dry_run(p, cfg: dict, req: Request, route: dict) -> int:
+    """`ccx run --dry-run` (#379): the rungs a run would try, the first one, and why; nothing starts, nothing is
+    written to the ledger. The same steps as run() (delegate.first_plan), so the first rung is the run's."""
+    from ..delegate import first_plan, max_escalations, rung_why
+    from ..plan import reasons_text
+    plan, requested, cheap, _, before_budget = first_plan(req, p, cfg, max_escalations(req, cfg))
+    if req.route and req.route.get("role_effort_auto"):        # as run() does before its reasons
+        from ..roles import effort_receipt
+        req.route["role_effort_reason"] = effort_receipt(req.route)
+    why = rung_why(req, plan, requested, cheap, before_budget)
+    _out({"dry_run": True, "delegated": False, "to": plan[0]["agent"],
+          "planned_first_rung": why["planned_first_rung"], "first_rung": why["first_rung"],
+          "rungs": [x["rung"] for x in plan], "mode": req.mode, "rung_why": why,
+          "route": {k: v for k, v in route.items() if k in ROUTE_KEYS},
+          "hint": "nothing ran; run the same command without --dry-run to delegate it"})
+    human_tail([f"Rung: {reasons_text(why)}", "Cost: $0 (dry run, nothing ran)",
+                "Next: run the same command without --dry-run"])
+    return 0
 
 
 def cmd_send(a) -> int:
@@ -1563,6 +1613,8 @@ def register(sub) -> None:
                    "[shared_context] run)")
     adv.add_argument("--user-words-file", metavar="PATH", help="experimental: attach original user wording from a UTF-8 file")
     adv.add_argument("--label")
+    r.add_argument("--dry-run", action="store_true", help="show the rungs it would try, the first one and why "
+                   "(vendor, model, effort); runs nothing")
     r.set_defaults(fn=cmd_run)
     ak = sub.add_parser("ask", help="quick read-only second opinion from the other agent (low effort)")
     ak.add_argument("brief", nargs="*"); ak.add_argument("--brief-file")

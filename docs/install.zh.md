@@ -137,7 +137,8 @@ ccx q ls [--long]                   # 一块一行：id、状态、智能体、�
 ccx q accept q1 q2 | --all-ready [--check CMD] [--dry-run]   # 把 worktree 里的块落地：按依赖顺序合并，每合并一块
                                     # 跑一次联合验收，失败就撤回这次合并；没做完、no_changes、没验证的块拒绝，
                                     # 冲突的块停下；从不 push，没有 --into-protected（用户同意）不合进 main；
-                                    # 你否决过的 run（verify --ok 0）拒绝；撤回失败或验收改动了已跟踪文件时整批停下
+                                    # 你否决过的 run（verify --ok 0）拒绝；撤回失败或验收改动了已跟踪文件时整批停下；
+                                    # 合 worktree 当前检出的分支，detached / 被切走时拒绝（见 features.zh.md「安全边界」）
 ccx route --files 3 --coupling cross ... [--lead claude:opus:high --ctx-files 日志.txt]  # 只看推荐；加 --lead 还会比较自己做 vs 派出去
 ccx plan size --minutes 240 --rung codex:gpt-6.1-sol:medium   # 大任务拆几块（task-split）
 ccx show <run_id> [--full]          # 默认只显示压缩结果
