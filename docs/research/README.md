@@ -76,3 +76,19 @@ and preregistered verdicts remain intact for historical comparability; these des
 来源函数如上。旧 m4 行只留了小块评分和 run id，没有保存终态，完成状态保留 Unknown，不能从隐藏测试通过反推。
 旧单元总额也无法恢复每个内部模型 attempt 的缺费情况。本次不补跑、不改执行行为、不回填历史数据。
 旧 `ok/n/usd/cps`、P13 原判定、B3 配对与小块指标及预注册结论均保留，方便历史比较；新列仅补充描述。
+
+## Pre-registrations
+
+Written before the runs; thresholds were not changed afterwards. The 2026-11-04/05 files are Chinese originals with
+English translations (the Chinese text is authoritative); `prereg/` lists them in one place.
+
+| Date | Pre-registration |
+|---|---|
+| 2026-11-04 | [Phase 0: re-run self on the hold-out set](prereg/2026-11-04-p0.md) |
+| 2026-11-04 | [Phase 2: replay of 29 pg3b test-type reviews](prereg/2026-11-04-p2.md) · [round 2](prereg/2026-11-04-p2-r2.md) |
+| 2026-11-04 | [Phase 3: new small tasks, self vs candidate path](prereg/2026-11-04-p3.md) |
+| 2026-11-04 | [Phase 4: long session, larger tasks](prereg/2026-11-04-p4.md) |
+| 2026-11-04 | [Phase 5: two narrow questions](prereg/2026-11-04-p5.md) |
+| 2026-11-05 | [Round 2 (A to D)](prereg/2026-11-05-round2.md) |
+| 2026-11-07 | [Unified evaluation](prereg/2026-11-07-unified.md) |
+| 2026-11-16 | [Round 2 of the unified evaluation](prereg/2026-11-16-round2.md) |

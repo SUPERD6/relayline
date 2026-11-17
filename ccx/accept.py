@@ -108,6 +108,9 @@ def why_not(p, q: dict, it: dict | None, joint: bool, root: Path) -> str | None:
         return "its review is still running: wait for it"
     if not Path(it["worktree"]).exists() or autonomy._git(Path(it["worktree"]), "rev-parse", "HEAD")[0] != 0:
         return f"its worktree is gone ({it['worktree']})"
+    branch, why = autonomy.run_branch(p, rec, Path(it["worktree"]), rec["run_id"])   # #384: what accept merges
+    if not branch:
+        return off_branch(it, why)
     if not joint and not evidence(rec):
         return ("not verified: no check passed, no review passed and no verdict of yours; look at the diff and "
                 f"`ccx verify {rec['run_id']} --ok 1 --note \"...\"`, or give --check here")
@@ -120,9 +123,27 @@ def why_not(p, q: dict, it: dict | None, joint: bool, root: Path) -> str | None:
     return None
 
 
+def piece_branch(p, it: dict) -> tuple[str | None, str | None]:
+    """#384: the branch `ccx q accept` merges for a worktree piece: the one its worktree has checked out, when that is
+    ccx/<id> of its run or of a run up its resume chain (autonomy.run_branch), not the name the queue noted when the
+    run ended (a literal `HEAD` for a detached worktree, or stale once the worktree moved). -> (branch, None) or
+    (None, why not)."""
+    return autonomy.run_branch(p, _rec(p, it.get("run")) or {}, Path(it["worktree"]), it.get("run"))
+
+
+def off_branch(it: dict, why: str | None) -> str:
+    """#384: run_branch's refusal (written for the unattended autonomy merge) with what to do in `ccx q accept`."""
+    why = (why or "its worktree is not on its run's branch").removesuffix(": the person merges it")
+    noted = it.get("branch") or ""
+    branch = noted if noted.startswith("ccx/") else f"ccx/{it.get('run')}"
+    return (f"{why}: switch it back (`git -C \"{it['worktree']}\" switch {branch}`) and accept again, or merge it "
+            f"by hand and `ccx q done {it['id']} --ok 1`")
+
+
 def branch_landed(root: Path, it: dict) -> bool:
     """Is the piece's branch already part of what the project has checked out (merged by hand, say)?"""
-    branch = it.get("branch") or f"ccx/{it.get('run')}"
+    noted = it.get("branch")
+    branch = noted if noted and noted != "HEAD" else f"ccx/{it.get('run')}"   # #384: `HEAD` is always an ancestor
     return autonomy._git(root, "merge-base", "--is-ancestor", branch, "HEAD")[0] == 0
 
 
@@ -239,8 +260,18 @@ def accept(p, cfg: dict, root: Path, ids: list[str], all_ready: bool = False, ch
     if stop:
         out["refused"] += [{"id": i, "why": stop} for i in order]
         order = []
-    plan = [{"id": i, "run": items[i].get("run"), "branch": items[i].get("branch") or f"ccx/{items[i].get('run')}",
-             "check": check or items[i].get("check")} for i in order]
+    plan, lost = [], set()
+    for i in list(order):
+        branch, why = piece_branch(p, items[i])
+        held = sorted(_upstream(q, i) & lost)
+        if branch and not held:
+            plan.append({"id": i, "run": items[i].get("run"), "branch": branch,
+                         "check": check or items[i].get("check")})
+            continue
+        lost.add(i)                 # its worktree left its branch since why_not looked: never merge a None branch
+        order.remove(i)
+        out["refused"].append({"id": i, "why": off_branch(items[i], why) if not branch else
+                               f"it waits on {', '.join(held)}, which cannot land now"})
     if dry_run:
         out.pop("accepted")
         out["plan"] = plan

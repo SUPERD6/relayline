@@ -501,6 +501,10 @@ UI 数据原有 `quota` 数组补充 `freshness`、`projected_at_reset`，用量
   本地已和它分叉时，提示改为用 `git pull --rebase` 或 `git pull` 自己把 upstream 合进来），否则合并会把这些提交
   一起带进来，等于隐式 pull。续跑的运行沿用它所接续那次运行的起点；续跑链断了（记录缺失或读不了、成环、超过
   20 次续跑）时拒绝合并并说明 `cannot tell where this run started`，不退回 merge-base 算法。
+  两种合并（不论 `--base head` 还是 upstream）都合运行 worktree 当前检出的分支，且只在它是这次运行或其续跑链上某次
+  运行的 `ccx/<id>` 时才合；worktree 处于 detached HEAD 或被切到别的分支时拒绝（`the worktree is not on a branch`
+  / `the worktree is on X, not ...`），不按队列在运行结束时记下的分支名去合；`ccx q accept` 会提示把 worktree
+  切回（`git -C <worktree> switch ccx/<id>`）再 accept，或手动合并后 `ccx q done <id> --ok 1`。
   运行结果、队列跟踪与接收、lane 提交、自动合并、验收可信度分组和 UI 项目归类同时识别两种布局，改设置后也能识别已有运行。
   inside 仍为实验性：已用假智能体 CLI 和 Git 验证，尚未用真实智能体 CLI 或 Codex 项目信任继承验证。
 - 子智能体不能再派子智能体（`CCX_DEPTH`）。
