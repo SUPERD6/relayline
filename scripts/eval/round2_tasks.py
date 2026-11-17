@@ -488,19 +488,27 @@ def src_layout(cache: Path, repo: str, sha: str) -> bool:
 
 # ---------------------------------------------------------------- vendored copies in --ext-python (#417)
 
-# --ext-python's site-packages folders, one "S\t<path>" line each (purelib, platlib, site.getsitepackages())
-SITE_DIRS = ("import os, site, sysconfig\n"
+# The folders --ext-python can read code from, one "S\t<path>" line each: purelib, platlib, the site-packages folders
+# of site.getsitepackages() and of sys.path, the user site when it is enabled (as importlib.metadata sees it), and
+# ensurepip's bundled wheels in the standard library (pip with its own vendored packages)
+SITE_DIRS = ("import os, site, sys, sysconfig\n"
              "paths = {sysconfig.get_paths()[k] for k in ('purelib', 'platlib')}\n"
-             "paths |= {p for p in getattr(site, 'getsitepackages', list)()\n"
-             "          if os.path.basename(p) in ('site-packages', 'dist-packages')}\n"
+             "paths |= {p for p in [*getattr(site, 'getsitepackages', list)(), *sys.path]\n"
+             "          if os.path.basename(p) in ('site-packages', 'dist-packages') and os.path.isdir(p)}\n"
+             "user = site.getusersitepackages() if site.ENABLE_USER_SITE else None\n"
+             "paths |= {user} if user and os.path.isdir(user) else set()\n"
+             "bundled = os.path.join(sysconfig.get_paths()['stdlib'], 'ensurepip', '_bundled')\n"
+             "paths |= {bundled} if os.path.isdir(bundled) else set()\n"
              "for p in sorted(paths):\n    print('S\\t' + p)\n")
 VENDOR_DIRS = ("_vendor", "vendor", "_vendored", "vendored")
-VENDOR_RULE = ("vendored copies: every folder named " + "/".join(VENDOR_DIRS) + " in --ext-python's site-packages, and "
-               "in every .whl there (e.g. virtualenv's embedded pip/setuptools wheels), is read without changing it; "
-               "each top-level package or module in it is one copy, named by its folder or module and by the "
-               "distributions vendor.txt and *.dist-info (top_level.txt) give for it; version from vendor.txt, "
-               "*.dist-info METADATA, else __version__; a copy belongs to a task when one of its names equals the "
-               "task's project or a top-level package of the parent's tree (root or src/, tests/docs/setup excluded)")
+VENDOR_RULE = ("vendored copies: every folder named " + "/".join(VENDOR_DIRS) + " under --ext-python's site-packages, "
+               "user site (when enabled) and ensurepip's bundled wheels, and in every .whl there (e.g. virtualenv's "
+               "embedded pip/setuptools wheels), is read without changing it; each top-level package or module in such "
+               "a folder is one copy, and so is each top-level package of a .whl; a copy is named by its folder or "
+               "module and by the distributions *.dist-info top_level.txt maps to it; its version comes from "
+               "vendor.txt (matched by name), *.dist-info METADATA, else __version__; a copy belongs to a task when "
+               "one of its names equals the task's project or a top-level package of the parent's tree (root or src/ "
+               "only, tests/docs/setup excluded); a file or wheel that cannot be read is a scan error")
 _VERSION = re.compile(r"""^__version__\s*(?::\s*str\s*)?=\s*['"]([^'"]+)['"]""", re.M)
 _PKG_SKIP = re.compile(r"^(tests?|testing|docs?|examples?|benchmarks?|scripts?|setup|conftest|noxfile|tasks)$|^test_")
 
@@ -521,19 +529,20 @@ def package_names(cache: Path, repo: str, sha: str) -> set[str]:
     return names
 
 
-def _vendor_copies(rels: list[str], read, ref, where: str) -> list[dict]:
-    """The copies in one vendor folder. rels: posix paths of its files relative to it; read(rel) -> text;
-    ref(rel) -> a file reference for _ref_lines; where: the folder as shown in reports."""
+def _vendor_copies(rels: list[str], read, where: str) -> list[dict]:
+    """The copies in one vendor folder. rels: posix paths of its files relative to it; read(rel) -> text, or None when
+    it cannot be read; where: the folder as shown in reports. Each copy carries the stripped lines of its .py files
+    and the files it could not read."""
     versions, tops, present = {}, {}, set(rels)
     if "vendor.txt" in present:
-        for line in read("vendor.txt").splitlines():
+        for line in (read("vendor.txt") or "").splitlines():
             m = re.match(r"\s*([A-Za-z0-9][A-Za-z0-9._-]*)\s*==\s*([^\s;#]+)", line)
             if m:
                 versions[norm_name(m.group(1))] = m.group(2)
     for rel in rels:
         parts = rel.split("/")
         if len(parts) == 2 and parts[0].endswith(".dist-info") and parts[1] == "METADATA":
-            text = read(rel)
+            text = read(rel) or ""
             name, ver = re.search(r"^Name:\s*(\S+)", text, re.M), re.search(r"^Version:\s*(\S+)", text, re.M)
             if not name:
                 continue
@@ -541,7 +550,7 @@ def _vendor_copies(rels: list[str], read, ref, where: str) -> list[dict]:
             if ver:
                 versions[key] = ver.group(1)
             top_level = f"{parts[0]}/top_level.txt"
-            for top in (read(top_level).split() if top_level in present else ()):
+            for top in ((read(top_level) or "").split() if top_level in present else ()):
                 tops.setdefault(norm_name(top), set()).add(key)
     entries: dict[str, list[str]] = {}
     for rel in rels:
@@ -560,31 +569,40 @@ def _vendor_copies(rels: list[str], read, ref, where: str) -> list[dict]:
         for rel in (f"{entry}/__init__.py", f"{entry}.py", f"{entry}/__about__.py", f"{entry}/_version.py",
                     f"{entry}/version.py"):
             if version is None and rel in present:
-                m = _VERSION.search(read(rel))
+                m = _VERSION.search(read(rel) or "")
                 version = m.group(1) if m else None
+        lines, unread = set(), []
+        for rel in sorted(files):
+            text = read(rel)
+            if text is None:
+                unread.append(rel)
+            else:
+                lines |= {s.strip() for s in text.splitlines()}
         copies.append({"where": f"{where}/{entry}", "names": sorted(names), "version": version,
-                       "files": [ref(rel) for rel in sorted(files)]})
+                       "lines": frozenset(lines), "unread": unread})
     return copies
 
 
-def _read_text(path: Path) -> str:
+def _read_text(path: Path) -> str | None:
     try:
         return path.read_text(encoding="utf-8", errors="replace")
     except OSError:
-        return ""
+        return None
 
 
-def _wheel_copies(path: Path, site: Path) -> list[dict]:
-    """Copies in a wheel inside site-packages: its own top-level packages and those in its vendor folders."""
+def _wheel_copies(path: Path, shown: str) -> tuple[list[dict], list[str]]:
+    """Copies in a wheel: its own top-level packages and those in its vendor folders, and the scan errors. Any failure
+    to read the wheel (bad zip, zlib.error, unsupported compression, truncated file, ...) is a scan error."""
     import zipfile
     try:
+        if path.stat().st_size == 0:  # an empty leftover file holds no code
+            return [], []
         with zipfile.ZipFile(path) as z:
             members = [n for n in z.namelist() if not n.endswith("/")]
             data = {n: z.read(n).decode("utf-8", "replace") for n in members
                     if n.endswith((".py", "/vendor.txt", "/METADATA", "/top_level.txt")) or n == "vendor.txt"}
-    except (OSError, zipfile.BadZipFile, KeyError, RuntimeError):
-        return []
-    shown = path.relative_to(site).as_posix()
+    except Exception as exc:  # noqa: BLE001 - a broken wheel never stops the scan; it is reported
+        return [], [f"{shown}: {type(exc).__name__}: {exc}"[:300]]
     prefixes = {""}
     for n in members:
         parts = n.split("/")
@@ -593,51 +611,62 @@ def _wheel_copies(path: Path, site: Path) -> list[dict]:
     for prefix in sorted(prefixes):
         lead = prefix + "/" if prefix else ""
         rels = [n[len(lead):] for n in members if n.startswith(lead)]
-        copies += _vendor_copies(rels, lambda r, lead=lead: data.get(lead + r, ""),
-                                 lambda r, lead=lead: (str(path), lead + r), f"{shown}!{prefix}".rstrip("!"))
+        copies += _vendor_copies(rels, lambda r, lead=lead: data.get(lead + r, ""), f"{shown}!{prefix}")
     for c in copies:  # the wheel's own top level reads "x.whl!/pkg"; show it as "x.whl!pkg"
         c["where"] = c["where"].replace("!/", "!", 1)
-    return copies
+    return copies, []
+
+
+def _shown(root: Path, path: Path) -> str:
+    """A path as reported: relative to its scanned folder; ensurepip's bundled wheels keep "ensurepip/_bundled/"."""
+    rel = path.relative_to(root).as_posix()
+    if (root.parent.name, root.name) == ("ensurepip", "_bundled"):
+        return f"ensurepip/_bundled/{rel}"
+    return rel
 
 
 @functools.lru_cache(maxsize=8)
-def vendored_inventory(sites: tuple[str, ...]) -> tuple:
-    """Every vendored copy (VENDOR_RULE) under these site-packages folders, read once per selection run."""
-    copies = []
+def vendored_inventory(sites: tuple[str, ...]) -> tuple[tuple, tuple]:
+    """Every vendored copy (VENDOR_RULE) under these folders and the scan errors (folders that cannot be listed,
+    wheels that cannot be read, copies with unreadable files), read once per run: the result, errors included, is
+    cached, so a broken wheel is not rescanned for every candidate."""
+    copies, errors = [], []
     for site in sites:
         root = Path(site)
         if not root.is_dir():
             continue
-        for dirpath, dirnames, filenames in os.walk(root):
-            dirnames[:] = sorted(d for d in dirnames if d != "__pycache__")
-            base = Path(dirpath)
-            if base != root and base.name in VENDOR_DIRS:
-                rels = sorted(p.relative_to(base).as_posix() for p in base.rglob("*")
-                              if p.is_file() and "__pycache__" not in p.parts)
-                copies += _vendor_copies(rels, lambda r, b=base: _read_text(b / r),
-                                         lambda r, b=base: (None, str(b / r)), base.relative_to(root).as_posix())
-            copies += [c for f in sorted(filenames) if f.endswith(".whl") for c in _wheel_copies(base / f, root)]
-    return tuple(copies)
+        try:
+            for dirpath, dirnames, filenames in os.walk(root, onerror=lambda e: errors.append(
+                    f"{getattr(e, 'filename', '?')}: {type(e).__name__}: {e}"[:300])):
+                dirnames[:] = sorted(d for d in dirnames if d != "__pycache__")
+                base = Path(dirpath)
+                if base != root and base.name in VENDOR_DIRS:
+                    rels = sorted(p.relative_to(base).as_posix() for p in base.rglob("*")
+                                  if p.is_file() and "__pycache__" not in p.parts)
+                    copies += _vendor_copies(rels, lambda r, b=base: _read_text(b / r), _shown(root, base))
+                for f in sorted(filenames):
+                    if f.endswith(".whl"):
+                        found, failed = _wheel_copies(base / f, _shown(root, base / f))
+                        copies += found
+                        errors += failed
+        except Exception as exc:  # noqa: BLE001 - recorded; the other folders are still scanned
+            errors.append(f"{site}: {type(exc).__name__}: {exc}"[:300])
+    errors += [f"{c['where']}: cannot read " + ", ".join(c["unread"][:3]) for c in copies if c["unread"]]
+    return tuple(copies), tuple(errors)
+
+
+def _site_key(sites) -> tuple[str, ...]:
+    return tuple(sorted({os.path.normcase(os.path.abspath(s)) for s in sites}))
 
 
 def vendored_copies(sites, names: set[str]) -> list[dict]:
     """The vendored copies one of whose names is in `names` (normalized)."""
-    key = tuple(sorted({os.path.normcase(os.path.abspath(s)) for s in sites}))
-    return [c for c in vendored_inventory(key) if names & set(c["names"])]
+    return [c for c in vendored_inventory(_site_key(sites))[0] if names & set(c["names"])]
 
 
-def _ref_lines(ref) -> set[str]:
-    container, name = ref
-    if container is None:
-        text = _read_text(Path(name))
-    else:
-        import zipfile
-        try:
-            with zipfile.ZipFile(container) as z:
-                text = z.read(name).decode("utf-8", "replace")
-        except (OSError, zipfile.BadZipFile, KeyError):
-            text = ""
-    return {s.strip() for s in text.splitlines()}
+def vendored_errors(sites) -> list[str]:
+    """The scan errors of vendored_inventory for these folders (cached with it)."""
+    return list(vendored_inventory(_site_key(sites))[1])
 
 
 def _site_lines(stdout: str) -> tuple[list[str], list[str]]:
@@ -657,7 +686,9 @@ OVERLAP_RULE = (f"the task's own distribution in --ext-python and every vendored
                 f"stripped, at least {LEAK_LINE} characters, not comments, found nowhere in the parent's code files; "
                 f"excluded when at least {LEAK_HITS} new lines, or all of them (at least one), appear in the installed "
                 f"package's .py files together with its vendored copies' .py files; an installed package whose files "
-                f"cannot be read is excluded as unknown")
+                f"cannot be read, or a vendored copy of it with an unreadable file, is excluded as unknown; scan "
+                f"errors that belong to no copy (a folder that cannot be listed, a wheel that cannot be read) do not "
+                f"exclude commits, are listed once in vendored_scan_errors and make env-check fail")
 
 
 def _tree_lines(bare: Path, rev: str) -> set[str]:
@@ -687,19 +718,30 @@ def installed_overlap(python: str, project: str, cache: Path, repo: str, sha: st
     dependency, released before the commit by date). Dates do not prove it lacks the change, so the commit's new lines
     are compared with the installed files (OVERLAP_RULE). None: not installed. {"status": "unknown"}: the interpreter
     call failed or the distribution lists no files. Vendored copies of the package (#417, VENDOR_RULE) are compared
-    together with the installed files, also when the distribution itself is absent. Not covered: code copied into
-    another package outside a vendor folder."""
+    together with the installed files, also when the distribution itself is absent; a copy with unreadable files makes
+    the result unknown. {"status": "absent", "scan_errors": [...]}: nothing to compare, but the vendored scan had
+    errors (select records them; env-check fails on them). Not covered: code copied into another package outside a
+    vendor folder."""
     r = run([python, "-c", OWN_FILES, project], capture_output=True, text=True, encoding="utf-8", timeout=120)
     sites, lines = _site_lines(r.stdout)
     if r.returncode != 0:
         return {"status": "unknown", "error": f"--ext-python query failed (rc={r.returncode})"}
-    copies = vendored_copies(sites, {norm_name(project)} | package_names(cache, repo, sha)) if sites else []
+    copies, errors = [], []
+    if sites:
+        errors = vendored_errors(sites)
+        if vendored_inventory(_site_key(sites))[0]:  # the parent's tree is read only when there is a copy to match
+            copies = vendored_copies(sites, {norm_name(project)} | package_names(cache, repo, sha))
     vendored = {"vendored": [{"where": c["where"], "version": c["version"]} for c in copies]} if copies else {}
+    scan = {"scan_errors": errors} if errors else {}
     if not lines and not copies:
-        return None
+        return {"status": "absent", **scan} if errors else None
     if len(lines) == 1:
         return {"status": "unknown", "installed": lines[0].strip(), "error": "the distribution lists no .py files",
-                **vendored}
+                **vendored, **scan}
+    unread = [c["where"] for c in copies if c["unread"]]
+    if unread:
+        return {"status": "unknown", "installed": lines[0].strip() if lines else None,
+                "error": "vendored copy with unreadable files: " + ", ".join(unread[:3]), **vendored, **scan}
     installed = set()
     for name in lines[1:]:
         try:
@@ -707,8 +749,7 @@ def installed_overlap(python: str, project: str, cache: Path, repo: str, sha: st
         except OSError:
             continue
     for c in copies:
-        for ref in c["files"]:
-            installed |= _ref_lines(ref)
+        installed |= c["lines"]
     bare = LCand.bare_path(cache, repo)
     code = [n for n in E._git(None, "-c", "core.quotepath=false", f"--git-dir={bare}", "diff", "--name-only",
                               f"{sha}^", sha).splitlines() if LCand.is_code(n)]
@@ -719,12 +760,12 @@ def installed_overlap(python: str, project: str, cache: Path, repo: str, sha: st
     hits = [s for s in new if s in installed]
     leak = len(hits) >= LEAK_HITS or (bool(hits) and len(hits) == len(new))
     return {"status": "compared", "installed": lines[0].strip() if lines else None, "new_lines": len(new),
-            "hits": len(hits), "examples": hits[:3], "leak": leak, **vendored}
+            "hits": len(hits), "examples": hits[:3], "leak": leak, **vendored, **scan}
 
 
 def overlap_reason(project: str, found: dict | None) -> str | None:
     """The exclusion reason for an installed_overlap result, or None to keep the commit."""
-    if not found:
+    if not found or found.get("status") == "absent":
         return None
     own = f"installed {project} {found.get('installed') or ''}".rstrip()
     copies = "; ".join(f"{v['where']} {v['version'] or '(version unknown)'}" for v in found.get("vendored") or [])
@@ -765,6 +806,7 @@ def select_upstream(cache: Path, repos: list[dict], python: str, used: set[str],
     validator = validator or _validate
     since_ts = _since_ts(since)
     b, c, b_dev, c_dev, exclusions, checked = [], [], [], [], [], []
+    scan_errors = set()  # vendored scan errors (#417), recorded once in the output; env-check fails on them
     per_b, per_c = Counter(), Counter()  # final and development tasks together, per repository
     visited = set()
     for spec in repos:
@@ -818,6 +860,7 @@ def select_upstream(cache: Path, repos: list[dict], python: str, used: set[str],
                     found = overlap(python, spec.get("project", repo), cache, repo, row["commit"])
                 except Exception as exc:  # a failed check excludes the commit, it never stops the selection
                     found = {"status": "unknown", "error": f"{type(exc).__name__}: {exc}"[:300]}
+                scan_errors.update((found or {}).get("scan_errors") or ())
                 reason = overlap_reason(spec.get("project", repo), found)
             if reason:
                 extra = {k: found[k] for k in ("installed", "examples", "vendored") if found and k in found}
@@ -865,7 +908,8 @@ def select_upstream(cache: Path, repos: list[dict], python: str, used: set[str],
             "models_called": False, "B": b, "C": c, "b_shortfall": B_TAKE - len(b), "c_shortfall": C_TAKE - len(c),
             "dev": {"B": b_dev, "C": c_dev},
             "dev_shortfall": {"B": B_DEV_TAKE - len(b_dev), "C": C_DEV_TAKE - len(c_dev)},
-            "exclusions": exclusions, "checked": checked}
+            "exclusions": exclusions, "checked": checked,
+            **({"vendored_scan_errors": sorted(scan_errors)} if scan_errors else {})}
 
 
 def selection_tasks(selection: dict) -> list[dict]:
@@ -910,28 +954,37 @@ def env_check(selection: dict, python: str, meta_dir: Path | None, run=subproces
         scan = "ok" if r.returncode == 0 else f"unknown: --ext-python query failed (rc={r.returncode})"
     except (OSError, subprocess.SubprocessError) as exc:
         sites, scan = [], f"unknown: {type(exc).__name__}: {exc}"[:300]
+    errors = vendored_errors(sites) if sites else []
+    if errors and scan == "ok":
+        scan = f"errors: {len(errors)} folder(s), wheel(s) or file(s) could not be read (vendored_scan_errors)"
     rows = []
     for task in selection_tasks(selection):
         path = Path(meta_dir) / f"{norm_name(task['project'])}.json" if meta_dir else None
         meta = read_json(path) if path and path.is_file() else None
         names = {norm_name(task["project"])}
-        if cache and task.get("repo") and task.get("commit"):
+        if cache and sites and vendored_inventory(_site_key(sites))[0] and task.get("repo") and task.get("commit"):
             try:
                 names |= package_names(Path(cache), task["repo"], task["commit"])
             except (OSError, RuntimeError):
                 pass  # the project name alone still matches
         vendored = []
         for c in vendored_copies(sites, names) if sites else []:
-            released = _upload_ts(meta, c["version"]) if c["version"] else None
+            # several versions (one folder, several distributions): the latest date, or unknown when any is missing
+            stamps = {v: _upload_ts(meta, v) for v in (c["version"] or "").split(", ") if v}
+            missing = sorted(v for v, ts in stamps.items() if ts is None)
+            released = max(stamps.values()) if stamps and not missing else None
             vendored.append({"where": c["where"], "version": c["version"], "released": released,
-                             "after_commit": None if released is None else released >= task["timestamp"]})
+                             "after_commit": None if released is None else released >= task["timestamp"],
+                             **({"release_unknown": missing} if missing else {})})
         rows.append({"id": task["id"], **own_package(python, task["project"], task["timestamp"], meta, run),
                      "vendored": vendored})
     return {"rule": "the task's own distribution is absent from --ext-python, or its installed release predates "
-                    "the commit; the site-packages scan for vendored copies ran. Vendored copies of the task's package "
-                    f"(#417; {VENDOR_RULE}) are listed with their release date (after_commit null when unknown) and "
-                    "do not change ok: select compares their files with each commit (rule.installed_overlap)",
-            "vendored_scan": scan, "tasks": rows, "ok": scan == "ok" and all(r["ok"] for r in rows)}
+                    "the commit; the scan for vendored copies ran and read everything (vendored_scan ok). Vendored "
+                    f"copies of the task's package (#417; {VENDOR_RULE}) are listed with their release date "
+                    "(after_commit null and release_unknown when a version has no date) and do not change ok: select "
+                    "compares their files with each commit (rule.installed_overlap)",
+            "vendored_scan": scan, **({"vendored_scan_errors": errors} if errors else {}), "tasks": rows,
+            "ok": scan == "ok" and all(r["ok"] for r in rows)}
 
 
 # ---------------------------------------------------------------- network steps (meta, prepare)
