@@ -135,7 +135,8 @@ def context_path(cwd: Path, session: str) -> Path:
 def capture(cwd: Path, source: str, session: str, evidence: dict, context: dict, *,
             command_timeout: float = 2, total_timeout: float = 6) -> tuple[Path, dict]:
     folder = storage(cwd)
-    packet = {"schema_version": 1, "id": uuid.uuid4().hex, "captured_at": utc_now(), "workspace": str(cwd), "source": source,
+    packet = {"schema_version": 1, "id": uuid.uuid4().hex,
+              "captured_at": utc_now(), "workspace": str(cwd), "source": source,
               "source_session": session[:512], "goal": str(context.get("goal") or "Unknown")[:4096],
               "progress": str(context.get("progress") or "Unknown")[:4096],
               "next_step": str(context.get("next_step") or "Unknown")[:4096],

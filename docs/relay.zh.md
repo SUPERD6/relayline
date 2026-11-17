@@ -19,7 +19,7 @@ ccx relay capture --session-id SESSION_ID --goal "完成解析器" --progress "�
 `capture` 按会话保存上下文供后续钩子读取。请在有意义的进展后更新；不从私有对话记录提取目标和进度。
 Claude 的 `StopFailure` 钩子使用 matcher `rate_limit`，执行 `ccx relay capture --hook`。
 交接包和 `.notification.json` 通知原子写入工作区 `.ccx/relay/`。
-包内有 `captured_at`（UTC ISO 8601，固定格式 `YYYY-MM-DDTHH:MM:SSZ`，即保存事件时间；旧包没有该字段，照常读取）、显式目标、进度、下一步、源会话、Git HEAD、有上限的暂存与未暂存 diffstat、未提交文件清单和接手命令，不存全文 diff。
+包内有 `captured_at`（UTC ISO 8601，固定格式 `YYYY-MM-DDTHH:MM:SSZ`，即 capture 开始的时间，早于 Git 快照；旧包没有该字段，照常读取）。语义随保存者而异：`StopFailure` 钩子触发时近似额度事件时间（误差几秒）；手动 `ccx relay capture` 是人执行命令的时间；接续者撞限后再保存的交接包是接续者结束之后的时间。按“事件后 N 小时内接续”这类时限评判时，先按 `source` / `quota_signal.source` 区分再用、显式目标、进度、下一步、源会话、Git HEAD、有上限的暂存与未暂存 diffstat、未提交文件清单和接手命令，不存全文 diff。
 缺失上下文写 `Unknown`；目标未知时禁止接续。未跟踪文件只列清单、不复制；不读取私有 transcript。
 capture 写入本地 `.ccx/relay/.gitignore`，避免交接包进入 Git。文件清单最多 200 条、每条 512 字符；diffstat 与上下文摘要分别最多 4,096 字符。脏文件指纹在快照时限内读取最多 200 个路径、8 MiB，只存 SHA256，跳过私有路径和仓库外链接。钩子保持每条 Git 命令两秒、快照总计六秒；手动 capture/continue 默认每条 30 秒、每次快照 120 秒，`--git-timeout-seconds 60` 可改为 60/240 秒。接续者再次保存交接包时也沿用该设置；不改变模型墙钟预算，也不新增配置键。超时先保存含 Unknown 快照、原因和重试方法的最小包再通知；Git 快照 Unknown 时禁止接续，需先看 `git status`，用更长超时手动重新 capture，再用该超时 continue。子智能体钩子（`CCX_DEPTH > 0` 或 `CCX_ROLE=subagent`）静默返回。
 
@@ -37,7 +37,7 @@ ccx relay continue PACKET_ID --to codex --budget-seconds 300 --old-stopped --lau
 force 不绕过工作区锁、已知写进程检查、Git 核对或预算。旧 StopFailure 和 rate_limit_event 包
 缺少 `usage_confirmed=true` 时也要求 force。
 
-每个 `<包>.continue-*.json` 启动记录带 `started_at`（格式同上，接续开始时间；旧记录没有）。第一条只准备 prompt 和 argv，不调用模型。`--launch` 才显式启动受监督的 `codex exec --json --sandbox workspace-write` 或 `claude -p --output-format stream-json --verbose --permission-mode acceptEdits --permission-prompts none`。Claude 的原生文件编辑权限不等于 Codex 的操作系统沙箱，其他工具仍可能被拒绝；不启用权限绕过。退出码零但没有观察到工作区改动时返回 `no_changes`，不报成功；验证仍为 `not-run`。
+第一条只准备 prompt 和 argv，不调用模型。`--launch` 才显式启动受监督的 `codex exec --json --sandbox workspace-write` 或 `claude -p --output-format stream-json --verbose --permission-mode acceptEdits --permission-prompts none`。Claude 的原生文件编辑权限不等于 Codex 的操作系统沙箱，其他工具仍可能被拒绝；不启用权限绕过。退出码零但没有观察到工作区改动时返回 `no_changes`，不报成功；验证仍为 `not-run`。每个 `<包>.continue-*.json` 启动记录带 `started_at`（格式同上；晚于抢工作区锁、早于子进程启动；旧记录没有）。
 子进程退出码零但改动检测为 Unknown 时，单独返回 `changes_unknown`，提示人工查看 `git status`，
 ccx 命令退出码为 2。记录中的 `exit_code` 仍指子进程，所以可以保持零。
 2026-11-05 重新核对 **Claude Code 2.1.316 --help**：即使使用 `acceptEdits`，
