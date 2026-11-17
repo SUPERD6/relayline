@@ -450,9 +450,30 @@ def test_round2_task_stubs_and_utf8_reach_the_run_and_the_score(monkeypatch, tmp
     P.run_hidden(repo, ["tests/t.py"], "py")
     assert seen[0]["PYTHONUTF8"] == "1" and "PYTHONUTF8" not in seen[1]
     got = {}
-    monkeypatch.setattr(P, "run_hidden", lambda r, t, py, src_layout=False, utf8=False: got.update(utf8=utf8) or {})
-    P.score(repo, {"tests": [], "pythonutf8": True}, {"tar": tree({"pkg/__init__.py": ""}), "tests": {}}, "py")
-    assert got["utf8"] is True
+    monkeypatch.setattr(P, "run_hidden", lambda r, t, py, src_layout=False, utf8=False, plugins=():
+                        got.update(utf8=utf8, plugins=plugins) or {})
+    P.score(repo, {"tests": [], "pythonutf8": True, "pytest_plugins": ["anyio.pytest_plugin"]},
+            {"tar": tree({"pkg/__init__.py": ""}), "tests": {}}, "py")
+    assert got["utf8"] is True and got["plugins"] == ("anyio.pytest_plugin",)
+
+
+def test_round2_task_plugins_and_stub_version_reach_the_run_and_the_score(monkeypatch, tmp_path):
+    """#424: declared pytest plugins load through PYTEST_PLUGINS in the lead's environment and in scoring (never left
+    over for the next task); the stub reports the task's tag version."""
+    from test_p4_long_session import tree
+    repo = tmp_path / "repo"
+    P.reset_repo(repo, tree({"pkg/__init__.py": ""}), stubs=["pkg/_version.py"], stub_version="8.4.1")
+    assert '"8.4.1"' in (repo / "pkg/_version.py").read_text(encoding="utf-8")
+    env = {}
+    P.task_env(env, {"pytest_plugins": ["anyio.pytest_plugin", "pytest_timeout"]})
+    assert env["PYTEST_PLUGINS"] == "anyio.pytest_plugin,pytest_timeout"
+    assert "PYTEST_PLUGINS" not in P.task_env(env, {})
+    seen = []
+    monkeypatch.setattr(P.PF, "run", lambda argv, cwd, env, timeout: seen.append(env) or ("1 passed", "", 0, None))
+    P.run_hidden(repo, ["tests/t.py"], "py", plugins=("pytest_timeout",))
+    P.run_hidden(repo, ["tests/t.py"], "py")
+    assert seen[0]["PYTEST_PLUGINS"] == "pytest_timeout" and "PYTEST_PLUGINS" not in seen[1]
+    assert seen[0]["PYTEST_DISABLE_PLUGIN_AUTOLOAD"] == "1"
 
 
 def test_src_layout_prompt_only_changes_the_pythonpath():
