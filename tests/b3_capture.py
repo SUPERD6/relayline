@@ -35,9 +35,11 @@ def _norm(text: str, subs: list[tuple[str, str]]) -> str:
 
 
 def capture(to: str, mode: str, parallel: bool = False, subagent: dict | None = None,
-            env_extra: dict | None = None, req_kw: dict | None = None, results: list[dict] | None = None) -> dict:
+            env_extra: dict | None = None, req_kw: dict | None = None, results: list[dict] | None = None,
+            tiers_extra: str = "", git_init: bool = False) -> dict:
     """One sub-agent start in a throwaway hub and home. `subagent`: a [subagent] table for the hub's tiers.toml.
-    `req_kw`: more Request fields; `results`: what each attempt returns in turn (default one "done"); every attempt's
+    `req_kw`: more Request fields; `tiers_extra`: more text for the hub's tiers.toml (e.g. a `[brief]` table);
+    `git_init`: the working folder is a git repository with one commit (a --worktree run needs one); `results`: what each attempt returns in turn (default one "done"); every attempt's
     argv is in `attempts_argv`."""
     from ccx import delegate
     from ccx.agents import codex as codex_agent
@@ -60,12 +62,18 @@ def capture(to: str, mode: str, parallel: bool = False, subagent: dict | None = 
                            "CCX_CODEX_BIN": str(FAKES / "fake_codex.py"),
                            "CCX_CLAUDE_BIN": str(FAKES / "fake_claude.py"), **(env_extra or {})})
         p = Paths(tmp / "hub")
-        if subagent:
+        if subagent or tiers_extra:
             p.user_tiers.parent.mkdir(parents=True, exist_ok=True)
-            p.user_tiers.write_text("[subagent]\n" + "".join(f"{k} = {json.dumps(v)}\n" for k, v in subagent.items()),
-                                    encoding="utf-8")
+            p.user_tiers.write_text(("[subagent]\n" + "".join(f"{k} = {json.dumps(v)}\n" for k, v in subagent.items())
+                                     if subagent else "") + tiers_extra, encoding="utf-8")
         cwd = tmp / "work"
         cwd.mkdir()
+        if git_init:
+            import subprocess
+            (cwd / "a.py").write_text("x = 1\n", encoding="utf-8")
+            for argv in (["init", "-q"], ["add", "a.py"],
+                         ["-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qm", "i"]):
+                subprocess.run(["git", *argv], cwd=cwd, check=True, capture_output=True)
 
         todo = list(results or [])
 
