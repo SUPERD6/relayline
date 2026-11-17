@@ -13,6 +13,15 @@ from .common import _out, lead_out, lead_session_id, provider_agents
 
 def cmd_report(a) -> int:
     p = paths()
+    if a.daily is not None:          # one Markdown page for a day of real use; the dashboard is not touched
+        from .. import daily
+        if a.publish:
+            raise ValueError("--publish publishes the dashboard and cannot be combined with --daily")
+        _out(daily.write(p, a.daily or None, Path(a.out) if a.out else None, daily.parse_tz(a.tz),
+                         include_evals=a.include_evals))
+        return 0
+    if a.tz:
+        raise ValueError("--tz only goes with --daily")
     res = report.write(p, days=a.days, out=Path(a.out) if a.out else None, include_lead=not a.no_lead,
                        include_evals=a.include_evals)
     if a.publish:
@@ -536,6 +545,10 @@ def register(sub) -> None:
     rp.add_argument("--no-lead", action="store_true", help="skip reading the lead's own session logs")
     rp.add_argument("--publish", action="store_true", help="commit to report.publish_dir (your private repo)")
     rp.add_argument("--include-evals", action="store_true", help="'where it was wrong' also counts evaluation runs")
+    rp.add_argument("--daily", nargs="?", const="", metavar="DAY", help="instead of the dashboard, one Markdown page "
+                    "for a day of real use (YYYY-MM-DD, today or yesterday; default today) at <hub>/ccx/daily/DAY.md, "
+                    "or at --out; read-only; --days, --no-lead and --publish do not apply (--publish is refused); --include-evals also counts evaluation runs")
+    rp.add_argument("--tz", help="with --daily: the time zone that decides the day (local, UTC or +08:00; default local)")
     rp.set_defaults(fn=cmd_report)
     cf = sub.add_parser("config", help="settings, e.g. the save/fast knob: ccx config set defaults.tradeoff 0.3")
     cfs = cf.add_subparsers(dest="config_cmd", required=True)
