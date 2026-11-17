@@ -1,0 +1,1 @@
+- Relay (#414): packets now carry `captured_at` and `<packet>.continue-*.json` records carry `started_at`, both UTC ISO 8601 in the fixed form `YYYY-MM-DDTHH:MM:SSZ`, so "continued within N hours of the event" no longer depends on file modification times. Fields are only added; records without them still load, and no command, option or default changed.
