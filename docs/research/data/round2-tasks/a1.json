@@ -1,0 +1,2917 @@
+{
+  "kind": "context",
+  "group": "A1",
+  "dev": false,
+  "author": "Claude Opus 5.5 (claude-opus-5-5), task-writing session that takes part in no evaluation",
+  "preregistration": "docs/research/prereg/2026-11-16-round2.md, section 2 (A1, A2)",
+  "issue": 375,
+  "trace_granularity": "per hidden test function: every assert of a test maps to that test's sentences; a reviewer reads each assert against them",
+  "tasks": [
+    {
+      "id": "r2a1-01-restock",
+      "dev": false,
+      "source": "authored",
+      "files": {
+        "stock.py": "def level(stock, sku):\n    return stock.get(sku.lower(), 0)\n"
+      },
+      "brief": "Add reorder_list(stock, threshold) to stock.py. stock maps SKU codes to the units on hand. Return the items that need reordering, following the reorder rules the person settled for the warehouse.",
+      "neutral": false,
+      "settle": "Final reorder rules: an item at the threshold also needs reordering, not only below it. Return (SKU, shortfall) pairs where shortfall is threshold minus units plus one, with SKUs in upper case even though the stock dict keeps them lower case. Biggest shortfall first; equal shortfalls by SKU. The level() lookup keeps lower-case keys.",
+      "reversed": "Reorder anything strictly below the threshold, and just give me the SKUs.",
+      "modified": true,
+      "distractor": "The level() lookup keeps lower-case keys.",
+      "hidden": "from stock import reorder_list, level\n\n\ndef test_at_threshold_included():\n    assert reorder_list({'ab1': 5, 'zz9': 6}, 5) == [('AB1', 1)]\n\n\ndef test_shortfall_and_case():\n    assert reorder_list({'nut': 0}, 3) == [('NUT', 4)]\n\n\ndef test_order():\n    out = reorder_list({'b': 1, 'a': 1, 'c': 0, 'd': 9}, 2)\n    assert out == [('C', 3), ('A', 2), ('B', 2)]\n\n\ndef test_level_unchanged():\n    assert level({'ab1': 4}, 'AB1') == 4\n",
+      "reference": {
+        "stock.py": "def level(stock, sku):\n    return stock.get(sku.lower(), 0)\n\n\ndef reorder_list(stock, threshold):\n    out = [(sku.upper(), threshold - units + 1) for sku, units in stock.items() if units <= threshold]\n    return sorted(out, key=lambda p: (-p[1], p[0]))\n"
+      },
+      "naive": {
+        "stock.py": "def level(stock, sku):\n    return stock.get(sku.lower(), 0)\n\n\ndef reorder_list(stock, threshold):\n    return sorted(sku for sku, units in stock.items() if units < threshold)\n"
+      },
+      "conventions": [
+        "an item at the threshold also needs reordering",
+        "shortfall is threshold minus units plus one, with SKUs in upper case",
+        "Biggest shortfall first; equal shortfalls by SKU"
+      ],
+      "trace": [
+        {
+          "assertion": "test_zz_hidden_eval.py::test_at_threshold_included#1",
+          "brief": "an item at the threshold also needs reordering"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_shortfall_and_case#1",
+          "brief": "shortfall is threshold minus units plus one, with SKUs in upper case"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_order#1",
+          "brief": "Biggest shortfall first; equal shortfalls by SKU"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_level_unchanged#1",
+          "brief": "The level() lookup keeps lower-case keys"
+        }
+      ]
+    },
+    {
+      "id": "r2a1-02-phone-format",
+      "dev": false,
+      "source": "authored",
+      "files": {
+        "contact.py": "def digits_only(text):\n    return ''.join(ch for ch in text if ch.isdigit())\n\n\ndef format_zip(text):\n    d = digits_only(text)\n    if len(d) != 5:\n        raise ValueError('bad zip')\n    return d\n"
+      },
+      "brief": "Implement format_phone(text) in contact.py for the sign-up form: it takes whatever the user typed and returns the phone number formatted the way we decided.",
+      "neutral": false,
+      "settle": "Phone numbers on the form: write them with dots, like 555.010.9999, no parentheses or dashes. A leading country code 1 on an 11-digit number is dropped. Anything that is not 10 digits after that returns None instead of raising, unlike format_zip. The address autocomplete is a separate thing and still uses dashes for now.",
+      "reversed": null,
+      "modified": false,
+      "distractor": "The address autocomplete is a separate thing and still uses dashes for now.",
+      "hidden": "from contact import format_phone\n\n\ndef test_dots():\n    assert format_phone('(555) 010-9999') == '555.010.9999'\n\n\ndef test_country_code():\n    assert format_phone('+1 212 555 0100') == '212.555.0100'\n\n\ndef test_invalid_is_none():\n    assert format_phone('12345') is None\n    assert format_phone('2 212 555 0100') is None\n",
+      "reference": {
+        "contact.py": "def digits_only(text):\n    return ''.join(ch for ch in text if ch.isdigit())\n\n\ndef format_zip(text):\n    d = digits_only(text)\n    if len(d) != 5:\n        raise ValueError('bad zip')\n    return d\n\n\ndef format_phone(text):\n    d = digits_only(text)\n    if len(d) == 11 and d.startswith('1'):\n        d = d[1:]\n    if len(d) != 10:\n        return None\n    return f'{d[:3]}.{d[3:6]}.{d[6:]}'\n"
+      },
+      "naive": {
+        "contact.py": "def digits_only(text):\n    return ''.join(ch for ch in text if ch.isdigit())\n\n\ndef format_zip(text):\n    d = digits_only(text)\n    if len(d) != 5:\n        raise ValueError('bad zip')\n    return d\n\n\ndef format_phone(text):\n    d = digits_only(text)\n    if len(d) != 10:\n        raise ValueError('bad phone')\n    return f'({d[:3]}) {d[3:6]}-{d[6:]}'\n"
+      },
+      "conventions": [
+        "write them with dots, like 555.010.9999",
+        "A leading country code 1 on an 11-digit number is dropped",
+        "returns None instead of raising"
+      ],
+      "trace": [
+        {
+          "assertion": "test_zz_hidden_eval.py::test_dots#1",
+          "brief": "write them with dots, like 555.010.9999"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_dots#1",
+          "brief": "no parentheses or dashes"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_country_code#1",
+          "brief": "A leading country code 1 on an 11-digit number is dropped"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_invalid_is_none#1",
+          "brief": "Anything that is not 10 digits after that"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_invalid_is_none#1",
+          "brief": "returns None instead of raising"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_invalid_is_none#2",
+          "brief": "Anything that is not 10 digits after that"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_invalid_is_none#2",
+          "brief": "returns None instead of raising"
+        }
+      ]
+    },
+    {
+      "id": "r2a1-03-sensor-stats",
+      "dev": false,
+      "source": "authored",
+      "files": {
+        "sensors.py": "from statistics import mean\n\n\ndef overall(readings):\n    return {'minimum': min(readings), 'maximum': max(readings), 'mean': mean(readings)}\n"
+      },
+      "brief": "Write daily_stats(readings) in sensors.py for the dashboard tile: the low, high and average of one day's temperature readings, as we agreed.",
+      "neutral": false,
+      "settle": "For the dashboard tile, daily_stats returns a dict with exactly the keys lo, hi and avg, not the long names overall() uses. Missing readings arrive as None and are skipped. avg is rounded to one decimal with halves going up (21.25 shows as 21.3), not Python's round(). A day with no readings returns None. Note the weekly report still uses overall(), keep it.",
+      "reversed": null,
+      "modified": false,
+      "distractor": "Note the weekly report still uses overall(), keep it.",
+      "hidden": "from sensors import daily_stats, overall\n\n\ndef test_keys():\n    assert set(daily_stats([20.0, 22.0])) == {'lo', 'hi', 'avg'}\n    assert daily_stats([20.0, 22.0]) == {'lo': 20.0, 'hi': 22.0, 'avg': 21.0}\n\n\ndef test_none_skipped():\n    assert daily_stats([None, 18.0, None, 19.0]) == {'lo': 18.0, 'hi': 19.0, 'avg': 18.5}\n    assert daily_stats([None, None]) is None\n\n\ndef test_half_up():\n    assert daily_stats([21.0, 21.5])['avg'] == 21.3\n    assert daily_stats([0.1, 0.4])['avg'] == 0.3\n\n\ndef test_overall_kept():\n    assert overall([1, 3])['mean'] == 2\n",
+      "reference": {
+        "sensors.py": "from decimal import Decimal, ROUND_HALF_UP\nfrom statistics import mean\n\n\ndef overall(readings):\n    return {'minimum': min(readings), 'maximum': max(readings), 'mean': mean(readings)}\n\n\ndef daily_stats(readings):\n    xs = [r for r in readings if r is not None]\n    if not xs:\n        return None\n    avg = sum(Decimal(str(x)) for x in xs) / len(xs)\n    avg = float(avg.quantize(Decimal('0.1'), rounding=ROUND_HALF_UP))\n    return {'lo': min(xs), 'hi': max(xs), 'avg': avg}\n"
+      },
+      "naive": {
+        "sensors.py": "from statistics import mean\n\n\ndef overall(readings):\n    return {'minimum': min(readings), 'maximum': max(readings), 'mean': mean(readings)}\n\n\ndef daily_stats(readings):\n    xs = [r for r in readings if r is not None]\n    if not xs:\n        return None\n    return {'minimum': min(xs), 'maximum': max(xs), 'mean': round(mean(xs), 1)}\n"
+      },
+      "conventions": [
+        "a dict with exactly the keys lo, hi and avg",
+        "Missing readings arrive as None and are skipped",
+        "rounded to one decimal with halves going up (21.25 shows as 21.3)"
+      ],
+      "trace": [
+        {
+          "assertion": "test_zz_hidden_eval.py::test_keys#1",
+          "brief": "a dict with exactly the keys lo, hi and avg"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_keys#1",
+          "brief": "the low, high and average"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_keys#2",
+          "brief": "a dict with exactly the keys lo, hi and avg"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_keys#2",
+          "brief": "the low, high and average"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_none_skipped#1",
+          "brief": "Missing readings arrive as None and are skipped"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_none_skipped#1",
+          "brief": "A day with no readings returns None"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_none_skipped#2",
+          "brief": "Missing readings arrive as None and are skipped"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_none_skipped#2",
+          "brief": "A day with no readings returns None"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_half_up#1",
+          "brief": "rounded to one decimal with halves going up (21.25 shows as 21.3)"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_half_up#2",
+          "brief": "rounded to one decimal with halves going up (21.25 shows as 21.3)"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_overall_kept#1",
+          "brief": "the weekly report still uses overall(), keep it"
+        }
+      ]
+    },
+    {
+      "id": "r2a1-04-username-check",
+      "dev": false,
+      "source": "authored",
+      "files": {
+        "accounts.py": "def check_email(addr):\n    if '@' not in addr:\n        raise ValueError('email must contain @')\n    return True\n"
+      },
+      "brief": "Add check_username(name) to accounts.py for the registration form, with the rules and the return value we ended up with in the discussion.",
+      "neutral": false,
+      "settle": "We changed the username rules: 3 to 16 characters, only lower-case letters, digits and the underscore (no dots any more), and the first character must be a letter. check_username never raises: it returns (True, None) when valid, otherwise (False, reason) with the first rule broken, checked in this order: 'length', 'chars', 'start'. Display names are a separate field and may keep spaces and capitals.",
+      "reversed": "Usernames: letters, digits and dots, 3 to 20 characters; just raise ValueError like check_email.",
+      "modified": true,
+      "distractor": "Display names are a separate field and may keep spaces and capitals.",
+      "hidden": "from accounts import check_username\n\n\ndef test_valid():\n    assert check_username('ada_99') == (True, None)\n\n\ndef test_length_and_chars():\n    assert check_username('ab') == (False, 'length')\n    assert check_username('a' * 17) == (False, 'length')\n    assert check_username('ada.king') == (False, 'chars')\n    assert check_username('Ada') == (False, 'chars')\n\n\ndef test_start():\n    assert check_username('9lives') == (False, 'start')\n    assert check_username('_x1') == (False, 'start')\n\n\ndef test_order_of_rules():\n    assert check_username('9.') == (False, 'length')\n    assert check_username('9a.b') == (False, 'chars')\n",
+      "reference": {
+        "accounts.py": "import string\n\n\ndef check_email(addr):\n    if '@' not in addr:\n        raise ValueError('email must contain @')\n    return True\n\n\nALLOWED = set(string.ascii_lowercase + string.digits + '_')\n\n\ndef check_username(name):\n    if not 3 <= len(name) <= 16:\n        return False, 'length'\n    if not set(name) <= ALLOWED:\n        return False, 'chars'\n    if not name[0].isalpha():\n        return False, 'start'\n    return True, None\n"
+      },
+      "naive": {
+        "accounts.py": "import re\n\n\ndef check_email(addr):\n    if '@' not in addr:\n        raise ValueError('email must contain @')\n    return True\n\n\ndef check_username(name):\n    if not re.fullmatch(r'[A-Za-z0-9.]{3,20}', name):\n        raise ValueError('bad username')\n    return True\n"
+      },
+      "conventions": [
+        "3 to 16 characters, only lower-case letters, digits and the underscore (no dots any more)",
+        "the first character must be a letter",
+        "it returns (True, None) when valid, otherwise (False, reason)"
+      ],
+      "trace": [
+        {
+          "assertion": "test_zz_hidden_eval.py::test_valid#1",
+          "brief": "it returns (True, None) when valid, otherwise (False, reason)"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_length_and_chars#1",
+          "brief": "3 to 16 characters, only lower-case letters, digits and the underscore (no dots any more)"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_length_and_chars#1",
+          "brief": "it returns (True, None) when valid, otherwise (False, reason)"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_length_and_chars#2",
+          "brief": "3 to 16 characters, only lower-case letters, digits and the underscore (no dots any more)"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_length_and_chars#2",
+          "brief": "it returns (True, None) when valid, otherwise (False, reason)"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_length_and_chars#3",
+          "brief": "3 to 16 characters, only lower-case letters, digits and the underscore (no dots any more)"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_length_and_chars#3",
+          "brief": "it returns (True, None) when valid, otherwise (False, reason)"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_length_and_chars#4",
+          "brief": "3 to 16 characters, only lower-case letters, digits and the underscore (no dots any more)"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_length_and_chars#4",
+          "brief": "it returns (True, None) when valid, otherwise (False, reason)"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_start#1",
+          "brief": "the first character must be a letter"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_start#2",
+          "brief": "the first character must be a letter"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_order_of_rules#1",
+          "brief": "with the first rule broken, checked in this order: 'length', 'chars', 'start'"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_order_of_rules#2",
+          "brief": "with the first rule broken, checked in this order: 'length', 'chars', 'start'"
+        }
+      ]
+    },
+    {
+      "id": "r2a1-05-grade-bands",
+      "dev": false,
+      "source": "authored",
+      "files": {
+        "grades.py": "BANDS = [(90, 'A'), (80, 'B'), (70, 'C'), (60, 'D')]\n\n\ndef passed(score):\n    return score >= 60\n"
+      },
+      "brief": "Implement letter(score) in grades.py using BANDS, for scores from 0 to 100, with the details the teacher asked for.",
+      "neutral": false,
+      "settle": "Grading details from the teacher: first round the score to a whole number with halves going up, so 89.5 is an A. Then the top three points of the B, C and D bands get a plus (87 to 89 is B+, but there is no A+). Scores below 0 or above 100 raise ValueError. passed() is used by the old report and stays as it is.",
+      "reversed": null,
+      "modified": false,
+      "distractor": "passed() is used by the old report and stays as it is.",
+      "hidden": "import pytest\nfrom grades import letter\n\n\ndef test_bands():\n    assert letter(95) == 'A'\n    assert letter(81) == 'B'\n    assert letter(10) == 'F'\n\n\ndef test_rounding():\n    assert letter(89.5) == 'A'\n    assert letter(79.4) == 'C+'\n    assert letter(59.5) == 'D'\n\n\ndef test_plus():\n    assert letter(87) == 'B+'\n    assert letter(69) == 'D+'\n    assert letter(100) == 'A'\n    assert letter(66) == 'D'\n\n\ndef test_out_of_range():\n    with pytest.raises(ValueError):\n        letter(101)\n    with pytest.raises(ValueError):\n        letter(-1)\n",
+      "reference": {
+        "grades.py": "import math\n\nBANDS = [(90, 'A'), (80, 'B'), (70, 'C'), (60, 'D')]\n\n\ndef passed(score):\n    return score >= 60\n\n\ndef letter(score):\n    if score < 0 or score > 100:\n        raise ValueError('score out of range')\n    s = math.floor(score + 0.5)\n    for low, name in BANDS:\n        if s >= low:\n            if name != 'A' and s >= low + 7:\n                return name + '+'\n            return name\n    return 'F'\n"
+      },
+      "naive": {
+        "grades.py": "BANDS = [(90, 'A'), (80, 'B'), (70, 'C'), (60, 'D')]\n\n\ndef passed(score):\n    return score >= 60\n\n\ndef letter(score):\n    if score < 0 or score > 100:\n        raise ValueError('score out of range')\n    for low, name in BANDS:\n        if score >= low:\n            return name\n    return 'F'\n"
+      },
+      "conventions": [
+        "round the score to a whole number with halves going up, so 89.5 is an A",
+        "the top three points of the B, C and D bands get a plus (87 to 89 is B+, but there is no A+)"
+      ],
+      "trace": [
+        {
+          "assertion": "test_zz_hidden_eval.py::test_bands#1",
+          "brief": "Implement letter(score) in grades.py using BANDS"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_bands#2",
+          "brief": "Implement letter(score) in grades.py using BANDS"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_bands#3",
+          "brief": "Implement letter(score) in grades.py using BANDS"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_rounding#1",
+          "brief": "round the score to a whole number with halves going up, so 89.5 is an A"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_rounding#2",
+          "brief": "round the score to a whole number with halves going up, so 89.5 is an A"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_rounding#3",
+          "brief": "round the score to a whole number with halves going up, so 89.5 is an A"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_plus#1",
+          "brief": "the top three points of the B, C and D bands get a plus (87 to 89 is B+, but there is no A+)"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_plus#2",
+          "brief": "the top three points of the B, C and D bands get a plus (87 to 89 is B+, but there is no A+)"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_plus#3",
+          "brief": "the top three points of the B, C and D bands get a plus (87 to 89 is B+, but there is no A+)"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_plus#4",
+          "brief": "the top three points of the B, C and D bands get a plus (87 to 89 is B+, but there is no A+)"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_out_of_range#1",
+          "brief": "Scores below 0 or above 100 raise ValueError"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_out_of_range#2",
+          "brief": "Scores below 0 or above 100 raise ValueError"
+        }
+      ]
+    },
+    {
+      "id": "r2a1-06-query-string",
+      "dev": false,
+      "source": "authored",
+      "files": {
+        "urls.py": "from urllib.parse import urlencode\n\n\ndef legacy_query(params):\n    return urlencode(params)\n"
+      },
+      "brief": "Write build_query(params) in urls.py for the new API client: it turns a dict of parameters into a query string (without the leading '?'), encoded the way the API team asked us to.",
+      "neutral": false,
+      "settle": "The API team's rules for build_query: keys sorted alphabetically, parameters whose value is None are left out, and a list value becomes one parameter with the items joined by commas (tags=a,b), not repeated keys. Spaces must be %20, never '+'. legacy_query stays on urlencode for the old endpoints.",
+      "reversed": null,
+      "modified": false,
+      "distractor": "legacy_query stays on urlencode for the old endpoints.",
+      "hidden": "from urls import build_query, legacy_query\n\n\ndef test_sorted_and_none():\n    assert build_query({'b': 2, 'a': 1, 'c': None}) == 'a=1&b=2'\n\n\ndef test_lists():\n    assert build_query({'tags': ['x', 'y'], 'id': 3}) == 'id=3&tags=x,y'\n\n\ndef test_spaces():\n    assert build_query({'q': 'red fox'}) == 'q=red%20fox'\n\n\ndef test_legacy():\n    assert legacy_query({'q': 'a b'}) == 'q=a+b'\n",
+      "reference": {
+        "urls.py": "from urllib.parse import quote, urlencode\n\n\ndef legacy_query(params):\n    return urlencode(params)\n\n\ndef build_query(params):\n    parts = []\n    for key in sorted(params):\n        value = params[key]\n        if value is None:\n            continue\n        if isinstance(value, (list, tuple)):\n            text = ','.join(quote(str(v), safe='') for v in value)\n        else:\n            text = quote(str(value), safe='')\n        parts.append(f'{quote(str(key), safe=\"\")}={text}')\n    return '&'.join(parts)\n"
+      },
+      "naive": {
+        "urls.py": "from urllib.parse import urlencode\n\n\ndef legacy_query(params):\n    return urlencode(params)\n\n\ndef build_query(params):\n    return urlencode(params, doseq=True)\n"
+      },
+      "conventions": [
+        "keys sorted alphabetically, parameters whose value is None are left out",
+        "a list value becomes one parameter with the items joined by commas (tags=a,b), not repeated keys",
+        "Spaces must be %20, never '+'"
+      ],
+      "trace": [
+        {
+          "assertion": "test_zz_hidden_eval.py::test_sorted_and_none#1",
+          "brief": "keys sorted alphabetically, parameters whose value is None are left out"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_lists#1",
+          "brief": "a list value becomes one parameter with the items joined by commas (tags=a,b), not repeated keys"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_spaces#1",
+          "brief": "Spaces must be %20, never '+'"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_legacy#1",
+          "brief": "legacy_query stays on urlencode for the old endpoints"
+        }
+      ]
+    },
+    {
+      "id": "r2a1-07-top-words",
+      "dev": false,
+      "source": "authored",
+      "files": {
+        "textstats.py": "from collections import Counter\n\n\ndef letter_counts(text):\n    return sorted(Counter(text).items())\n"
+      },
+      "brief": "Add top_words(text, n) to textstats.py: the n most frequent words with their counts, as a list of (word, count) pairs. Count words the way the person and I finally settled.",
+      "neutral": false,
+      "settle": "Final word counting: case-insensitive, and the words come back in lower case. A word is a run of letters and apostrophes, so don't is one word. Words shorter than three letters are ignored. Ties go to the word that appears first in the text, not alphabetical order. letter_counts() for the cipher puzzle stays case-sensitive.",
+      "reversed": "Count every word as written, case-sensitive, and break ties alphabetically like letter_counts.",
+      "modified": true,
+      "distractor": "letter_counts() for the cipher puzzle stays case-sensitive.",
+      "hidden": "from textstats import top_words\n\n\ndef test_case_folded():\n    assert top_words('Cat cat CAT dog', 1) == [('cat', 3)]\n\n\ndef test_short_words_and_apostrophes():\n    assert top_words(\"an ox is in it; don't don't\", 5) == [(\"don't\", 2)]\n\n\ndef test_first_appearance_breaks_ties():\n    assert top_words('pear apple pear apple fig', 2) == [('pear', 2), ('apple', 2)]\n",
+      "reference": {
+        "textstats.py": "import re\nfrom collections import Counter\n\n\ndef letter_counts(text):\n    return sorted(Counter(text).items())\n\n\ndef top_words(text, n):\n    words = [w for w in re.findall(r\"[a-z']+\", text.lower()) if len(w.replace(\"'\", '')) >= 3]\n    counts = Counter(words)\n    first = {}\n    for i, w in enumerate(words):\n        first.setdefault(w, i)\n    return sorted(counts.items(), key=lambda kv: (-kv[1], first[kv[0]]))[:n]\n"
+      },
+      "naive": {
+        "textstats.py": "import re\nfrom collections import Counter\n\n\ndef letter_counts(text):\n    return sorted(Counter(text).items())\n\n\ndef top_words(text, n):\n    counts = Counter(re.findall(r\"[A-Za-z']+\", text))\n    return sorted(counts.items(), key=lambda kv: (-kv[1], kv[0]))[:n]\n"
+      },
+      "conventions": [
+        "case-insensitive, and the words come back in lower case",
+        "Words shorter than three letters are ignored",
+        "Ties go to the word that appears first in the text"
+      ],
+      "trace": [
+        {
+          "assertion": "test_zz_hidden_eval.py::test_case_folded#1",
+          "brief": "case-insensitive, and the words come back in lower case"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_short_words_and_apostrophes#1",
+          "brief": "Words shorter than three letters are ignored"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_short_words_and_apostrophes#1",
+          "brief": "A word is a run of letters and apostrophes, so don't is one word"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_first_appearance_breaks_ties#1",
+          "brief": "Ties go to the word that appears first in the text"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_first_appearance_breaks_ties#1",
+          "brief": "the n most frequent words with their counts"
+        }
+      ]
+    },
+    {
+      "id": "r2a1-08-duration-parse",
+      "dev": false,
+      "source": "authored",
+      "files": {
+        "timespec.py": "def parse_seconds(text):\n    return int(text.rstrip('s'))\n"
+      },
+      "brief": "Implement parse_duration(text) in timespec.py for the reminder command, e.g. '1h30m'. Use the units and return type we agreed with the person.",
+      "neutral": false,
+      "settle": "Agreed for parse_duration: it returns a datetime.timedelta, not a number. The only units are d, h and m (days, hours, minutes); there is no s unit, and a bare number like '45' means minutes. Anything else, including an empty string, raises ValueError. parse_seconds stays for the old timer.",
+      "reversed": null,
+      "modified": false,
+      "distractor": "parse_seconds stays for the old timer.",
+      "hidden": "import datetime\nimport pytest\nfrom timespec import parse_duration\n\n\ndef test_timedelta():\n    assert parse_duration('1h30m') == datetime.timedelta(hours=1, minutes=30)\n    assert parse_duration('2d') == datetime.timedelta(days=2)\n\n\ndef test_bare_minutes_and_no_seconds():\n    assert parse_duration('45') == datetime.timedelta(minutes=45)\n    with pytest.raises(ValueError):\n        parse_duration('30s')\n\n\ndef test_invalid():\n    for bad in ('', 'h', '1x', '1h 2q'):\n        with pytest.raises(ValueError):\n            parse_duration(bad)\n",
+      "reference": {
+        "timespec.py": "import datetime\nimport re\n\n\ndef parse_seconds(text):\n    return int(text.rstrip('s'))\n\n\ndef parse_duration(text):\n    text = text.strip()\n    if text.isdigit():\n        return datetime.timedelta(minutes=int(text))\n    if not re.fullmatch(r'(\\d+[dhm])+', text):\n        raise ValueError(f'bad duration {text!r}')\n    unit = {'d': 'days', 'h': 'hours', 'm': 'minutes'}\n    total = datetime.timedelta()\n    for n, u in re.findall(r'(\\d+)([dhm])', text):\n        total += datetime.timedelta(**{unit[u]: int(n)})\n    return total\n"
+      },
+      "naive": {
+        "timespec.py": "import re\n\n\ndef parse_seconds(text):\n    return int(text.rstrip('s'))\n\n\ndef parse_duration(text):\n    if not re.fullmatch(r'(\\d+[dhms])+|\\d+', text):\n        raise ValueError(text)\n    if text.isdigit():\n        return int(text)\n    mult = {'d': 86400, 'h': 3600, 'm': 60, 's': 1}\n    return sum(int(n) * mult[u] for n, u in re.findall(r'(\\d+)([dhms])', text))\n"
+      },
+      "conventions": [
+        "it returns a datetime.timedelta, not a number",
+        "there is no s unit, and a bare number like '45' means minutes"
+      ],
+      "trace": [
+        {
+          "assertion": "test_zz_hidden_eval.py::test_timedelta#1",
+          "brief": "it returns a datetime.timedelta, not a number"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_timedelta#1",
+          "brief": "The only units are d, h and m (days, hours, minutes)"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_timedelta#2",
+          "brief": "it returns a datetime.timedelta, not a number"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_timedelta#2",
+          "brief": "The only units are d, h and m (days, hours, minutes)"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_bare_minutes_and_no_seconds#1",
+          "brief": "there is no s unit, and a bare number like '45' means minutes"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_bare_minutes_and_no_seconds#2",
+          "brief": "there is no s unit, and a bare number like '45' means minutes"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_invalid#1",
+          "brief": "Anything else, including an empty string, raises ValueError"
+        }
+      ]
+    },
+    {
+      "id": "r2a1-09-invoice-number",
+      "dev": false,
+      "source": "authored",
+      "files": {
+        "billing.py": "def order_ref(n):\n    return f\"ord_{n}\"\n"
+      },
+      "brief": "Add next_invoice_number(last, today) to billing.py: given the last invoice number issued (or None) and today's date, return the next one in the format the accountant wants.",
+      "neutral": false,
+      "settle": "The accountant's format: INV-<year>-<four-digit counter>, for example INV-2026-0042, unlike our order refs. The counter starts again at 0001 when the year changes, using today's year. With no last number, it's the first invoice of today's year. Order refs keep their ord_ format.",
+      "reversed": null,
+      "modified": false,
+      "distractor": "Order refs keep their ord_ format.",
+      "hidden": "import datetime\nfrom billing import next_invoice_number\n\n\ndef test_format():\n    assert next_invoice_number('INV-2026-0041', datetime.date(2026, 3, 1)) == 'INV-2026-0042'\n    assert next_invoice_number('INV-2026-0999', datetime.date(2026, 3, 1)) == 'INV-2026-1000'\n\n\ndef test_year_rollover():\n    assert next_invoice_number('INV-2025-0310', datetime.date(2026, 1, 2)) == 'INV-2026-0001'\n\n\ndef test_first():\n    assert next_invoice_number(None, datetime.date(2027, 5, 5)) == 'INV-2027-0001'\n",
+      "reference": {
+        "billing.py": "def order_ref(n):\n    return f\"ord_{n}\"\n\n\ndef next_invoice_number(last, today):\n    n = 1\n    if last:\n        _, year, counter = last.split('-')\n        if int(year) == today.year:\n            n = int(counter) + 1\n    return f'INV-{today.year}-{n:04d}'\n"
+      },
+      "naive": {
+        "billing.py": "def order_ref(n):\n    return f\"ord_{n}\"\n\n\ndef next_invoice_number(last, today):\n    n = int(last.rsplit('_', 1)[-1].rsplit('-', 1)[-1]) + 1 if last else 1\n    return f\"inv_{today.year}_{n}\"\n"
+      },
+      "conventions": [
+        "INV-<year>-<four-digit counter>, for example INV-2026-0042",
+        "The counter starts again at 0001 when the year changes"
+      ],
+      "trace": [
+        {
+          "assertion": "test_zz_hidden_eval.py::test_format#1",
+          "brief": "INV-<year>-<four-digit counter>, for example INV-2026-0042"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_format#2",
+          "brief": "INV-<year>-<four-digit counter>, for example INV-2026-0042"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_year_rollover#1",
+          "brief": "The counter starts again at 0001 when the year changes"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_first#1",
+          "brief": "With no last number, it's the first invoice of today's year"
+        }
+      ]
+    },
+    {
+      "id": "r2a1-10-config-merge",
+      "dev": false,
+      "source": "authored",
+      "files": {
+        "config.py": "DEFAULTS = {'db': {'host': 'localhost', 'port': 5432}, 'features': ['search']}\n\n\ndef load(overrides):\n    cfg = dict(DEFAULTS)\n    cfg.update(overrides)\n    return cfg\n"
+      },
+      "brief": "Write merge_config(base, override) in config.py: return a new dict with override applied on top of base, without changing either input. Follow the merge semantics we decided on.",
+      "neutral": false,
+      "settle": "Change of plan for merge_config: nested dicts are merged key by key (deep merge), and a list in override is added to the end of the base list, skipping items the base list already has. A key whose override value is None is removed from the result. load() keeps its shallow update for the command-line flags.",
+      "reversed": "A plain shallow update like load() does is fine for merge_config.",
+      "modified": true,
+      "distractor": "load() keeps its shallow update for the command-line flags.",
+      "hidden": "import copy\nfrom config import merge_config\n\n\ndef test_deep():\n    base = {'db': {'host': 'h', 'port': 1}}\n    assert merge_config(base, {'db': {'port': 2}}) == {'db': {'host': 'h', 'port': 2}}\n\n\ndef test_lists_extend():\n    assert merge_config({'f': ['a', 'b']}, {'f': ['b', 'c']}) == {'f': ['a', 'b', 'c']}\n    assert merge_config({}, {'f': ['x']}) == {'f': ['x']}\n\n\ndef test_none_removes():\n    assert merge_config({'a': 1, 'b': {'c': 2, 'd': 3}}, {'a': None, 'b': {'d': None}}) == {'b': {'c': 2}}\n\n\ndef test_inputs_untouched():\n    base, over = {'x': {'y': 1}}, {'x': {'z': 2}}\n    b0, o0 = copy.deepcopy(base), copy.deepcopy(over)\n    merge_config(base, over)\n    assert base == b0 and over == o0\n",
+      "reference": {
+        "config.py": "import copy\n\nDEFAULTS = {'db': {'host': 'localhost', 'port': 5432}, 'features': ['search']}\n\n\ndef load(overrides):\n    cfg = dict(DEFAULTS)\n    cfg.update(overrides)\n    return cfg\n\n\ndef merge_config(base, override):\n    out = copy.deepcopy(base)\n    for key, value in override.items():\n        if value is None:\n            out.pop(key, None)\n        elif isinstance(value, dict) and isinstance(out.get(key), dict):\n            out[key] = merge_config(out[key], value)\n        elif isinstance(value, list) and isinstance(out.get(key), list):\n            out[key] = out[key] + [copy.deepcopy(v) for v in value if v not in out[key]]\n        else:\n            out[key] = copy.deepcopy(value)\n    return out\n"
+      },
+      "naive": {
+        "config.py": "DEFAULTS = {'db': {'host': 'localhost', 'port': 5432}, 'features': ['search']}\n\n\ndef load(overrides):\n    cfg = dict(DEFAULTS)\n    cfg.update(overrides)\n    return cfg\n\n\ndef merge_config(base, override):\n    out = dict(base)\n    out.update(override)\n    return out\n"
+      },
+      "conventions": [
+        "nested dicts are merged key by key (deep merge)",
+        "a list in override is added to the end of the base list, skipping items the base list already has",
+        "A key whose override value is None is removed from the result"
+      ],
+      "trace": [
+        {
+          "assertion": "test_zz_hidden_eval.py::test_deep#1",
+          "brief": "nested dicts are merged key by key (deep merge)"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_lists_extend#1",
+          "brief": "a list in override is added to the end of the base list, skipping items the base list already has"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_lists_extend#2",
+          "brief": "a list in override is added to the end of the base list, skipping items the base list already has"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_none_removes#1",
+          "brief": "A key whose override value is None is removed from the result"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_inputs_untouched#1",
+          "brief": "without changing either input"
+        }
+      ]
+    },
+    {
+      "id": "r2a1-11-truncate",
+      "dev": false,
+      "source": "authored",
+      "files": {
+        "preview.py": "def shorten(text, width):\n    return text if len(text) <= width else text[:width - 3] + '...'\n"
+      },
+      "brief": "Write truncate(text, width) in preview.py for the notification previews, shortening long text to at most width characters the way we settled.",
+      "neutral": false,
+      "settle": "Notification previews: the ellipsis is the single character '…', not three dots, and it counts toward the width. Cut at the last space that still fits, dropping that space, so a word is never split; only when the first word alone is too long do you cut inside it. Text that already fits is returned unchanged. shorten() is still used by the email subject line.",
+      "reversed": null,
+      "modified": false,
+      "distractor": "shorten() is still used by the email subject line.",
+      "hidden": "from preview import truncate, shorten\n\n\ndef test_fits():\n    assert truncate('short', 10) == 'short'\n\n\ndef test_single_char_ellipsis():\n    out = truncate('abcdefghij', 5)\n    assert out == 'abcd…' and len(out) == 5\n\n\ndef test_word_boundary():\n    assert truncate('the quick brown fox', 12) == 'the quick…'\n    assert truncate('hello world', 8) == 'hello…'\n\n\ndef test_shorten_kept():\n    assert shorten('abcdefgh', 6) == 'abc...'\n",
+      "reference": {
+        "preview.py": "def shorten(text, width):\n    return text if len(text) <= width else text[:width - 3] + '...'\n\n\ndef truncate(text, width):\n    if len(text) <= width:\n        return text\n    room = text[:width - 1]\n    cut = room.rfind(' ')\n    if cut > 0:\n        room = room[:cut]\n    return room + '…'\n"
+      },
+      "naive": {
+        "preview.py": "def shorten(text, width):\n    return text if len(text) <= width else text[:width - 3] + '...'\n\n\ndef truncate(text, width):\n    return shorten(text, width)\n"
+      },
+      "conventions": [
+        "the ellipsis is the single character '…', not three dots, and it counts toward the width",
+        "Cut at the last space that still fits, dropping that space, so a word is never split"
+      ],
+      "trace": [
+        {
+          "assertion": "test_zz_hidden_eval.py::test_fits#1",
+          "brief": "Text that already fits is returned unchanged"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_single_char_ellipsis#1",
+          "brief": "the ellipsis is the single character '…', not three dots, and it counts toward the width"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_single_char_ellipsis#1",
+          "brief": "only when the first word alone is too long do you cut inside it"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_word_boundary#1",
+          "brief": "Cut at the last space that still fits, dropping that space, so a word is never split"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_word_boundary#2",
+          "brief": "Cut at the last space that still fits, dropping that space, so a word is never split"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_shorten_kept#1",
+          "brief": "shorten() is still used by the email subject line"
+        }
+      ]
+    },
+    {
+      "id": "r2a1-12-percent-label",
+      "dev": false,
+      "source": "authored",
+      "files": {
+        "report.py": "def ratio(part, whole):\n    return part / whole\n"
+      },
+      "brief": "Add percent(part, whole) to report.py for the summary table. Use the output format we ended up agreeing on.",
+      "neutral": false,
+      "settle": "Revised: percent() returns a string, the percentage with exactly one decimal followed by '%', like '12.5%'. Halves round up (0.125 of the whole is '12.5%', 1/16 is '6.3%'). When whole is 0 it returns 'n/a' instead of raising. ratio() stays a plain float for the charts.",
+      "reversed": "percent() can just return a float between 0 and 100, rounded to two decimals.",
+      "modified": true,
+      "distractor": "ratio() stays a plain float for the charts.",
+      "hidden": "from report import percent\n\n\ndef test_string_format():\n    assert percent(1, 8) == '12.5%'\n    assert percent(1, 1) == '100.0%'\n\n\ndef test_half_up():\n    assert percent(1, 16) == '6.3%'\n    assert percent(1, 40) == '2.5%'\n    assert percent(3, 400) == '0.8%'\n\n\ndef test_zero_whole():\n    assert percent(5, 0) == 'n/a'\n",
+      "reference": {
+        "report.py": "from decimal import Decimal, ROUND_HALF_UP\n\n\ndef ratio(part, whole):\n    return part / whole\n\n\ndef percent(part, whole):\n    if whole == 0:\n        return 'n/a'\n    value = Decimal(part) * 100 / Decimal(whole)\n    return f\"{value.quantize(Decimal('0.1'), rounding=ROUND_HALF_UP)}%\"\n"
+      },
+      "naive": {
+        "report.py": "def ratio(part, whole):\n    return part / whole\n\n\ndef percent(part, whole):\n    return round(ratio(part, whole) * 100, 2)\n"
+      },
+      "conventions": [
+        "the percentage with exactly one decimal followed by '%'",
+        "Halves round up",
+        "When whole is 0 it returns 'n/a' instead of raising"
+      ],
+      "trace": [
+        {
+          "assertion": "test_zz_hidden_eval.py::test_string_format#1",
+          "brief": "the percentage with exactly one decimal followed by '%'"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_string_format#2",
+          "brief": "the percentage with exactly one decimal followed by '%'"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_half_up#1",
+          "brief": "Halves round up"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_half_up#2",
+          "brief": "Halves round up"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_half_up#3",
+          "brief": "Halves round up"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_zero_whole#1",
+          "brief": "When whole is 0 it returns 'n/a' instead of raising"
+        }
+      ]
+    },
+    {
+      "id": "r2a1-13-ticket-queue",
+      "dev": false,
+      "source": "authored",
+      "files": {
+        "tickets.py": "PRIORITY = {'low': 0, 'normal': 1, 'high': 2, 'urgent': 3}\n\n\ndef by_created(tickets):\n    return sorted(tickets, key=lambda t: t['created'], reverse=True)\n"
+      },
+      "brief": "Implement order_tickets(tickets) in tickets.py for the support view. Each ticket is a dict with id, priority, status and created (a number). Return the ticket ids in the order the support lead asked for.",
+      "neutral": false,
+      "settle": "The support lead's order: highest priority first using PRIORITY; within the same priority the oldest ticket comes first (unlike by_created, which is newest first for the archive). Tickets whose status is 'closed' or 'merged' are left out entirely.",
+      "reversed": null,
+      "modified": false,
+      "distractor": "unlike by_created, which is newest first for the archive",
+      "hidden": "from tickets import order_tickets\n\n\ndef T(i, p, created, status='open'):\n    return {'id': i, 'priority': p, 'status': status, 'created': created}\n\n\ndef test_priority_first():\n    assert order_tickets([T(1, 'low', 1), T(2, 'urgent', 5), T(3, 'normal', 2)]) == [2, 3, 1]\n\n\ndef test_oldest_within_priority():\n    assert order_tickets([T(1, 'high', 9), T(2, 'high', 3), T(3, 'high', 5)]) == [2, 3, 1]\n\n\ndef test_closed_and_merged_dropped():\n    ts = [T(1, 'urgent', 1, 'closed'), T(2, 'low', 1), T(3, 'high', 1, 'merged'), T(4, 'low', 0, 'pending')]\n    assert order_tickets(ts) == [4, 2]\n",
+      "reference": {
+        "tickets.py": "PRIORITY = {'low': 0, 'normal': 1, 'high': 2, 'urgent': 3}\n\n\ndef by_created(tickets):\n    return sorted(tickets, key=lambda t: t['created'], reverse=True)\n\n\ndef order_tickets(tickets):\n    live = [t for t in tickets if t['status'] not in ('closed', 'merged')]\n    return [t['id'] for t in sorted(live, key=lambda t: (-PRIORITY[t['priority']], t['created']))]\n"
+      },
+      "naive": {
+        "tickets.py": "PRIORITY = {'low': 0, 'normal': 1, 'high': 2, 'urgent': 3}\n\n\ndef by_created(tickets):\n    return sorted(tickets, key=lambda t: t['created'], reverse=True)\n\n\ndef order_tickets(tickets):\n    return [t['id'] for t in sorted(by_created(tickets), key=lambda t: PRIORITY[t['priority']])]\n"
+      },
+      "conventions": [
+        "highest priority first using PRIORITY",
+        "within the same priority the oldest ticket comes first",
+        "Tickets whose status is 'closed' or 'merged' are left out entirely"
+      ],
+      "trace": [
+        {
+          "assertion": "test_zz_hidden_eval.py::test_priority_first#1",
+          "brief": "highest priority first using PRIORITY"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_oldest_within_priority#1",
+          "brief": "within the same priority the oldest ticket comes first"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_closed_and_merged_dropped#1",
+          "brief": "Tickets whose status is 'closed' or 'merged' are left out entirely"
+        }
+      ]
+    },
+    {
+      "id": "r2a1-14-version-compare",
+      "dev": false,
+      "source": "authored",
+      "files": {
+        "versions.py": "def parts(v):\n    return [int(x) for x in v.split('.')]\n"
+      },
+      "brief": "Add is_newer(a, b) to versions.py for the update checker: True when version string a is newer than b. Compare versions with the rules we agreed on for our release names.",
+      "neutral": false,
+      "settle": "Rules for our release names: a leading 'v' is allowed and ignored, and missing parts count as zero, so 1.4 and 1.4.0 are the same version. A pre-release suffix such as -rc1 or -beta2 makes it older than the same version without one; two pre-releases of one version compare by their number (rc2 newer than rc1). parts() is still used by the build script and stays strict.",
+      "reversed": null,
+      "modified": false,
+      "distractor": "parts() is still used by the build script and stays strict.",
+      "hidden": "from versions import is_newer\n\n\ndef test_basic():\n    assert is_newer('1.10.0', '1.9.3')\n    assert not is_newer('1.2.0', '1.2.1')\n\n\ndef test_prefix_and_padding():\n    assert not is_newer('v1.4', '1.4.0')\n    assert not is_newer('1.4.0', 'v1.4')\n    assert is_newer('v2', '1.9.9')\n\n\ndef test_prerelease():\n    assert is_newer('2.0.0', '2.0.0-rc1')\n    assert not is_newer('2.0.0-rc1', '2.0.0')\n    assert is_newer('2.0.0-rc2', '2.0.0-rc1')\n    assert is_newer('2.0.0-rc1', '1.9.9')\n",
+      "reference": {
+        "versions.py": "import re\n\n\ndef parts(v):\n    return [int(x) for x in v.split('.')]\n\n\ndef _key(v):\n    v = v.strip().lstrip('vV')\n    main, _, pre = v.partition('-')\n    nums = parts(main)\n    while len(nums) < 3:\n        nums.append(0)\n    if pre:\n        m = re.search(r'(\\d+)$', pre)\n        return (nums, 0, int(m.group(1)) if m else 0)\n    return (nums, 1, 0)\n\n\ndef is_newer(a, b):\n    return _key(a) > _key(b)\n"
+      },
+      "naive": {
+        "versions.py": "def parts(v):\n    return [int(x) for x in v.split('.')]\n\n\ndef is_newer(a, b):\n    return parts(a.split('-')[0]) > parts(b.split('-')[0])\n"
+      },
+      "conventions": [
+        "a leading 'v' is allowed and ignored, and missing parts count as zero",
+        "A pre-release suffix such as -rc1 or -beta2 makes it older than the same version without one"
+      ],
+      "trace": [
+        {
+          "assertion": "test_zz_hidden_eval.py::test_basic#1",
+          "brief": "True when version string a is newer than b"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_basic#2",
+          "brief": "True when version string a is newer than b"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_prefix_and_padding#1",
+          "brief": "a leading 'v' is allowed and ignored, and missing parts count as zero"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_prefix_and_padding#1",
+          "brief": "so 1.4 and 1.4.0 are the same version"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_prefix_and_padding#2",
+          "brief": "a leading 'v' is allowed and ignored, and missing parts count as zero"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_prefix_and_padding#2",
+          "brief": "so 1.4 and 1.4.0 are the same version"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_prefix_and_padding#3",
+          "brief": "a leading 'v' is allowed and ignored, and missing parts count as zero"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_prefix_and_padding#3",
+          "brief": "so 1.4 and 1.4.0 are the same version"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_prerelease#1",
+          "brief": "A pre-release suffix such as -rc1 or -beta2 makes it older than the same version without one"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_prerelease#1",
+          "brief": "two pre-releases of one version compare by their number"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_prerelease#2",
+          "brief": "A pre-release suffix such as -rc1 or -beta2 makes it older than the same version without one"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_prerelease#2",
+          "brief": "two pre-releases of one version compare by their number"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_prerelease#3",
+          "brief": "A pre-release suffix such as -rc1 or -beta2 makes it older than the same version without one"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_prerelease#3",
+          "brief": "two pre-releases of one version compare by their number"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_prerelease#4",
+          "brief": "A pre-release suffix such as -rc1 or -beta2 makes it older than the same version without one"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_prerelease#4",
+          "brief": "two pre-releases of one version compare by their number"
+        }
+      ]
+    },
+    {
+      "id": "r2a1-15-mask-email",
+      "dev": false,
+      "source": "authored",
+      "files": {
+        "privacy.py": "def mask_name(name):\n    return name[0] + '*' * (len(name) - 1)\n"
+      },
+      "brief": "Write mask_email(addr) in privacy.py for the account page, hiding most of the address as we finally agreed.",
+      "neutral": false,
+      "settle": "New masking rule after the privacy review: keep the first two characters of the local part, then exactly three asterisks whatever the length, then the domain unchanged (jo***@example.com). A local part of two characters or fewer is replaced by the three asterisks alone. Addresses without '@' raise ValueError. mask_name() for the audit log keeps one star per letter.",
+      "reversed": "Keep the first and the last letter of the local part and star the rest, one star per letter.",
+      "modified": true,
+      "distractor": "mask_name() for the audit log keeps one star per letter.",
+      "hidden": "import pytest\nfrom privacy import mask_email\n\n\ndef test_two_chars_three_stars():\n    assert mask_email('johnny@example.com') == 'jo***@example.com'\n    assert mask_email('abc@example.org') == 'ab***@example.org'\n\n\ndef test_short_local():\n    assert mask_email('al@example.org') == '***@example.org'\n    assert mask_email('a@example.org') == '***@example.org'\n\n\ndef test_no_at():\n    with pytest.raises(ValueError):\n        mask_email('nobody')\n",
+      "reference": {
+        "privacy.py": "def mask_name(name):\n    return name[0] + '*' * (len(name) - 1)\n\n\ndef mask_email(addr):\n    if '@' not in addr:\n        raise ValueError('not an email address')\n    local, domain = addr.rsplit('@', 1)\n    keep = local[:2] if len(local) > 2 else ''\n    return f'{keep}***@{domain}'\n"
+      },
+      "naive": {
+        "privacy.py": "def mask_name(name):\n    return name[0] + '*' * (len(name) - 1)\n\n\ndef mask_email(addr):\n    if '@' not in addr:\n        raise ValueError('not an email address')\n    local, domain = addr.rsplit('@', 1)\n    if len(local) <= 2:\n        return local[0] + '*' * (len(local) - 1) + '@' + domain\n    return local[0] + '*' * (len(local) - 2) + local[-1] + '@' + domain\n"
+      },
+      "conventions": [
+        "keep the first two characters of the local part, then exactly three asterisks whatever the length",
+        "A local part of two characters or fewer is replaced by the three asterisks alone"
+      ],
+      "trace": [
+        {
+          "assertion": "test_zz_hidden_eval.py::test_two_chars_three_stars#1",
+          "brief": "keep the first two characters of the local part, then exactly three asterisks whatever the length"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_two_chars_three_stars#1",
+          "brief": "the domain unchanged"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_two_chars_three_stars#2",
+          "brief": "keep the first two characters of the local part, then exactly three asterisks whatever the length"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_two_chars_three_stars#2",
+          "brief": "the domain unchanged"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_short_local#1",
+          "brief": "A local part of two characters or fewer is replaced by the three asterisks alone"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_short_local#2",
+          "brief": "A local part of two characters or fewer is replaced by the three asterisks alone"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_no_at#1",
+          "brief": "Addresses without '@' raise ValueError"
+        }
+      ]
+    },
+    {
+      "id": "r2a1-16-batches",
+      "dev": false,
+      "source": "authored",
+      "files": {
+        "batching.py": "def pairs(items):\n    return [items[i:i + 2] for i in range(0, len(items), 2)]\n"
+      },
+      "brief": "Add batches(items, size) to batching.py: split a list into consecutive groups of size items for the bulk upload, following what we agreed about the groups.",
+      "neutral": false,
+      "settle": "For the bulk upload, batches() returns a list of tuples, not lists, and a final group shorter than size is dropped, because the API only takes full batches (the leftovers go in the next run). A size below 1 raises ValueError. pairs() for the comparison view keeps its short last pair.",
+      "reversed": null,
+      "modified": false,
+      "distractor": "pairs() for the comparison view keeps its short last pair.",
+      "hidden": "import pytest\nfrom batching import batches\n\n\ndef test_tuples():\n    assert batches([1, 2, 3, 4], 2) == [(1, 2), (3, 4)]\n\n\ndef test_short_tail_dropped():\n    assert batches([1, 2, 3, 4, 5], 2) == [(1, 2), (3, 4)]\n    assert batches([1, 2], 3) == []\n\n\ndef test_bad_size():\n    with pytest.raises(ValueError):\n        batches([1], 0)\n",
+      "reference": {
+        "batching.py": "def pairs(items):\n    return [items[i:i + 2] for i in range(0, len(items), 2)]\n\n\ndef batches(items, size):\n    if size < 1:\n        raise ValueError('size must be at least 1')\n    return [tuple(items[i:i + size]) for i in range(0, len(items) - size + 1, size)]\n"
+      },
+      "naive": {
+        "batching.py": "def pairs(items):\n    return [items[i:i + 2] for i in range(0, len(items), 2)]\n\n\ndef batches(items, size):\n    if size < 1:\n        raise ValueError('size must be at least 1')\n    return [items[i:i + size] for i in range(0, len(items), size)]\n"
+      },
+      "conventions": [
+        "returns a list of tuples, not lists",
+        "a final group shorter than size is dropped"
+      ],
+      "trace": [
+        {
+          "assertion": "test_zz_hidden_eval.py::test_tuples#1",
+          "brief": "returns a list of tuples, not lists"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_short_tail_dropped#1",
+          "brief": "a final group shorter than size is dropped"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_short_tail_dropped#2",
+          "brief": "a final group shorter than size is dropped"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_bad_size#1",
+          "brief": "A size below 1 raises ValueError"
+        }
+      ]
+    },
+    {
+      "id": "r2a1-17-elapsed-clock",
+      "dev": false,
+      "source": "authored",
+      "files": {
+        "clock.py": "def hms(seconds):\n    h, rest = divmod(int(seconds), 3600)\n    m, s = divmod(rest, 60)\n    return f\"{h:02d}:{m:02d}:{s:02d}\"\n"
+      },
+      "brief": "Implement format_elapsed(seconds) in clock.py for the stopwatch screen, in the display format we settled.",
+      "neutral": false,
+      "settle": "Stopwatch display: under an hour it is M:SS with minutes not zero-padded (2:03); from one hour it is H:MM:SS, again with no padding on the leading number (1:02:03). Fractions of a second are cut off, never rounded up (59.9 shows 0:59). Negative input raises ValueError. hms() is the log format and stays.",
+      "reversed": null,
+      "modified": false,
+      "distractor": "hms() is the log format and stays.",
+      "hidden": "import pytest\nfrom clock import format_elapsed, hms\n\n\ndef test_under_hour():\n    assert format_elapsed(123) == '2:03'\n    assert format_elapsed(5) == '0:05'\n\n\ndef test_hours():\n    assert format_elapsed(3723) == '1:02:03'\n    assert format_elapsed(36000) == '10:00:00'\n\n\ndef test_truncate():\n    assert format_elapsed(59.9) == '0:59'\n    assert format_elapsed(3599.99) == '59:59'\n\n\ndef test_negative():\n    with pytest.raises(ValueError):\n        format_elapsed(-1)\n\n\ndef test_hms_kept():\n    assert hms(5) == '00:00:05'\n",
+      "reference": {
+        "clock.py": "import math\n\n\ndef hms(seconds):\n    h, rest = divmod(int(seconds), 3600)\n    m, s = divmod(rest, 60)\n    return f\"{h:02d}:{m:02d}:{s:02d}\"\n\n\ndef format_elapsed(seconds):\n    if seconds < 0:\n        raise ValueError('negative duration')\n    total = math.floor(seconds)\n    h, rest = divmod(total, 3600)\n    m, s = divmod(rest, 60)\n    return f'{h}:{m:02d}:{s:02d}' if h else f'{m}:{s:02d}'\n"
+      },
+      "naive": {
+        "clock.py": "def hms(seconds):\n    h, rest = divmod(int(seconds), 3600)\n    m, s = divmod(rest, 60)\n    return f\"{h:02d}:{m:02d}:{s:02d}\"\n\n\ndef format_elapsed(seconds):\n    if seconds < 0:\n        raise ValueError('negative duration')\n    return hms(round(seconds))\n"
+      },
+      "conventions": [
+        "under an hour it is M:SS with minutes not zero-padded (2:03)",
+        "Fractions of a second are cut off, never rounded up (59.9 shows 0:59)"
+      ],
+      "trace": [
+        {
+          "assertion": "test_zz_hidden_eval.py::test_under_hour#1",
+          "brief": "under an hour it is M:SS with minutes not zero-padded (2:03)"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_under_hour#2",
+          "brief": "under an hour it is M:SS with minutes not zero-padded (2:03)"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_hours#1",
+          "brief": "from one hour it is H:MM:SS, again with no padding on the leading number (1:02:03)"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_hours#2",
+          "brief": "from one hour it is H:MM:SS, again with no padding on the leading number (1:02:03)"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_truncate#1",
+          "brief": "Fractions of a second are cut off, never rounded up (59.9 shows 0:59)"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_truncate#2",
+          "brief": "Fractions of a second are cut off, never rounded up (59.9 shows 0:59)"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_negative#1",
+          "brief": "Negative input raises ValueError"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_hms_kept#1",
+          "brief": "hms() is the log format and stays"
+        }
+      ]
+    },
+    {
+      "id": "r2a1-18-discount-codes",
+      "dev": false,
+      "source": "authored",
+      "files": {
+        "pricing.py": "CODES = {'SPRING10': 10, 'VIP25': 25}\n\n\ndef tax(cents, rate=0.2):\n    return int(cents * rate)\n"
+      },
+      "brief": "Write discount_price(price_cents, code) in pricing.py: the price after applying a discount code from CODES (percent off), with the rules we arrived at for the checkout.",
+      "neutral": false,
+      "settle": "Final checkout rules: the discounted price rounds to the nearest cent with halves going up, not down. A discount never takes a price below 100 cents (a price already under 100 is left as it is). An unknown code, or None, returns the price unchanged instead of raising. tax() keeps rounding down; the accountant wants it that way.",
+      "reversed": "Apply the percentage and round down to the cent, like tax(); an unknown code should raise KeyError.",
+      "modified": true,
+      "distractor": "tax() keeps rounding down; the accountant wants it that way.",
+      "hidden": "from pricing import discount_price\n\n\ndef test_round_half_up():\n    assert discount_price(1005, 'SPRING10') == 905\n    assert discount_price(999, 'VIP25') == 749\n\n\ndef test_floor_of_100():\n    assert discount_price(120, 'VIP25') == 100\n    assert discount_price(80, 'VIP25') == 80\n\n\ndef test_unknown_code():\n    assert discount_price(500, 'NOPE') == 500\n    assert discount_price(500, None) == 500\n",
+      "reference": {
+        "pricing.py": "CODES = {'SPRING10': 10, 'VIP25': 25}\n\n\ndef tax(cents, rate=0.2):\n    return int(cents * rate)\n\n\ndef discount_price(price_cents, code):\n    pct = CODES.get(code)\n    if pct is None:\n        return price_cents\n    new = (price_cents * (100 - pct) * 2 + 100) // 200\n    if price_cents < 100:\n        return price_cents\n    return max(new, 100)\n"
+      },
+      "naive": {
+        "pricing.py": "CODES = {'SPRING10': 10, 'VIP25': 25}\n\n\ndef tax(cents, rate=0.2):\n    return int(cents * rate)\n\n\ndef discount_price(price_cents, code):\n    pct = CODES[code]\n    return price_cents * (100 - pct) // 100\n"
+      },
+      "conventions": [
+        "the discounted price rounds to the nearest cent with halves going up",
+        "A discount never takes a price below 100 cents",
+        "An unknown code, or None, returns the price unchanged instead of raising"
+      ],
+      "trace": [
+        {
+          "assertion": "test_zz_hidden_eval.py::test_round_half_up#1",
+          "brief": "the discounted price rounds to the nearest cent with halves going up"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_round_half_up#2",
+          "brief": "the discounted price rounds to the nearest cent with halves going up"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_floor_of_100#1",
+          "brief": "A discount never takes a price below 100 cents"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_floor_of_100#1",
+          "brief": "a price already under 100 is left as it is"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_floor_of_100#2",
+          "brief": "A discount never takes a price below 100 cents"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_floor_of_100#2",
+          "brief": "a price already under 100 is left as it is"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_unknown_code#1",
+          "brief": "An unknown code, or None, returns the price unchanged instead of raising"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_unknown_code#2",
+          "brief": "An unknown code, or None, returns the price unchanged instead of raising"
+        }
+      ]
+    },
+    {
+      "id": "r2a1-19-contact-dedupe",
+      "dev": false,
+      "source": "authored",
+      "files": {
+        "contacts.py": "def unique(items):\n    seen, out = set(), []\n    for x in items:\n        if x not in seen:\n            seen.add(x)\n            out.append(x)\n    return out\n"
+      },
+      "brief": "Implement dedupe_contacts(contacts) in contacts.py for the address book import. Each contact is a dict with name, email and updated (a number). Remove duplicates the way we settled.",
+      "neutral": false,
+      "settle": "Import rules: two contacts are the same person when their emails match ignoring case and surrounding spaces. Of the duplicates keep the one with the largest updated value, not the first one seen. Return the kept contacts sorted by name, case-insensitively. The phone-number dedupe for the CRM is a different job, ignore it here.",
+      "reversed": null,
+      "modified": false,
+      "distractor": "The phone-number dedupe for the CRM is a different job, ignore it here.",
+      "hidden": "from contacts import dedupe_contacts\n\n\ndef C(name, email, updated):\n    return {'name': name, 'email': email, 'updated': updated}\n\n\ndef test_email_case():\n    out = dedupe_contacts([C('Ann', 'ann@example.org', 1), C('Ann B', ' ANN@example.org ', 2)])\n    assert len(out) == 1\n\n\ndef test_latest_kept():\n    out = dedupe_contacts([C('Old', 'a@example.org', 5), C('New', 'a@example.org', 9), C('Mid', 'a@example.org', 7)])\n    assert out == [C('New', 'a@example.org', 9)]\n\n\ndef test_sorted_by_name():\n    out = dedupe_contacts([C('bob', 'b@x', 1), C('Carl', 'c@x', 1), C('alice', 'a@x', 1)])\n    assert [c['name'] for c in out] == ['alice', 'bob', 'Carl']\n",
+      "reference": {
+        "contacts.py": "def unique(items):\n    seen, out = set(), []\n    for x in items:\n        if x not in seen:\n            seen.add(x)\n            out.append(x)\n    return out\n\n\ndef dedupe_contacts(contacts):\n    best = {}\n    for c in contacts:\n        key = c['email'].strip().lower()\n        if key not in best or c['updated'] > best[key]['updated']:\n            best[key] = c\n    return sorted(best.values(), key=lambda c: c['name'].lower())\n"
+      },
+      "naive": {
+        "contacts.py": "def unique(items):\n    seen, out = set(), []\n    for x in items:\n        if x not in seen:\n            seen.add(x)\n            out.append(x)\n    return out\n\n\ndef dedupe_contacts(contacts):\n    seen, out = set(), []\n    for c in contacts:\n        if c['email'] not in seen:\n            seen.add(c['email'])\n            out.append(c)\n    return sorted(out, key=lambda c: c['name'])\n"
+      },
+      "conventions": [
+        "emails match ignoring case and surrounding spaces",
+        "keep the one with the largest updated value",
+        "sorted by name, case-insensitively"
+      ],
+      "trace": [
+        {
+          "assertion": "test_zz_hidden_eval.py::test_email_case#1",
+          "brief": "emails match ignoring case and surrounding spaces"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_latest_kept#1",
+          "brief": "keep the one with the largest updated value"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_sorted_by_name#1",
+          "brief": "sorted by name, case-insensitively"
+        }
+      ]
+    },
+    {
+      "id": "r2a1-20-run-length",
+      "dev": false,
+      "source": "authored",
+      "files": {
+        "codec.py": "def decode_pairs(pairs):\n    return ''.join(ch * n for n, ch in pairs)\n"
+      },
+      "brief": "Add rle_encode(text) to codec.py: run-length encode a string into the compact form we finally decided on.",
+      "neutral": false,
+      "settle": "Final encoding: character first, then the count (a3b), and a run of length one has no count at all, so 'aaab' encodes to 'a3b'. Upper and lower case are different characters. The empty string encodes to ''. decode_pairs() keeps taking (count, char) pairs.",
+      "reversed": "Let's write each run as count then character, like 3a1b, matching decode_pairs.",
+      "modified": true,
+      "distractor": "decode_pairs() keeps taking (count, char) pairs.",
+      "hidden": "from codec import rle_encode\n\n\ndef test_char_then_count():\n    assert rle_encode('aaaabb') == 'a4b2'\n    assert rle_encode('zzzzzzzzzzzz') == 'z12'\n\n\ndef test_single_runs():\n    assert rle_encode('aaab') == 'a3b'\n    assert rle_encode('abc') == 'abc'\n\n\ndef test_case_and_empty():\n    assert rle_encode('aAA') == 'aA2'\n    assert rle_encode('') == ''\n",
+      "reference": {
+        "codec.py": "from itertools import groupby\n\n\ndef decode_pairs(pairs):\n    return ''.join(ch * n for n, ch in pairs)\n\n\ndef rle_encode(text):\n    out = []\n    for ch, run in groupby(text):\n        n = len(list(run))\n        out.append(ch if n == 1 else f'{ch}{n}')\n    return ''.join(out)\n"
+      },
+      "naive": {
+        "codec.py": "from itertools import groupby\n\n\ndef decode_pairs(pairs):\n    return ''.join(ch * n for n, ch in pairs)\n\n\ndef rle_encode(text):\n    return ''.join(f'{len(list(run))}{ch}' for ch, run in groupby(text))\n"
+      },
+      "conventions": [
+        "character first, then the count (a3b)",
+        "a run of length one has no count at all"
+      ],
+      "trace": [
+        {
+          "assertion": "test_zz_hidden_eval.py::test_char_then_count#1",
+          "brief": "character first, then the count (a3b)"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_char_then_count#2",
+          "brief": "character first, then the count (a3b)"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_single_runs#1",
+          "brief": "a run of length one has no count at all"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_single_runs#2",
+          "brief": "a run of length one has no count at all"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_case_and_empty#1",
+          "brief": "Upper and lower case are different characters"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_case_and_empty#1",
+          "brief": "The empty string encodes to ''"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_case_and_empty#2",
+          "brief": "Upper and lower case are different characters"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_case_and_empty#2",
+          "brief": "The empty string encodes to ''"
+        }
+      ]
+    },
+    {
+      "id": "r2a1-21-name-split",
+      "dev": false,
+      "source": "authored",
+      "files": {
+        "people.py": "def display(first, last):\n    return f\"{first} {last}\"\n"
+      },
+      "brief": "Write split_name(full) in people.py for the CRM import: break a full name into its given and family parts, the way we finally decided.",
+      "neutral": false,
+      "settle": "Final version of split_name: it returns a dict with the keys 'given' and 'family'. The lower-case particles van, von, de, da and del belong to the family name together with everything after them (Ludwig van Beethoven: family 'van Beethoven'). A single word is the family name with given ''. display() for the badges keeps first name then last name.",
+      "reversed": "Simple version: the last word is the surname, everything before it is the first name; return a (first, last) tuple.",
+      "modified": true,
+      "distractor": "display() for the badges keeps first name then last name.",
+      "hidden": "from people import split_name\n\n\ndef test_dict():\n    assert split_name('Ada Lovelace') == {'given': 'Ada', 'family': 'Lovelace'}\n    assert split_name('Mary Ann Evans') == {'given': 'Mary Ann', 'family': 'Evans'}\n\n\ndef test_particles():\n    assert split_name('Ludwig van Beethoven') == {'given': 'Ludwig', 'family': 'van Beethoven'}\n    assert split_name('Leonardo da Vinci') == {'given': 'Leonardo', 'family': 'da Vinci'}\n\n\ndef test_single_word():\n    assert split_name('Plato') == {'given': '', 'family': 'Plato'}\n",
+      "reference": {
+        "people.py": "PARTICLES = {'van', 'von', 'de', 'da', 'del'}\n\n\ndef display(first, last):\n    return f\"{first} {last}\"\n\n\ndef split_name(full):\n    words = full.split()\n    if len(words) == 1:\n        return {'given': '', 'family': words[0]}\n    cut = len(words) - 1\n    for i, w in enumerate(words[1:], 1):\n        if w in PARTICLES:\n            cut = i\n            break\n    return {'given': ' '.join(words[:cut]), 'family': ' '.join(words[cut:])}\n"
+      },
+      "naive": {
+        "people.py": "def display(first, last):\n    return f\"{first} {last}\"\n\n\ndef split_name(full):\n    words = full.split()\n    return ' '.join(words[:-1]), words[-1]\n"
+      },
+      "conventions": [
+        "it returns a dict with the keys 'given' and 'family'",
+        "The lower-case particles van, von, de, da and del belong to the family name",
+        "A single word is the family name with given ''"
+      ],
+      "trace": [
+        {
+          "assertion": "test_zz_hidden_eval.py::test_dict#1",
+          "brief": "it returns a dict with the keys 'given' and 'family'"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_dict#2",
+          "brief": "it returns a dict with the keys 'given' and 'family'"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_particles#1",
+          "brief": "The lower-case particles van, von, de, da and del belong to the family name"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_particles#1",
+          "brief": "together with everything after them"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_particles#2",
+          "brief": "The lower-case particles van, von, de, da and del belong to the family name"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_particles#2",
+          "brief": "together with everything after them"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_single_word#1",
+          "brief": "A single word is the family name with given ''"
+        }
+      ]
+    },
+    {
+      "id": "r2a1-22-week-key",
+      "dev": false,
+      "source": "authored",
+      "files": {
+        "periods.py": "def month_key(d):\n    return f\"{d.year}-{d.month}\"\n"
+      },
+      "brief": "Add week_key(d) to periods.py: the key of the week a date belongs to, for grouping the timesheets. Use the format we agreed with finance.",
+      "neutral": false,
+      "settle": "Finance wants ISO weeks: the key is <ISO year>-W<week>, with the week always two digits and a capital W, e.g. 2026-W05. The year is the ISO week-numbering year, not the calendar year, so 1 January can belong to the previous year's last week. month_key keeps its unpadded format for the old export.",
+      "reversed": null,
+      "modified": false,
+      "distractor": "month_key keeps its unpadded format for the old export.",
+      "hidden": "import datetime\nfrom periods import week_key, month_key\n\n\ndef test_padding():\n    assert week_key(datetime.date(2026, 1, 28)) == '2026-W05'\n    assert week_key(datetime.date(2026, 11, 17)) == '2026-W47'\n\n\ndef test_iso_year():\n    assert week_key(datetime.date(2027, 1, 1)) == '2026-W53'\n    assert week_key(datetime.date(2024, 12, 30)) == '2025-W01'\n\n\ndef test_month_key_kept():\n    assert month_key(datetime.date(2026, 3, 9)) == '2026-3'\n",
+      "reference": {
+        "periods.py": "def month_key(d):\n    return f\"{d.year}-{d.month}\"\n\n\ndef week_key(d):\n    year, week, _ = d.isocalendar()\n    return f'{year}-W{week:02d}'\n"
+      },
+      "naive": {
+        "periods.py": "def month_key(d):\n    return f\"{d.year}-{d.month}\"\n\n\ndef week_key(d):\n    return f\"{d.year}-{int(d.strftime('%W'))}\"\n"
+      },
+      "conventions": [
+        "the week always two digits and a capital W, e.g. 2026-W05",
+        "The year is the ISO week-numbering year, not the calendar year"
+      ],
+      "trace": [
+        {
+          "assertion": "test_zz_hidden_eval.py::test_padding#1",
+          "brief": "the week always two digits and a capital W, e.g. 2026-W05"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_padding#2",
+          "brief": "the week always two digits and a capital W, e.g. 2026-W05"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_iso_year#1",
+          "brief": "The year is the ISO week-numbering year, not the calendar year"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_iso_year#2",
+          "brief": "The year is the ISO week-numbering year, not the calendar year"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_month_key_kept#1",
+          "brief": "month_key keeps its unpadded format for the old export"
+        }
+      ]
+    },
+    {
+      "id": "r2a1-23-rate-window",
+      "dev": false,
+      "source": "authored",
+      "files": {
+        "limits.py": "import time\n\n\ndef now():\n    return time.time()\n"
+      },
+      "brief": "Implement allow(timestamps, now) in limits.py for the API gateway: given the times of a client's earlier calls, say whether one more call is allowed right now, under the limit we settled on.",
+      "neutral": false,
+      "settle": "Gateway limit: at most 5 calls in any 60-second window, so a sixth call is refused. Timestamps and now are integers in milliseconds, not seconds like now(). A call exactly 60 000 ms old no longer counts; only calls newer than that do. now() stays in seconds for the log timestamps.",
+      "reversed": null,
+      "modified": false,
+      "distractor": "now() stays in seconds for the log timestamps.",
+      "hidden": "from limits import allow\n\n\ndef test_five_per_window():\n    assert allow([1000, 2000, 3000, 4000], 5000) is True\n    assert allow([1000, 2000, 3000, 4000, 4500], 5000) is False\n\n\ndef test_milliseconds():\n    assert allow([100_000, 100_500, 101_000, 101_500, 102_000], 140_000) is False\n    assert allow([100_000, 100_500, 101_000, 101_500, 102_000], 170_000) is True\n\n\ndef test_boundary():\n    ts = [0, 10_000, 20_000, 30_000, 40_000]\n    assert allow(ts, 60_000) is True\n    assert allow(ts, 59_999) is False\n",
+      "reference": {
+        "limits.py": "import time\n\n\ndef now():\n    return time.time()\n\n\ndef allow(timestamps, now):\n    recent = [t for t in timestamps if now - t < 60_000]\n    return len(recent) < 5\n"
+      },
+      "naive": {
+        "limits.py": "import time\n\n\ndef now():\n    return time.time()\n\n\ndef allow(timestamps, now):\n    recent = [t for t in timestamps if now - t <= 60]\n    return len(recent) < 10\n"
+      },
+      "conventions": [
+        "at most 5 calls in any 60-second window",
+        "Timestamps and now are integers in milliseconds",
+        "A call exactly 60 000 ms old no longer counts"
+      ],
+      "trace": [
+        {
+          "assertion": "test_zz_hidden_eval.py::test_five_per_window#1",
+          "brief": "at most 5 calls in any 60-second window"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_five_per_window#1",
+          "brief": "a sixth call is refused"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_five_per_window#2",
+          "brief": "at most 5 calls in any 60-second window"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_five_per_window#2",
+          "brief": "a sixth call is refused"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_milliseconds#1",
+          "brief": "Timestamps and now are integers in milliseconds"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_milliseconds#2",
+          "brief": "Timestamps and now are integers in milliseconds"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_boundary#1",
+          "brief": "A call exactly 60 000 ms old no longer counts"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_boundary#2",
+          "brief": "A call exactly 60 000 ms old no longer counts"
+        }
+      ]
+    },
+    {
+      "id": "r2a1-24-hex-color",
+      "dev": false,
+      "source": "authored",
+      "files": {
+        "colors.py": "NAMED = {'black': (0, 0, 0), 'white': (255, 255, 255)}\n"
+      },
+      "brief": "Write to_hex(r, g, b) in colors.py for the theme editor, producing the CSS colour string as we ended up deciding.",
+      "neutral": false,
+      "settle": "Change for to_hex: lower-case hex, and use the three-digit short form whenever every pair is a repeated digit (#ffaa00 becomes #fa0). Values outside 0 to 255 are clamped into range instead of raising. NAMED keeps its RGB tuples.",
+      "reversed": "Upper case hex with all six digits, e.g. #FFAA00, and raise ValueError for values outside 0-255.",
+      "modified": true,
+      "distractor": "NAMED keeps its RGB tuples.",
+      "hidden": "from colors import to_hex\n\n\ndef test_lower_and_long():\n    assert to_hex(18, 52, 86) == '#123456'\n    assert to_hex(171, 205, 239) == '#abcdef'\n\n\ndef test_short_form():\n    assert to_hex(255, 170, 0) == '#fa0'\n    assert to_hex(0, 0, 0) == '#000'\n\n\ndef test_clamped():\n    assert to_hex(300, -5, 18) == '#ff0012'\n",
+      "reference": {
+        "colors.py": "NAMED = {'black': (0, 0, 0), 'white': (255, 255, 255)}\n\n\ndef to_hex(r, g, b):\n    vals = [max(0, min(255, int(v))) for v in (r, g, b)]\n    pairs = [f'{v:02x}' for v in vals]\n    if all(p[0] == p[1] for p in pairs):\n        return '#' + ''.join(p[0] for p in pairs)\n    return '#' + ''.join(pairs)\n"
+      },
+      "naive": {
+        "colors.py": "NAMED = {'black': (0, 0, 0), 'white': (255, 255, 255)}\n\n\ndef to_hex(r, g, b):\n    for v in (r, g, b):\n        if not 0 <= v <= 255:\n            raise ValueError(v)\n    return '#%02X%02X%02X' % (r, g, b)\n"
+      },
+      "conventions": [
+        "lower-case hex, and use the three-digit short form whenever every pair is a repeated digit",
+        "Values outside 0 to 255 are clamped into range instead of raising"
+      ],
+      "trace": [
+        {
+          "assertion": "test_zz_hidden_eval.py::test_lower_and_long#1",
+          "brief": "lower-case hex, and use the three-digit short form whenever every pair is a repeated digit"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_lower_and_long#2",
+          "brief": "lower-case hex, and use the three-digit short form whenever every pair is a repeated digit"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_short_form#1",
+          "brief": "lower-case hex, and use the three-digit short form whenever every pair is a repeated digit"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_short_form#2",
+          "brief": "lower-case hex, and use the three-digit short form whenever every pair is a repeated digit"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_clamped#1",
+          "brief": "Values outside 0 to 255 are clamped into range instead of raising"
+        }
+      ]
+    },
+    {
+      "id": "r2a1-25-age-buckets",
+      "dev": false,
+      "source": "authored",
+      "files": {
+        "demographics.py": "def is_adult(age):\n    return age >= 18\n"
+      },
+      "brief": "Add bucket_ages(ages) to demographics.py for the survey report: count how many ages fall in each age group, with the groups and output we agreed on.",
+      "neutral": false,
+      "settle": "Survey groups: '0-17', '18-64' and '65+'. The result is a dict that always has all three keys in that order, with 0 for an empty group. Negative ages and None are data errors and are skipped, not counted anywhere. is_adult() for the consent form keeps 18 as the cut-off.",
+      "reversed": null,
+      "modified": false,
+      "distractor": "is_adult() for the consent form keeps 18 as the cut-off.",
+      "hidden": "from demographics import bucket_ages\n\n\ndef test_groups():\n    assert bucket_ages([3, 17, 18, 64, 65, 90]) == {'0-17': 2, '18-64': 2, '65+': 2}\n\n\ndef test_all_keys_in_order():\n    out = bucket_ages([30])\n    assert list(out) == ['0-17', '18-64', '65+']\n    assert out == {'0-17': 0, '18-64': 1, '65+': 0}\n\n\ndef test_bad_values_skipped():\n    assert bucket_ages([-1, None, 5]) == {'0-17': 1, '18-64': 0, '65+': 0}\n",
+      "reference": {
+        "demographics.py": "def is_adult(age):\n    return age >= 18\n\n\ndef bucket_ages(ages):\n    out = {'0-17': 0, '18-64': 0, '65+': 0}\n    for a in ages:\n        if a is None or a < 0:\n            continue\n        out['0-17' if a < 18 else '18-64' if a < 65 else '65+'] += 1\n    return out\n"
+      },
+      "naive": {
+        "demographics.py": "from collections import Counter\n\n\ndef is_adult(age):\n    return age >= 18\n\n\ndef bucket_ages(ages):\n    return dict(Counter('minor' if a < 18 else 'adult' if a < 65 else 'senior' for a in ages))\n"
+      },
+      "conventions": [
+        "'0-17', '18-64' and '65+'",
+        "always has all three keys in that order, with 0 for an empty group",
+        "Negative ages and None are data errors and are skipped"
+      ],
+      "trace": [
+        {
+          "assertion": "test_zz_hidden_eval.py::test_groups#1",
+          "brief": "'0-17', '18-64' and '65+'"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_all_keys_in_order#1",
+          "brief": "always has all three keys in that order, with 0 for an empty group"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_all_keys_in_order#2",
+          "brief": "always has all three keys in that order, with 0 for an empty group"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_bad_values_skipped#1",
+          "brief": "Negative ages and None are data errors and are skipped"
+        }
+      ]
+    },
+    {
+      "id": "r2a1-26-text-table",
+      "dev": false,
+      "source": "authored",
+      "files": {
+        "tables.py": "def csv_row(cells):\n    return ','.join(str(c) for c in cells)\n"
+      },
+      "brief": "Implement table_row(cells, widths) in tables.py: render one row of the plain-text table in the CLI output, each cell padded to its column width, in the style we settled.",
+      "neutral": false,
+      "settle": "Table style for the CLI: numbers (int or float) are right-aligned and everything else left-aligned. Columns are joined with ' | ' and there is no border at the ends. A cell longer than its width is cut to width - 1 characters plus '~'. csv_row() for the export keeps plain commas.",
+      "reversed": null,
+      "modified": false,
+      "distractor": "csv_row() for the export keeps plain commas.",
+      "hidden": "from tables import table_row\n\n\ndef test_alignment():\n    assert table_row(['ab', 7], [4, 3]) == 'ab   |   7'\n    assert table_row([2.5], [5]) == '  2.5'\n\n\ndef test_separator():\n    assert table_row(['a', 'b', 'c'], [1, 1, 1]) == 'a | b | c'\n\n\ndef test_overflow():\n    assert table_row(['abcdef', 123456], [4, 4]) == 'abc~ | 123~'\n",
+      "reference": {
+        "tables.py": "def csv_row(cells):\n    return ','.join(str(c) for c in cells)\n\n\ndef _cell(value, width):\n    text = str(value)\n    if len(text) > width:\n        return text[:width - 1] + '~'\n    number = isinstance(value, (int, float)) and not isinstance(value, bool)\n    return text.rjust(width) if number else text.ljust(width)\n\n\ndef table_row(cells, widths):\n    return ' | '.join(_cell(c, w) for c, w in zip(cells, widths))\n"
+      },
+      "naive": {
+        "tables.py": "def csv_row(cells):\n    return ','.join(str(c) for c in cells)\n\n\ndef table_row(cells, widths):\n    return '| ' + ' | '.join(str(c).ljust(w) for c, w in zip(cells, widths)) + ' |'\n"
+      },
+      "conventions": [
+        "numbers (int or float) are right-aligned and everything else left-aligned",
+        "Columns are joined with ' | ' and there is no border at the ends",
+        "A cell longer than its width is cut to width - 1 characters plus '~'"
+      ],
+      "trace": [
+        {
+          "assertion": "test_zz_hidden_eval.py::test_alignment#1",
+          "brief": "numbers (int or float) are right-aligned and everything else left-aligned"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_alignment#2",
+          "brief": "numbers (int or float) are right-aligned and everything else left-aligned"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_separator#1",
+          "brief": "Columns are joined with ' | ' and there is no border at the ends"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_overflow#1",
+          "brief": "A cell longer than its width is cut to width - 1 characters plus '~'"
+        }
+      ]
+    },
+    {
+      "id": "r2a1-27-shard-pick",
+      "dev": false,
+      "source": "authored",
+      "files": {
+        "sharding.py": "def shard_count():\n    return 8\n"
+      },
+      "brief": "Write pick_shard(key, n) in sharding.py: which of n shards (0 to n - 1) a string key goes to. It must use the hashing we settled on.",
+      "neutral": false,
+      "settle": "Not hash(): it changes between processes. pick_shard uses zlib.crc32 of the key's UTF-8 bytes, modulo n. Keys are lower-cased before hashing, so 'User1' and 'user1' land on the same shard. n must be a power of two; any other n raises ValueError. shard_count() stays at 8 for the old cluster.",
+      "reversed": "Just use Python's hash(key) % n.",
+      "modified": true,
+      "distractor": "shard_count() stays at 8 for the old cluster.",
+      "hidden": "import zlib\nimport pytest\nfrom sharding import pick_shard\n\n\ndef test_crc32():\n    for key in ('alpha', 'beta', 'gamma', 'delta'):\n        assert pick_shard(key, 16) == zlib.crc32(key.encode('utf-8')) % 16\n\n\ndef test_case_insensitive():\n    assert pick_shard('User1', 1024) == pick_shard('user1', 1024)\n    assert pick_shard('ÄBC', 64) == zlib.crc32('äbc'.encode('utf-8')) % 64\n\n\ndef test_power_of_two():\n    with pytest.raises(ValueError):\n        pick_shard('a', 12)\n    with pytest.raises(ValueError):\n        pick_shard('a', 0)\n    assert pick_shard('a', 1) == 0\n",
+      "reference": {
+        "sharding.py": "import zlib\n\n\ndef shard_count():\n    return 8\n\n\ndef pick_shard(key, n):\n    if n < 1 or n & (n - 1):\n        raise ValueError('n must be a power of two')\n    return zlib.crc32(key.lower().encode('utf-8')) % n\n"
+      },
+      "naive": {
+        "sharding.py": "def shard_count():\n    return 8\n\n\ndef pick_shard(key, n):\n    return hash(key) % n\n"
+      },
+      "conventions": [
+        "uses zlib.crc32 of the key's UTF-8 bytes, modulo n",
+        "Keys are lower-cased before hashing",
+        "n must be a power of two; any other n raises ValueError"
+      ],
+      "trace": [
+        {
+          "assertion": "test_zz_hidden_eval.py::test_crc32#1",
+          "brief": "uses zlib.crc32 of the key's UTF-8 bytes, modulo n"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_case_insensitive#1",
+          "brief": "Keys are lower-cased before hashing"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_case_insensitive#2",
+          "brief": "Keys are lower-cased before hashing"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_power_of_two#1",
+          "brief": "n must be a power of two; any other n raises ValueError"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_power_of_two#2",
+          "brief": "n must be a power of two; any other n raises ValueError"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_power_of_two#3",
+          "brief": "n must be a power of two; any other n raises ValueError"
+        }
+      ]
+    },
+    {
+      "id": "r2a1-28-whitespace",
+      "dev": false,
+      "source": "authored",
+      "files": {
+        "cleanup.py": "def squash(text):\n    return ' '.join(text.split())\n"
+      },
+      "brief": "Add tidy(text) to cleanup.py for the notes editor, cleaning up whitespace the way we agreed for notes.",
+      "neutral": false,
+      "settle": "For notes, tidy() keeps line breaks, unlike squash(): within each line, runs of spaces and tabs become one space and spaces at the end of a line are removed. Never more than one empty line in a row. Leading spaces of a line are kept as they are, because they indent lists. squash() stays as it is for the search index.",
+      "reversed": null,
+      "modified": false,
+      "distractor": "squash() stays as it is for the search index.",
+      "hidden": "from cleanup import tidy\n\n\ndef test_inner_runs():\n    assert tidy('a  b\\t\\tc   \\nd') == 'a b c\\nd'\n\n\ndef test_blank_lines():\n    assert tidy('a\\n\\n\\n\\nb') == 'a\\n\\nb'\n    assert tidy('a\\n   \\n\\t\\nb') == 'a\\n\\nb'\n\n\ndef test_indent_kept():\n    assert tidy('list:\\n    - one  item\\n    - two') == 'list:\\n    - one item\\n    - two'\n",
+      "reference": {
+        "cleanup.py": "import re\n\n\ndef squash(text):\n    return ' '.join(text.split())\n\n\ndef tidy(text):\n    lines = []\n    for line in text.split('\\n'):\n        indent = re.match(r'[ ]*', line).group(0)\n        body = re.sub(r'[ \\t]+', ' ', line[len(indent):]).rstrip()\n        line = indent + body if body else ''\n        if line == '' and lines and lines[-1] == '':\n            continue\n        lines.append(line)\n    return '\\n'.join(lines)\n"
+      },
+      "naive": {
+        "cleanup.py": "def squash(text):\n    return ' '.join(text.split())\n\n\ndef tidy(text):\n    return squash(text)\n"
+      },
+      "conventions": [
+        "within each line, runs of spaces and tabs become one space and spaces at the end of a line are removed",
+        "Never more than one empty line in a row",
+        "Leading spaces of a line are kept as they are"
+      ],
+      "trace": [
+        {
+          "assertion": "test_zz_hidden_eval.py::test_inner_runs#1",
+          "brief": "within each line, runs of spaces and tabs become one space and spaces at the end of a line are removed"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_inner_runs#1",
+          "brief": "tidy() keeps line breaks"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_blank_lines#1",
+          "brief": "Never more than one empty line in a row"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_blank_lines#2",
+          "brief": "Never more than one empty line in a row"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_indent_kept#1",
+          "brief": "Leading spaces of a line are kept as they are"
+        }
+      ]
+    },
+    {
+      "id": "r2a1-29-cache-key",
+      "dev": false,
+      "source": "authored",
+      "files": {
+        "memo.py": "def simple_key(name, *args):\n    return name + ':' + ':'.join(map(str, args))\n"
+      },
+      "brief": "Implement cache_key(name, args) in memo.py: build the string key for the results cache from a function name and a list of arguments, using the key format we settled on.",
+      "neutral": false,
+      "settle": "Cache key format: the name and the arguments are joined with '|', not ':', because names contain colons. None is written as '~' and booleans as 1 and 0. A dict argument is written as its items sorted by key, as k=v joined by commas, so {'b': 2, 'a': 1} becomes a=1,b=2. simple_key() for the metrics labels keeps its colons.",
+      "reversed": null,
+      "modified": false,
+      "distractor": "simple_key() for the metrics labels keeps its colons.",
+      "hidden": "from memo import cache_key\n\n\ndef test_pipe():\n    assert cache_key('mod:fn', [1, 'x']) == 'mod:fn|1|x'\n    assert cache_key('f', []) == 'f'\n\n\ndef test_none_and_bools():\n    assert cache_key('f', [None, True, False]) == 'f|~|1|0'\n\n\ndef test_dicts_sorted():\n    assert cache_key('f', [{'b': 2, 'a': 1}]) == 'f|a=1,b=2'\n",
+      "reference": {
+        "memo.py": "def simple_key(name, *args):\n    return name + ':' + ':'.join(map(str, args))\n\n\ndef _part(v):\n    if v is None:\n        return '~'\n    if isinstance(v, bool):\n        return '1' if v else '0'\n    if isinstance(v, dict):\n        return ','.join(f'{k}={_part(v[k])}' for k in sorted(v))\n    return str(v)\n\n\ndef cache_key(name, args):\n    return '|'.join([name, *(_part(a) for a in args)])\n"
+      },
+      "naive": {
+        "memo.py": "def simple_key(name, *args):\n    return name + ':' + ':'.join(map(str, args))\n\n\ndef cache_key(name, args):\n    return simple_key(name, *args)\n"
+      },
+      "conventions": [
+        "joined with '|', not ':'",
+        "None is written as '~' and booleans as 1 and 0",
+        "A dict argument is written as its items sorted by key, as k=v joined by commas"
+      ],
+      "trace": [
+        {
+          "assertion": "test_zz_hidden_eval.py::test_pipe#1",
+          "brief": "joined with '|', not ':'"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_pipe#2",
+          "brief": "joined with '|', not ':'"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_none_and_bools#1",
+          "brief": "None is written as '~' and booleans as 1 and 0"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_dicts_sorted#1",
+          "brief": "A dict argument is written as its items sorted by key, as k=v joined by commas"
+        }
+      ]
+    },
+    {
+      "id": "r2a1-30-password-score",
+      "dev": false,
+      "source": "authored",
+      "files": {
+        "strength.py": "def long_enough(pw):\n    return len(pw) >= 8\n"
+      },
+      "brief": "Write score(pw) in strength.py: the strength meter value for a password, computed with the scoring we ended up with.",
+      "neutral": false,
+      "settle": "Scoring changed: one point for each kind of character present (lower-case letter, upper-case letter, digit, anything else), plus one more point when the password is at least 12 characters long. So the maximum is 5. The empty password scores 0. long_enough() for the old signup page keeps its 8-character rule.",
+      "reversed": "Score by length only: one point per four characters, up to 5.",
+      "modified": true,
+      "distractor": "long_enough() for the old signup page keeps its 8-character rule.",
+      "hidden": "from strength import score\n\n\ndef test_kinds():\n    assert score('abc') == 1\n    assert score('aB3') == 3\n    assert score('aB3!') == 4\n    assert score('aaaaaaaaaaa') == 1\n\n\ndef test_length_bonus():\n    assert score('aaaaaaaaaaaa') == 2\n    assert score('aB3!aB3!aB3!') == 5\n\n\ndef test_empty():\n    assert score('') == 0\n",
+      "reference": {
+        "strength.py": "def long_enough(pw):\n    return len(pw) >= 8\n\n\ndef score(pw):\n    kinds = [any(c.islower() for c in pw), any(c.isupper() for c in pw), any(c.isdigit() for c in pw),\n             any(not c.isalnum() for c in pw)]\n    return sum(kinds) + (len(pw) >= 12)\n"
+      },
+      "naive": {
+        "strength.py": "def long_enough(pw):\n    return len(pw) >= 8\n\n\ndef score(pw):\n    return min(5, len(pw) // 4)\n"
+      },
+      "conventions": [
+        "one point for each kind of character present (lower-case letter, upper-case letter, digit, anything else)",
+        "plus one more point when the password is at least 12 characters long"
+      ],
+      "trace": [
+        {
+          "assertion": "test_zz_hidden_eval.py::test_kinds#1",
+          "brief": "one point for each kind of character present (lower-case letter, upper-case letter, digit, anything else)"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_kinds#2",
+          "brief": "one point for each kind of character present (lower-case letter, upper-case letter, digit, anything else)"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_kinds#3",
+          "brief": "one point for each kind of character present (lower-case letter, upper-case letter, digit, anything else)"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_kinds#4",
+          "brief": "one point for each kind of character present (lower-case letter, upper-case letter, digit, anything else)"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_length_bonus#1",
+          "brief": "plus one more point when the password is at least 12 characters long"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_length_bonus#2",
+          "brief": "plus one more point when the password is at least 12 characters long"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_empty#1",
+          "brief": "The empty password scores 0"
+        }
+      ]
+    },
+    {
+      "id": "r2a1-31-cash-rounding",
+      "dev": false,
+      "source": "authored",
+      "files": {
+        "till.py": "def to_float(text):\n    return float(text)\n"
+      },
+      "brief": "Add cash_round(amount) to till.py for the cash register: amount is a decimal string such as '4.12'. Round it as the shop owner finally asked.",
+      "neutral": false,
+      "settle": "The shop owner changed her mind: cash amounts round to the nearest 0.05, with exact halves going up (4.025 becomes 4.05). cash_round returns a string with exactly two decimals, like '4.10', never a float. to_float() for the sales reports stays as it is.",
+      "reversed": "Round up to the next .99, like most shops do, and return a float.",
+      "modified": true,
+      "distractor": "to_float() for the sales reports stays as it is.",
+      "hidden": "from till import cash_round\n\n\ndef test_nearest_five_cents():\n    assert cash_round('4.12') == '4.10'\n    assert cash_round('4.13') == '4.15'\n    assert cash_round('4.18') == '4.20'\n\n\ndef test_half_up():\n    assert cash_round('4.025') == '4.05'\n    assert cash_round('0.075') == '0.10'\n\n\ndef test_string():\n    out = cash_round('7')\n    assert out == '7.00' and isinstance(out, str)\n",
+      "reference": {
+        "till.py": "from decimal import Decimal, ROUND_HALF_UP\n\n\ndef to_float(text):\n    return float(text)\n\n\ndef cash_round(amount):\n    steps = (Decimal(amount) / Decimal('0.05')).quantize(Decimal('1'), rounding=ROUND_HALF_UP)\n    return str((steps * Decimal('0.05')).quantize(Decimal('0.01')))\n"
+      },
+      "naive": {
+        "till.py": "import math\n\n\ndef to_float(text):\n    return float(text)\n\n\ndef cash_round(amount):\n    return math.floor(to_float(amount)) + 0.99\n"
+      },
+      "conventions": [
+        "cash amounts round to the nearest 0.05, with exact halves going up",
+        "returns a string with exactly two decimals, like '4.10', never a float"
+      ],
+      "trace": [
+        {
+          "assertion": "test_zz_hidden_eval.py::test_nearest_five_cents#1",
+          "brief": "cash amounts round to the nearest 0.05, with exact halves going up"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_nearest_five_cents#2",
+          "brief": "cash amounts round to the nearest 0.05, with exact halves going up"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_nearest_five_cents#3",
+          "brief": "cash amounts round to the nearest 0.05, with exact halves going up"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_half_up#1",
+          "brief": "cash amounts round to the nearest 0.05, with exact halves going up"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_half_up#2",
+          "brief": "cash amounts round to the nearest 0.05, with exact halves going up"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_string#1",
+          "brief": "returns a string with exactly two decimals, like '4.10', never a float"
+        }
+      ]
+    },
+    {
+      "id": "r2a1-32-key-values",
+      "dev": false,
+      "source": "authored",
+      "files": {
+        "kv.py": "def parse_line(line):\n    key, _, value = line.partition('=')\n    return key, value\n"
+      },
+      "brief": "Implement parse_kv(text) in kv.py: parse a settings string such as 'a=1; b = two' into a dict, with the parsing rules we agreed for the device settings.",
+      "neutral": false,
+      "settle": "Device settings rules: pairs are separated by semicolons, keys are lower-cased and both sides are stripped. A value made only of digits becomes an int, everything else stays a string. If a key appears twice, the first value wins, the later ones are ignored. Empty pieces between semicolons are skipped. parse_line() is also used by the INI reader, leave it alone.",
+      "reversed": null,
+      "modified": false,
+      "distractor": "parse_line() is also used by the INI reader, leave it alone.",
+      "hidden": "from kv import parse_kv\n\n\ndef test_basic():\n    assert parse_kv('Mode = fast; Level=3') == {'mode': 'fast', 'level': 3}\n\n\ndef test_digits_only():\n    assert parse_kv('a=12;b=1.5;c=-4') == {'a': 12, 'b': '1.5', 'c': '-4'}\n\n\ndef test_first_wins_and_empty():\n    assert parse_kv('x=1;; X=2 ;') == {'x': 1}\n",
+      "reference": {
+        "kv.py": "def parse_line(line):\n    key, _, value = line.partition('=')\n    return key, value\n\n\ndef parse_kv(text):\n    out = {}\n    for piece in text.split(';'):\n        if not piece.strip():\n            continue\n        key, value = parse_line(piece)\n        key, value = key.strip().lower(), value.strip()\n        if key in out:\n            continue\n        out[key] = int(value) if value.isdigit() else value\n    return out\n"
+      },
+      "naive": {
+        "kv.py": "def parse_line(line):\n    key, _, value = line.partition('=')\n    return key, value\n\n\ndef parse_kv(text):\n    out = {}\n    for piece in text.split(';'):\n        if piece.strip():\n            key, value = parse_line(piece)\n            out[key.strip()] = value.strip()\n    return out\n"
+      },
+      "conventions": [
+        "keys are lower-cased and both sides are stripped",
+        "A value made only of digits becomes an int",
+        "If a key appears twice, the first value wins"
+      ],
+      "trace": [
+        {
+          "assertion": "test_zz_hidden_eval.py::test_basic#1",
+          "brief": "keys are lower-cased and both sides are stripped"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_basic#1",
+          "brief": "pairs are separated by semicolons"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_basic#1",
+          "brief": "A value made only of digits becomes an int"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_digits_only#1",
+          "brief": "A value made only of digits becomes an int"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_digits_only#1",
+          "brief": "everything else stays a string"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_first_wins_and_empty#1",
+          "brief": "If a key appears twice, the first value wins"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_first_wins_and_empty#1",
+          "brief": "Empty pieces between semicolons are skipped"
+        }
+      ]
+    },
+    {
+      "id": "r2a1-33-working-days",
+      "dev": false,
+      "source": "authored",
+      "files": {
+        "calendar_tools.py": "def days_between(start, end):\n    return (end - start).days\n"
+      },
+      "brief": "Write working_days(a, b) in calendar_tools.py for the leave planner: how many days lie between two dates, counted the way HR wants.",
+      "neutral": false,
+      "settle": "HR counting: only Monday to Friday count, weekends never. Both end dates are included, so the same weekday twice gives 1. The order of the two dates does not matter, the answer is never negative. Public holidays are handled by the payroll module, not here.",
+      "reversed": null,
+      "modified": false,
+      "distractor": "Public holidays are handled by the payroll module, not here.",
+      "hidden": "import datetime\nfrom calendar_tools import working_days\n\nMON = datetime.date(2026, 11, 16)\n\n\ndef test_weekdays_only():\n    assert working_days(MON, MON + datetime.timedelta(days=6)) == 5\n    assert working_days(MON + datetime.timedelta(days=5), MON + datetime.timedelta(days=6)) == 0\n\n\ndef test_inclusive():\n    assert working_days(MON, MON) == 1\n    assert working_days(MON, MON + datetime.timedelta(days=1)) == 2\n\n\ndef test_order_free():\n    assert working_days(MON + datetime.timedelta(days=13), MON) == 10\n",
+      "reference": {
+        "calendar_tools.py": "import datetime\n\n\ndef days_between(start, end):\n    return (end - start).days\n\n\ndef working_days(a, b):\n    if b < a:\n        a, b = b, a\n    n, d = 0, a\n    while d <= b:\n        n += d.weekday() < 5\n        d += datetime.timedelta(days=1)\n    return n\n"
+      },
+      "naive": {
+        "calendar_tools.py": "def days_between(start, end):\n    return (end - start).days\n\n\ndef working_days(a, b):\n    return days_between(a, b)\n"
+      },
+      "conventions": [
+        "only Monday to Friday count, weekends never",
+        "Both end dates are included",
+        "The order of the two dates does not matter"
+      ],
+      "trace": [
+        {
+          "assertion": "test_zz_hidden_eval.py::test_weekdays_only#1",
+          "brief": "only Monday to Friday count, weekends never"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_weekdays_only#2",
+          "brief": "only Monday to Friday count, weekends never"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_inclusive#1",
+          "brief": "Both end dates are included"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_inclusive#2",
+          "brief": "Both end dates are included"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_order_free#1",
+          "brief": "The order of the two dates does not matter"
+        }
+      ]
+    },
+    {
+      "id": "r2a1-34-comment-html",
+      "dev": false,
+      "source": "authored",
+      "files": {
+        "render.py": "import html\n\n\ndef attr(value):\n    return html.escape(value, quote=True)\n"
+      },
+      "brief": "Implement comment_html(text) in render.py: turn a user comment into an HTML fragment for the comment list, using the escaping we finally agreed on.",
+      "neutral": false,
+      "settle": "Final rule for comments: escape only &, < and >, leave quote characters alone because comments are never put in attributes. Each line break becomes <br>, and leading and trailing whitespace of the whole comment is removed first. attr() for attribute values keeps escaping quotes.",
+      "reversed": "Use html.escape with quotes escaped too, like attr(), and keep line breaks as they are.",
+      "modified": true,
+      "distractor": "attr() for attribute values keeps escaping quotes.",
+      "hidden": "from render import comment_html\n\n\ndef test_escape_only_three():\n    assert comment_html('a < b & \"c\" > \\'d\\'') == 'a &lt; b &amp; \"c\" &gt; \\'d\\''\n\n\ndef test_line_breaks():\n    assert comment_html('one\\ntwo\\r\\nthree') == 'one<br>two<br>three'\n\n\ndef test_strip():\n    assert comment_html('  hi \\n') == 'hi'\n",
+      "reference": {
+        "render.py": "import html\n\n\ndef attr(value):\n    return html.escape(value, quote=True)\n\n\ndef comment_html(text):\n    text = text.strip().replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')\n    return text.replace('\\r\\n', '\\n').replace('\\n', '<br>')\n"
+      },
+      "naive": {
+        "render.py": "import html\n\n\ndef attr(value):\n    return html.escape(value, quote=True)\n\n\ndef comment_html(text):\n    return attr(text.strip())\n"
+      },
+      "conventions": [
+        "escape only &, < and >, leave quote characters alone",
+        "Each line break becomes <br>"
+      ],
+      "trace": [
+        {
+          "assertion": "test_zz_hidden_eval.py::test_escape_only_three#1",
+          "brief": "escape only &, < and >, leave quote characters alone"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_line_breaks#1",
+          "brief": "Each line break becomes <br>"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_strip#1",
+          "brief": "leading and trailing whitespace of the whole comment is removed first"
+        }
+      ]
+    },
+    {
+      "id": "r2a1-35-booking-merge",
+      "dev": false,
+      "source": "authored",
+      "files": {
+        "slots.py": "def overlaps(a, b):\n    return a[0] <= b[1] and b[0] <= a[1]\n"
+      },
+      "brief": "Add merge_bookings(intervals) to slots.py: combine overlapping (start, end) booking intervals for the room calendar, following what we decided about adjacent bookings.",
+      "neutral": false,
+      "settle": "For the room calendar, bookings that only touch, like (1, 3) and (3, 5), stay separate: there is a changeover between them. Only real overlaps merge. The input can be in any order; return a sorted list of tuples. overlaps() for the conflict warning still treats touching bookings as overlapping.",
+      "reversed": null,
+      "modified": false,
+      "distractor": "overlaps() for the conflict warning still treats touching bookings as overlapping.",
+      "hidden": "from slots import merge_bookings\n\n\ndef test_overlap_merges():\n    assert merge_bookings([(1, 4), (2, 6)]) == [(1, 6)]\n\n\ndef test_touching_separate():\n    assert merge_bookings([(1, 3), (3, 5)]) == [(1, 3), (3, 5)]\n\n\ndef test_unsorted_input():\n    assert merge_bookings([[8, 9], [1, 2], [1, 5]]) == [(1, 5), (8, 9)]\n",
+      "reference": {
+        "slots.py": "def overlaps(a, b):\n    return a[0] <= b[1] and b[0] <= a[1]\n\n\ndef merge_bookings(intervals):\n    out = []\n    for s, e in sorted(tuple(i) for i in intervals):\n        if out and s < out[-1][1]:\n            out[-1] = (out[-1][0], max(out[-1][1], e))\n        else:\n            out.append((s, e))\n    return out\n"
+      },
+      "naive": {
+        "slots.py": "def overlaps(a, b):\n    return a[0] <= b[1] and b[0] <= a[1]\n\n\ndef merge_bookings(intervals):\n    out = []\n    for iv in intervals:\n        if out and overlaps(out[-1], iv):\n            out[-1] = [min(out[-1][0], iv[0]), max(out[-1][1], iv[1])]\n        else:\n            out.append(list(iv))\n    return out\n"
+      },
+      "conventions": [
+        "bookings that only touch, like (1, 3) and (3, 5), stay separate",
+        "The input can be in any order; return a sorted list of tuples"
+      ],
+      "trace": [
+        {
+          "assertion": "test_zz_hidden_eval.py::test_overlap_merges#1",
+          "brief": "Only real overlaps merge"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_touching_separate#1",
+          "brief": "bookings that only touch, like (1, 3) and (3, 5), stay separate"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_unsorted_input#1",
+          "brief": "The input can be in any order; return a sorted list of tuples"
+        }
+      ]
+    },
+    {
+      "id": "r2a1-36-progress-bar",
+      "dev": false,
+      "source": "authored",
+      "files": {
+        "cli_bits.py": "def spinner(i):\n    return '|/-\\\\'[i % 4]\n"
+      },
+      "brief": "Write progress_bar(fraction, width) in cli_bits.py: a text progress bar for the download command, drawn in the style we settled on.",
+      "neutral": false,
+      "settle": "Progress bar style: '#' for done and '.' for the rest inside square brackets, width characters between the brackets, then a space and the percentage as a whole number rounded down (99.9% shows 99%). The number of '#' is also rounded down. Fractions outside 0 to 1 are clamped. spinner() stays as it is.",
+      "reversed": null,
+      "modified": false,
+      "distractor": "spinner() stays as it is.",
+      "hidden": "from cli_bits import progress_bar\n\n\ndef test_shape():\n    assert progress_bar(0.5, 10) == '[#####.....] 50%'\n\n\ndef test_round_down():\n    assert progress_bar(0.999, 10) == '[#########.] 99%'\n    assert progress_bar(0.26, 4) == '[#...] 26%'\n\n\ndef test_clamped():\n    assert progress_bar(1.7, 4) == '[####] 100%'\n    assert progress_bar(-0.2, 4) == '[....] 0%'\n",
+      "reference": {
+        "cli_bits.py": "import math\n\n\ndef spinner(i):\n    return '|/-\\\\'[i % 4]\n\n\ndef progress_bar(fraction, width):\n    f = max(0.0, min(1.0, fraction))\n    done = math.floor(f * width + 1e-9)\n    return '[' + '#' * done + '.' * (width - done) + f'] {math.floor(f * 100 + 1e-9)}%'\n"
+      },
+      "naive": {
+        "cli_bits.py": "def spinner(i):\n    return '|/-\\\\'[i % 4]\n\n\ndef progress_bar(fraction, width):\n    done = round(fraction * width)\n    return '[' + '=' * done + ' ' * (width - done) + f'] {round(fraction * 100)}%'\n"
+      },
+      "conventions": [
+        "'#' for done and '.' for the rest inside square brackets",
+        "the percentage as a whole number rounded down (99.9% shows 99%)",
+        "Fractions outside 0 to 1 are clamped"
+      ],
+      "trace": [
+        {
+          "assertion": "test_zz_hidden_eval.py::test_shape#1",
+          "brief": "'#' for done and '.' for the rest inside square brackets"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_shape#1",
+          "brief": "width characters between the brackets, then a space and the percentage"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_round_down#1",
+          "brief": "the percentage as a whole number rounded down (99.9% shows 99%)"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_round_down#1",
+          "brief": "The number of '#' is also rounded down"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_round_down#2",
+          "brief": "the percentage as a whole number rounded down (99.9% shows 99%)"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_round_down#2",
+          "brief": "The number of '#' is also rounded down"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_clamped#1",
+          "brief": "Fractions outside 0 to 1 are clamped"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_clamped#2",
+          "brief": "Fractions outside 0 to 1 are clamped"
+        }
+      ]
+    },
+    {
+      "id": "r2a1-37-bill-split",
+      "dev": false,
+      "source": "authored",
+      "files": {
+        "split.py": "def per_head(total_cents, n):\n    return total_cents // n\n"
+      },
+      "brief": "Implement split_bill(total_cents, n) in split.py: share a bill between n people in whole cents, returning a list of n amounts that add up to the total, with the remainder handled as we finally agreed.",
+      "neutral": false,
+      "settle": "Change: the leftover cents are spread one each over the first people in the list, so 10 split three ways is [4, 3, 3]. n below 1 raises ValueError, and a negative total also raises ValueError. per_head() for the estimate screen keeps rounding down.",
+      "reversed": "Give everyone the same share and put all the leftover cents on the last person.",
+      "modified": true,
+      "distractor": "per_head() for the estimate screen keeps rounding down.",
+      "hidden": "import pytest\nfrom split import split_bill\n\n\ndef test_spread_over_first():\n    assert split_bill(10, 3) == [4, 3, 3]\n    assert split_bill(1001, 4) == [251, 250, 250, 250]\n    assert split_bill(9, 3) == [3, 3, 3]\n\n\ndef test_errors():\n    with pytest.raises(ValueError):\n        split_bill(10, 0)\n    with pytest.raises(ValueError):\n        split_bill(-5, 2)\n",
+      "reference": {
+        "split.py": "def per_head(total_cents, n):\n    return total_cents // n\n\n\ndef split_bill(total_cents, n):\n    if n < 1 or total_cents < 0:\n        raise ValueError('need n >= 1 and a non-negative total')\n    base, extra = divmod(total_cents, n)\n    return [base + (i < extra) for i in range(n)]\n"
+      },
+      "naive": {
+        "split.py": "def per_head(total_cents, n):\n    return total_cents // n\n\n\ndef split_bill(total_cents, n):\n    if n < 1:\n        raise ValueError('n must be at least 1')\n    base = per_head(total_cents, n)\n    return [base] * (n - 1) + [total_cents - base * (n - 1)]\n"
+      },
+      "conventions": [
+        "the leftover cents are spread one each over the first people in the list",
+        "a negative total also raises ValueError"
+      ],
+      "trace": [
+        {
+          "assertion": "test_zz_hidden_eval.py::test_spread_over_first#1",
+          "brief": "the leftover cents are spread one each over the first people in the list"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_spread_over_first#1",
+          "brief": "returning a list of n amounts that add up to the total"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_spread_over_first#2",
+          "brief": "the leftover cents are spread one each over the first people in the list"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_spread_over_first#2",
+          "brief": "returning a list of n amounts that add up to the total"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_spread_over_first#3",
+          "brief": "the leftover cents are spread one each over the first people in the list"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_spread_over_first#3",
+          "brief": "returning a list of n amounts that add up to the total"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_errors#1",
+          "brief": "n below 1 raises ValueError"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_errors#1",
+          "brief": "a negative total also raises ValueError"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_errors#2",
+          "brief": "n below 1 raises ValueError"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_errors#2",
+          "brief": "a negative total also raises ValueError"
+        }
+      ]
+    },
+    {
+      "id": "r2a1-38-coordinates",
+      "dev": false,
+      "source": "authored",
+      "files": {
+        "geo.py": "def fmt(lat, lon):\n    return f\"{lat:.4f},{lon:.4f}\"\n"
+      },
+      "brief": "Add parse_coords(text) to geo.py: read a position written like '40.7128 N, 74.0060 W' and return it as numbers, following the conventions we agreed for the map.",
+      "neutral": false,
+      "settle": "Map conventions: the result is a (lat, lon) tuple of floats, latitude first. South and West make the value negative. The hemisphere letters may be lower or upper case and the space before them is optional. Anything that does not match raises ValueError. fmt() for the share link keeps four decimals.",
+      "reversed": null,
+      "modified": false,
+      "distractor": "fmt() for the share link keeps four decimals.",
+      "hidden": "import pytest\nfrom geo import parse_coords\n\n\ndef test_tuple():\n    assert parse_coords('40.7128 N, 74.0060 E') == (40.7128, 74.006)\n\n\ndef test_signs():\n    assert parse_coords('33.8688 S, 151.2093 W') == (-33.8688, -151.2093)\n\n\ndef test_case_and_space():\n    assert parse_coords('51.5n,0.1276w') == (51.5, -0.1276)\n\n\ndef test_invalid():\n    with pytest.raises(ValueError):\n        parse_coords('somewhere')\n",
+      "reference": {
+        "geo.py": "import re\n\n\ndef fmt(lat, lon):\n    return f\"{lat:.4f},{lon:.4f}\"\n\n\ndef parse_coords(text):\n    m = re.fullmatch(r'\\s*([\\d.]+)\\s*([NnSs])\\s*,\\s*([\\d.]+)\\s*([EeWw])\\s*', text)\n    if not m:\n        raise ValueError(f'bad coordinates {text!r}')\n    lat = float(m.group(1)) * (-1 if m.group(2) in 'Ss' else 1)\n    lon = float(m.group(3)) * (-1 if m.group(4) in 'Ww' else 1)\n    return lat, lon\n"
+      },
+      "naive": {
+        "geo.py": "import re\n\n\ndef fmt(lat, lon):\n    return f\"{lat:.4f},{lon:.4f}\"\n\n\ndef parse_coords(text):\n    nums = re.findall(r'[\\d.]+', text)\n    if len(nums) != 2:\n        raise ValueError(text)\n    return {'lat': float(nums[0]), 'lon': float(nums[1])}\n"
+      },
+      "conventions": [
+        "the result is a (lat, lon) tuple of floats, latitude first",
+        "South and West make the value negative",
+        "The hemisphere letters may be lower or upper case and the space before them is optional"
+      ],
+      "trace": [
+        {
+          "assertion": "test_zz_hidden_eval.py::test_tuple#1",
+          "brief": "the result is a (lat, lon) tuple of floats, latitude first"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_signs#1",
+          "brief": "South and West make the value negative"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_case_and_space#1",
+          "brief": "The hemisphere letters may be lower or upper case and the space before them is optional"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_invalid#1",
+          "brief": "Anything that does not match raises ValueError"
+        }
+      ]
+    },
+    {
+      "id": "r2a1-39-deploy-target",
+      "dev": false,
+      "source": "authored",
+      "files": {
+        "deploy.py": "ENVIRONMENTS = ['dev', 'staging', 'prod']\n"
+      },
+      "brief": "Write target_env(branch) in deploy.py: the environment a git branch deploys to, using the mapping we agreed on in the release discussion.",
+      "neutral": false,
+      "settle": "Release mapping: main deploys to 'production' (the full word, even though ENVIRONMENTS still says prod), and any release/... branch deploys to 'staging'. Every other branch gets a preview environment named 'preview-' plus the branch name lower-cased with each '/' replaced by '-'. The local dev environment is not part of this mapping.",
+      "reversed": null,
+      "modified": false,
+      "distractor": "The local dev environment is not part of this mapping.",
+      "hidden": "from deploy import target_env\n\n\ndef test_main():\n    assert target_env('main') == 'production'\n\n\ndef test_release():\n    assert target_env('release/2.4') == 'staging'\n\n\ndef test_preview():\n    assert target_env('Feature/Login-Page') == 'preview-feature-login-page'\n    assert target_env('fix/a/b') == 'preview-fix-a-b'\n",
+      "reference": {
+        "deploy.py": "ENVIRONMENTS = ['dev', 'staging', 'prod']\n\n\ndef target_env(branch):\n    if branch == 'main':\n        return 'production'\n    if branch.startswith('release/'):\n        return 'staging'\n    return 'preview-' + branch.lower().replace('/', '-')\n"
+      },
+      "naive": {
+        "deploy.py": "ENVIRONMENTS = ['dev', 'staging', 'prod']\n\n\ndef target_env(branch):\n    if branch == 'main':\n        return 'prod'\n    if branch == 'staging':\n        return 'staging'\n    return 'dev'\n"
+      },
+      "conventions": [
+        "main deploys to 'production' (the full word, even though ENVIRONMENTS still says prod)",
+        "any release/... branch deploys to 'staging'",
+        "the branch name lower-cased with each '/' replaced by '-'"
+      ],
+      "trace": [
+        {
+          "assertion": "test_zz_hidden_eval.py::test_main#1",
+          "brief": "main deploys to 'production' (the full word, even though ENVIRONMENTS still says prod)"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_release#1",
+          "brief": "any release/... branch deploys to 'staging'"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_preview#1",
+          "brief": "Every other branch gets a preview environment named 'preview-'"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_preview#1",
+          "brief": "the branch name lower-cased with each '/' replaced by '-'"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_preview#2",
+          "brief": "Every other branch gets a preview environment named 'preview-'"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_preview#2",
+          "brief": "the branch name lower-cased with each '/' replaced by '-'"
+        }
+      ]
+    },
+    {
+      "id": "r2a1-40-log-line",
+      "dev": false,
+      "source": "authored",
+      "files": {
+        "logfmt.py": "def simple(level, msg):\n    return f\"[{level}] {msg}\"\n"
+      },
+      "brief": "Implement log_line(level, msg, when) in logfmt.py: one line of the audit log, where when is a timezone-aware datetime. Use the line format we ended with.",
+      "neutral": false,
+      "settle": "Final audit format: the time first, converted to UTC and written as ISO 8601 with a Z and no fractions (2026-01-02T03:04:05Z), then the level in capitals with WARNING shortened to WARN, then the message, separated by single spaces. Newlines inside the message are written as the two characters backslash and n so each entry stays on one line. simple() stays for the console output.",
+      "reversed": "Keep the simple '[LEVEL] message' format and put the local time in front.",
+      "modified": true,
+      "distractor": "simple() stays for the console output.",
+      "hidden": "import datetime\nfrom logfmt import log_line\n\nUTC = datetime.timezone.utc\nPLUS2 = datetime.timezone(datetime.timedelta(hours=2))\n\n\ndef test_utc_time():\n    when = datetime.datetime(2026, 1, 2, 5, 4, 5, 123456, tzinfo=PLUS2)\n    assert log_line('info', 'started', when) == '2026-01-02T03:04:05Z INFO started'\n\n\ndef test_warn():\n    when = datetime.datetime(2026, 1, 2, 3, 4, 5, tzinfo=UTC)\n    assert log_line('warning', 'disk', when) == '2026-01-02T03:04:05Z WARN disk'\n    assert log_line('ERROR', 'x', when) == '2026-01-02T03:04:05Z ERROR x'\n\n\ndef test_newlines_escaped():\n    when = datetime.datetime(2026, 1, 2, 3, 4, 5, tzinfo=UTC)\n    assert log_line('info', 'a\\nb', when) == '2026-01-02T03:04:05Z INFO a\\\\nb'\n",
+      "reference": {
+        "logfmt.py": "import datetime\n\n\ndef simple(level, msg):\n    return f\"[{level}] {msg}\"\n\n\ndef log_line(level, msg, when):\n    stamp = when.astimezone(datetime.timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')\n    name = level.upper()\n    if name == 'WARNING':\n        name = 'WARN'\n    return f\"{stamp} {name} {msg.replace(chr(10), chr(92) + 'n')}\"\n"
+      },
+      "naive": {
+        "logfmt.py": "def simple(level, msg):\n    return f\"[{level}] {msg}\"\n\n\ndef log_line(level, msg, when):\n    return when.isoformat() + ' ' + simple(level.upper(), msg)\n"
+      },
+      "conventions": [
+        "converted to UTC and written as ISO 8601 with a Z and no fractions (2026-01-02T03:04:05Z)",
+        "the level in capitals with WARNING shortened to WARN",
+        "Newlines inside the message are written as the two characters backslash and n"
+      ],
+      "trace": [
+        {
+          "assertion": "test_zz_hidden_eval.py::test_utc_time#1",
+          "brief": "converted to UTC and written as ISO 8601 with a Z and no fractions (2026-01-02T03:04:05Z)"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_utc_time#1",
+          "brief": "separated by single spaces"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_warn#1",
+          "brief": "the level in capitals with WARNING shortened to WARN"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_warn#2",
+          "brief": "the level in capitals with WARNING shortened to WARN"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_newlines_escaped#1",
+          "brief": "Newlines inside the message are written as the two characters backslash and n"
+        }
+      ]
+    },
+    {
+      "id": "r2a1-41-star-rating",
+      "dev": false,
+      "source": "authored",
+      "files": {
+        "reviews.py": "def count(ratings):\n    return len(ratings)\n"
+      },
+      "brief": "Write mean_rating(ratings) in reviews.py: the average star rating shown on a product card, computed the way we finally decided.",
+      "neutral": false,
+      "settle": "New rule for the product card: a rating of 0 means 'not rated' and is ignored. The average is rounded to the nearest half star (3.74 shows 3.5, 3.75 shows 4.0), with exact quarters going up. A product with no real ratings gives None. count() on the card still counts every rating, zeros included.",
+      "reversed": "Plain arithmetic mean of all the ratings, rounded to two decimals.",
+      "modified": true,
+      "distractor": "count() on the card still counts every rating, zeros included.",
+      "hidden": "from reviews import mean_rating\n\n\ndef test_zero_ignored():\n    assert mean_rating([0, 4, 0, 5, 0]) == 4.5\n\n\ndef test_half_stars():\n    assert mean_rating([4, 4, 3]) == 3.5\n    assert mean_rating([3, 4, 4, 4]) == 4.0\n    assert mean_rating([5, 4, 4]) == 4.5\n\n\ndef test_none():\n    assert mean_rating([]) is None\n    assert mean_rating([0, 0]) is None\n",
+      "reference": {
+        "reviews.py": "import math\n\n\ndef count(ratings):\n    return len(ratings)\n\n\ndef mean_rating(ratings):\n    xs = [r for r in ratings if r != 0]\n    if not xs:\n        return None\n    return math.floor(sum(xs) / len(xs) * 2 + 0.5) / 2\n"
+      },
+      "naive": {
+        "reviews.py": "def count(ratings):\n    return len(ratings)\n\n\ndef mean_rating(ratings):\n    if not ratings:\n        return 0.0\n    return round(sum(ratings) / count(ratings), 2)\n"
+      },
+      "conventions": [
+        "a rating of 0 means 'not rated' and is ignored",
+        "rounded to the nearest half star (3.74 shows 3.5, 3.75 shows 4.0)",
+        "A product with no real ratings gives None"
+      ],
+      "trace": [
+        {
+          "assertion": "test_zz_hidden_eval.py::test_zero_ignored#1",
+          "brief": "a rating of 0 means 'not rated' and is ignored"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_half_stars#1",
+          "brief": "rounded to the nearest half star (3.74 shows 3.5, 3.75 shows 4.0)"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_half_stars#1",
+          "brief": "with exact quarters going up"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_half_stars#2",
+          "brief": "rounded to the nearest half star (3.74 shows 3.5, 3.75 shows 4.0)"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_half_stars#2",
+          "brief": "with exact quarters going up"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_half_stars#3",
+          "brief": "rounded to the nearest half star (3.74 shows 3.5, 3.75 shows 4.0)"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_half_stars#3",
+          "brief": "with exact quarters going up"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_none#1",
+          "brief": "A product with no real ratings gives None"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_none#2",
+          "brief": "A product with no real ratings gives None"
+        }
+      ]
+    },
+    {
+      "id": "r2a1-42-short-number",
+      "dev": false,
+      "source": "authored",
+      "files": {
+        "counts.py": "def with_commas(n):\n    return f\"{n:,}\"\n"
+      },
+      "brief": "Add short_number(n) to counts.py: a compact form of a follower count for the profile header, in the style we agreed on.",
+      "neutral": false,
+      "settle": "Profile header style: a lower-case k for thousands, a capital M for millions and B for billions, with at most one decimal. The decimal is truncated, not rounded, so 1999 is 1.9k, and a trailing .0 is dropped (2000 is 2k). Numbers below 1000 are shown as they are. with_commas() for the stats page stays as it is.",
+      "reversed": null,
+      "modified": false,
+      "distractor": "with_commas() for the stats page stays as it is.",
+      "hidden": "from counts import short_number\n\n\ndef test_suffixes():\n    assert short_number(1500) == '1.5k'\n    assert short_number(2_300_000) == '2.3M'\n    assert short_number(7_100_000_000) == '7.1B'\n\n\ndef test_truncated():\n    assert short_number(1999) == '1.9k'\n    assert short_number(999_999) == '999.9k'\n\n\ndef test_trailing_zero_and_small():\n    assert short_number(2000) == '2k'\n    assert short_number(5_000_000) == '5M'\n    assert short_number(999) == '999'\n",
+      "reference": {
+        "counts.py": "def with_commas(n):\n    return f\"{n:,}\"\n\n\ndef short_number(n):\n    for size, suffix in ((10 ** 9, 'B'), (10 ** 6, 'M'), (10 ** 3, 'k')):\n        if n >= size:\n            tenths = n * 10 // size\n            whole, frac = divmod(tenths, 10)\n            return f'{whole}{suffix}' if frac == 0 else f'{whole}.{frac}{suffix}'\n    return str(n)\n"
+      },
+      "naive": {
+        "counts.py": "def with_commas(n):\n    return f\"{n:,}\"\n\n\ndef short_number(n):\n    for size, suffix in ((10 ** 9, 'B'), (10 ** 6, 'M'), (10 ** 3, 'K')):\n        if n >= size:\n            return f'{n / size:.1f}{suffix}'\n    return str(n)\n"
+      },
+      "conventions": [
+        "a lower-case k for thousands, a capital M for millions and B for billions",
+        "The decimal is truncated, not rounded, so 1999 is 1.9k",
+        "a trailing .0 is dropped (2000 is 2k)"
+      ],
+      "trace": [
+        {
+          "assertion": "test_zz_hidden_eval.py::test_suffixes#1",
+          "brief": "a lower-case k for thousands, a capital M for millions and B for billions"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_suffixes#1",
+          "brief": "with at most one decimal"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_suffixes#2",
+          "brief": "a lower-case k for thousands, a capital M for millions and B for billions"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_suffixes#2",
+          "brief": "with at most one decimal"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_suffixes#3",
+          "brief": "a lower-case k for thousands, a capital M for millions and B for billions"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_suffixes#3",
+          "brief": "with at most one decimal"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_truncated#1",
+          "brief": "The decimal is truncated, not rounded, so 1999 is 1.9k"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_truncated#2",
+          "brief": "The decimal is truncated, not rounded, so 1999 is 1.9k"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_trailing_zero_and_small#1",
+          "brief": "a trailing .0 is dropped (2000 is 2k)"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_trailing_zero_and_small#1",
+          "brief": "Numbers below 1000 are shown as they are"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_trailing_zero_and_small#2",
+          "brief": "a trailing .0 is dropped (2000 is 2k)"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_trailing_zero_and_small#2",
+          "brief": "Numbers below 1000 are shown as they are"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_trailing_zero_and_small#3",
+          "brief": "a trailing .0 is dropped (2000 is 2k)"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_trailing_zero_and_small#3",
+          "brief": "Numbers below 1000 are shown as they are"
+        }
+      ]
+    },
+    {
+      "id": "r2a1-43-index-groups",
+      "dev": false,
+      "source": "authored",
+      "files": {
+        "directory.py": "def sort_names(names):\n    return sorted(names)\n"
+      },
+      "brief": "Implement group_by_initial(names) in directory.py: group a list of names under their first letter for the staff directory index, the way we settled.",
+      "neutral": false,
+      "settle": "Directory index: the group key is the first letter in upper case, so 'alice' and 'Adam' share 'A'. Names that start with anything other than a letter go under '#', and '#' is the last group. Inside a group, names are sorted ignoring case. Return a dict whose keys are in that order (letters A to Z, then '#'). sort_names() for the export stays case-sensitive.",
+      "reversed": null,
+      "modified": false,
+      "distractor": "sort_names() for the export stays case-sensitive.",
+      "hidden": "from directory import group_by_initial\n\n\ndef test_upper_keys():\n    assert group_by_initial(['alice', 'Adam']) == {'A': ['Adam', 'alice']}\n\n\ndef test_hash_last():\n    out = group_by_initial(['9lives', 'zed', '_x', 'bob'])\n    assert list(out) == ['B', 'Z', '#']\n    assert out['#'] == ['9lives', '_x']\n\n\ndef test_case_insensitive_sort():\n    assert group_by_initial(['bea', 'Bob', 'ann'])['B'] == ['bea', 'Bob']\n",
+      "reference": {
+        "directory.py": "def sort_names(names):\n    return sorted(names)\n\n\ndef group_by_initial(names):\n    groups = {}\n    for name in names:\n        first = name[:1]\n        key = first.upper() if first.isalpha() else '#'\n        groups.setdefault(key, []).append(name)\n    keys = sorted(k for k in groups if k != '#') + (['#'] if '#' in groups else [])\n    return {k: sorted(groups[k], key=str.lower) for k in keys}\n"
+      },
+      "naive": {
+        "directory.py": "def sort_names(names):\n    return sorted(names)\n\n\ndef group_by_initial(names):\n    groups = {}\n    for name in sort_names(names):\n        groups.setdefault(name[0], []).append(name)\n    return groups\n"
+      },
+      "conventions": [
+        "the group key is the first letter in upper case",
+        "Names that start with anything other than a letter go under '#', and '#' is the last group",
+        "Inside a group, names are sorted ignoring case"
+      ],
+      "trace": [
+        {
+          "assertion": "test_zz_hidden_eval.py::test_upper_keys#1",
+          "brief": "the group key is the first letter in upper case"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_hash_last#1",
+          "brief": "Names that start with anything other than a letter go under '#', and '#' is the last group"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_hash_last#1",
+          "brief": "Return a dict whose keys are in that order"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_hash_last#2",
+          "brief": "Names that start with anything other than a letter go under '#', and '#' is the last group"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_hash_last#2",
+          "brief": "Return a dict whose keys are in that order"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_case_insensitive_sort#1",
+          "brief": "Inside a group, names are sorted ignoring case"
+        }
+      ]
+    },
+    {
+      "id": "r2a1-44-quote-reply",
+      "dev": false,
+      "source": "authored",
+      "files": {
+        "mailer.py": "def signature(name):\n    return f\"-- \\n{name}\"\n"
+      },
+      "brief": "Write quote_reply(text, author) in mailer.py: the quoted block put under a reply in the mail client, in the format we ended up choosing.",
+      "neutral": false,
+      "settle": "Final quoting format: first a line '<author> wrote:', then every original line with '> ' in front. Empty lines get a bare '>' with no trailing space, and a line that is already quoted (starts with '>') gets just '>' added, giving '>>' rather than '> >'. Lines are joined with newlines. signature() keeps its '-- ' line.",
+      "reversed": "Just put '> ' in front of every line, nothing else.",
+      "modified": true,
+      "distractor": "signature() keeps its '-- ' line.",
+      "hidden": "from mailer import quote_reply\n\n\ndef test_header():\n    assert quote_reply('hi', 'Ann') == 'Ann wrote:\\n> hi'\n\n\ndef test_empty_lines():\n    assert quote_reply('a\\n\\nb', 'Bo') == 'Bo wrote:\\n> a\\n>\\n> b'\n\n\ndef test_nested():\n    assert quote_reply('> old\\nnew', 'Cy') == 'Cy wrote:\\n>> old\\n> new'\n",
+      "reference": {
+        "mailer.py": "def signature(name):\n    return f\"-- \\n{name}\"\n\n\ndef _quote(line):\n    if not line:\n        return '>'\n    if line.startswith('>'):\n        return '>' + line\n    return '> ' + line\n\n\ndef quote_reply(text, author):\n    return '\\n'.join([f'{author} wrote:'] + [_quote(line) for line in text.split('\\n')])\n"
+      },
+      "naive": {
+        "mailer.py": "def signature(name):\n    return f\"-- \\n{name}\"\n\n\ndef quote_reply(text, author):\n    return '\\n'.join('> ' + line for line in text.split('\\n'))\n"
+      },
+      "conventions": [
+        "first a line '<author> wrote:'",
+        "Empty lines get a bare '>' with no trailing space",
+        "a line that is already quoted (starts with '>') gets just '>' added, giving '>>' rather than '> >'"
+      ],
+      "trace": [
+        {
+          "assertion": "test_zz_hidden_eval.py::test_header#1",
+          "brief": "first a line '<author> wrote:'"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_header#1",
+          "brief": "then every original line with '> ' in front"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_empty_lines#1",
+          "brief": "Empty lines get a bare '>' with no trailing space"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_empty_lines#1",
+          "brief": "first a line '<author> wrote:'"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_nested#1",
+          "brief": "a line that is already quoted (starts with '>') gets just '>' added, giving '>>' rather than '> >'"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_nested#1",
+          "brief": "first a line '<author> wrote:'"
+        }
+      ]
+    },
+    {
+      "id": "r2a1-45-quota-size",
+      "dev": false,
+      "source": "authored",
+      "files": {
+        "quota.py": "def mb(n_bytes):\n    return n_bytes / 1_000_000\n"
+      },
+      "brief": "Implement parse_quota(text) in quota.py: read a disk quota typed by an admin, e.g. '10GB', and return it in bytes, with the units we agreed for quotas.",
+      "neutral": false,
+      "settle": "Quota units: KB, MB, GB and TB are binary here (1 MB = 1024 * 1024 bytes), because the storage backend counts that way; mb() for the UI stays decimal. Units are case-insensitive and may have a space before them. A bare number without a unit means megabytes, not bytes.",
+      "reversed": null,
+      "modified": false,
+      "distractor": "mb() for the UI stays decimal.",
+      "hidden": "from quota import parse_quota\n\n\ndef test_binary():\n    assert parse_quota('1MB') == 1024 ** 2\n    assert parse_quota('10GB') == 10 * 1024 ** 3\n    assert parse_quota('2TB') == 2 * 1024 ** 4\n\n\ndef test_case_and_space():\n    assert parse_quota('3 kb') == 3 * 1024\n    assert parse_quota('1 Gb') == 1024 ** 3\n\n\ndef test_bare_megabytes():\n    assert parse_quota('500') == 500 * 1024 ** 2\n",
+      "reference": {
+        "quota.py": "import re\n\n\ndef mb(n_bytes):\n    return n_bytes / 1_000_000\n\n\nUNITS = {'kb': 1, 'mb': 2, 'gb': 3, 'tb': 4}\n\n\ndef parse_quota(text):\n    m = re.fullmatch(r'\\s*(\\d+)\\s*([A-Za-z]{2})?\\s*', text)\n    if not m or (m.group(2) and m.group(2).lower() not in UNITS):\n        raise ValueError(f'bad quota {text!r}')\n    power = UNITS[m.group(2).lower()] if m.group(2) else 2\n    return int(m.group(1)) * 1024 ** power\n"
+      },
+      "naive": {
+        "quota.py": "import re\n\n\ndef mb(n_bytes):\n    return n_bytes / 1_000_000\n\n\ndef parse_quota(text):\n    m = re.fullmatch(r'(\\d+)(KB|MB|GB|TB)?', text)\n    if not m:\n        raise ValueError(text)\n    mult = {'KB': 10 ** 3, 'MB': 10 ** 6, 'GB': 10 ** 9, 'TB': 10 ** 12, None: 1}\n    return int(m.group(1)) * mult[m.group(2)]\n"
+      },
+      "conventions": [
+        "KB, MB, GB and TB are binary here (1 MB = 1024 * 1024 bytes)",
+        "Units are case-insensitive and may have a space before them",
+        "A bare number without a unit means megabytes, not bytes"
+      ],
+      "trace": [
+        {
+          "assertion": "test_zz_hidden_eval.py::test_binary#1",
+          "brief": "KB, MB, GB and TB are binary here (1 MB = 1024 * 1024 bytes)"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_binary#2",
+          "brief": "KB, MB, GB and TB are binary here (1 MB = 1024 * 1024 bytes)"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_binary#3",
+          "brief": "KB, MB, GB and TB are binary here (1 MB = 1024 * 1024 bytes)"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_case_and_space#1",
+          "brief": "Units are case-insensitive and may have a space before them"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_case_and_space#2",
+          "brief": "Units are case-insensitive and may have a space before them"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_bare_megabytes#1",
+          "brief": "A bare number without a unit means megabytes, not bytes"
+        }
+      ]
+    },
+    {
+      "id": "r2a1-46-isbn",
+      "dev": false,
+      "source": "authored",
+      "files": {
+        "catalog.py": "def clean(code):\n    return code.strip()\n"
+      },
+      "brief": "Add normalize_isbn(code) to catalog.py for the library import: turn an ISBN as typed into the one canonical form we agreed to store.",
+      "neutral": false,
+      "settle": "Stored ISBN form: digits only, hyphens and spaces removed. ISBN-10 values are converted to ISBN-13 (prefix 978, drop the old check digit, compute the new one). An ISBN with a wrong check digit, or the wrong length, returns None. The trailing X of an ISBN-10 check digit may be lower case. clean() for the barcode scanner stays a plain strip.",
+      "reversed": null,
+      "modified": false,
+      "distractor": "clean() for the barcode scanner stays a plain strip.",
+      "hidden": "from catalog import normalize_isbn\n\n\ndef test_strip_separators():\n    assert normalize_isbn('978-0-306-40615-7') == '9780306406157'\n\n\ndef test_isbn10_converted():\n    assert normalize_isbn('0-306-40615-2') == '9780306406157'\n    assert normalize_isbn('0 8044 2957 x') == '9780804429573'\n\n\ndef test_invalid_none():\n    assert normalize_isbn('978-0-306-40615-8') is None\n    assert normalize_isbn('0-306-40615-3') is None\n    assert normalize_isbn('12345') is None\n",
+      "reference": {
+        "catalog.py": "def clean(code):\n    return code.strip()\n\n\ndef _check13(first12):\n    total = sum(int(d) * (1 if i % 2 == 0 else 3) for i, d in enumerate(first12))\n    return str((10 - total % 10) % 10)\n\n\ndef normalize_isbn(code):\n    s = code.replace('-', '').replace(' ', '').upper()\n    if len(s) == 10:\n        if not s[:9].isdigit() or not (s[9].isdigit() or s[9] == 'X'):\n            return None\n        total = sum((10 - i) * int(d) for i, d in enumerate(s[:9]))\n        total += 10 if s[9] == 'X' else int(s[9])\n        if total % 11:\n            return None\n        first12 = '978' + s[:9]\n        return first12 + _check13(first12)\n    if len(s) == 13 and s.isdigit():\n        return s if _check13(s[:12]) == s[12] else None\n    return None\n"
+      },
+      "naive": {
+        "catalog.py": "def clean(code):\n    return code.strip()\n\n\ndef normalize_isbn(code):\n    return clean(code).upper()\n"
+      },
+      "conventions": [
+        "digits only, hyphens and spaces removed",
+        "ISBN-10 values are converted to ISBN-13",
+        "An ISBN with a wrong check digit, or the wrong length, returns None"
+      ],
+      "trace": [
+        {
+          "assertion": "test_zz_hidden_eval.py::test_strip_separators#1",
+          "brief": "digits only, hyphens and spaces removed"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_isbn10_converted#1",
+          "brief": "ISBN-10 values are converted to ISBN-13"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_isbn10_converted#1",
+          "brief": "prefix 978, drop the old check digit, compute the new one"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_isbn10_converted#1",
+          "brief": "The trailing X of an ISBN-10 check digit may be lower case"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_isbn10_converted#2",
+          "brief": "ISBN-10 values are converted to ISBN-13"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_isbn10_converted#2",
+          "brief": "prefix 978, drop the old check digit, compute the new one"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_isbn10_converted#2",
+          "brief": "The trailing X of an ISBN-10 check digit may be lower case"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_invalid_none#1",
+          "brief": "An ISBN with a wrong check digit, or the wrong length, returns None"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_invalid_none#2",
+          "brief": "An ISBN with a wrong check digit, or the wrong length, returns None"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_invalid_none#3",
+          "brief": "An ISBN with a wrong check digit, or the wrong length, returns None"
+        }
+      ]
+    },
+    {
+      "id": "r2a1-47-ticket-title",
+      "dev": false,
+      "source": "authored",
+      "files": {
+        "helpdesk.py": "def ticket_url(ticket_id):\n    return f\"/tickets/{ticket_id}\"\n"
+      },
+      "brief": "Implement ticket_title(subject, ticket_id) in helpdesk.py: the title line of a ticket in the notification email, as we finally agreed.",
+      "neutral": false,
+      "settle": "Changed: the subject comes first, then a space and the id in parentheses with a '#' and padded to five digits: 'Printer broken (#00042)'. Surrounding spaces of the subject are stripped, and a subject longer than 50 characters is cut to 49 characters plus '…'. ticket_url() keeps the bare id without padding.",
+      "reversed": "Put the id in front in brackets: '[#42] subject'.",
+      "modified": true,
+      "distractor": "ticket_url() keeps the bare id without padding.",
+      "hidden": "from helpdesk import ticket_title\n\n\ndef test_format():\n    assert ticket_title('Printer broken', 42) == 'Printer broken (#00042)'\n    assert ticket_title('  VPN down ', 123456) == 'VPN down (#123456)'\n\n\ndef test_long_subject():\n    subject = 'x' * 60\n    assert ticket_title(subject, 7) == 'x' * 49 + '… (#00007)'\n    assert ticket_title('y' * 50, 7) == 'y' * 50 + ' (#00007)'\n",
+      "reference": {
+        "helpdesk.py": "def ticket_url(ticket_id):\n    return f\"/tickets/{ticket_id}\"\n\n\ndef ticket_title(subject, ticket_id):\n    subject = subject.strip()\n    if len(subject) > 50:\n        subject = subject[:49] + '…'\n    return f'{subject} (#{ticket_id:05d})'\n"
+      },
+      "naive": {
+        "helpdesk.py": "def ticket_url(ticket_id):\n    return f\"/tickets/{ticket_id}\"\n\n\ndef ticket_title(subject, ticket_id):\n    return f'[#{ticket_id}] {subject.strip()}'\n"
+      },
+      "conventions": [
+        "the subject comes first, then a space and the id in parentheses with a '#' and padded to five digits",
+        "a subject longer than 50 characters is cut to 49 characters plus '…'"
+      ],
+      "trace": [
+        {
+          "assertion": "test_zz_hidden_eval.py::test_format#1",
+          "brief": "the subject comes first, then a space and the id in parentheses with a '#' and padded to five digits"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_format#1",
+          "brief": "Surrounding spaces of the subject are stripped"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_format#2",
+          "brief": "the subject comes first, then a space and the id in parentheses with a '#' and padded to five digits"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_format#2",
+          "brief": "Surrounding spaces of the subject are stripped"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_long_subject#1",
+          "brief": "a subject longer than 50 characters is cut to 49 characters plus '…'"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_long_subject#2",
+          "brief": "a subject longer than 50 characters is cut to 49 characters plus '…'"
+        }
+      ]
+    },
+    {
+      "id": "r2a1-48-dict-diff",
+      "dev": false,
+      "source": "authored",
+      "files": {
+        "audit.py": "def changed_keys(old, new):\n    return sorted(k for k in old if old.get(k) != new.get(k))\n"
+      },
+      "brief": "Write diff_settings(old, new) in audit.py: describe what changed between two settings dicts for the audit trail, in the format we settled on.",
+      "neutral": false,
+      "settle": "Audit trail format: a list of (sign, key) pairs where '+' marks a key only in new, '-' a key only in old and '~' a key whose value changed. Unchanged keys are not listed. Sort by key, not by sign. changed_keys() for the old audit view stays as it is.",
+      "reversed": null,
+      "modified": false,
+      "distractor": "changed_keys() for the old audit view stays as it is.",
+      "hidden": "from audit import diff_settings\n\n\ndef test_signs():\n    assert diff_settings({'a': 1}, {'b': 2}) == [('-', 'a'), ('+', 'b')]\n    assert diff_settings({'a': 1}, {'a': 2}) == [('~', 'a')]\n\n\ndef test_unchanged_omitted_and_sorted():\n    old = {'d': 1, 'c': 1, 'a': 1}\n    new = {'a': 1, 'b': 1, 'c': 2}\n    assert diff_settings(old, new) == [('+', 'b'), ('~', 'c'), ('-', 'd')]\n",
+      "reference": {
+        "audit.py": "def changed_keys(old, new):\n    return sorted(k for k in old if old.get(k) != new.get(k))\n\n\ndef diff_settings(old, new):\n    out = []\n    for k in sorted(set(old) | set(new)):\n        if k not in new:\n            out.append(('-', k))\n        elif k not in old:\n            out.append(('+', k))\n        elif old[k] != new[k]:\n            out.append(('~', k))\n    return out\n"
+      },
+      "naive": {
+        "audit.py": "def changed_keys(old, new):\n    return sorted(k for k in old if old.get(k) != new.get(k))\n\n\ndef diff_settings(old, new):\n    added = [('added', k) for k in sorted(set(new) - set(old))]\n    removed = [('removed', k) for k in sorted(set(old) - set(new))]\n    changed = [('changed', k) for k in changed_keys(old, new) if k in new]\n    return added + removed + changed\n"
+      },
+      "conventions": [
+        "'+' marks a key only in new, '-' a key only in old and '~' a key whose value changed",
+        "Sort by key, not by sign"
+      ],
+      "trace": [
+        {
+          "assertion": "test_zz_hidden_eval.py::test_signs#1",
+          "brief": "'+' marks a key only in new, '-' a key only in old and '~' a key whose value changed"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_signs#1",
+          "brief": "Sort by key, not by sign"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_signs#2",
+          "brief": "'+' marks a key only in new, '-' a key only in old and '~' a key whose value changed"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_signs#2",
+          "brief": "Sort by key, not by sign"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_unchanged_omitted_and_sorted#1",
+          "brief": "Unchanged keys are not listed"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_unchanged_omitted_and_sorted#1",
+          "brief": "Sort by key, not by sign"
+        }
+      ]
+    },
+    {
+      "id": "r2a1-n1-palindrome",
+      "dev": false,
+      "source": "authored",
+      "files": {
+        "words.py": "def is_palindrome(text):\n    raise NotImplementedError\n"
+      },
+      "brief": "Implement is_palindrome(text) in words.py: True when the text reads the same backwards, looking only at letters and digits and ignoring case, so 'Never odd or even' is a palindrome. An empty string or one with no letters or digits counts as a palindrome.",
+      "neutral": true,
+      "settle": "Let's move the standup to 9:30 starting next week, the 9:00 slot clashes with the school run.",
+      "reversed": null,
+      "modified": false,
+      "distractor": null,
+      "hidden": "from words import is_palindrome\n\n\ndef test_palindromes():\n    assert is_palindrome('Never odd or even')\n    assert is_palindrome('A1b, B1a!')\n\n\ndef test_not():\n    assert not is_palindrome('palindrome')\n\n\ndef test_empty():\n    assert is_palindrome('')\n    assert is_palindrome('?!')\n",
+      "reference": {
+        "words.py": "def is_palindrome(text):\n    s = [c.lower() for c in text if c.isalnum()]\n    return s == s[::-1]\n"
+      },
+      "naive": null,
+      "conventions": [],
+      "trace": [
+        {
+          "assertion": "test_zz_hidden_eval.py::test_palindromes#1",
+          "brief": "looking only at letters and digits and ignoring case"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_palindromes#2",
+          "brief": "looking only at letters and digits and ignoring case"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_not#1",
+          "brief": "True when the text reads the same backwards"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_empty#1",
+          "brief": "An empty string or one with no letters or digits counts as a palindrome"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_empty#2",
+          "brief": "An empty string or one with no letters or digits counts as a palindrome"
+        }
+      ]
+    },
+    {
+      "id": "r2a1-n2-running-total",
+      "dev": false,
+      "source": "authored",
+      "files": {
+        "series.py": "def running_total(values):\n    raise NotImplementedError\n"
+      },
+      "brief": "Implement running_total(values) in series.py: return a new list where each item is the sum of all values up to and including that position ([1, 2, 3] gives [1, 3, 6]). An empty list gives an empty list, and the input list must not be changed.",
+      "neutral": true,
+      "settle": "Reminder for later: renew the TLS certificate for the staging host before the end of the month.",
+      "reversed": null,
+      "modified": false,
+      "distractor": null,
+      "hidden": "from series import running_total\n\n\ndef test_sums():\n    assert running_total([1, 2, 3]) == [1, 3, 6]\n    assert running_total([5, -2, 0.5]) == [5, 3, 3.5]\n\n\ndef test_empty_and_untouched():\n    assert running_total([]) == []\n    xs = [1, 1]\n    running_total(xs)\n    assert xs == [1, 1]\n",
+      "reference": {
+        "series.py": "def running_total(values):\n    out, total = [], 0\n    for v in values:\n        total += v\n        out.append(total)\n    return out\n"
+      },
+      "naive": null,
+      "conventions": [],
+      "trace": [
+        {
+          "assertion": "test_zz_hidden_eval.py::test_sums#1",
+          "brief": "each item is the sum of all values up to and including that position"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_sums#2",
+          "brief": "each item is the sum of all values up to and including that position"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_empty_and_untouched#1",
+          "brief": "An empty list gives an empty list, and the input list must not be changed"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_empty_and_untouched#2",
+          "brief": "An empty list gives an empty list, and the input list must not be changed"
+        }
+      ]
+    },
+    {
+      "id": "r2a1-n3-median",
+      "dev": false,
+      "source": "authored",
+      "files": {
+        "stats_tools.py": "def median(values):\n    raise NotImplementedError\n"
+      },
+      "brief": "Implement median(values) in stats_tools.py: the middle value of the numbers after sorting; for an even count, the mean of the two middle values. The input may be unsorted and must not be modified. An empty list raises ValueError.",
+      "neutral": true,
+      "settle": "The person wants the release notes drafted in plain language this time, no internal ticket numbers.",
+      "reversed": null,
+      "modified": false,
+      "distractor": null,
+      "hidden": "import pytest\nfrom stats_tools import median\n\n\ndef test_odd_even():\n    assert median([3, 1, 2]) == 2\n    assert median([4, 1, 3, 2]) == 2.5\n\n\ndef test_not_modified():\n    xs = [3, 1, 2]\n    median(xs)\n    assert xs == [3, 1, 2]\n\n\ndef test_empty():\n    with pytest.raises(ValueError):\n        median([])\n",
+      "reference": {
+        "stats_tools.py": "def median(values):\n    if not values:\n        raise ValueError('median of an empty list')\n    s = sorted(values)\n    mid = len(s) // 2\n    return s[mid] if len(s) % 2 else (s[mid - 1] + s[mid]) / 2\n"
+      },
+      "naive": null,
+      "conventions": [],
+      "trace": [
+        {
+          "assertion": "test_zz_hidden_eval.py::test_odd_even#1",
+          "brief": "the middle value of the numbers after sorting; for an even count, the mean of the two middle values"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_odd_even#2",
+          "brief": "the middle value of the numbers after sorting; for an even count, the mean of the two middle values"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_not_modified#1",
+          "brief": "The input may be unsorted and must not be modified"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_empty#1",
+          "brief": "An empty list raises ValueError"
+        }
+      ]
+    },
+    {
+      "id": "r2a1-n4-flatten",
+      "dev": false,
+      "source": "authored",
+      "files": {
+        "lists.py": "def flatten_once(items):\n    raise NotImplementedError\n"
+      },
+      "brief": "Implement flatten_once(items) in lists.py: items is a list whose elements may be lists or tuples; return one list with those elements' contents inlined, one level only (deeper nesting stays as it is). Elements that are not lists or tuples, including strings, are kept as single items.",
+      "neutral": true,
+      "settle": "Can we switch the team chat notifications for failed nightly builds to the #ops channel?",
+      "reversed": null,
+      "modified": false,
+      "distractor": null,
+      "hidden": "from lists import flatten_once\n\n\ndef test_one_level():\n    assert flatten_once([1, [2, 3], (4,), [[5]]]) == [1, 2, 3, 4, [5]]\n\n\ndef test_strings_kept():\n    assert flatten_once(['ab', ['cd']]) == ['ab', 'cd']\n    assert flatten_once([]) == []\n",
+      "reference": {
+        "lists.py": "def flatten_once(items):\n    out = []\n    for x in items:\n        if isinstance(x, (list, tuple)):\n            out.extend(x)\n        else:\n            out.append(x)\n    return out\n"
+      },
+      "naive": null,
+      "conventions": [],
+      "trace": [
+        {
+          "assertion": "test_zz_hidden_eval.py::test_one_level#1",
+          "brief": "return one list with those elements' contents inlined, one level only (deeper nesting stays as it is)"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_strings_kept#1",
+          "brief": "Elements that are not lists or tuples, including strings, are kept as single items"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_strings_kept#2",
+          "brief": "Elements that are not lists or tuples, including strings, are kept as single items"
+        }
+      ]
+    },
+    {
+      "id": "r2a1-n5-vowels",
+      "dev": false,
+      "source": "authored",
+      "files": {
+        "letters.py": "def count_vowels(text):\n    raise NotImplementedError\n"
+      },
+      "brief": "Implement count_vowels(text) in letters.py: return a dict mapping each of the vowels a, e, i, o, u to how often it occurs in text, case-insensitively. All five keys are always present, in that order, with 0 for a vowel that does not occur. The letter y is not a vowel here.",
+      "neutral": true,
+      "settle": "Note for the retro: the flaky integration test was the clock skew on the CI runner, now fixed.",
+      "reversed": null,
+      "modified": false,
+      "distractor": null,
+      "hidden": "from letters import count_vowels\n\n\ndef test_counts():\n    assert count_vowels('Education') == {'a': 1, 'e': 1, 'i': 1, 'o': 1, 'u': 1}\n    assert count_vowels('AAa yy') == {'a': 3, 'e': 0, 'i': 0, 'o': 0, 'u': 0}\n\n\ndef test_keys_in_order():\n    assert list(count_vowels('')) == ['a', 'e', 'i', 'o', 'u']\n",
+      "reference": {
+        "letters.py": "def count_vowels(text):\n    low = text.lower()\n    return {v: low.count(v) for v in 'aeiou'}\n"
+      },
+      "naive": null,
+      "conventions": [],
+      "trace": [
+        {
+          "assertion": "test_zz_hidden_eval.py::test_counts#1",
+          "brief": "to how often it occurs in text, case-insensitively"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_counts#1",
+          "brief": "The letter y is not a vowel here"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_counts#2",
+          "brief": "to how often it occurs in text, case-insensitively"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_counts#2",
+          "brief": "The letter y is not a vowel here"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_keys_in_order#1",
+          "brief": "All five keys are always present, in that order, with 0 for a vowel that does not occur"
+        }
+      ]
+    },
+    {
+      "id": "r2a1-n6-common-prefix",
+      "dev": false,
+      "source": "authored",
+      "files": {
+        "prefix.py": "def common_prefix(words):\n    raise NotImplementedError\n"
+      },
+      "brief": "Implement common_prefix(words) in prefix.py: the longest string that every word in the list starts with, compared case-sensitively. An empty list, or words with nothing in common, give ''.",
+      "neutral": true,
+      "settle": "Unrelated: please book the bigger meeting room for Friday's planning session.",
+      "reversed": null,
+      "modified": false,
+      "distractor": null,
+      "hidden": "from prefix import common_prefix\n\n\ndef test_prefix():\n    assert common_prefix(['interview', 'internet', 'interval']) == 'inter'\n    assert common_prefix(['same']) == 'same'\n\n\ndef test_case_sensitive_and_empty():\n    assert common_prefix(['Apple', 'apple']) == ''\n    assert common_prefix([]) == ''\n",
+      "reference": {
+        "prefix.py": "import os\n\n\ndef common_prefix(words):\n    return os.path.commonprefix(list(words)) if words else ''\n"
+      },
+      "naive": null,
+      "conventions": [],
+      "trace": [
+        {
+          "assertion": "test_zz_hidden_eval.py::test_prefix#1",
+          "brief": "the longest string that every word in the list starts with"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_prefix#2",
+          "brief": "the longest string that every word in the list starts with"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_case_sensitive_and_empty#1",
+          "brief": "compared case-sensitively"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_case_sensitive_and_empty#1",
+          "brief": "An empty list, or words with nothing in common, give ''"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_case_sensitive_and_empty#2",
+          "brief": "compared case-sensitively"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_case_sensitive_and_empty#2",
+          "brief": "An empty list, or words with nothing in common, give ''"
+        }
+      ]
+    },
+    {
+      "id": "r2a1-n7-line-widths",
+      "dev": false,
+      "source": "authored",
+      "files": {
+        "layout.py": "def longest_line(text):\n    raise NotImplementedError\n"
+      },
+      "brief": "Implement longest_line(text) in layout.py: return a (line_number, length) pair for the longest line of a multi-line string, with line numbers starting at 1 and lengths not counting the newline. When several lines tie, the first one wins. An empty string gives (1, 0).",
+      "neutral": true,
+      "settle": "FYI the person is out on Monday, so the demo moves to Tuesday afternoon.",
+      "reversed": null,
+      "modified": false,
+      "distractor": null,
+      "hidden": "from layout import longest_line\n\n\ndef test_longest():\n    assert longest_line('ab\\nabcd\\nabc') == (2, 4)\n\n\ndef test_tie_and_empty():\n    assert longest_line('xy\\nzw') == (1, 2)\n    assert longest_line('') == (1, 0)\n",
+      "reference": {
+        "layout.py": "def longest_line(text):\n    best = (1, 0)\n    for i, line in enumerate(text.split('\\n'), 1):\n        if len(line) > best[1]:\n            best = (i, len(line))\n    return best\n"
+      },
+      "naive": null,
+      "conventions": [],
+      "trace": [
+        {
+          "assertion": "test_zz_hidden_eval.py::test_longest#1",
+          "brief": "return a (line_number, length) pair for the longest line"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_longest#1",
+          "brief": "line numbers starting at 1 and lengths not counting the newline"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_tie_and_empty#1",
+          "brief": "When several lines tie, the first one wins"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_tie_and_empty#1",
+          "brief": "An empty string gives (1, 0)"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_tie_and_empty#2",
+          "brief": "When several lines tie, the first one wins"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_tie_and_empty#2",
+          "brief": "An empty string gives (1, 0)"
+        }
+      ]
+    },
+    {
+      "id": "r2a1-n8-clamp-values",
+      "dev": false,
+      "source": "authored",
+      "files": {
+        "bounds.py": "def clamp_all(values, low, high):\n    raise NotImplementedError\n"
+      },
+      "brief": "Implement clamp_all(values, low, high) in bounds.py: return a new list where every value below low becomes low and every value above high becomes high. If low is greater than high, raise ValueError.",
+      "neutral": true,
+      "settle": "We're keeping the docs site on the current theme for now; the redesign waits until next quarter.",
+      "reversed": null,
+      "modified": false,
+      "distractor": null,
+      "hidden": "import pytest\nfrom bounds import clamp_all\n\n\ndef test_clamp():\n    assert clamp_all([-5, 0, 5, 10, 15], 0, 10) == [0, 0, 5, 10, 10]\n\n\ndef test_bad_bounds():\n    with pytest.raises(ValueError):\n        clamp_all([1], 5, 1)\n",
+      "reference": {
+        "bounds.py": "def clamp_all(values, low, high):\n    if low > high:\n        raise ValueError('low must not exceed high')\n    return [min(max(v, low), high) for v in values]\n"
+      },
+      "naive": null,
+      "conventions": [],
+      "trace": [
+        {
+          "assertion": "test_zz_hidden_eval.py::test_clamp#1",
+          "brief": "every value below low becomes low and every value above high becomes high"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_bad_bounds#1",
+          "brief": "If low is greater than high, raise ValueError"
+        }
+      ]
+    }
+  ]
+}
