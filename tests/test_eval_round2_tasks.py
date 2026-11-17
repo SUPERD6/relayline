@@ -318,6 +318,46 @@ def test_repo_list_is_mechanical(tmp_path):
         "used in an earlier evaluation", "no PyPI metadata"]
 
 
+def test_repo_list_skips_sponsor_links_and_lists_a_repository_once(tmp_path):
+    """#397: github.com/sponsors/<user> is a funding link, not the source; packages sharing one repository keep only
+    the best-ranked row."""
+    meta = tmp_path / "meta"
+    meta.mkdir()
+    def info(name, urls):
+        (meta / f"{name}.json").write_text(json.dumps({"info": {"project_urls": urls, "license": "MIT",
+                                                                "classifiers": []}}), encoding="utf-8")
+    info("attrs", {"Funding": "https://github.com/sponsors/hynek", "Source": "https://github.com/python-attrs/attrs"})
+    info("otel-api", {"Source": "https://github.com/o/otel-python"})
+    info("otel-sdk", {"Source": "https://github.com/o/otel-python.git"})
+    info("only-sponsor", {"Funding": "https://github.com/sponsors/someone"})
+    info("a-utils", {"Source": "https://github.com/a/utils"})
+    info("b-utils", {"Source": "https://github.com/b/utils"})
+    snap = {"rows": [{"project": p} for p in ("attrs", "otel-api", "otel-sdk", "only-sponsor", "a-utils", "b-utils")]}
+    out = R.repo_list(snap, meta, set())
+    assert [(k["project"], k["url"]) for k in out["kept"]] == [
+        ("attrs", "https://github.com/python-attrs/attrs"), ("otel-api", "https://github.com/o/otel-python"),
+        ("a-utils", "https://github.com/a/utils"), ("b-utils", "https://github.com/b/utils")]
+    assert [(e["project"], e["reason"]) for e in out["excluded"]] == [
+        ("otel-sdk", "same repository as rank 2 (otel-api)"),
+        ("only-sponsor", "source is not a public GitHub repository")]
+
+
+def test_select_walks_a_repeated_repository_once(monkeypatch):
+    """#397: an older repos list naming one repository twice must not accept the same commit twice."""
+    _dev_setup(monkeypatch, {"r1": [_row("a", 2_000_000_000, 80), _row("b", 1_999_999_999, 80)]}, 0, 0, 6, 4)
+    monkeypatch.setattr(R, "B_TAKE", 5)
+    out = _select(["r1", "r1"])
+    assert [t["commit"][0] for t in out["B"]] == ["a", "b"]
+    assert {"repo": "r1", "project": "r1", "reason": "repository listed again (walked at its first rank)"} \
+        in out["exclusions"]
+    # same name, different owners: two repositories, both walked
+    two = R.select_upstream(Path("x"), [{"repo": "r1", "url": "https://github.com/a/r1"},
+                                        {"repo": "r1", "url": "https://github.com/B/r1"}], "py", set(),
+                            validator=lambda *a: {"valid": True})
+    assert not [e for e in two["exclusions"] if e["reason"].startswith("repository listed again")]
+    assert R.repo_key("https://github.com/A/Utils.git") == R.repo_key({"url": "https://github.com/a/utils"}) == "a/utils"
+
+
 def test_own_package_check():
     def fake(version, rc=0):
         return lambda *a, **k: subprocess.CompletedProcess(a, rc, stdout=version + "\n", stderr="")
