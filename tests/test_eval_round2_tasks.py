@@ -152,8 +152,23 @@ def test_dev_tasks_follow_in_the_same_order_with_shared_b_cap(monkeypatch):
     assert reasons["b"].startswith("below C size rule")
     assert reasons["x"].startswith("repository cap (B")
     assert "h" not in reasons and "i" not in reasons  # stops once the development tasks are full
+    assert [e.get("dev", False) for e in out["exclusions"] if "commit" in e] == [False, True]  # b, x
     assert {c["commit"][0]: c.get("dev", False) for c in out["checked"]} == {
         "a": False, "c": False, "d": True, "e": True, "g": True}
+
+
+def test_dev_phase_leaves_final_selection_unchanged(monkeypatch):
+    t = 2_000_000_000
+    hist = {"r1": [_row(s, t - i, n) for i, (s, n) in enumerate(zip("abcdefgh", (80, 10, 80, 160, 80, 160, 80, 160)))],
+            "r2": [_row(s, t - i, n) for i, (s, n) in enumerate(zip("ijklmn", (160, 80, 160, 10, 80, 160)))]}
+    _dev_setup(monkeypatch, hist, b_dev=0, c_dev=0, b_cap=2, c_cap=1)
+    no_dev = _select(["r1", "r2"])
+    monkeypatch.setattr(R, "B_DEV_TAKE", 2)
+    monkeypatch.setattr(R, "C_DEV_TAKE", 1)
+    with_dev = _select(["r1", "r2"])
+    assert with_dev["B"] == no_dev["B"] and with_dev["C"] == no_dev["C"]
+    assert with_dev["exclusions"][:len(no_dev["exclusions"])] == no_dev["exclusions"]
+    assert with_dev["dev"]["B"] and with_dev["dev"]["C"]
 
 
 def test_dev_c_shares_c_cap_and_reports_shortfall(monkeypatch):
@@ -204,6 +219,10 @@ def test_cli_select_reports_dev_and_downstream_includes_dev(tmp_path, monkeypatc
     monkeypatch.setattr(R, "leak_check", lambda tasks, corp: leaked.extend(tasks) or {"clean": True})
     assert R.main(["leak", "--tasks", str(out), "--out", str(tmp_path / "leak.json")]) == 0
     assert sorted(t["commit"][0] for t in leaked) == ["a", "c", "d"]
+    # a final-task shortfall still fails the command
+    monkeypatch.setattr(R, "C_TAKE", 5)
+    assert R.main(["select", "--repos-json", str(tmp_path / "repos.json"), "--ext-cache", str(tmp_path / "cache"),
+                   "--ext-python", "py", "--out", str(out)]) == 1
 
 
 def test_compiled_repository_is_excluded(monkeypatch):

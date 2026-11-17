@@ -492,7 +492,8 @@ def select_upstream(cache: Path, repos: list[dict], python: str, used: set[str],
                 except RuntimeError as exc:
                     reason = f"cannot read the commit's changed files ({exc})"[:300]
             if reason:
-                exclusions.append({"repo": repo, "commit": row["commit"], "reason": reason})
+                exclusions.append({"repo": repo, "commit": row["commit"], "reason": reason,
+                                   **({"dev": True} if dev else {})})
                 continue
             task = {**row, "id": f"r2-{repo}-{row['commit'][:12]}", "project": spec.get("project", repo),
                     "url": spec.get("url"), "group": group, **({"dev": True} if dev else {})}
@@ -505,7 +506,8 @@ def select_upstream(cache: Path, repos: list[dict], python: str, used: set[str],
                             **{k: result.get(k) for k in ("baseline", "parent", "reference", "valid", "error")}})
             if not result.get("valid"):
                 why = result.get("error") or _why_invalid(result)
-                exclusions.append({"repo": repo, "commit": row["commit"], "reason": why})
+                exclusions.append({"repo": repo, "commit": row["commit"], "reason": why,
+                                   **({"dev": True} if dev else {})})
                 continue
             task["src_layout"] = src_layout(cache, repo, row["commit"])
             {("B", False): b, ("C", False): c, ("B", True): b_dev, ("C", True): c_dev}[(group, dev)].append(task)
