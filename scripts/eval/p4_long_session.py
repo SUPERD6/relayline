@@ -302,10 +302,11 @@ def telemetry(stream: str) -> dict:
             "lead_usage": r5.TL.lead_stream(stream)["usage"]}
 
 
-def reset_repo(repo: Path, tree: bytes, native=False, caches=False) -> None:
+def reset_repo(repo: Path, tree: bytes, native=False, caches=False, stubs=()) -> None:
     # Owned, disposable episode directory only; never git reset the source checkout.
+    # `stubs`: the install-time version files a round-2 task was validated with (round2_tasks, #415).
     PF.rmtree(repo)
-    E.repo_from_tar(tree, {"stubs": []}, repo)
+    E.repo_from_tar(tree, {"stubs": list(stubs or ())}, repo)
     if native:
         LE.checkout(repo)
     exclude = repo / ".git" / "info" / "exclude"
@@ -332,14 +333,16 @@ def score(repo: Path, task: dict, material: dict, python: str, native=False) -> 
             E._git(target, "commit", "-q", "--no-verify", "-m", "score snapshot")
             LE.checkout(target)
         # check_tree extracts a supplied tar; score the already assembled copy.
-        return run_hidden(target, task["tests"], python, src_layout=task.get("src_layout") is True)
+        return run_hidden(target, task["tests"], python, src_layout=task.get("src_layout") is True,
+                          utf8=task.get("pythonutf8") is True)
 
 
-def run_hidden(repo: Path, tests: list[str], python: str, src_layout: bool = False) -> dict:
-    # A task that round2_tasks validated with src/ on the path (#364 records src_layout) is scored the same way (#367).
+def run_hidden(repo: Path, tests: list[str], python: str, src_layout: bool = False, utf8: bool = False) -> dict:
+    # A task that round2_tasks validated with src/ on the path (#364 records src_layout) is scored the same way (#367);
+    # likewise one validated with PYTHONUTF8=1 (pythonutf8, #415).
     path = (str(repo / "src") + os.pathsep if src_layout else "") + str(repo)
     env = {**PF.base_env(), "PYTHONPATH": path, "PYTEST_DISABLE_PLUGIN_AUTOLOAD": "1",
-           "PYTHONDONTWRITEBYTECODE": "1", "PIP_NO_INDEX": "1"}
+           "PYTHONDONTWRITEBYTECODE": "1", "PIP_NO_INDEX": "1", **({"PYTHONUTF8": "1"} if utf8 else {})}
     out, err, rc, _ = PF.run([python, "-m", "pytest", "-q", "-o", "addopts=", "-p", "no:cacheprovider", *tests],
                              cwd=repo, env=env, timeout=180)
     text = out + err
@@ -373,7 +376,7 @@ class Episode:
         self.streams = []
         self.artifacts = a.artifacts
         self.native = native_checkout(a)
-        reset_repo(self.iso.repo, material["tar"], self.native, key.endswith("-" + DE.ARM2))
+        reset_repo(self.iso.repo, material["tar"], self.native, key.endswith("-" + DE.ARM2), task.get("stubs"))
         (self.iso.hub / "ccx").mkdir(parents=True)
         self.arm = key.rsplit("-", 1)[-1]
         if self.arm in DE.ARMS:
@@ -406,7 +409,7 @@ class Episode:
             self.env["CCX_EVAL_CODEX_WEB_SEARCH"] = "disabled"
 
     def step(self, u: dict, task: dict, material: dict, a, cap: float) -> dict:
-        reset_repo(self.iso.repo, material["tar"], self.native, self.arm == DE.ARM2)
+        reset_repo(self.iso.repo, material["tar"], self.native, self.arm == DE.ARM2, task.get("stubs"))
         row = {**u, "session_id": self.sid, "reference_commit": task["commit"], "repo": task["repo"],
                "env_clean": False, "ok": None, "usd": None, "cost_complete": False,
                "evidence": getattr(a, "evidence", "not run"),
@@ -419,6 +422,8 @@ class Episode:
         self.rows.append(row)
         lead_cap, child_cap = task_caps(a, u["arm"])
         self.env["PYTHONPATH"] = pythonpath(task)   # inherited by sub-agents and ccx --check (#365)
+        if task.get("pythonutf8") is True:          # as the task was validated and is scored (#415)
+            self.env["PYTHONUTF8"] = "1"
         self.env["CCX_P4_CHILD_LIMIT"] = str(child_cap)
         self.env["CCX_P4_CHILD_START"] = str(self.child_total)
         checks_root = self.iso.hub/"ccx"/"check-artifacts"/str(u["turn"])

@@ -383,17 +383,125 @@ def test_prepare_installs_dependencies_but_not_the_package(tmp_path, monkeypatch
             for name in ("my_pkg-2.0-py3-none-any.whl", "attrs-25.1.0-py3-none-any.whl"):
                 (d / name).write_bytes(b"")
         return subprocess.CompletedProcess(cmd, 0, "", "")
-    rows = R.prepare([{"repo": "my-pkg", "project": "my-pkg", "url": "u"}, {"repo": "attrs", "project": "attrs", "url": "u"}],
+    data = R.prepare([{"repo": "my-pkg", "project": "my-pkg", "url": "u"}, {"repo": "attrs", "project": "attrs", "url": "u"}],
                      tmp_path / "c", tmp_path / "w", "py", run)
+    rows = data["repos"]
     installs = [c for c in calls if "install" in c]
-    assert installs == []  # attrs is itself a kept repository: neither package is installed for any task
+    assert installs == []  # attrs is itself a kept repository: no latest release of either; no metadata, so no pin
     assert rows[0]["skipped_kept_packages"] == ["attrs", "my-pkg"] and rows[0]["cloned"]
+    assert {k: v["version"] for k, v in data["pins"].items()} == {"attrs": None, "my-pkg": None}  # each needs the other
     calls.clear()
-    rows = R.prepare([{"repo": "my-pkg", "project": "my-pkg", "url": "u"}], tmp_path / "c", tmp_path / "w2", "py", run)
+    rows = R.prepare([{"repo": "my-pkg", "project": "my-pkg", "url": "u"}], tmp_path / "c", tmp_path / "w2", "py",
+                     run)["repos"]
     install = next(c for c in calls if "install" in c)
     assert "--no-index" in install and any(a.endswith("attrs-25.1.0-py3-none-any.whl") for a in install)
     assert not any("my_pkg" in a for a in install)
     assert rows[0]["installed"]
+
+
+def _rel(version, when, **extra):
+    return {version: [{"upload_time_iso_8601": when, **extra}]}
+
+
+def test_pinned_version_is_the_highest_final_release_before_the_date_limit():
+    """#415: kept dependencies are installed at a release older than every candidate commit."""
+    meta = {"releases": {**_rel("1.9", "2026-03-01T00:00:00Z"), **_rel("1.10", "2026-05-01T00:00:00Z"),
+                         **_rel("1.10.post1", "2026-05-02T00:00:00Z"), **_rel("2.0rc1", "2026-06-01T00:00:00Z"),
+                         **_rel("1.11", "2026-06-20T00:00:00Z", yanked=True),
+                         **_rel("2.0", "2026-07-02T00:00:00Z"), "0.1": []}}
+    assert R.pinned_version(meta, R._since_ts("2026-07-01")) == "1.10.post1"
+    assert R.pinned_version(meta, R._since_ts("2026-01-01")) is None
+    assert R.pinned_version(None, R._since_ts("2026-07-01")) is None
+
+
+def test_prepare_pins_kept_dependencies_and_the_runner_before_the_date_limit(tmp_path, monkeypatch):
+    calls = []
+    monkeypatch.setattr(R.E, "fetch", lambda name, spec, cache: cache / name)
+    dl = {"my-pkg": ["my_pkg-2.0-py3-none-any.whl", "attrs-25.1.0-py3-none-any.whl", "other-1.0-py3-none-any.whl"],
+          "attrs==24.1.0": ["attrs-24.1.0-py3-none-any.whl", "six-1.0-py3-none-any.whl", "dep-3.0-py3-none-any.whl"],
+          "six==1.0": ["six-1.0-py3-none-any.whl"], "pytest==8.0": ["pytest-8.0-py3-none-any.whl"]}
+    def run(cmd, **kw):
+        calls.append(cmd)
+        if "download" in cmd:
+            d = Path(cmd[cmd.index("-d") + 1])
+            d.mkdir(parents=True, exist_ok=True)
+            for name in dl.get(cmd[-1].split("[")[0], []):
+                (d / name).write_bytes(b"")
+        return subprocess.CompletedProcess(cmd, 0, "", "")
+    meta = tmp_path / "meta"
+    meta.mkdir()
+    for name, rel in (("attrs", {**_rel("24.1.0", "2026-06-01T00:00:00Z"), **_rel("25.1.0", "2026-08-01T00:00:00Z")}),
+                      ("six", _rel("1.0", "2020-01-01T00:00:00Z")), ("pytest", _rel("8.0", "2026-01-01T00:00:00Z")),
+                      ("my-pkg", _rel("1.0", "2026-01-01T00:00:00Z"))):
+        (meta / f"{name}.json").write_text(json.dumps({"releases": rel}), encoding="utf-8")
+    repos = [{"repo": n, "project": n, "url": "u"} for n in ("my-pkg", "attrs", "six", "pytest")]
+    data = R.prepare(repos, tmp_path / "c", tmp_path / "w", "py", run, meta_dir=meta)
+    assert {k: v["version"] for k, v in data["pins"].items()} == {"attrs": "24.1.0", "pytest": "8.0", "six": "1.0"}
+    installed = [Path(a).name for c in calls if "install" in c for a in c if a.endswith(".whl")]
+    assert "attrs-24.1.0-py3-none-any.whl" in installed and "dep-3.0-py3-none-any.whl" in installed
+    assert "attrs-25.1.0-py3-none-any.whl" not in installed      # never the latest release of a kept package
+    assert not [n for n in installed if n.startswith("my_pkg")]  # nobody needs my-pkg: not installed at all
+    assert installed.count("six-1.0-py3-none-any.whl") == 1      # the pin's kept dependency, pinned once
+
+
+def test_dependency_groups_resolve_includes_and_prepare_downloads_them(tmp_path, monkeypatch):
+    config = {"dependency-groups": {"test": ["pytest>=8", {"include-group": "extra"}, "trustme"],
+                                    "extra": ["hypothesis"], "docs": ["sphinx"]}}
+    assert R.dependency_groups(config) == ["pytest>=8", "hypothesis", "trustme"]  # in order, includes in place
+    calls = []
+    monkeypatch.setattr(R.E, "fetch", lambda name, spec, cache: cache / name)
+    monkeypatch.setattr(R.LCand, "bare_path", lambda cache, repo: cache / repo)
+    monkeypatch.setattr(R.E, "_git", lambda *a, **k: '[dependency-groups]\ntest = ["trustme"]\n')
+    run = lambda cmd, **kw: calls.append(cmd) or subprocess.CompletedProcess(cmd, 0, "", "")
+    rows = R.prepare([{"repo": "anyio", "project": "anyio", "url": "u"}], tmp_path / "c", tmp_path / "w", "py", run)
+    assert rows["repos"][0]["dependency_groups"] == ["trustme"] and rows["repos"][0]["groups_failed"] == []
+    assert any(c[-1] == "trustme" and "download" in c for c in calls)
+
+
+def test_version_stubs_from_pyproject(tmp_path):
+    """#415: setuptools-scm / hatch-vcs version files missing from the parent tree become stubs."""
+    assert R._version_files({"tool": {"setuptools_scm": {"write_to": "src/_pytest/_version.py"}}}) == [
+        "src/_pytest/_version.py"]
+    assert R._version_files({"tool": {"hatch": {"build": {"hooks": {"vcs": {"version-file": "./src/f/version.py"}},
+                                                          "targets": {"wheel": {"hooks": {"vcs": {
+                                                              "version-file": "src/g/_v.py"}}}}}}}}) == [
+        "src/f/version.py", "src/g/_v.py"]
+    work = tmp_path / "w"
+    work.mkdir()
+    _git(work, "init", "-q", "-b", "main")
+    _commit(work, {"pyproject.toml": '[tool.setuptools_scm]\nversion_file = "pkg/_version.py"\n'
+                                     '[tool.hatch.build.hooks.vcs]\nversion-file = "pkg/tracked.py"\n',
+                   "pkg/tracked.py": "x = 1\n"}, "2026-08-01T00:00:00+00:00", "p")
+    sha = _commit(work, {"pkg/a.py": "a = 1\n"}, "2026-08-02T00:00:00+00:00", "c")
+    cache = tmp_path / "cache"
+    _git(tmp_path, "clone", "-q", "--bare", str(work), str(cache / "pkg.git"))
+    assert R.version_stubs(cache, "pkg", sha) == ["pkg/_version.py"]
+    assert R.version_stubs(cache, "missing", sha) == []
+    repo = tmp_path / "built"
+    R.LE.build(R.E.archive(cache / "pkg.git", sha + "^"), repo, ["pkg/_version.py"])
+    assert (repo / "pkg/_version.py").read_text(encoding="utf-8") == R.E.VERSION_STUB
+    assert "pkg/_version.py" in R.E._git(repo, "ls-files")
+
+
+def test_select_records_stubs_and_utf8(monkeypatch):
+    _dev_setup(monkeypatch, {"r1": [_row("a", 2_000_000_000, 80)]}, 0, 0, 6, 4)
+    monkeypatch.setattr(R, "version_stubs", lambda cache, repo, sha: ["src/r1/_version.py"])
+    seen = []
+    out = R.select_upstream(Path("x"), [{"repo": "r1"}], "py", set(),
+                            validator=lambda c, p, task, r: seen.append(dict(task)) or {"valid": True})
+    assert seen[0]["stubs"] == ["src/r1/_version.py"] and seen[0]["pythonutf8"] is True
+    assert out["B"][0]["stubs"] == ["src/r1/_version.py"] and out["B"][0]["pythonutf8"] is True
+
+
+def test_utf8_mode_for_round2_validation_and_tasks(tmp_path, monkeypatch):
+    monkeypatch.delenv("PYTHONUTF8", raising=False)
+    assert "PYTHONUTF8" not in R.LE.environment(tmp_path, sys.executable, tmp_path / "t")
+    assert R.LE.environment(tmp_path, sys.executable, tmp_path / "t", utf8=True)["PYTHONUTF8"] == "1"
+    seen = {}
+    monkeypatch.setattr(R.LE, "validate_task", lambda *a: seen.setdefault(
+        "env", R.LE.environment(tmp_path, sys.executable, tmp_path / "t")))
+    R._validate(Path("c"), "py", {"commit": "x"}, None)
+    assert seen["env"]["PYTHONUTF8"] == "1" and R.LE.UTF8_MODE is False
 
 
 def test_src_layout_only_for_round2_validation(tmp_path, monkeypatch):

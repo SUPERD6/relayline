@@ -430,11 +430,44 @@ def test_changes(cache: Path, repo: str, sha: str) -> str | None:
 
 
 def _validate(cache, python, task, raw_dir):
-    previous, LE.SRC_ON_PATH = LE.SRC_ON_PATH, True  # src-layout packages import from src/, as long_check does
+    previous = LE.SRC_ON_PATH, LE.UTF8_MODE
+    LE.SRC_ON_PATH = True  # src-layout packages import from src/, as long_check does
+    LE.UTF8_MODE = True    # PYTHONUTF8=1, recorded as the task's pythonutf8 (#415)
     try:
         return LE.validate_task(cache, python, task, raw_dir, SUITE_TIMEOUT)
     finally:
-        LE.SRC_ON_PATH = previous
+        LE.SRC_ON_PATH, LE.UTF8_MODE = previous
+
+
+def _version_files(config: dict) -> list[str]:
+    """Version files a build backend writes at install time, as the pyproject declares them (#415):
+    setuptools-scm `version_file` / `write_to`, hatch's vcs build hook `version-file` (also per build target)."""
+    tool = config.get("tool") or {}
+    scm = tool.get("setuptools_scm") or {}
+    hatch = (tool.get("hatch") or {}).get("build") or {}
+    hooks = [(hatch.get("hooks") or {}).get("vcs") or {}]
+    hooks += [((t or {}).get("hooks") or {}).get("vcs") or {} for t in (hatch.get("targets") or {}).values()]
+    found = [scm.get("version_file"), scm.get("write_to")] + [h.get("version-file") for h in hooks]
+    paths = {f.strip().replace("\\", "/") for f in found if isinstance(f, str) and f.strip()}
+    return sorted(p[2:] if p.startswith("./") else p for p in paths)
+
+
+def version_stubs(cache: Path, repo: str, sha: str) -> list[str]:
+    """Install-time version files the parent's pyproject.toml declares and its tree does not contain (#415). They are
+    written with ext_repo's VERSION_STUB in validation and in the P4 run (the task's `stubs`), as for the hold-out set."""
+    import tomllib
+    try:
+        bare = LCand.bare_path(cache, repo)
+        text = E._git(None, f"--git-dir={bare}", "show", f"{sha}^:pyproject.toml")
+    except (FileNotFoundError, RuntimeError):  # no clone (then validation reports it) or no pyproject.toml
+        return []
+    try:
+        files = _version_files(tomllib.loads(text))
+    except tomllib.TOMLDecodeError:
+        return []
+    present = set(E._git(None, f"--git-dir={bare}", "ls-tree", "-r", "--name-only", f"{sha}^", "--", *files)
+                  .splitlines()) if files else set()
+    return [f for f in files if f not in present]
 
 
 def src_layout(cache: Path, repo: str, sha: str) -> bool:
@@ -524,6 +557,8 @@ def select_upstream(cache: Path, repos: list[dict], python: str, used: set[str],
             task = {**row, "id": f"r2-{repo}-{row['commit'][:12]}", "project": spec.get("project", repo),
                     "url": spec.get("url"), "group": group, **({"dev": True} if dev else {})}
             try:
+                # validated, and later run and scored, with these (#415)
+                task.update(stubs=version_stubs(cache, repo, row["commit"]), pythonutf8=True)
                 result = validator(cache, python, task, raw_dir)
             except Exception as exc:
                 result = {"valid": False, "error": f"{type(exc).__name__}: {exc}"[:300]}
@@ -621,13 +656,79 @@ def fetch_meta(snapshot: dict, out: Path, limit: int, get=None) -> list[str]:
     return missing
 
 
-def prepare(repos: list[dict], cache: Path, wheels: Path, python: str, run=subprocess.run) -> list[dict]:
-    """Clone each kept repository; download the latest release with test extras and install every wheel except
-    the kept packages themselves (its own and every other kept one), so no task's code sits in --ext-python.
-    A repository whose suite then lacks a dependency fails its parent baseline and is excluded with that reason.
-    Filled from the list, not by hand."""
+DEP_GROUPS = ("test", "tests", "testing", "dev")  # PEP 735 groups whose requirements prepare also downloads (#415)
+RUNNER = ("pytest",)  # always needed to run any suite; pinned like any other kept dependency when it is kept
+
+
+def _dist(filename: str) -> str:
+    return norm_name(re.split(r"-\d", filename, maxsplit=1)[0])
+
+
+def dependency_groups(config: dict, names=DEP_GROUPS) -> list[str]:
+    """Requirement strings of the named [dependency-groups] (PEP 735), with {include-group = ...} resolved."""
+    groups = config.get("dependency-groups") or {}
+    out, seen = [], set()
+
+    def walk(name):
+        if name in seen or name not in groups:
+            return
+        seen.add(name)
+        for item in groups[name] or ():
+            if isinstance(item, str) and item.strip():
+                out.append(item.strip())
+            elif isinstance(item, dict) and isinstance(item.get("include-group"), str):
+                walk(item["include-group"])
+    for name in names:
+        walk(name)
+    return list(dict.fromkeys(out))
+
+
+def _version_key(version: str):
+    m = re.fullmatch(r"(\d+(?:\.\d+)*)(?:\.post(\d+))?", version)
+    return (tuple(int(x) for x in m.group(1).split(".")), int(m.group(2) or 0)) if m else None
+
+
+def pinned_version(meta: dict | None, before_ts: int) -> str | None:
+    """The highest final release (no pre-release or dev, not wholly yanked) first uploaded before `before_ts` (#415).
+    With before_ts = the selection date limit, it predates every candidate commit, so it cannot hold any task's change
+    (env-check's rule: an installed release older than the commit)."""
+    best = None
+    for version, files in ((meta or {}).get("releases") or {}).items():
+        key = _version_key(version)
+        live = [f for f in files or () if not f.get("yanked")]
+        released = _upload_ts({"releases": {version: live}}, version) if live else None
+        if key is not None and released is not None and released < before_ts and (best is None or key > best[0]):
+            best = (key, version)
+    return best[1] if best else None
+
+
+def _install(run, python, files) -> bool:
+    if not files:
+        return True
+    i = run([python, "-m", "pip", "install", "--quiet", "--no-index", "--no-deps", *map(str, files)],
+            capture_output=True, text=True, encoding="utf-8", errors="replace")
+    return i.returncode == 0
+
+
+def _download(run, python, target: Path, *reqs) -> bool:
+    d = run([python, "-m", "pip", "download", "--quiet", "-d", str(target), *reqs],
+            capture_output=True, text=True, encoding="utf-8", errors="replace")
+    return d.returncode == 0
+
+
+def prepare(repos: list[dict], cache: Path, wheels: Path, python: str, run=subprocess.run,
+            meta_dir: Path | None = None, since: str = SINCE) -> dict:
+    """Clone each kept repository; download the latest release with test extras, plus the requirements of its
+    [dependency-groups] test/tests/testing/dev at the clone's HEAD (#415), and install every wheel except the kept
+    packages, so no task's code sits in --ext-python at a version that could hold it. A kept package that another
+    repository needs (or the test runner, pytest) is installed at its highest final release uploaded before `since`
+    (the selection date limit), with its own dependencies under the same rule (#415): older than every candidate
+    commit, so never a task's change. A repository whose suite still lacks a dependency fails its parent baseline and
+    is excluded with that reason. Filled from the list, not by hand."""
+    import tomllib
     rows = []
     kept = {norm_name(r["project"]) for r in repos}
+    needed = {norm_name(r) for r in RUNNER} & kept
     for spec in repos:
         row = {"repo": spec["repo"], "project": spec["project"]}
         try:
@@ -637,18 +738,41 @@ def prepare(repos: list[dict], cache: Path, wheels: Path, python: str, run=subpr
             row.update(cloned=False, error=str(exc)[:300])
         target = wheels / norm_name(spec["project"])
         extras = ",".join(TEST_EXTRAS)
-        d = run([python, "-m", "pip", "download", "--quiet", "-d", str(target), f"{spec['project']}[{extras}]"],
-                capture_output=True, text=True, encoding="utf-8", errors="replace")
-        row["downloaded"] = d.returncode == 0
+        row["downloaded"] = _download(run, python, target, f"{spec['project']}[{extras}]")
+        groups = []
+        try:
+            bare = LCand.bare_path(cache, spec["repo"])
+            groups = dependency_groups(tomllib.loads(E._git(None, f"--git-dir={bare}", "show", "HEAD:pyproject.toml")))
+        except (FileNotFoundError, RuntimeError, tomllib.TOMLDecodeError):
+            pass
+        if groups:
+            row["dependency_groups"] = groups
+            row["groups_failed"] = [r for r in groups if not _download(run, python, target, r)]
         files = sorted(p for p in target.glob("*") if p.is_file()) if target.is_dir() else []
-        deps = [str(p) for p in files if norm_name(re.split(r"-\d", p.name, maxsplit=1)[0]) not in kept]
-        row["skipped_kept_packages"] = sorted({norm_name(re.split(r"-\d", p.name, maxsplit=1)[0]) for p in files} & kept)
+        deps = [p for p in files if _dist(p.name) not in kept]
+        row["skipped_kept_packages"] = sorted({_dist(p.name) for p in files} & kept)
+        needed |= set(row["skipped_kept_packages"]) - {norm_name(spec["project"])}
         if deps:
-            i = run([python, "-m", "pip", "install", "--quiet", "--no-index", "--no-deps", *deps],
-                    capture_output=True, text=True, encoding="utf-8", errors="replace")
-            row["installed"] = i.returncode == 0
+            row["installed"] = _install(run, python, deps)
         rows.append(row)
-    return rows
+    pins, todo, before = {}, sorted(needed), _since_ts(since)
+    while todo:  # kept dependencies of the pinned packages are pinned the same way
+        name = todo.pop(0)
+        path = Path(meta_dir) / f"{name}.json" if meta_dir else None
+        version = pinned_version(read_json(path) if path and path.is_file() else None, before)
+        pin = pins[name] = {"version": version}
+        if version is None:
+            pin["reason"] = f"no final release before {since} in the PyPI metadata"
+            continue
+        target = wheels / "_pins" / f"{name}-{version}"
+        pin["downloaded"] = _download(run, python, target, f"{name}=={version}")
+        files = sorted(p for p in target.glob("*") if p.is_file()) if target.is_dir() else []
+        own = [p for p in files if _dist(p.name) == name]
+        other_kept = sorted({_dist(p.name) for p in files} & kept - {name})
+        todo += [k for k in other_kept if k not in pins and k not in todo]
+        pin["installed"] = _install(run, python, own + [p for p in files if _dist(p.name) not in kept])
+    return {"rule": f"kept packages never installed at their latest release; a kept dependency (and {', '.join(RUNNER)})"
+                    f" at its highest final release uploaded before {since}", "repos": rows, "pins": pins}
 
 
 # ---------------------------------------------------------------- manifest
@@ -686,6 +810,7 @@ def main(argv=None) -> int:
     s = sub.add_parser("prepare"); s.add_argument("--repos-json", type=Path, required=True)
     s.add_argument("--ext-cache", type=Path, required=True); s.add_argument("--wheels", type=Path, required=True)
     s.add_argument("--ext-python", required=True); s.add_argument("--out", type=Path, required=True)
+    s.add_argument("--pypi-meta", type=Path, help="the meta step's folder: release dates for pinning kept dependencies")
     s = sub.add_parser("select"); s.add_argument("--repos-json", type=Path, required=True)
     s.add_argument("--ext-cache", type=Path, required=True); s.add_argument("--ext-python", required=True)
     s.add_argument("--out", type=Path, required=True); s.add_argument("--raw-dir", type=Path)
@@ -712,8 +837,11 @@ def main(argv=None) -> int:
         print(f"kept {len(data['kept'])}, excluded {len(data['excluded'])}")
         return 0
     if a.cmd == "prepare":
-        rows = prepare(read_json(a.repos_json)["kept"], a.ext_cache, a.wheels, a.ext_python)
-        write_json(a.out, rows)
+        data = prepare(read_json(a.repos_json)["kept"], a.ext_cache, a.wheels, a.ext_python, meta_dir=a.pypi_meta)
+        write_json(a.out, data)
+        unpinned = sorted(k for k, v in data["pins"].items() if not v.get("installed"))
+        print(f"prepared {len(data['repos'])} repositories; pinned {len(data['pins'])} kept dependencies"
+              + (f"; not installed: {', '.join(unpinned)}" if unpinned else ""))
         return 0
     if a.cmd == "select":
         if not a.ext_cache.is_dir():

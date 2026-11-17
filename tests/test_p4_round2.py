@@ -414,6 +414,27 @@ def test_src_layout_task_runs_with_src_on_pythonpath(fake_engine, monkeypatch, t
     assert all("PYTHONPATH=." in e["prompt"] and "PYTHONPATH='src" not in e["prompt"] for e in flat)
 
 
+def test_round2_task_stubs_and_utf8_reach_the_run_and_the_score(monkeypatch, tmp_path):
+    """#415: a task validated with install-time version stubs and PYTHONUTF8=1 is run and scored the same way."""
+    from test_p4_long_session import tree
+    repo = tmp_path / "repo"
+    P.reset_repo(repo, tree({"pkg/__init__.py": "", "tests/test_old.py": "# old"}), stubs=["pkg/_version.py"])
+    assert (repo / "pkg/_version.py").read_text(encoding="utf-8") == P.E.VERSION_STUB
+    assert "pkg/_version.py" in P.E._git(repo, "ls-files")
+    P.reset_repo(repo, tree({"pkg/__init__.py": ""}))
+    assert not (repo / "pkg/_version.py").exists()
+    seen = []
+    monkeypatch.setattr(P.PF, "run", lambda argv, cwd, env, timeout: seen.append(env) or ("1 passed", "", 0, None))
+    monkeypatch.delenv("PYTHONUTF8", raising=False)
+    P.run_hidden(repo, ["tests/t.py"], "py", utf8=True)
+    P.run_hidden(repo, ["tests/t.py"], "py")
+    assert seen[0]["PYTHONUTF8"] == "1" and "PYTHONUTF8" not in seen[1]
+    got = {}
+    monkeypatch.setattr(P, "run_hidden", lambda r, t, py, src_layout=False, utf8=False: got.update(utf8=utf8) or {})
+    P.score(repo, {"tests": [], "pythonutf8": True}, {"tar": tree({"pkg/__init__.py": ""}), "tests": {}}, "py")
+    assert got["utf8"] is True
+
+
 def test_src_layout_prompt_only_changes_the_pythonpath():
     task = {"brief": "Add frobnicate().", "code": ["pkg/mod.py"]}
     for arm in ("self", D.ARM, D.ARM2):
