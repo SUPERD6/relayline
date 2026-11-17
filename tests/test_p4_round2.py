@@ -414,6 +414,47 @@ def test_src_layout_task_runs_with_src_on_pythonpath(fake_engine, monkeypatch, t
     assert all("PYTHONPATH=." in e["prompt"] and "PYTHONPATH='src" not in e["prompt"] for e in flat)
 
 
+def test_utf8_and_stubs_do_not_leak_to_the_next_task_of_an_episode(fake_engine, monkeypatch, tmp_path):
+    """#415 review: the episode's environment is shared; PYTHONUTF8 and the stub belong to one task only."""
+    monkeypatch.delenv("PYTHONUTF8", raising=False)
+    a, ts, log = _r2_engine(fake_engine, monkeypatch, tmp_path, _ledger())
+    ts = ts[:2]
+    ts[0].update(pythonutf8=True, stubs=["pkg/_version.py"])
+    a.episode_size = 2
+    assert P.run_experiment(a, ts, P.schedule(ts, 1, ("self", "ccxlong"), 2)) == 0
+    entries = [json.loads(line) for line in log.read_text().splitlines()]
+    first = [e for e in entries if e["parent"].strip() == ts[0]["id"]]
+    second = [e for e in entries if e["parent"].strip() == ts[1]["id"]]
+    assert {e["session"] for e in first} & {e["session"] for e in second}   # one episode: same lead session
+    assert all(e["pythonutf8"] == "1" and e["stub"] for e in first)
+    assert all(e["pythonutf8"] is None and not e["stub"] for e in second)
+    env = {"PYTHONUTF8": "1"}
+    P.task_env(env, {"pythonutf8": True})
+    assert "PYTHONUTF8" not in P.task_env(env, {})
+    assert P.task_env(env, {}, "0")["PYTHONUTF8"] == "0"   # an inherited value comes back
+
+
+def test_round2_task_stubs_and_utf8_reach_the_run_and_the_score(monkeypatch, tmp_path):
+    """#415: a task validated with install-time version stubs and PYTHONUTF8=1 is run and scored the same way."""
+    from test_p4_long_session import tree
+    repo = tmp_path / "repo"
+    P.reset_repo(repo, tree({"pkg/__init__.py": "", "tests/test_old.py": "# old"}), stubs=["pkg/_version.py"])
+    assert (repo / "pkg/_version.py").read_text(encoding="utf-8") == P.E.VERSION_STUB
+    assert "pkg/_version.py" in P.E._git(repo, "ls-files")
+    P.reset_repo(repo, tree({"pkg/__init__.py": ""}))
+    assert not (repo / "pkg/_version.py").exists()
+    seen = []
+    monkeypatch.setattr(P.PF, "run", lambda argv, cwd, env, timeout: seen.append(env) or ("1 passed", "", 0, None))
+    monkeypatch.delenv("PYTHONUTF8", raising=False)
+    P.run_hidden(repo, ["tests/t.py"], "py", utf8=True)
+    P.run_hidden(repo, ["tests/t.py"], "py")
+    assert seen[0]["PYTHONUTF8"] == "1" and "PYTHONUTF8" not in seen[1]
+    got = {}
+    monkeypatch.setattr(P, "run_hidden", lambda r, t, py, src_layout=False, utf8=False: got.update(utf8=utf8) or {})
+    P.score(repo, {"tests": [], "pythonutf8": True}, {"tar": tree({"pkg/__init__.py": ""}), "tests": {}}, "py")
+    assert got["utf8"] is True
+
+
 def test_src_layout_prompt_only_changes_the_pythonpath():
     task = {"brief": "Add frobnicate().", "code": ["pkg/mod.py"]}
     for arm in ("self", D.ARM, D.ARM2):

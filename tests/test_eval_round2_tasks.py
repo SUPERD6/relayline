@@ -93,6 +93,7 @@ def test_groups_caps_and_size_rules(monkeypatch):
     monkeypatch.setattr(R, "compiled_files", lambda cache, repo: [])
     monkeypatch.setattr(R, "test_changes", lambda cache, repo, sha: None)
     monkeypatch.setattr(R, "src_layout", lambda cache, repo, sha: False)
+    monkeypatch.setattr(R, "installed_overlap", lambda *a, **k: None)
 
     def row(sha, ts, lines, files=1):
         return {"commit": sha * 40, "timestamp": ts, "tests": ["tests/test_a.py"], "code_lines": lines,
@@ -118,6 +119,7 @@ def _dev_setup(monkeypatch, hist, b_dev, c_dev, b_cap, c_cap):
     monkeypatch.setattr(R, "compiled_files", lambda cache, repo: [])
     monkeypatch.setattr(R, "test_changes", lambda cache, repo, sha: None)
     monkeypatch.setattr(R, "src_layout", lambda cache, repo, sha: False)
+    monkeypatch.setattr(R, "installed_overlap", lambda *a, **k: None)  # no real --ext-python in these tests
     monkeypatch.setattr(R.LCand, "history", lambda cache, repo: hist[repo])
 
 
@@ -197,6 +199,7 @@ def test_cli_select_reports_dev_and_downstream_includes_dev(tmp_path, monkeypatc
     _dev_setup(monkeypatch, {"r1": [_row("a", t, 80), _row("c", t - 1, 160), _row("d", t - 2, 80)]},
                b_dev=2, c_dev=1, b_cap=6, c_cap=4)
     monkeypatch.setattr(R, "_validate", lambda *a: {"valid": True})
+    monkeypatch.setattr(R, "installed_overlap", lambda *a, **k: None)  # no real --ext-python here (#415)
     monkeypatch.setattr(R, "corpus", lambda **k: {"repos": set()})
     (tmp_path / "cache").mkdir()
     (tmp_path / "repos.json").write_text(json.dumps({"kept": [{"repo": "r1"}]}), encoding="utf-8")
@@ -208,6 +211,7 @@ def test_cli_select_reports_dev_and_downstream_includes_dev(tmp_path, monkeypatc
     assert "dev B 1/2, C 0/1" in printed and "author" in printed
     data = json.loads(out.read_text(encoding="utf-8"))
     assert [t["commit"][0] for t in data["dev"]["B"]] == ["d"]
+    assert set(data["environment"]) == {"ext_python_version", "prepare_json_sha256"}  # recorded (#415)
     # env-check covers the development tasks too
     seen = []
     monkeypatch.setattr(R, "own_package", lambda py, project, ts, meta, run: seen.append(project) or {"ok": True})
@@ -383,17 +387,251 @@ def test_prepare_installs_dependencies_but_not_the_package(tmp_path, monkeypatch
             for name in ("my_pkg-2.0-py3-none-any.whl", "attrs-25.1.0-py3-none-any.whl"):
                 (d / name).write_bytes(b"")
         return subprocess.CompletedProcess(cmd, 0, "", "")
-    rows = R.prepare([{"repo": "my-pkg", "project": "my-pkg", "url": "u"}, {"repo": "attrs", "project": "attrs", "url": "u"}],
-                     tmp_path / "c", tmp_path / "w", "py", run)
-    installs = [c for c in calls if "install" in c]
-    assert installs == []  # attrs is itself a kept repository: neither package is installed for any task
-    assert rows[0]["skipped_kept_packages"] == ["attrs", "my-pkg"] and rows[0]["cloned"]
+    two = [{"repo": "my-pkg", "project": "my-pkg", "url": "u"}, {"repo": "attrs", "project": "attrs", "url": "u"}]
+    with pytest.raises(ValueError, match="--pypi-meta"):  # kept dependencies but no release dates to pin them
+        R.prepare(two, tmp_path / "c", tmp_path / "w", "py", run)
     calls.clear()
-    rows = R.prepare([{"repo": "my-pkg", "project": "my-pkg", "url": "u"}], tmp_path / "c", tmp_path / "w2", "py", run)
+    (tmp_path / "meta").mkdir()
+    data = R.prepare(two, tmp_path / "c", tmp_path / "w", "py", run, meta_dir=tmp_path / "meta")
+    rows = data["repos"]
+    installs = [c for c in calls if "install" in c]
+    assert installs == []  # attrs is itself a kept repository: no latest release of either; no metadata, so no pin
+    assert rows[0]["skipped_kept_packages"] == ["attrs", "my-pkg"] and rows[0]["cloned"]
+    assert {k: v["version"] for k, v in data["pins"].items()} == {"attrs": None, "my-pkg": None}  # each needs the other
+    calls.clear()
+    rows = R.prepare([{"repo": "my-pkg", "project": "my-pkg", "url": "u"}], tmp_path / "c", tmp_path / "w2", "py",
+                     run)["repos"]
     install = next(c for c in calls if "install" in c)
     assert "--no-index" in install and any(a.endswith("attrs-25.1.0-py3-none-any.whl") for a in install)
     assert not any("my_pkg" in a for a in install)
     assert rows[0]["installed"]
+
+
+def _rel(version, when, **extra):
+    return {version: [{"upload_time_iso_8601": when, **extra}]}
+
+
+def test_pinned_version_is_the_highest_final_release_before_the_date_limit():
+    """#415: kept dependencies are installed at a release older than every candidate commit."""
+    meta = {"releases": {**_rel("1.9", "2026-03-01T00:00:00Z"), **_rel("1.10", "2026-05-01T00:00:00Z"),
+                         **_rel("1.10.post1", "2026-05-02T00:00:00Z"), **_rel("2.0rc1", "2026-06-01T00:00:00Z"),
+                         **_rel("1.11", "2026-06-20T00:00:00Z", yanked=True),
+                         **_rel("2.0", "2026-07-02T00:00:00Z"), "0.1": []}}
+    assert R.pinned_version(meta, R._since_ts("2026-07-01")) == "1.10.post1"
+    assert R.pinned_version(meta, R._since_ts("2026-01-01")) is None
+    assert R.pinned_version(None, R._since_ts("2026-07-01")) is None
+
+
+def test_prepare_pins_kept_dependencies_and_the_runner_before_the_date_limit(tmp_path, monkeypatch):
+    calls = []
+    monkeypatch.setattr(R.E, "fetch", lambda name, spec, cache: cache / name)
+    dl = {"my-pkg": ["my_pkg-2.0-py3-none-any.whl", "attrs-25.1.0-py3-none-any.whl", "other-1.0-py3-none-any.whl"],
+          "attrs==24.1.0": ["attrs-24.1.0-py3-none-any.whl", "six-1.0-py3-none-any.whl", "dep-3.0-py3-none-any.whl"],
+          "six==1.0": ["six-1.0-py3-none-any.whl"], "pytest==8.0": ["pytest-8.0-py3-none-any.whl"]}
+    def run(cmd, **kw):
+        calls.append(cmd)
+        if "download" in cmd:
+            d = Path(cmd[cmd.index("-d") + 1])
+            d.mkdir(parents=True, exist_ok=True)
+            for name in dl.get(cmd[-1].split("[")[0], []):
+                (d / name).write_bytes(b"")
+        return subprocess.CompletedProcess(cmd, 0, "", "")
+    meta = tmp_path / "meta"
+    meta.mkdir()
+    for name, rel in (("attrs", {**_rel("24.1.0", "2026-06-01T00:00:00Z"), **_rel("25.1.0", "2026-08-01T00:00:00Z")}),
+                      ("six", _rel("1.0", "2020-01-01T00:00:00Z")), ("pytest", _rel("8.0", "2026-01-01T00:00:00Z")),
+                      ("my-pkg", _rel("1.0", "2026-01-01T00:00:00Z"))):
+        (meta / f"{name}.json").write_text(json.dumps({"releases": rel}), encoding="utf-8")
+    repos = [{"repo": n, "project": n, "url": "u"} for n in ("my-pkg", "attrs", "six", "pytest")]
+    data = R.prepare(repos, tmp_path / "c", tmp_path / "w", "py", run, meta_dir=meta)
+    assert {k: v["version"] for k, v in data["pins"].items()} == {"attrs": "24.1.0", "pytest": "8.0", "six": "1.0"}
+    installed = [Path(a).name for c in calls if "install" in c for a in c if a.endswith(".whl")]
+    assert "attrs-24.1.0-py3-none-any.whl" in installed and "dep-3.0-py3-none-any.whl" in installed
+    assert "attrs-25.1.0-py3-none-any.whl" not in installed      # never the latest release of a kept package
+    assert not [n for n in installed if n.startswith("my_pkg")]  # nobody needs my-pkg: not installed at all
+    assert installed.count("six-1.0-py3-none-any.whl") == 1      # the pin's kept dependency, pinned once
+
+
+def test_dependency_groups_resolve_includes_and_prepare_downloads_them(tmp_path, monkeypatch):
+    config = {"dependency-groups": {"test": ["pytest>=8", {"include-group": "extra"}, "trustme"],
+                                    "extra": ["hypothesis"], "docs": ["sphinx"]}}
+    assert R.dependency_groups(config) == ["pytest>=8", "hypothesis", "trustme"]  # in order, includes in place
+    calls = []
+    monkeypatch.setattr(R.E, "fetch", lambda name, spec, cache: cache / name)
+    monkeypatch.setattr(R.LCand, "bare_path", lambda cache, repo: cache / repo)
+    monkeypatch.setattr(R.E, "_git", lambda *a, **k: '[dependency-groups]\ntest = ["trustme"]\n')
+    run = lambda cmd, **kw: calls.append(cmd) or subprocess.CompletedProcess(cmd, 0, "", "")
+    rows = R.prepare([{"repo": "anyio", "project": "anyio", "url": "u"}], tmp_path / "c", tmp_path / "w", "py", run)
+    assert rows["repos"][0]["dependency_groups"] == ["trustme"] and rows["repos"][0]["groups_failed"] == []
+    assert any(c[-1] == "trustme" and "download" in c for c in calls)
+
+
+def test_version_stubs_from_pyproject(tmp_path):
+    """#415: setuptools-scm / hatch-vcs version files missing from the parent tree become stubs."""
+    assert R._version_files({"tool": {"setuptools_scm": {"write_to": "src/_pytest/_version.py"}}}) == [
+        "src/_pytest/_version.py"]
+    assert R._version_files({"tool": {"hatch": {"build": {"hooks": {"vcs": {"version-file": "./src/f/version.py"}},
+                                                          "targets": {"wheel": {"hooks": {"vcs": {
+                                                              "version-file": "src/g/_v.py"}}}}}}}}) == [
+        "src/f/version.py", "src/g/_v.py"]
+    work = tmp_path / "w"
+    work.mkdir()
+    _git(work, "init", "-q", "-b", "main")
+    _commit(work, {"pyproject.toml": '[tool.setuptools_scm]\nversion_file = "pkg/_version.py"\n'
+                                     '[tool.hatch.build.hooks.vcs]\nversion-file = "pkg/tracked.py"\n',
+                   "pkg/tracked.py": "x = 1\n"}, "2026-08-01T00:00:00+00:00", "p")
+    sha = _commit(work, {"pkg/a.py": "a = 1\n"}, "2026-08-02T00:00:00+00:00", "c")
+    cache = tmp_path / "cache"
+    _git(tmp_path, "clone", "-q", "--bare", str(work), str(cache / "pkg.git"))
+    assert R.version_stubs(cache, "pkg", sha) == ["pkg/_version.py"]
+    assert R.version_stubs(cache, "missing", sha) == []
+    repo = tmp_path / "built"
+    R.LE.build(R.E.archive(cache / "pkg.git", sha + "^"), repo, ["pkg/_version.py"])
+    assert (repo / "pkg/_version.py").read_text(encoding="utf-8") == R.E.VERSION_STUB
+    assert "pkg/_version.py" in R.E._git(repo, "ls-files")
+
+
+def test_installed_overlap_finds_a_change_already_in_the_installed_package(tmp_path):
+    """#415 review: dates are not proof; a commit whose new lines the installed release already has is a leak."""
+    work = tmp_path / "w"
+    work.mkdir()
+    _git(work, "init", "-q", "-b", "main")
+    _commit(work, {"pkg/__init__.py": "", "pkg/mod.py": "def old():\n    return 'an existing line that is long enough'\n"},
+            "2026-08-01T00:00:00+00:00", "p")
+    added = "    return compute_the_new_behaviour(value, strict=True)\n"
+    sha = _commit(work, {"pkg/mod.py": "def old():\n    return 'an existing line that is long enough'\n"
+                                       "def new(value):\n" + added + "    x = 1\n"},
+                  "2026-08-02T00:00:00+00:00", "c")
+    cache = tmp_path / "cache"
+    _git(tmp_path, "clone", "-q", "--bare", str(work), str(cache / "pkg.git"))
+    site = tmp_path / "site.py"
+
+    def fake(body, rc=0):
+        site.write_text(body, encoding="utf-8")
+        return lambda *a, **k: subprocess.CompletedProcess(a, rc, stdout=f"1.0\n{site}\n", stderr="")
+    hit = R.installed_overlap("py", "pkg", cache, "pkg", sha, fake("def new(value):\n" + added))
+    # short and old lines ignored; the only new line is a hit, so every new line is: a leak
+    assert (hit["hits"], hit["new_lines"], hit["installed"], hit["leak"]) == (1, 1, "1.0", True)
+    clean = R.installed_overlap("py", "pkg", cache, "pkg", sha, fake("return 'an existing line that is long enough'\n"))
+    assert clean["hits"] == 0 and clean["leak"] is False
+    absent = lambda *a, **k: subprocess.CompletedProcess(a, 0, stdout="", stderr="")
+    assert R.installed_overlap("py", "pkg", cache, "pkg", sha, absent) is None
+    no_files = lambda *a, **k: subprocess.CompletedProcess(a, 0, stdout="1.0\n", stderr="")
+    assert R.installed_overlap("py", "pkg", cache, "pkg", sha, no_files)["status"] == "unknown"
+    broken = lambda *a, **k: subprocess.CompletedProcess(a, 1, stdout="", stderr="boom")
+    assert R.installed_overlap("py", "pkg", cache, "pkg", sha, broken)["status"] == "unknown"
+
+
+def test_installed_overlap_ignores_common_lines_of_a_new_file(tmp_path):
+    """#415 re-review: a new file's boilerplate (found elsewhere in the parent tree) is not a new line."""
+    work = tmp_path / "w"
+    work.mkdir()
+    _git(work, "init", "-q", "-b", "main")
+    common = "from __future__ import annotations\nfrom typing import TYPE_CHECKING, Any, Iterable\n"
+    _commit(work, {"pkg/__init__.py": "", "pkg/a.py": common + "def a():\n    return 1\n"},
+            "2026-08-01T00:00:00+00:00", "p")
+    one = "    return frobnicate_everything(items, depth=3)\n"
+    two = "    raise ValueError(f'cannot frobnicate {items!r} at all')\n"
+    sha = _commit(work, {"pkg/b.py": common + "def b(items):\n" + one + "def c(items):\n" + two},
+                  "2026-08-02T00:00:00+00:00", "c")
+    cache = tmp_path / "cache"
+    _git(tmp_path, "clone", "-q", "--bare", str(work), str(cache / "pkg.git"))
+    site = tmp_path / "site.py"
+
+    def fake(body):
+        site.write_text(body, encoding="utf-8")
+        return lambda *a, **k: subprocess.CompletedProcess(a, 0, stdout=f"1.0\n{site}\n", stderr="")
+    boiler = R.installed_overlap("py", "pkg", cache, "pkg", sha, fake(common))
+    assert boiler["new_lines"] == 2 and boiler["hits"] == 0 and boiler["leak"] is False
+    partly = R.installed_overlap("py", "pkg", cache, "pkg", sha, fake(one))
+    assert partly["hits"] == 1 and partly["leak"] is False   # one of two new lines: below LEAK_HITS, not all
+    both = R.installed_overlap("py", "pkg", cache, "pkg", sha, fake(one + two))
+    assert both["hits"] == 2 and both["leak"] is True and len(both["examples"]) == 2
+
+
+def test_select_excludes_a_commit_the_installed_package_already_holds(monkeypatch):
+    _dev_setup(monkeypatch, {"r1": [_row("a", 2_000_000_000, 80), _row("b", 1_999_999_999, 80),
+                                    _row("c", 1_999_999_998, 80), _row("d", 1_999_999_997, 80)]}, 0, 0, 6, 4)
+    monkeypatch.setattr(R, "B_TAKE", 5)
+
+    def seen(py, project, cache, repo, sha):
+        if sha.startswith("a"):
+            return {"status": "compared", "installed": "1.0", "new_lines": 4, "hits": 2, "examples": ["x = 1"],
+                    "leak": True}
+        if sha.startswith("b"):
+            return {"status": "unknown", "installed": "1.0", "error": "the distribution lists no .py files"}
+        if sha.startswith("c"):
+            raise subprocess.TimeoutExpired("py", 120)
+        return {"status": "compared", "installed": "1.0", "new_lines": 4, "hits": 1, "examples": [], "leak": False}
+    out = R.select_upstream(Path("x"), [{"repo": "r1", "project": "r1"}], "py", set(),
+                            validator=lambda *a: {"valid": True}, overlap=seen)
+    assert [t["commit"][0] for t in out["B"]] == ["d"]
+    ex = {e["commit"][0]: e for e in out["exclusions"] if "commit" in e}
+    assert ex["a"]["reason"] == "installed r1 1.0 already has 2 of the 4 new line(s) the commit adds"
+    assert ex["a"]["examples"] == ["x = 1"] and ex["a"]["installed"] == "1.0"
+    assert ex["b"]["reason"] == "cannot compare installed r1 1.0: the distribution lists no .py files"
+    assert ex["c"]["reason"].startswith("cannot compare installed r1: TimeoutExpired")
+    assert out["rule"]["installed_overlap"] == R.OVERLAP_RULE and str(R.LEAK_LINE) in R.OVERLAP_RULE
+
+
+def test_install_retries_each_file_and_prepare_freezes_pip_list(tmp_path, monkeypatch):
+    def run(cmd, **kw):
+        if "list" in cmd:
+            return subprocess.CompletedProcess(cmd, 0, json.dumps([{"name": "B", "version": "2"},
+                                                                   {"name": "a", "version": "1"}]), "")
+        bad = any(str(x).endswith("bad.tar.gz") for x in cmd)
+        return subprocess.CompletedProcess(cmd, 1 if bad else 0, "", "")
+    failed = []
+    assert R._install(run, "py", ["ok-1.whl", "bad.tar.gz", "ok2-1.whl"], failed) is False
+    assert failed == ["bad.tar.gz"]
+    monkeypatch.setattr(R.E, "fetch", lambda name, spec, cache: cache / name)
+    data = R.prepare([], tmp_path / "c", tmp_path / "w", "py", run)
+    assert data["pip_list"] == [{"name": "a", "version": "1"}, {"name": "B", "version": "2"}]
+    (tmp_path / "repos.json").write_text(json.dumps({"kept": []}), encoding="utf-8")
+    monkeypatch.setattr(R, "prepare", lambda *a, **k: {"repos": [], "pins": {}, "pip_list": None})
+    assert R.main(["prepare", "--repos-json", str(tmp_path / "repos.json"), "--ext-cache", str(tmp_path / "c"),
+                   "--wheels", str(tmp_path / "w"), "--ext-python", "py", "--out", str(tmp_path / "p.json")]) == 1
+
+
+def test_version_files_stay_inside_the_tree():
+    scm = lambda p: {"tool": {"setuptools_scm": {"version_file": p}}}
+    assert R._version_files(scm("/abs/v.py")) == [] and R._version_files(scm("../out/v.py")) == []
+    assert R._version_files(scm("C:/v.py")) == [] and R._version_files(scm("a/../../v.py")) == []
+
+
+def test_authored_check_runs_with_utf8(tmp_path):
+    root = tmp_path / "t"
+    for part in ("start", "reference"):
+        (root / part).mkdir(parents=True)
+    (root / "hidden").mkdir()
+    (root / "hidden/test_h.py").write_text("def test_h():\n    assert 1\n", encoding="utf-8")
+    (root / "task.json").write_text(json.dumps({"id": "x", "brief": "b", "hidden_tests": ["test_h.py"]}), encoding="utf-8")
+    seen = []
+    run = lambda tree, tests, python: seen.append(R.LE.environment(tree, sys.executable, tree / "t").get("PYTHONUTF8")) \
+        or {"rc": 0}
+    out = R.check_authored(root, "py", run)
+    assert seen == ["1", "1", "1"] and out["pythonutf8"] is True and R.LE.UTF8_MODE is False
+
+
+def test_select_records_stubs_and_utf8(monkeypatch):
+    _dev_setup(monkeypatch, {"r1": [_row("a", 2_000_000_000, 80)]}, 0, 0, 6, 4)
+    monkeypatch.setattr(R, "version_stubs", lambda cache, repo, sha: ["src/r1/_version.py"])
+    seen = []
+    out = R.select_upstream(Path("x"), [{"repo": "r1"}], "py", set(),
+                            validator=lambda c, p, task, r: seen.append(dict(task)) or {"valid": True})
+    assert seen[0]["stubs"] == ["src/r1/_version.py"] and seen[0]["pythonutf8"] is True
+    assert out["B"][0]["stubs"] == ["src/r1/_version.py"] and out["B"][0]["pythonutf8"] is True
+
+
+def test_utf8_mode_for_round2_validation_and_tasks(tmp_path, monkeypatch):
+    monkeypatch.delenv("PYTHONUTF8", raising=False)
+    assert "PYTHONUTF8" not in R.LE.environment(tmp_path, sys.executable, tmp_path / "t")
+    assert R.LE.environment(tmp_path, sys.executable, tmp_path / "t", utf8=True)["PYTHONUTF8"] == "1"
+    seen = {}
+    monkeypatch.setattr(R.LE, "validate_task", lambda *a: seen.setdefault(
+        "env", R.LE.environment(tmp_path, sys.executable, tmp_path / "t")))
+    R._validate(Path("c"), "py", {"commit": "x"}, None)
+    assert seen["env"]["PYTHONUTF8"] == "1" and R.LE.UTF8_MODE is False
 
 
 def test_src_layout_only_for_round2_validation(tmp_path, monkeypatch):
