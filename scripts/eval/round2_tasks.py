@@ -302,11 +302,16 @@ def check_authored(task_dir: Path, python: str, run=None) -> dict:
     run = run or LE.hidden
     task = read_json(task_dir / "task.json")
     hidden = {rel: (task_dir / "hidden" / rel).read_bytes() for rel in task["hidden_tests"]}
-    with tempfile.TemporaryDirectory(prefix="r2-authored-") as tmp:
-        root = Path(tmp)
-        existing = run(_tree_with(task_dir / "start", root / "existing", {}), [], python)
-        parent = run(_tree_with(task_dir / "start", root / "start", hidden), task["hidden_tests"], python)
-        reference = run(_tree_with(task_dir / "reference", root / "reference", hidden), task["hidden_tests"], python)
+    previous, LE.UTF8_MODE = LE.UTF8_MODE, True  # PYTHONUTF8=1 like upstream tasks; frozen as pythonutf8 (#415)
+    try:
+        with tempfile.TemporaryDirectory(prefix="r2-authored-") as tmp:
+            root = Path(tmp)
+            existing = run(_tree_with(task_dir / "start", root / "existing", {}), [], python)
+            parent = run(_tree_with(task_dir / "start", root / "start", hidden), task["hidden_tests"], python)
+            reference = run(_tree_with(task_dir / "reference", root / "reference", hidden), task["hidden_tests"],
+                            python)
+    finally:
+        LE.UTF8_MODE = previous
     briefs = brief_checks(task["brief"], {k: v.decode("utf-8") for k, v in hidden.items()}, task.get("trace", []))
     problems = []
     if existing["rc"] != 0:
@@ -317,7 +322,7 @@ def check_authored(task_dir: Path, python: str, run=None) -> dict:
         problems.append(f"reference fails hidden tests (rc={reference['rc']})")
     if not briefs["trace_complete"]:
         problems.append("trace table incomplete")
-    return {"id": task["id"], "existing": existing, "start": parent, "reference": reference, **briefs,
+    return {"id": task["id"], "pythonutf8": True, "existing": existing, "start": parent, "reference": reference, **briefs,
             "problems": problems, "valid": not problems,
             "review": [f"literal {o['literal']!r} of {o['assertion']} appears in the brief" for o in briefs["literal_overlap"]]}
 
@@ -449,7 +454,9 @@ def _version_files(config: dict) -> list[str]:
     hooks += [((t or {}).get("hooks") or {}).get("vcs") or {} for t in (hatch.get("targets") or {}).values()]
     found = [scm.get("version_file"), scm.get("write_to")] + [h.get("version-file") for h in hooks]
     paths = {f.strip().replace("\\", "/") for f in found if isinstance(f, str) and f.strip()}
-    return sorted(p[2:] if p.startswith("./") else p for p in paths)
+    paths = {p[2:] if p.startswith("./") else p for p in paths}
+    # only relative paths inside the tree: no absolute path, drive or '..' part
+    return sorted(p for p in paths if not p.startswith("/") and ":" not in p and ".." not in p.split("/"))
 
 
 def version_stubs(cache: Path, repo: str, sha: str) -> list[str]:
@@ -476,6 +483,44 @@ def src_layout(cache: Path, repo: str, sha: str) -> bool:
     return bool(E._git(None, f"--git-dir={bare}", "ls-tree", "-d", "--name-only", f"{sha}^", "src").strip())
 
 
+OWN_FILES = ("import importlib.metadata as m, sys\n"
+             "try:\n    d = m.distribution(sys.argv[1])\nexcept m.PackageNotFoundError:\n    sys.exit(0)\n"
+             "print(d.version)\n"
+             "for f in d.files or ():\n    print(d.locate_file(f)) if str(f).endswith('.py') else None\n")
+LEAK_LINE = 30  # an added line this long (stripped, not a comment) found in the installed package is a hit
+
+
+def installed_overlap(python: str, project: str, cache: Path, repo: str, sha: str, run=subprocess.run) -> dict | None:
+    """#415 review: the task's own distribution may sit in --ext-python (a kept package pinned as another repository's
+    dependency). Lines the commit adds to its code files (at least LEAK_LINE characters, not comments, not already in
+    those files at the parent) that also appear in the installed package's .py files mean the installed release
+    already holds (part of) the change, whatever the dates say; such a commit is excluded. None: not installed."""
+    r = run([python, "-c", OWN_FILES, project], capture_output=True, text=True, encoding="utf-8", timeout=120)
+    lines = (r.stdout or "").splitlines()
+    if r.returncode != 0 or not lines:
+        return None
+    installed = set()
+    for name in lines[1:]:
+        try:
+            installed |= {s.strip() for s in Path(name).read_text(encoding="utf-8", errors="replace").splitlines()}
+        except OSError:
+            continue
+    bare = LCand.bare_path(cache, repo)
+    code = [n for n in E._git(None, f"--git-dir={bare}", "diff", "--name-only", f"{sha}^", sha).splitlines()
+            if LCand.is_code(n)]
+    before = set()
+    for name in code:
+        try:
+            before |= {s.strip() for s in E._git(None, f"--git-dir={bare}", "show", f"{sha}^:{name}").splitlines()}
+        except RuntimeError:  # added by the commit
+            pass
+    diff = E._git(None, f"--git-dir={bare}", "diff", "-U0", f"{sha}^", sha, "--", *code) if code else ""
+    added = {s[1:].strip() for s in diff.splitlines() if s.startswith("+") and not s.startswith("+++")}
+    new = sorted(s for s in added if len(s) >= LEAK_LINE and not s.startswith("#") and s not in before)
+    hits = [s for s in new if s in installed]
+    return {"installed": lines[0].strip(), "new_lines": len(new), "hits": len(hits), "examples": hits[:3]}
+
+
 def _why_invalid(result: dict) -> str:
     if (result.get("baseline") or {}).get("rc") != 0:
         return f"existing suite does not pass on parent (rc={(result.get('baseline') or {}).get('rc')})"
@@ -499,7 +544,9 @@ def _phase(b, c, b_dev, c_dev):
 
 
 def select_upstream(cache: Path, repos: list[dict], python: str, used: set[str], since: str = SINCE,
-                    raw_dir: Path | None = None, validator=None) -> dict:
+                    raw_dir: Path | None = None, validator=None, overlap=None) -> dict:
+    # a test that fakes the validator fakes (or skips) the --ext-python overlap check too
+    overlap = overlap or (installed_overlap if validator is None else (lambda *a, **k: None))
     validator = validator or _validate
     since_ts = _since_ts(since)
     b, c, b_dev, c_dev, exclusions, checked = [], [], [], [], [], []
@@ -550,6 +597,11 @@ def select_upstream(cache: Path, repos: list[dict], python: str, used: set[str],
                     reason = test_changes(cache, repo, row["commit"])
                 except RuntimeError as exc:
                     reason = f"cannot read the commit's changed files ({exc})"[:300]
+            if not reason:
+                found = overlap(python, spec.get("project", repo), cache, repo, row["commit"])
+                if found and found["hits"]:
+                    reason = (f"installed {spec.get('project', repo)} {found['installed']} already has "
+                              f"{found['hits']} of the {found['new_lines']} line(s) the commit adds")
             if reason:
                 exclusions.append({"repo": repo, "commit": row["commit"], "reason": reason,
                                    **({"dev": True} if dev else {})})
@@ -690,8 +742,9 @@ def _version_key(version: str):
 
 def pinned_version(meta: dict | None, before_ts: int) -> str | None:
     """The highest final release (no pre-release or dev, not wholly yanked) first uploaded before `before_ts` (#415).
-    With before_ts = the selection date limit, it predates every candidate commit, so it cannot hold any task's change
-    (env-check's rule: an installed release older than the commit)."""
+    With before_ts = the selection date limit, it was released before every candidate commit, which is env-check's
+    rule. Dates alone do not prove it lacks a task's change (a fix can be released from a maintenance branch before
+    its commit lands on main), so select also compares the installed files with each commit (installed_overlap)."""
     best = None
     for version, files in ((meta or {}).get("releases") or {}).items():
         key = _version_key(version)
@@ -702,12 +755,21 @@ def pinned_version(meta: dict | None, before_ts: int) -> str | None:
     return best[1] if best else None
 
 
-def _install(run, python, files) -> bool:
+def _install(run, python, files, failed: list | None = None) -> bool:
+    """All files in one pip call; if that fails, each file on its own, so one unusable file (an sdist that does not
+    build, a wheel for another platform) does not leave the rest out. Files that still fail go into `failed`."""
     if not files:
         return True
-    i = run([python, "-m", "pip", "install", "--quiet", "--no-index", "--no-deps", *map(str, files)],
-            capture_output=True, text=True, encoding="utf-8", errors="replace")
-    return i.returncode == 0
+    def once(batch):
+        i = run([python, "-m", "pip", "install", "--quiet", "--no-index", "--no-deps", *map(str, batch)],
+                capture_output=True, text=True, encoding="utf-8", errors="replace")
+        return i.returncode == 0
+    if once(files):
+        return True
+    bad = [Path(f).name for f in files if not once([f])]
+    if failed is not None:
+        failed += bad
+    return not bad
 
 
 def _download(run, python, target: Path, *reqs) -> bool:
@@ -722,9 +784,11 @@ def prepare(repos: list[dict], cache: Path, wheels: Path, python: str, run=subpr
     [dependency-groups] test/tests/testing/dev at the clone's HEAD (#415), and install every wheel except the kept
     packages, so no task's code sits in --ext-python at a version that could hold it. A kept package that another
     repository needs (or the test runner, pytest) is installed at its highest final release uploaded before `since`
-    (the selection date limit), with its own dependencies under the same rule (#415): older than every candidate
-    commit, so never a task's change. A repository whose suite still lacks a dependency fails its parent baseline and
-    is excluded with that reason. Filled from the list, not by hand."""
+    (the selection date limit), with its own dependencies under the same rule (#415): released before every
+    candidate commit, env-check's rule; select additionally excludes a commit whose added lines already appear in the
+    installed package (installed_overlap). A repository whose suite still lacks a dependency fails its parent
+    baseline and is excluded with that reason. The final `pip list` is part of the output. Filled from the list, not
+    by hand."""
     import tomllib
     rows = []
     kept = {norm_name(r["project"]) for r in repos}
@@ -753,13 +817,19 @@ def prepare(repos: list[dict], cache: Path, wheels: Path, python: str, run=subpr
         row["skipped_kept_packages"] = sorted({_dist(p.name) for p in files} & kept)
         needed |= set(row["skipped_kept_packages"]) - {norm_name(spec["project"])}
         if deps:
-            row["installed"] = _install(run, python, deps)
+            failed = []
+            row["installed"] = _install(run, python, deps, failed)
+            if failed:
+                row["install_failed"] = failed
         rows.append(row)
+    if needed and meta_dir is None:
+        raise ValueError("kept packages are needed as dependencies (" + ", ".join(sorted(needed)) + "); pass "
+                         "--pypi-meta (the meta step's folder) to pin them")
     pins, todo, before = {}, sorted(needed), _since_ts(since)
     while todo:  # kept dependencies of the pinned packages are pinned the same way
         name = todo.pop(0)
-        path = Path(meta_dir) / f"{name}.json" if meta_dir else None
-        version = pinned_version(read_json(path) if path and path.is_file() else None, before)
+        path = Path(meta_dir) / f"{name}.json"
+        version = pinned_version(read_json(path) if path.is_file() else None, before)
         pin = pins[name] = {"version": version}
         if version is None:
             pin["reason"] = f"no final release before {since} in the PyPI metadata"
@@ -770,9 +840,23 @@ def prepare(repos: list[dict], cache: Path, wheels: Path, python: str, run=subpr
         own = [p for p in files if _dist(p.name) == name]
         other_kept = sorted({_dist(p.name) for p in files} & kept - {name})
         todo += [k for k in other_kept if k not in pins and k not in todo]
-        pin["installed"] = _install(run, python, own + [p for p in files if _dist(p.name) not in kept])
-    return {"rule": f"kept packages never installed at their latest release; a kept dependency (and {', '.join(RUNNER)})"
-                    f" at its highest final release uploaded before {since}", "repos": rows, "pins": pins}
+        failed = []
+        pin["installed"] = _install(run, python, own + [p for p in files if _dist(p.name) not in kept], failed)
+        if failed:
+            pin["install_failed"] = failed
+    # what --ext-python holds at the end, frozen with the selection (#415 review)
+    f = run([python, "-m", "pip", "list", "--format=json", "--disable-pip-version-check"],
+            capture_output=True, text=True, encoding="utf-8", errors="replace")
+    try:
+        frozen = sorted(({"name": d["name"], "version": d["version"]} for d in json.loads(f.stdout or "")),
+                        key=lambda d: norm_name(d["name"]))
+    except (ValueError, TypeError, KeyError):
+        frozen = None
+    return {"rule": f"kept packages never installed at their latest release; a kept dependency (and "
+                    f"{', '.join(RUNNER)}) at its highest final release uploaded before {since}, kept dependencies of "
+                    f"a pin pinned the same way; test extras of each project's latest release plus the "
+                    f"[dependency-groups] {'/'.join(DEP_GROUPS)} of the clone's HEAD pyproject.toml",
+            "repos": rows, "pins": pins, "pip_list": frozen}
 
 
 # ---------------------------------------------------------------- manifest
@@ -837,7 +921,10 @@ def main(argv=None) -> int:
         print(f"kept {len(data['kept'])}, excluded {len(data['excluded'])}")
         return 0
     if a.cmd == "prepare":
-        data = prepare(read_json(a.repos_json)["kept"], a.ext_cache, a.wheels, a.ext_python, meta_dir=a.pypi_meta)
+        try:
+            data = prepare(read_json(a.repos_json)["kept"], a.ext_cache, a.wheels, a.ext_python, meta_dir=a.pypi_meta)
+        except ValueError as exc:
+            ap.error(str(exc))
         write_json(a.out, data)
         unpinned = sorted(k for k, v in data["pins"].items() if not v.get("installed"))
         print(f"prepared {len(data['repos'])} repositories; pinned {len(data['pins'])} kept dependencies"

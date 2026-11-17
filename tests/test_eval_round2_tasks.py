@@ -383,8 +383,12 @@ def test_prepare_installs_dependencies_but_not_the_package(tmp_path, monkeypatch
             for name in ("my_pkg-2.0-py3-none-any.whl", "attrs-25.1.0-py3-none-any.whl"):
                 (d / name).write_bytes(b"")
         return subprocess.CompletedProcess(cmd, 0, "", "")
-    data = R.prepare([{"repo": "my-pkg", "project": "my-pkg", "url": "u"}, {"repo": "attrs", "project": "attrs", "url": "u"}],
-                     tmp_path / "c", tmp_path / "w", "py", run)
+    two = [{"repo": "my-pkg", "project": "my-pkg", "url": "u"}, {"repo": "attrs", "project": "attrs", "url": "u"}]
+    with pytest.raises(ValueError, match="--pypi-meta"):  # kept dependencies but no release dates to pin them
+        R.prepare(two, tmp_path / "c", tmp_path / "w", "py", run)
+    calls.clear()
+    (tmp_path / "meta").mkdir()
+    data = R.prepare(two, tmp_path / "c", tmp_path / "w", "py", run, meta_dir=tmp_path / "meta")
     rows = data["repos"]
     installs = [c for c in calls if "install" in c]
     assert installs == []  # attrs is itself a kept repository: no latest release of either; no metadata, so no pin
@@ -481,6 +485,79 @@ def test_version_stubs_from_pyproject(tmp_path):
     R.LE.build(R.E.archive(cache / "pkg.git", sha + "^"), repo, ["pkg/_version.py"])
     assert (repo / "pkg/_version.py").read_text(encoding="utf-8") == R.E.VERSION_STUB
     assert "pkg/_version.py" in R.E._git(repo, "ls-files")
+
+
+def test_installed_overlap_finds_a_change_already_in_the_installed_package(tmp_path):
+    """#415 review: dates are not proof; a commit whose new lines the installed release already has is a leak."""
+    work = tmp_path / "w"
+    work.mkdir()
+    _git(work, "init", "-q", "-b", "main")
+    _commit(work, {"pkg/__init__.py": "", "pkg/mod.py": "def old():\n    return 'an existing line that is long enough'\n"},
+            "2026-08-01T00:00:00+00:00", "p")
+    added = "    return compute_the_new_behaviour(value, strict=True)\n"
+    sha = _commit(work, {"pkg/mod.py": "def old():\n    return 'an existing line that is long enough'\n"
+                                       "def new(value):\n" + added + "    x = 1\n"},
+                  "2026-08-02T00:00:00+00:00", "c")
+    cache = tmp_path / "cache"
+    _git(tmp_path, "clone", "-q", "--bare", str(work), str(cache / "pkg.git"))
+    site = tmp_path / "site.py"
+
+    def fake(body, rc=0):
+        site.write_text(body, encoding="utf-8")
+        return lambda *a, **k: subprocess.CompletedProcess(a, rc, stdout=f"1.0\n{site}\n", stderr="")
+    hit = R.installed_overlap("py", "pkg", cache, "pkg", sha, fake("def new(value):\n" + added))
+    assert hit["hits"] == 1 and hit["installed"] == "1.0" and hit["new_lines"] == 1  # short and old lines ignored
+    clean = R.installed_overlap("py", "pkg", cache, "pkg", sha, fake("return 'an existing line that is long enough'\n"))
+    assert clean["hits"] == 0
+    absent = lambda *a, **k: subprocess.CompletedProcess(a, 0, stdout="", stderr="")
+    assert R.installed_overlap("py", "pkg", cache, "pkg", sha, absent) is None
+
+
+def test_select_excludes_a_commit_the_installed_package_already_holds(monkeypatch):
+    _dev_setup(monkeypatch, {"r1": [_row("a", 2_000_000_000, 80), _row("b", 1_999_999_999, 80)]}, 0, 0, 6, 4)
+    monkeypatch.setattr(R, "B_TAKE", 5)
+    seen = lambda py, project, cache, repo, sha: ({"installed": "1.0", "new_lines": 4, "hits": 2, "examples": []}
+                                                  if sha.startswith("a") else None)
+    out = R.select_upstream(Path("x"), [{"repo": "r1", "project": "r1"}], "py", set(),
+                            validator=lambda *a: {"valid": True}, overlap=seen)
+    assert [t["commit"][0] for t in out["B"]] == ["b"]
+    assert {e["commit"][0]: e["reason"] for e in out["exclusions"] if "commit" in e}["a"] == \
+        "installed r1 1.0 already has 2 of the 4 line(s) the commit adds"
+
+
+def test_install_retries_each_file_and_prepare_freezes_pip_list(tmp_path, monkeypatch):
+    def run(cmd, **kw):
+        if "list" in cmd:
+            return subprocess.CompletedProcess(cmd, 0, json.dumps([{"name": "B", "version": "2"},
+                                                                   {"name": "a", "version": "1"}]), "")
+        bad = any(str(x).endswith("bad.tar.gz") for x in cmd)
+        return subprocess.CompletedProcess(cmd, 1 if bad else 0, "", "")
+    failed = []
+    assert R._install(run, "py", ["ok-1.whl", "bad.tar.gz", "ok2-1.whl"], failed) is False
+    assert failed == ["bad.tar.gz"]
+    monkeypatch.setattr(R.E, "fetch", lambda name, spec, cache: cache / name)
+    data = R.prepare([], tmp_path / "c", tmp_path / "w", "py", run)
+    assert data["pip_list"] == [{"name": "a", "version": "1"}, {"name": "B", "version": "2"}]
+
+
+def test_version_files_stay_inside_the_tree():
+    scm = lambda p: {"tool": {"setuptools_scm": {"version_file": p}}}
+    assert R._version_files(scm("/abs/v.py")) == [] and R._version_files(scm("../out/v.py")) == []
+    assert R._version_files(scm("C:/v.py")) == [] and R._version_files(scm("a/../../v.py")) == []
+
+
+def test_authored_check_runs_with_utf8(tmp_path):
+    root = tmp_path / "t"
+    for part in ("start", "reference"):
+        (root / part).mkdir(parents=True)
+    (root / "hidden").mkdir()
+    (root / "hidden/test_h.py").write_text("def test_h():\n    assert 1\n", encoding="utf-8")
+    (root / "task.json").write_text(json.dumps({"id": "x", "brief": "b", "hidden_tests": ["test_h.py"]}), encoding="utf-8")
+    seen = []
+    run = lambda tree, tests, python: seen.append(R.LE.environment(tree, sys.executable, tree / "t").get("PYTHONUTF8")) \
+        or {"rc": 0}
+    out = R.check_authored(root, "py", run)
+    assert seen == ["1", "1", "1"] and out["pythonutf8"] is True and R.LE.UTF8_MODE is False
 
 
 def test_select_records_stubs_and_utf8(monkeypatch):

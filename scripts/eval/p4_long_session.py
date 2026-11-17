@@ -231,6 +231,20 @@ def pythonpath(task: dict) -> str:
     return "src" + os.pathsep + "." if task.get("src_layout") else "."
 
 
+def task_env(env: dict, task: dict, base_utf8: str | None = None) -> dict:
+    """The per-task part of an episode's shared environment, set before each task (it reaches the lead, its
+    sub-agents and ccx --check): PYTHONPATH (#365) and PYTHONUTF8 as the task was validated and is scored (#415).
+    A task without pythonutf8 gets the episode's inherited value back, so nothing leaks from the previous task."""
+    env["PYTHONPATH"] = pythonpath(task)
+    if task.get("pythonutf8") is True:
+        env["PYTHONUTF8"] = "1"
+    elif base_utf8 is None:
+        env.pop("PYTHONUTF8", None)
+    else:
+        env["PYTHONUTF8"] = base_utf8
+    return env
+
+
 def prompt(task: dict, arm: str, child_cap: float, receipt: Path | None = None,
            check_command=None, focused=False, child_agent: str = "codex") -> str:
     if not task.get("src_layout"):
@@ -390,6 +404,7 @@ class Episode:
         # step() preserves this cwd and home; close() performs session cleanup.
         self.env = {**PF.prepare(self.iso), **E.run_env({"pythonpath": "."}),
                     "CCX_LEAD_VIEW": "line", "PYTEST_DISABLE_PLUGIN_AUTOLOAD": "1", "CCX_P4_ROOT": str(ROOT)}
+        self.base_utf8 = self.env.get("PYTHONUTF8")  # restored for a task without pythonutf8 (#415)
         if getattr(a, "focused_retry", False):
             # Only this disposable episode's hub; never modify shipped/user defaults.
             from ccx.config import Paths
@@ -421,9 +436,7 @@ class Episode:
                     "cost_cumulative_check": False, "cost_basis": COST_BASIS})
         self.rows.append(row)
         lead_cap, child_cap = task_caps(a, u["arm"])
-        self.env["PYTHONPATH"] = pythonpath(task)   # inherited by sub-agents and ccx --check (#365)
-        if task.get("pythonutf8") is True:          # as the task was validated and is scored (#415)
-            self.env["PYTHONUTF8"] = "1"
+        task_env(self.env, task, self.base_utf8)
         self.env["CCX_P4_CHILD_LIMIT"] = str(child_cap)
         self.env["CCX_P4_CHILD_START"] = str(self.child_total)
         checks_root = self.iso.hub/"ccx"/"check-artifacts"/str(u["turn"])
