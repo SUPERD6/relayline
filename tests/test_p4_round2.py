@@ -419,7 +419,8 @@ def test_utf8_and_stubs_do_not_leak_to_the_next_task_of_an_episode(fake_engine, 
     monkeypatch.delenv("PYTHONUTF8", raising=False)
     a, ts, log = _r2_engine(fake_engine, monkeypatch, tmp_path, _ledger())
     ts = ts[:2]
-    ts[0].update(pythonutf8=True, stubs=["pkg/_version.py"])
+    monkeypatch.delenv("PYTEST_PLUGINS", raising=False)
+    ts[0].update(pythonutf8=True, stubs=["pkg/_version.py"], stub_version="4.5.6", pytest_plugins=["pytest_timeout"])
     a.episode_size = 2
     assert P.run_experiment(a, ts, P.schedule(ts, 1, ("self", "ccxlong"), 2)) == 0
     entries = [json.loads(line) for line in log.read_text().splitlines()]
@@ -428,6 +429,9 @@ def test_utf8_and_stubs_do_not_leak_to_the_next_task_of_an_episode(fake_engine, 
     assert {e["session"] for e in first} & {e["session"] for e in second}   # one episode: same lead session
     assert all(e["pythonutf8"] == "1" and e["stub"] for e in first)
     assert all(e["pythonutf8"] is None and not e["stub"] for e in second)
+    # #424: the Episode writes the task's stub version and sets its plugins for the lead, and resets them
+    assert all('"4.5.6"' in e["stub_text"] and e["pytest_plugins"] == "pytest_timeout" for e in first)
+    assert all(e["pytest_plugins"] is None for e in second)
     env = {"PYTHONUTF8": "1"}
     P.task_env(env, {"pythonutf8": True})
     assert "PYTHONUTF8" not in P.task_env(env, {})
