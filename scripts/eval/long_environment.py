@@ -13,6 +13,7 @@ import tempfile
 
 import ext_repo as E
 import long_check as LC
+from common import run_tree  # a timeout ends the whole tree, not only the first child (#359)
 
 POLICY = "native-git-checkout-v2"
 SRC_ON_PATH = False  # round2_tasks turns this on for its own validation; P4/P5 keep the root only
@@ -66,10 +67,10 @@ def environment(repo: Path, python: str, tmp: Path):
 def baseline(repo: Path, python: str, tmp: Path, raw: Path | None = None, timeout: int = 180):
     """Exactly the unit acceptance command, original parent tests, no hidden test injection."""
     env = environment(repo, python, tmp)
-    cmd = command(python)
+    argv = [str(Path(python).resolve()), *CHECK.split()]    # command(python) without a shell in between (#359)
     try:
-        r = subprocess.run(cmd, shell=True, cwd=repo, env=env, capture_output=True, timeout=timeout)
-        output = LC.normalize_output((r.stdout + r.stderr).decode("utf-8", "replace"), repo)
+        r = run_tree(argv, cwd=repo, env=env, timeout=timeout)
+        output = LC.normalize_output(r.stdout + r.stderr, repo)
         result = {"rc": r.returncode, "summary": output.strip().splitlines()[-1] if output.strip() else "empty",
                   "errors": [s for s in output.splitlines() if s.startswith(("E   ", "FAILED ", "ERROR "))][:12]}
     except subprocess.TimeoutExpired:
@@ -118,12 +119,12 @@ def validate_task(cache: Path, python: str, task: dict, raw_dir: Path | None = N
     return {"baseline": base, **checks, "valid": valid, "checkout": policy}
 
 
-def hidden(repo, tests, python, raw=None):
+def hidden(repo, tests, python, raw=None, timeout=180):
     try:
-        r = subprocess.run([python, "-m", "pytest", "-q", "-o", "addopts=", "-p", "no:cacheprovider", *tests],
-                           cwd=repo, env=environment(repo, python, repo/".ccx-eval-tmp-hidden"),
-                           capture_output=True, timeout=180)
-        output = LC.normalize_output((r.stdout+r.stderr).decode("utf-8", "replace"), repo)
+        r = run_tree([python, "-m", "pytest", "-q", "-o", "addopts=", "-p", "no:cacheprovider", *tests],
+                     cwd=repo, env=environment(repo, python, repo/".ccx-eval-tmp-hidden"),
+                     timeout=timeout)
+        output = LC.normalize_output(r.stdout+r.stderr, repo)
         result = {"rc": r.returncode, "summary": output.strip().splitlines()[-1] if output.strip() else "empty",
                   "errors": [s for s in output.splitlines() if s.startswith(("E   ", "FAILED ", "ERROR "))][:12]}
     except subprocess.TimeoutExpired:
