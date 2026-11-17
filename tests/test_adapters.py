@@ -383,7 +383,9 @@ class TestUndoAskTask(AdapterEnv):
         rec = json.loads((self.hub / "ccx" / "runs" / out["run_id"] / "run.json").read_text(encoding="utf-8"))
         self.assertEqual(rec["attempts"][0]["kind"], "check_failed")
         self.assertIsInstance(rec["attempts"][0]["check_seconds"], (int, float))   # that check's time is kept
-        self.assertNotIn("check_seconds", rec["attempts"][-1])
+        # #392: the passing check keeps its time too, on its own attempt (before, only a failed check did)
+        self.assertIsInstance(rec["attempts"][-1]["check_seconds"], (int, float))
+        self.assertIn("check_started_at", rec["attempts"][-1])
         self.assertTrue(rec["check"]["passed"])
 
     def test_failed_check_on_the_last_rung_stays_a_failure(self):
