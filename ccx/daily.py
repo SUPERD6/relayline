@@ -13,6 +13,8 @@ from pathlib import Path
 
 from . import ledger
 from .config import Paths
+from .ways import INTERNAL      # review:, discuss:, way:, probes, handoff-from-transcript: ccx's own, not the person's work
+from .workspace import worktree_repo
 
 
 def parse_tz(spec: str | None) -> timezone | None:
@@ -28,6 +30,10 @@ def parse_tz(spec: str | None) -> timezone | None:
     return timezone(delta if m.group(1) == "+" else -delta)
 
 
+def _valid_ts(ts) -> bool:
+    return isinstance(ts, (int, float)) and not isinstance(ts, bool) and 0 < ts < 4e9
+
+
 def _day_of(ts: float, tz: timezone | None) -> str:
     return datetime.fromtimestamp(ts, tz).strftime("%Y-%m-%d")
 
@@ -40,14 +46,18 @@ def resolve_day(day: str | None, tz: timezone | None, now: float | None = None) 
     if day == "yesterday":
         return (today - timedelta(days=1)).strftime("%Y-%m-%d")
     try:
-        datetime.strptime(day, "%Y-%m-%d")
+        return datetime.strptime(day, "%Y-%m-%d").strftime("%Y-%m-%d")      # 2026-1-5 -> 2026-01-05
     except ValueError:
         raise ValueError(f"the day must be YYYY-MM-DD, today or yesterday (got {day!r})") from None
-    return day
 
 
 def _project(row: dict) -> str:
-    parts = [x for x in re.split(r"[\\/]+", row.get("cwd") or "") if x]
+    cwd = row.get("cwd") or ""
+    try:                 # a `--worktree` run's cwd is inside <repo>/.ccx/worktrees/<run>: count it with its repo
+        cwd = str(worktree_repo(cwd) or cwd)
+    except (OSError, ValueError):
+        pass
+    parts = [x for x in re.split(r"[\\/]+", cwd) if x]
     return parts[-1] if parts else "(unknown)"
 
 
@@ -71,6 +81,8 @@ def _outcome(row: dict, verdicts: dict[str, dict]) -> str:
     v = verdicts.get(row.get("run_id") or "")
     if v is not None:
         return "right" if v.get("ok") else "failed"
+    if row.get("status") == "running" or row.get("state") == "running":
+        return "running"                        # not finished: neither right nor wrong yet
     if not row.get("ok") or row.get("status") != "done":
         return "failed"
     return "unverified"
@@ -82,8 +94,10 @@ def _quota_events(p: Paths, row: dict) -> tuple[bool, bool, bool]:
         rec = ledger.load_run(p, row["run_id"])
     except (FileNotFoundError, KeyError, ValueError, OSError):
         return False, False, False
-    hit = bool(rec.get("quota_stop") or rec.get("quota_fallback")
-               or any(a.get("kind") == "quota" for a in rec.get("attempts") or []))
+    if not isinstance(rec, dict):
+        return False, False, False
+    atts = [a for a in rec.get("attempts") or [] if isinstance(a, dict)] if isinstance(rec.get("attempts"), list) else []
+    hit = bool(rec.get("quota_stop") or rec.get("quota_fallback") or any(a.get("kind") == "quota" for a in atts))
     return True, hit, bool(rec.get("quota_fallback"))
 
 
@@ -98,25 +112,28 @@ def build(p: Paths, day: str | None = None, tz: timezone | None = None, include_
         if r.get("type") != "verify" or not r.get("run_id"):
             continue
         (soft if r.get("soft") else hard)[r["run_id"]] = r
-    runs, evals, reviews = [], 0, []
+    runs, evals, reviews, internal = [], 0, [], 0
     for r in all_rows:
-        if r.get("type") or not r.get("ts") or _day_of(r["ts"], tz) != day:
+        if r.get("type") or not _valid_ts(r.get("ts")) or _day_of(r["ts"], tz) != day:
             continue
+        label = str(r.get("label") or "")
         if not include_evals and ledger.is_eval(r):
             evals += 1
-        elif (r.get("label") or "").startswith("review:"):
+        elif label.startswith("review:"):
             reviews.append(r)
+        elif r.get("ephemeral") or label.startswith(INTERNAL):       # `ccx ask`, discuss:, way:, handoff, probes
+            internal += 1
         else:
             runs.append(r)
     out = {"day": day, "tz": "local" if tz is None else str(tz), "ledger_rows": len(all_rows),
-           "evals_excluded": evals, "reviews": len(reviews),
+           "evals_excluded": evals, "internal_excluded": internal, "reviews": len(reviews),
            "review_cost": {"ae_usd": sum(r.get("ae_usd") or 0 for r in reviews), "seconds": sum(r.get("seconds") or 0 for r in reviews)}}
 
     def group(rs: list[dict]) -> dict:
         n = len(rs)
         oc = [_outcome(r, hard) for r in rs]
         g = {"runs": n, "right": oc.count("right"), "failed": oc.count("failed"),
-             "unverified": oc.count("unverified"),
+             "unverified": oc.count("unverified"), "running": oc.count("running"),
              "failed_by_verdict": sum(1 for r, o in zip(rs, oc) if o == "failed" and r.get("run_id") in hard),
              "probable_right": sum(1 for r, o in zip(rs, oc) if o == "unverified"
                                    and (soft.get(r.get("run_id")) or {}).get("ok")),
@@ -140,14 +157,22 @@ def build(p: Paths, day: str | None = None, tz: timezone | None = None, include_
     out["quota"] = {"readable": sum(s[0] for s in seen), "runs": len(runs), "hit": sum(s[1] for s in seen),
                     "relayed": sum(s[2] for s in seen)}
     flagged = []
+    gone: set[str] = set()                  # dismissed and not judged again since (as ledger._mark_dismissed)
+    for r in all_rows:
+        if r.get("type") == "dismiss" and r.get("run_id"):
+            gone.add(r["run_id"])
+        elif r.get("type") == "verify" and not r.get("soft"):
+            gone.discard(r.get("run_id"))
     for r in all_rows:                      # hand-marked on this day (by the time of the mark, not of the run)
-        if r.get("ts") and _day_of(r["ts"], tz) == day and r.get("run_id"):
-            if r.get("type") == "verify" and not r.get("soft") and not r.get("ok"):
-                flagged.append({"run_id": r["run_id"], "what": "marked wrong", "why": r.get("reason") or "",
-                                "project": _project(by_id.get(r["run_id"], {})), "to": (by_id.get(r["run_id"]) or {}).get("to")})
-            elif r.get("type") == "dismiss":
-                flagged.append({"run_id": r["run_id"], "what": "dismissed", "why": r.get("note") or "",
-                                "project": _project(by_id.get(r["run_id"], {})), "to": (by_id.get(r["run_id"]) or {}).get("to")})
+        if not (_valid_ts(r.get("ts")) and _day_of(r["ts"], tz) == day and r.get("run_id")):
+            continue
+        run_row = by_id.get(r["run_id"]) or {}
+        base = {"run_id": r["run_id"], "project": _project(run_row), "to": run_row.get("to")}
+        if r.get("type") == "verify" and not r.get("soft") and not r.get("ok"):
+            if include_evals or not ledger.is_eval(r, by_id):       # an evaluation script's own verdicts are not yours
+                flagged.append({**base, "what": "marked wrong", "why": r.get("reason") or ""})
+        elif r.get("type") == "dismiss" and r["run_id"] in gone:   # judged again later: no longer "counts neither way"
+            flagged.append({**base, "what": "dismissed", "why": r.get("note") or ""})
     out["flagged"] = flagged
     return out
 
@@ -164,7 +189,7 @@ def render(d: dict) -> str:
     head = "| | 派活 | 做对 | 失败 | 未验证 | 花费 API 等价 (有记录/次数) | 墙钟 |\n|---|---|---|---|---|---|---|"
     L = [f"# relayline 每日使用记录 {d['day']}", "",
          f"时区 {d['tz']}。来源：账本 {d['ledger_rows']} 行和各运行的 run.json；只读，没调用任何 CLI，没读组长自己的会话日志。",
-         f"当天排除评测/忽略的运行 {d['evals_excluded']} 个，ccx 自己起的审查运行 {d['reviews']} 个"
+         f"当天排除评测/忽略的运行 {d['evals_excluded']} 个，内部运行（ask、discuss、way、交接、探测）{d['internal_excluded']} 个，ccx 自己起的审查运行 {d['reviews']} 个"
          f"（审查花费 {_usd(d['review_cost']['ae_usd'])}、{_secs(d['review_cost']['seconds'])}，不计入下面的派活数）。", "",
          "## 总览", ""]
     if not n:
@@ -177,6 +202,8 @@ def render(d: dict) -> str:
               f"- 花费：API 等价 {_usd(t['ae_usd'])}（{t['ae_known']}/{n} 次有记录）；实付 {_usd(t['cost_usd'])}"
               f"（{t['cost_known']}/{n} 次有记录）；额度单位 {t['quota_units']:.0f}",
               f"- 墙钟：{_secs(t['seconds'])}（各次相加；并行的运行会重叠，不等于实际用掉的时间）"]
+        if t["running"]:
+            L.append(f"- 还在运行 {_frac(t['running'], n)}：不算失败，也不在做对/失败/未验证里，所以三项加起来比派活数少")
         pf = d["planned_first"]
         if pf["with_field"]:
             L.append(f"- 实际首档与计划首档一致：{_frac(pf['kept'], pf['with_field'])}（只统计账本里有 planned_first_rung 的运行）")

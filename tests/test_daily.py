@@ -172,6 +172,76 @@ class TestDaily(Env):
         r2 = self.ccx("report", "--daily", "--out", str(self.work / "x.md"), "--tz", "bogus")
         self.assertNotEqual(r2.returncode, 0)
 
+    def test_worktree_runs_fold_into_their_repo(self):
+        self.put(run("a", cwd="/w/alpha"), run("b", cwd="/w/alpha/.ccx/worktrees/20261110-1-abcd"),
+                 run("c", cwd="/w/.ccx-worktrees/alpha/20261110-2-abcd"))
+        d = self.build()
+        self.assertEqual(list(d["by_project"]), ["alpha"])
+        self.assertEqual(d["by_project"]["alpha"]["runs"], 3)
+
+    def test_internal_runs_are_left_out_like_the_ui_does(self):
+        from ccx import ui
+        self.assertTrue(set(ui.INTERNAL) <= set(daily.INTERNAL))
+        self.put(run("a"), run("h", label="handoff-from-transcript"), run("d", label="discuss:x"), run("w", label="way:y"),
+                 run("p", label="quota-probe"), run("k", ephemeral=True))
+        d = self.build()
+        self.assertEqual((d["total"]["runs"], d["internal_excluded"], d["evals_excluded"]), (1, 4, 1))   # quota-probe is an eval probe
+
+    def test_evaluation_scripts_verdicts_are_not_hand_marked_problems(self):
+        self.put(run("e", label="eval-r2-x"), run("a"), verify("e", False, reason="eval-wrong"), verify("a", False, reason="mine"))
+        self.assertEqual([f["run_id"] for f in self.build()["flagged"]], ["a"])
+        self.assertEqual([f["run_id"] for f in self.build(include_evals=True)["flagged"]], ["e", "a"])
+
+    def test_dismiss_judged_again_later_is_not_listed(self):
+        self.put(run("a"), run("b"), {"type": "dismiss", "run_id": "a", "ts": ts("2026-11-10", 14)},
+                 {"type": "dismiss", "run_id": "b", "ts": ts("2026-11-10", 14)}, verify("a", True, hh=15))
+        self.assertEqual([f["run_id"] for f in self.build()["flagged"]], ["b"])
+
+    def test_day_is_normalised(self):
+        self.assertEqual(daily.resolve_day("2026-1-5", UTC), "2026-01-05")
+        self.put(run("a", day="2026-01-05"))
+        self.assertEqual(self.build("2026-1-5")["total"]["runs"], 1)
+        self.assertEqual(self.build("2026-1-5")["day"], "2026-01-05")
+
+    def test_running_runs_are_not_failures(self):
+        self.put(run("a", status="running", ok=False), run("b"), run("c", status="failed", ok=False))
+        t = self.build()["total"]
+        self.assertEqual((t["runs"], t["running"], t["failed"], t["unverified"]), (3, 1, 1, 1))
+        self.assertIn("还在运行 1/3", daily.render(self.build()))
+
+    def test_bad_timestamps_and_run_records_do_not_raise(self):
+        bad = run("x")
+        bad["ts"] = "yesterday"
+        self.put(bad, run("a"), run("b"), run("c"), verify("a", False), {"type": "verify", "run_id": "a", "ok": False, "ts": "no"},
+                 runs={"b": [1, 2], "c": {"attempts": "oops"}})
+        d = self.build()
+        self.assertEqual(d["total"]["runs"], 3)
+        self.assertEqual(d["quota"]["readable"], 1)
+
+    def test_local_time_zone_from_the_tz_environment_variable(self):
+        import os
+        import time
+        if not hasattr(time, "tzset"):
+            self.skipTest("time.tzset is not available on Windows")
+        old = os.environ.get("TZ")
+        try:
+            os.environ["TZ"] = "Asia/Shanghai"
+            time.tzset()
+            self.put(run("a", day="2026-11-10", hh=23))          # 2026-11-11 07:00 in Shanghai
+            self.assertEqual(daily.build(self.p, "2026-11-11", None)["total"]["runs"], 1)
+            self.assertEqual(daily.build(self.p, "2026-11-10", None)["total"]["runs"], 0)
+        finally:
+            if old is None:
+                os.environ.pop("TZ", None)
+            else:
+                os.environ["TZ"] = old
+            time.tzset()
+
+    def test_cli_refuses_publish_with_daily_and_tz_without_it(self):
+        self.put(run("a"))
+        self.assertNotEqual(self.ccx("report", "--daily", "2026-11-10", "--publish").returncode, 0)
+        self.assertNotEqual(self.ccx("report", "--tz", "UTC").returncode, 0)
+
     def test_read_only_on_the_ledger(self):
         self.put(run("a"))
         before = self.p.ledger.read_bytes()
