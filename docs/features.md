@@ -297,10 +297,16 @@ In Claude Code you say: "make `loader.py` accept a custom delimiter and add test
    actually used (what you named with `--to` / `--model` / `--effort` / `--tier` / `--provider`, the role table,
    task-routing's difficulty, learned pass rate and candidates, the tier table or keywords, quota), plus `changes`
    when the start moved before running (the `strict_escalate` floor, cheap-first dispatch, a model this account
-   lacks, the daily budget). It does not combine with `--bg`. A real run records the same `planned_first_rung` and
+   lacks, the daily budget). It does not combine with `--bg`. Unlike `ccx route`, which shows routing's pick only,
+   it goes through the run's own pre-start steps (strict floor, cheap-first, model swap, provider key, budget), so its
+   `first_rung` is where a run started now would begin. It runs no quota probe (the pick uses the readings already
+   saved) but may update the local login-check cache, as `ccx route` does. With an A/B self-run rate
+   (`ab_self_rate`) or an H11 trial on, a real run may be drawn as do-it-yourself; the dry run shows the pick
+   without that draw. A real run records the same `planned_first_rung` and
    `rung_why`, and `actual_first_rung`: the first rung that really took the task. Attempts stopped by capacity,
    quota or a missing model, which ccx replaced with another rung, do not count, so the two differ after such a
-   switch or a moved start; a climb after a failed attempt keeps them equal and shows in `escalated`. The whole
+   switch or a moved start (`null` when no rung took it); a climb after a failed attempt keeps them equal and shows
+   in `escalated`. The whole
    result and `ccx show` carry all three; the one-line result adds only the two rungs, and only when they differ.
    A person's terminal also gets a `Rung: …` line. Nothing here changes a default or the pick itself.
 3. **Run headless.** ccx runs `codex exec -m gpt-6.1-sol -c model_reasoning_effort="medium" …`. The session id is

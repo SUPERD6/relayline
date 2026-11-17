@@ -47,6 +47,56 @@ class TestDryRun(AdapterEnv):
         self.assertIn("--effort", dry["rung_why"]["effort"])
 
 
+class TestDryRunEqualsRun(AdapterEnv):
+    """dry-run's first rung == the real run's, across the ways a pick is made (review of PR #398)."""
+
+    def same(self, args, brief="Read the parser", env=None):
+        dry = self.j("run", *args, "--dry-run", brief, env=env)
+        # read-only probes (`claude --version` while listing installed agents) may run; no task does
+        self.assertEqual([c for c in self.calls() if c.get("argv") != ["--version"]], [])
+        r = self.ccx("run", *args, brief, env=env)        # the check's outcome is not the point here
+        out = json.loads(r.stdout)
+        rec = self.rec(out["run_id"])
+        self.assertEqual(rec["planned_first_rung"], dry["planned_first_rung"])
+        self.assertEqual(rec["actual_first_rung"], dry["first_rung"])
+        self.assertEqual(rec["attempts"][0]["rung"], dry["first_rung"])
+        return dry, rec
+
+    def test_task_routing_and_to_auto(self):
+        dry, _ = self.same(("--from", "claude", "--files", "2", "--coupling", "one", "--clarity", "goal",
+                            "--mode", "read", "--new", "--context", "off", "--no-ab", "--review", "off"))
+        self.assertEqual(dry["route"]["source"], "task-routing")
+        self.assertIn("task-routing", dry["rung_why"]["agent"])
+        self.assertIn("b=", dry["rung_why"]["agent"])
+
+    def test_keyword_route_to_auto_states_the_rule(self):
+        dry, _ = self.same(("--from", "user", "--tier", "T2", "--mode", "read", "--new", "--context", "off",
+                            "--no-ab", "--review", "off"))
+        self.assertIn("codex unless the caller is codex, then claude (caller user: codex)", dry["rung_why"]["agent"])
+
+    def test_cheap_first_planned_differs_from_actual(self):
+        from test_check_baseline import repository
+        import sys
+        repository(self.work)
+        self.j("config", "set", "dispatch.cheap_first", "true")
+        check = f'"{sys.executable}" -m pytest -q -p no:cacheprovider test_none.py'
+        dry, rec = self.same(("--from", "claude", "--to", "codex", "--tier", "T2", "--new", "--mode", "write",
+                              "--review", "off", "--no-fallback", "--context", "off", "--no-ab", "--check", check),
+                             brief="fix state.txt", env={"FAKE_WRITE": "state.txt=edited"})
+        self.assertEqual(dry["planned_first_rung"], "codex:gpt-6.1-sol:medium")
+        self.assertEqual(dry["first_rung"], "codex:gpt-6-luna:low")
+        self.assertTrue(any("cheap-first" in c for c in dry["rung_why"]["changes"]))
+        self.assertNotEqual(rec["planned_first_rung"], rec["actual_first_rung"])
+
+    def test_role_reason_names_no_path(self):
+        self.j("roles", "set", "build", "codex:gpt-6.1-sol:auto")
+        dry, rec = self.same(("--from", "claude", "--role", "build", "--mode", "read", "--new", "--context", "off",
+                              "--no-ab", "--review", "off", "--no-worktree"))
+        agent = rec["rung_why"]["agent"]
+        self.assertRegex(agent, r"^role build \((project|global) role table\)$")
+        self.assertNotIn(str(self.hub), json.dumps(dry["rung_why"]))
+
+
 class TestPlannedAndActual(AdapterEnv):
     def test_capacity_fallback_records_both(self):
         env = {"CCX_CODEX_BIN": str(FAKES / "fake_capacity.py"), "FAKE_CAPACITY_MODELS": "gpt-6.1-sol"}
@@ -101,6 +151,40 @@ def test_task_routing_reasons_name_their_signals():
     assert "b=0.42" in why["agent"] and "p=0.81" in why["agent"]
     assert "claude, codex" in why["agent"]
     assert "task-routing" in why["model"] and "task-routing" in why["effort"]
+
+
+def test_role_where_drops_paths():
+    from ccx.plan import _role_where
+    assert _role_where(r"C:\Users\someone\proj\.ccx\roles.toml") == "project"
+    assert _role_where("/home/someone/.ccx-hub/ccx/tiers.toml") == "global"
+    assert _role_where("global") == "global"
+
+
+def test_strict_then_budget_keeps_both_reasons():
+    from ccx.plan import plan_changes
+    routed = {"rung": "codex:gpt-6.1-sol:medium", "raised_from": "codex:gpt-6-luna:low"}
+    out = plan_changes("codex:gpt-6-luna:low", [{"rung": "claude:sonnet:medium"}], False, routed,
+                       [routed, {"rung": "claude:sonnet:medium"}])
+    assert any("strict_escalate" in c for c in out) and any("daily budget" in c for c in out)
+
+
+def test_dry_run_skips_the_quota_probe(monkeypatch):
+    import os
+    from ccx.commands import delegation
+    seen = {}
+    monkeypatch.delenv("CCX_NO_QUOTA_PROBE", raising=False)
+    monkeypatch.setattr(delegation, "_cmd_run", lambda a: seen.setdefault("probe", os.environ.get("CCX_NO_QUOTA_PROBE")) and 0)
+    monkeypatch.delenv("CCX_RUN_ID", raising=False)
+
+    class A:
+        dry_run = True
+    delegation.cmd_run(A())
+    assert seen["probe"] == "1" and "CCX_NO_QUOTA_PROBE" not in os.environ
+
+
+def test_line_receipt_skips_a_null_actual():
+    res = {**PASSED, "planned_first_rung": "codex:gpt-6.1-sol:medium", "actual_first_rung": None}
+    assert "planned_first_rung" not in leadview.line(res)
 
 
 def test_quota_swap_in_keyword_routing_is_named():

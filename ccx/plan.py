@@ -228,7 +228,7 @@ def pick_reasons(route: dict | None, kw: dict, caller: str, given: dict | None) 
         why_agent = f"--provider {src.split(':', 1)[1]}"
     elif role and "--to" not in flags and not given.get("to"):
         why_agent = (f"role {role}: {route['role_fallback']}" if route.get("role_fallback")
-                     else f"role {role} ({route.get('role_source') or 'role table'})")
+                     else f"role {role} ({_role_where(route.get('role_source'))} role table)")
     elif given.get("to"):
         why_agent = f"--to {given['to']} (named)"
     elif src == "explicit":
@@ -240,11 +240,20 @@ def pick_reasons(route: dict | None, kw: dict, caller: str, given: dict | None) 
                      + (f": difficulty b={b:.2f}" if isinstance(b, (int, float)) else "")
                      + (f", learned pass rate p={pr:.2f}" if isinstance(pr, (int, float)) else ""))
     else:
-        why_agent = f"--to auto: the vendor other than the caller ({caller})"
-    tight = [ag for ag in (ranked.get("tight") or {}) if ag != agent]
-    if tight and src != "task-routing" and not given.get("to"):
-        why_agent += f"; quota: {', '.join(tight)} skipped" + (f" ({quota})" if quota else "")
-    elif quota and src == "task-routing":
+        # the rule of commands.common._target, stated as the code has it; then the swap resolve() makes when that
+        # target's quota is tight or it is known not logged in (the first eligible candidate instead)
+        from .commands.common import _target
+        default = _target("auto", caller)
+        why_agent = f"--to auto: codex unless the caller is codex, then claude (caller {caller}: {default})"
+        if agent and agent != default:
+            if default in (ranked.get("tight") or {}):
+                why = "quota tight" + (f" ({quota})" if quota else "")
+            elif default in (ranked.get("unready") or {}):
+                why = f"not logged in ({ranked['unready'][default]})"
+            else:
+                why = "not eligible"
+            why_agent += f"; {default} skipped: {why}; first eligible: {agent}"
+    if quota and src == "task-routing":
         why_agent += f"; quota: {quota}"
     tier_src = ("--tier" if given.get("tier") or src == "tier" else
                 "keywords: " + "; ".join((route.get("why") or {}).get("reasons") or ["none matched"])
@@ -278,20 +287,32 @@ def pick_reasons(route: dict | None, kw: dict, caller: str, given: dict | None) 
     return {"agent": why_agent, "model": why_model, "effort": why_effort}
 
 
-def plan_changes(planned: str, plan: list[dict], cheap: bool, routed: dict | None = None) -> list[str]:
+def _role_where(source) -> str:
+    """Where a role came from, without a path (paths carry user names): project, global, or the word given."""
+    import re
+    s = str(source or "")
+    parts = [x for x in re.split(r"[\\/]", s) if x]
+    if len(parts) < 2:
+        return s or "global"
+    return "project" if parts[-2] == ".ccx" else "global"
+
+
+def plan_changes(planned: str, plan: list[dict], cheap: bool, routed: dict | None = None,
+                 before_budget: list[dict] | None = None) -> list[str]:
     """What moved the first rung between routing's pick and the start (#379): the strict floor, cheap-first dispatch,
-    a model this account lacks, the daily budget. Text only."""
+    a model this account lacks, the daily budget (before_budget: the rungs before that check). Text only."""
     out = []
-    first = plan[0] if plan else {}
     routed = routed or {}
+    pre = (before_budget or plan or [{}])[0]
+    first = plan[0] if plan else {}
     if routed.get("raised_from"):
         out.append(f"strict_escalate: {routed['raised_from']} -> {routed['rung']}")
-    if cheap and first.get("rung") != routed.get("rung"):
-        out.append(f"cheap-first dispatch: starts on {first.get('rung')}, then the planned rungs")
-    if first.get("substituted_for"):
-        out.append(f"model not available on this account: {first['substituted_for']} -> {first['rung']}")
-    if not out and first.get("rung") and first["rung"] != planned:
-        out.append(f"daily budget or provider key: {planned} skipped, starts on {first['rung']}")
+    if cheap and pre.get("rung") != routed.get("rung"):
+        out.append(f"cheap-first dispatch: starts on {pre.get('rung')}, then the planned rungs")
+    if pre.get("substituted_for"):
+        out.append(f"model not available on this account: {pre['substituted_for']} -> {pre['rung']}")
+    if first.get("rung") and pre.get("rung") and first["rung"] != pre["rung"]:
+        out.append(f"daily budget: {pre['rung']} skipped, starts on {first['rung']}")
     return out
 
 

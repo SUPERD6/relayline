@@ -347,6 +347,17 @@ def cmd_run(a) -> int:
         from ..wake import after_bg
         with after_bg(paths(), rid):
             return _cmd_run(a)
+    if getattr(a, "dry_run", False):
+        # no quota probe (it may run a CLI and write quota readings): the pick uses the readings already saved
+        old = os.environ.get("CCX_NO_QUOTA_PROBE")
+        os.environ["CCX_NO_QUOTA_PROBE"] = "1"
+        try:
+            return _cmd_run(a)
+        finally:
+            if old is None:
+                os.environ.pop("CCX_NO_QUOTA_PROBE", None)
+            else:
+                os.environ["CCX_NO_QUOTA_PROBE"] = old
     return _cmd_run(a)
 
 
@@ -588,8 +599,11 @@ def _dry_run(p, cfg: dict, req: Request, route: dict) -> int:
     written to the ledger. The same steps as run() (delegate.first_plan), so the first rung is the run's."""
     from ..delegate import first_plan, max_escalations, rung_why
     from ..plan import reasons_text
-    plan, requested, cheap, _ = first_plan(req, p, cfg, max_escalations(req, cfg))
-    why = rung_why(req, plan, requested, cheap)
+    plan, requested, cheap, _, before_budget = first_plan(req, p, cfg, max_escalations(req, cfg))
+    if req.route and req.route.get("role_effort_auto"):        # as run() does before its reasons
+        from ..roles import effort_receipt
+        req.route["role_effort_reason"] = effort_receipt(req.route)
+    why = rung_why(req, plan, requested, cheap, before_budget)
     _out({"dry_run": True, "delegated": False, "to": plan[0]["agent"],
           "planned_first_rung": why["planned_first_rung"], "first_rung": why["first_rung"],
           "rungs": [x["rung"] for x in plan], "mode": req.mode, "rung_why": why,

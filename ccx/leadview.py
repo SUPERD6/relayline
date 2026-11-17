@@ -189,11 +189,13 @@ def line(res: dict) -> dict:
               "credential_guard", "credential_guard_warnings"):
         if res.get(k):
             out[k] = res[k]
-    if res.get("planned_first_rung") and res.get("planned_first_rung") != res.get("actual_first_rung"):
+    if res.get("planned_first_rung") and res.get("actual_first_rung") and \
+            res["planned_first_rung"] != res["actual_first_rung"]:
         # #379: only when the start moved (strict floor, cheap-first, capacity/quota/model swap); the reasons
-        # (rung_why) stay in the whole result and `ccx show`, so a clean line grows by nothing otherwise
+        # (rung_why) stay in the whole result and `ccx show`, so a clean line grows by nothing otherwise. No rung
+        # took the task (actual null): such a run is never a clean line; the whole result says null
         out["planned_first_rung"] = res["planned_first_rung"]
-        out["actual_first_rung"] = res.get("actual_first_rung")
+        out["actual_first_rung"] = res["actual_first_rung"]
     if "base_behind" in res:
         out["base_behind"] = res["base_behind"]
     if "git_pending" in res:

@@ -492,8 +492,8 @@ def max_escalations(req: Request, cfg: dict) -> int:
     return int(cfg["defaults"].get("max_escalations", 1)) if escalate else 0
 
 
-def first_plan(req: Request, p: Paths, cfg: dict, max_esc: int) -> tuple[list[dict], dict, bool, dict]:
-    """(rungs to try, routing's first rung, cheap-first dispatch on, provider envs): the steps run() takes before
+def first_plan(req: Request, p: Paths, cfg: dict, max_esc: int) -> tuple[list[dict], dict, bool, dict, list[dict]]:
+    """(rungs to try, routing's first rung, cheap-first dispatch on, provider envs, rungs before the budget): the steps run() takes before
     anything starts, shared with `ccx run --dry-run` so both name the same first rung (#379)."""
     if req.provider:
         req.to = req.provider                  # a provider is its own agent: own rungs, prices and learning
@@ -504,11 +504,13 @@ def first_plan(req: Request, p: Paths, cfg: dict, max_esc: int) -> tuple[list[di
     plan, cheap_dispatch = dispatch.prepare(req, cfg, plan, max_esc)
     plan = [_usable(p, x) for x in plan]
     pv_env = _provider_envs(cfg, plan)       # missing key for the first rung -> clear error before anything runs
+    before_budget = list(plan)
     plan = _within_budget(p, cfg, plan)
-    return plan, requested, cheap_dispatch, pv_env
+    return plan, requested, cheap_dispatch, pv_env, before_budget
 
 
-def rung_why(req: Request, plan: list[dict], requested: dict, cheap: bool) -> dict:
+def rung_why(req: Request, plan: list[dict], requested: dict, cheap: bool,
+             before_budget: list[dict] | None = None) -> dict:
     """The planned first rung (routing's pick, before the strict floor, cheap-first, a model swap or the budget), the
     rung the run starts on, and why (#379). Recorded and shown; it decides nothing."""
     from .plan import pick_reasons, plan_changes
@@ -519,7 +521,7 @@ def rung_why(req: Request, plan: list[dict], requested: dict, cheap: bool) -> di
            **pick_reasons(req.route, kw, req.caller, req.given)}
     if req.resume_run and not req.continued:
         why["model"] += "; resumed: keeps the last attempt's model"
-    changes = plan_changes(planned, plan, cheap, requested)
+    changes = plan_changes(planned, plan, cheap, requested, before_budget)
     if changes:
         why["changes"] = changes
     return why
@@ -686,13 +688,13 @@ def run(req: Request, p: Paths) -> dict:
         # the person's own brief: `ccx task resume` restarts from it when the run was killed before its session began
         (run_dir / "brief.md").write_text(req.brief, encoding="utf-8")
 
-    plan, requested, cheap_dispatch, pv_env = first_plan(req, p, cfg, max_esc)
-    why_rung = rung_why(req, plan, requested, cheap_dispatch)
+    plan, requested, cheap_dispatch, pv_env, before_budget = first_plan(req, p, cfg, max_esc)
     from . import quota
     quota.maybe_refresh(p, cfg, [req.to], (req.route or {}).get("quota"))
     if req.route and req.route.get("role_effort_auto"):
         from .roles import effort_receipt
         req.route["role_effort_reason"] = effort_receipt(req.route)
+    why_rung = rung_why(req, plan, requested, cheap_dispatch, before_budget)   # after role_effort_reason
     record = {
         "run_id": run_id, "label": req.label, "to": plan[0]["agent"], "caller": req.caller,
         "requested_agent": requested["agent"], "requested_model": requested["model"],
