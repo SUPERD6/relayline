@@ -8,6 +8,8 @@ not proof; the exception is the hold-out run hc1 (2026-10-29), on tasks not used
 
 | Date | Question | Result in one line | Main limit | Report |
 |---|---|---|---|---|
+| 2026-11-17 | How are the quota scenario, receipt false positives and "work does not stop" judged? | Draft decisions: lead-vendor spend primary (total a guardrail); receipts point ≤ 2% and upper bound ≤ 5%; ≥ 5 natural limit events at ≥ 80% | not run; rules, not results; draft until the maintainer approves | [eval rule decisions](2026-11-17-eval-rule-decisions.md) |
+| 2026-11-17 | Where does automatic splitting stop? | Design note: ccx decides whether, to whom and how big a piece is; inside a piece the tool decides | not run; not built; not a decision | [split to pieces](2026-11-17-split-to-pieces.md) |
 | 2026-11-04 | How should the next optimization round proceed? | Plan: preserve default quality and find one reproducible positive scenario; $60 hard cap | not run; stage thresholds remain proposals until preregistered | [Optimization plan](2026-11-04-optimization-plan.md) |
 | 2026-11-04 | hc2: 0.6.0 candidate repository-task recheck | 28/30 overall, 25/27 clean; $0.088 per success, 168 s; passed under proportional reading of ambiguous rule | Self / built-in not rerun; 0/19 cannot prove below 2%, only 6 done; code and sandbox effects not isolated | [hc2](2026-11-04-hc2-holdout.md) |
 | 2026-11-03 | pg3b: receipt recheck | Zero ordinary ok: insufficient evidence; review passed all 29 self-checked receipts, 15 failed hidden tests | Cannot measure 2% threshold; small tasks, one lead configuration | [pg3b](2026-11-03-pg3b-receipts.md) |

@@ -3,7 +3,7 @@
 English · [中文](2026-11-17-split-to-pieces.zh.md)
 
 **Status: design note, not a decision and not built.** It writes down a boundary for future work on automatic task
-splitting (stage 4 of the lead session's 2026-11-16 roadmap). No code, default or evaluation changes. It lives under
+splitting: from a one-line task to checkable pieces that are dispatched. No code, default or evaluation changes. It lives under
 `docs/research/` rather than [DESIGN](../DESIGN.md) because DESIGN describes what ccx does today, and the
 splitting pipeline described here does not exist yet; when it is built, the boundary moves into DESIGN with it.
 
@@ -29,15 +29,15 @@ way.** The user can pin any of ccx's choices with the roles table or flags; auto
 
 ## What this means for the work ahead
 
-- `ccx plan` (stage 4) outputs pieces with scope, declared paths, acceptance command, dependencies, estimated time
-  and suggested rung, and nothing finer.
+- An automatic split (an extension of today's `ccx plan`, the task-split helper) outputs pieces with scope,
+  declared paths, acceptance command, dependencies, estimated time and suggested rung, and nothing finer.
 - A structure check before dispatch: every piece has a runnable acceptance command, declared paths do not overlap
   (or the dependency is stated), dependencies have no cycle, no piece exceeds the time-span limit.
 - A test keeps briefs free of "do this first, then that" step lists inside a piece.
 - Whether the tool should use native sub-agents inside a piece is not a ccx setting. Comparing ccx with native
-  sub-agents is a separate control (stage 5), not something this boundary decides.
+  sub-agents is a separate, later control, not something this boundary decides.
 
 ## Not covered
 
-How large a piece should be (the 80% time-span rule) and the evaluation of automatic splitting are in the roadmap's
-section 3.4 and need their own preregistration. Nothing here was measured.
+The exact size limit of a piece and how automatic splitting is evaluated are left to their own design and
+preregistration. Nothing here was measured.
