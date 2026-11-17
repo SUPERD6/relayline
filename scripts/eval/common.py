@@ -11,7 +11,6 @@ import subprocess
 import sys
 import threading
 import time
-from concurrent.futures import wait
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -115,13 +114,19 @@ def stop_running() -> int:
 def map_stopping(ex, fn, items) -> list:
     """list(ex.map(fn, items)) for a ThreadPoolExecutor whose workers call run_tree: on Ctrl+C the queued items are
     dropped and the running trees ended (stop_running), so leaving the `with` block does not wait for them. Their
-    children run in groups of their own and no longer get the terminal's Ctrl+C (issue #332 review)."""
+    children run in groups of their own and no longer get the terminal's Ctrl+C (issue #332 review).
+    The loop waits in time.sleep, holding no lock (issue #373): concurrent.futures.wait takes each future's lock, and a
+    Ctrl+C landing while that lock is held left it held for good, so the worker finishing that future blocked in
+    set_result and the executor's shutdown(wait=True) never returned."""
+    finished = set()
     futures = [ex.submit(fn, x) for x in items]
+    for f in futures:
+        f.add_done_callback(finished.add)       # runs in the worker once the future's lock is released
     try:
         out = []
         for f in futures:                       # in order, the first error raised first, as ex.map
-            while not f.done():                 # timed waits: on Windows an untimed one lets no Ctrl+C through
-                wait([f], timeout=.5)
+            while f not in finished:            # short sleeps: Ctrl+C gets through on Windows too
+                time.sleep(.05)
             out.append(f.result())
         return out
     except KeyboardInterrupt:

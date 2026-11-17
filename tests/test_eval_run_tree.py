@@ -3,10 +3,12 @@ Only Python child processes; no real CLI is started."""
 from pathlib import Path
 import subprocess
 from concurrent.futures import ThreadPoolExecutor
+import random
 import signal
 import sys
 import threading
 import time
+import traceback
 
 import pytest
 
@@ -115,6 +117,41 @@ def test_map_stopping_returns_and_raises_as_ex_map(monkeypatch):
     assert stopped == []
 
 
+def _shutdown_within(ex, seconds):
+    """ex.shutdown(wait=True), but bounded: a worker still alive after `seconds` fails the test with every thread's
+    stack instead of hanging the whole run (issue #373: a stuck worker held the suite for hours)."""
+    ex.shutdown(wait=False)
+    deadline = time.monotonic() + seconds
+    threads = list(ex._threads)
+    for th in threads:
+        th.join(max(0, deadline - time.monotonic()))
+    alive = [th for th in threads if th.is_alive()]
+    if alive:
+        frames = sys._current_frames()
+        stacks = "\n".join(f"--- {th.name}\n" + "".join(traceback.format_stack(frames[th.ident]))
+                           for th in alive if th.ident in frames)
+        _release_stuck_condition_locks(alive, frames)
+        pytest.fail(f"{len(alive)} worker thread(s) still running {seconds} s after shutdown:\n{stacks}")
+
+
+def _release_stuck_condition_locks(threads, frames):
+    """A worker blocked entering a threading.Condition waits for a lock a Ctrl+C left held in the main thread. Release
+    it, so the failing test does not also hang the interpreter's exit, which joins the executor's workers."""
+    for th in threads:
+        frame = frames.get(th.ident)
+        while frame is not None:
+            cond = frame.f_locals.get("self")
+            if frame.f_code.co_name == "__enter__" and isinstance(cond, threading.Condition):
+                try:
+                    cond._lock.release()
+                except RuntimeError:            # not held, or held by another thread: nothing to do here
+                    pass
+                break
+            frame = frame.f_back
+    for th in threads:
+        th.join(5)
+
+
 def test_map_stopping_gets_ctrl_c_while_workers_run(monkeypatch):
     """Review of #332: on Windows an untimed wait on a future lets no Ctrl+C through until that work item ends; with
     timed waits the KeyboardInterrupt comes at once, the queue is dropped and stop_running() is called."""
@@ -133,8 +170,43 @@ def test_map_stopping_gets_ctrl_c_while_workers_run(monkeypatch):
         assert stopped and stopped[0] - t0 < 5, "Ctrl+C was held until a work item ended"
     finally:
         timer.cancel()
-        ex.shutdown(wait=True)
+        _shutdown_within(ex, 30)                # the 2 running items end after 8 s
     assert len(started) == 2                    # the 4 queued items were dropped
+
+
+def test_map_stopping_ctrl_c_leaves_no_future_locked(monkeypatch):
+    """Issue #373: the Ctrl+C arrives at a random moment of the wait loop. It used to land, now and then, while the main
+    thread held a future's lock inside concurrent.futures.wait; that lock was never released, the worker finishing
+    that future blocked in set_result for good and shutdown(wait=True) never returned. Many short items and a Ctrl+C
+    at a random moment make that moment likely. The Ctrl+C is armed by a work item once every item is submitted, so it
+    falls in map_stopping's wait loop, not in this test's own ex.submit calls, and comes a few ms later, while later
+    items are finishing (from inside the item the main thread would be woken by that item and catch it at a safe
+    point)."""
+    monkeypatch.setattr(common, "stop_running", lambda: 0)
+    rng = random.Random(373)
+    deadline = time.monotonic() + 6
+    rounds = 0
+    while time.monotonic() < deadline:
+        submitted, ctrl_c_at = threading.Event(), rng.randrange(20, 80)
+        timer = threading.Timer(rng.uniform(.002, .012), signal.raise_signal, (signal.SIGINT,))
+        def item(i):
+            if i == ctrl_c_at:
+                submitted.wait(10)
+                timer.start()
+            time.sleep(.0005)
+        def items():
+            yield from range(200)
+            submitted.set()
+        ex = ThreadPoolExecutor(2)
+        try:
+            with pytest.raises(KeyboardInterrupt):
+                common.map_stopping(ex, item, items())
+        finally:
+            if timer.is_alive():
+                timer.join()
+            _shutdown_within(ex, 10)
+        rounds += 1
+    assert rounds >= 10
 
 
 def test_eval_scripts_use_run_tree_for_their_timed_calls():
