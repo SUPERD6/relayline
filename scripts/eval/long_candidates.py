@@ -20,7 +20,8 @@ def is_code(name: str) -> bool:
 
 
 def bare_path(cache: Path, repo: str) -> Path:
-    for path in (cache / (repo + ".git"), cache / repo):
+    key = E.cache_key(repo)  # owner/name -> <owner>__<name>; no fallback to the bare name (#400)
+    for path in (cache / (key + ".git"), cache / key):
         if (path / "HEAD").is_file():
             return path
         if (path / ".git").is_dir():

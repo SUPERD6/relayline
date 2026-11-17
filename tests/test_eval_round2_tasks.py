@@ -317,7 +317,7 @@ def test_repo_list_is_mechanical(tmp_path):
     snap = {"last_update": "2026-11-01", "rows": [{"project": p} for p in
                                                   ("good_pkg", "gpl-pkg", "gl-pkg", "boltons", "missing")]}
     out = R.repo_list(snap, meta, {"boltons"})
-    assert [(k["rank"], k["repo"], k["license"]) for k in out["kept"]] == [(1, "good-pkg", "mit")]
+    assert [(k["rank"], k["repo"], k["license"]) for k in out["kept"]] == [(1, "o/good_pkg", "mit")]
     assert [e["reason"] for e in out["excluded"]] == [
         "license not MIT/BSD/Apache-2.0/ISC/PSF", "source is not a public GitHub repository",
         "used in an earlier evaluation", "no PyPI metadata"]
@@ -361,6 +361,55 @@ def test_select_walks_a_repeated_repository_once(monkeypatch):
                             validator=lambda *a: {"valid": True})
     assert not [e for e in two["exclusions"] if e["reason"].startswith("repository listed again")]
     assert R.repo_key("https://github.com/A/Utils.git") == R.repo_key({"url": "https://github.com/a/utils"}) == "a/utils"
+
+
+def test_same_name_different_owner_repositories_get_their_own_cache(tmp_path):
+    """#400: the cache key is owner/name (case-folded, file-name safe), not the bare repository name."""
+    import ext_repo as E
+    import long_candidates as LC
+    assert E.cache_key("A/Utils") == E.cache_key("a/utils") == "a__utils"
+    assert E.cache_key("a/utils") != E.cache_key("b/utils")
+    assert E.cache_key("pallets/itsdangerous") == "pallets__itsdangerous"
+    assert E.cache_key("polyglot") == "polyglot"  # a frozen task's plain name keeps its folder
+    assert E.cache_key("o/na:me*?") == "o__na_me__"  # characters Windows rejects
+    assert E.cache_key("o/trailing.") == "o__trailing_"
+    assert E.cache_path(tmp_path, "a/utils") != E.cache_path(tmp_path, "b/utils")
+    # two real clones, same name, different history
+    cache, src = tmp_path / "cache", tmp_path / "src"
+    for owner in ("a", "b"):
+        work = tmp_path / f"work-{owner}"
+        work.mkdir()
+        _git(work, "init", "-q", "-b", "main")
+        _commit(work, {"m.py": "x = 1\n"}, "2026-01-01T00:00:00+00:00", "base")
+        _commit(work, {f"{owner}_only.py": "y = 2\n"}, "2026-08-01T00:00:00+00:00", f"change by {owner}")
+        src.mkdir(exist_ok=True)
+        _git(tmp_path, "clone", "-q", "--bare", str(work), str(src / f"{owner}__utils.git"))
+    got = {o: E.fetch(f"{o}/utils", {"url": "unused"}, cache, source=src) for o in "ab"}
+    assert got["a"] != got["b"]
+    assert [r["subject"] for r in LC.history(cache, "a/utils")][0] == "change by a"
+    assert [r["subject"] for r in LC.history(cache, "b/utils")][0] == "change by b"
+    # an old clone under the bare name is not used for an owner/name repository
+    old = tmp_path / "oldcache"
+    old.mkdir()
+    _git(tmp_path, "clone", "-q", "--bare", str(tmp_path / "work-a"), str(old / "utils.git"))
+    with pytest.raises(FileNotFoundError):
+        LC.bare_path(old, "a/utils")
+    with pytest.raises(FileNotFoundError):
+        E.fetch("a/utils", {"url": "unused"}, tmp_path / "newcache", source=old)
+
+
+def test_repo_list_gives_same_name_repositories_owner_qualified_keys(tmp_path):
+    meta = tmp_path / "meta"
+    meta.mkdir()
+    for name, url in (("a-utils", "https://github.com/a/utils"), ("b-utils", "https://github.com/B/Utils")):
+        (meta / f"{name}.json").write_text(json.dumps({"info": {"project_urls": {"Source": url}, "license": "MIT",
+                                                                "classifiers": []}}), encoding="utf-8")
+    out = R.repo_list({"rows": [{"project": "a-utils"}, {"project": "b-utils"}]}, meta, set())
+    assert [k["repo"] for k in out["kept"]] == ["a/utils", "b/utils"]
+    # an owner/name repo still counts as used by its bare name
+    sel = R.select_upstream(Path("x"), [{"repo": "a/utils", "url": "https://github.com/a/utils", "project": "a-utils"}],
+                            "py", {"utils"})
+    assert sel["exclusions"] == [{"repo": "a/utils", "reason": "repository used in an earlier evaluation"}]
 
 
 def test_own_package_check():
@@ -854,3 +903,25 @@ def test_real_corpus_reads_every_file_without_errors():
     assert corp["errors"] == []
     assert {"more-itertools", "boltons", "pluggy", "humanize", "itsdangerous"} <= corp["repos"]
     assert len(corp["briefs"]) > 50
+
+
+def test_cache_key_rejects_malformed_repositories_and_keeps_distinct_keys(tmp_path):
+    """#400 review: a bad `owner/name` never becomes an absolute or nested path, and the keys `repo_list` writes for
+    different repositories differ (they would only collide for an owner containing `__`, which GitHub forbids)."""
+    import ext_repo as E
+    for bad in ("/utils", "a/", "host/o/n", "a//b", "/"):
+        with pytest.raises(ValueError):
+            E.cache_key(bad)
+    assert E.repo_name("mahmoud/Boltons.git") == E.repo_name("boltons") == "boltons"
+    meta = tmp_path / "meta"
+    meta.mkdir()
+    urls = {"p1": "https://github.com/a/b__c", "p2": "https://github.com/a-b/c", "p3": "https://github.com/a/b",
+            "p4": "https://github.com/B/Utils", "p5": "https://github.com/b/utils-x", "p6": "https://github.com/a/utils"}
+    for name, url in urls.items():
+        (meta / f"{name}.json").write_text(json.dumps({"info": {"project_urls": {"Source": url}, "license": "MIT",
+                                                                "classifiers": []}}), encoding="utf-8")
+    out = R.repo_list({"rows": [{"project": p} for p in urls]}, meta, set())
+    keys = [E.cache_key(k["repo"]) for k in out["kept"]]
+    assert len(keys) == len(urls) and len(set(keys)) == len(keys)
+    with pytest.raises(FileNotFoundError, match="prepared again"):
+        E.fetch("a/utils", {"url": "unused"}, tmp_path / "c", source=tmp_path / "empty")
