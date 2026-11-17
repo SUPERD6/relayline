@@ -159,7 +159,8 @@ def check(task: dict, against: list[dict], work: Path, run_tests: bool, ctx: Ctx
     if probs and ch["size"] is None:
         row["ok"] = False
         return row
-    same_repo = [o for o in against if o.get("repo") == task.get("repo")]
+    # `boltons` (an older task) and `mahmoud/boltons` (round 2, #400) are one repository
+    same_repo = [o for o in against if ext_repo.repo_name(o.get("repo")) == ext_repo.repo_name(task.get("repo"))]
     shared = sorted(set(ch["files"]) & {f for o in same_repo for f in change_of(o, ctx)["files"]})
     if shared:
         row["files_shared_with_other_set"] = shared        # allowed, but worth seeing (a different function)

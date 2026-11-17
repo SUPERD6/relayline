@@ -720,3 +720,25 @@ def test_real_corpus_reads_every_file_without_errors():
     assert corp["errors"] == []
     assert {"more-itertools", "boltons", "pluggy", "humanize", "itsdangerous"} <= corp["repos"]
     assert len(corp["briefs"]) > 50
+
+
+def test_cache_key_rejects_malformed_repositories_and_keeps_distinct_keys(tmp_path):
+    """#400 review: a bad `owner/name` never becomes an absolute or nested path, and the keys `repo_list` writes for
+    different repositories differ (they would only collide for an owner containing `__`, which GitHub forbids)."""
+    import ext_repo as E
+    for bad in ("/utils", "a/", "host/o/n", "a//b", "/"):
+        with pytest.raises(ValueError):
+            E.cache_key(bad)
+    assert E.repo_name("mahmoud/Boltons.git") == E.repo_name("boltons") == "boltons"
+    meta = tmp_path / "meta"
+    meta.mkdir()
+    urls = {"p1": "https://github.com/a/b__c", "p2": "https://github.com/a-b/c", "p3": "https://github.com/a/b",
+            "p4": "https://github.com/B/Utils", "p5": "https://github.com/b/utils-x", "p6": "https://github.com/a/utils"}
+    for name, url in urls.items():
+        (meta / f"{name}.json").write_text(json.dumps({"info": {"project_urls": {"Source": url}, "license": "MIT",
+                                                                "classifiers": []}}), encoding="utf-8")
+    out = R.repo_list({"rows": [{"project": p} for p in urls]}, meta, set())
+    keys = [E.cache_key(k["repo"]) for k in out["kept"]]
+    assert len(keys) == len(urls) and len(set(keys)) == len(keys)
+    with pytest.raises(FileNotFoundError, match="prepared again"):
+        E.fetch("a/utils", {"url": "unused"}, tmp_path / "c", source=tmp_path / "empty")

@@ -54,15 +54,31 @@ def cache_key(repo: str) -> str:
     """The cache folder stem of a repository (#400). `owner/name` becomes `<owner>__<name>`, case-folded, with every
     character outside `[a-z0-9._-]` (Windows rejects `:*?"<>|`) and a trailing dot or space replaced by `_`, so
     `a/utils` and `b/utils` never share a clone. A plain name (a frozen task's `repo`, e.g. `polyglot`) is unchanged.
-    The old bare-name folder of an owner/name repository is never looked at: that is how two owners would share it."""
-    parts = [p for p in str(repo).strip().split("/") if p]
-    if len(parts) < 2:
-        return str(repo).strip()
+    The old bare-name folder of an owner/name repository is never looked at: that is how two owners would share it.
+
+    Distinct repositories get distinct keys only because a GitHub owner name never contains `_`: the first `__` is
+    always the owner/name boundary. Were an owner `a__b` possible, `a__b/c` and `a/b__c` would both give `a__b__c`.
+    Exactly two parts are accepted when there is a `/` (`/utils`, `a/` and `host/o/n` raise ValueError), so a key is
+    never an absolute path or a nested one."""
+    text = str(repo).strip()
+    if "/" not in text:
+        return text
+    parts = text.split("/")
+    if len(parts) != 2 or not all(parts):
+        raise ValueError(f"repository must be `owner/name` or a plain name, got {repo!r}")
     safe = []
-    for p in parts[-2:]:
+    for p in parts:
         p = re.sub(r"[^a-z0-9._-]", "_", p.casefold())
         safe.append(p[:-1] + "_" if p.endswith(".") else p)
     return "__".join(safe)
+
+
+def repo_name(repo: str | None) -> str:
+    """The repository name without its owner, `.git` and case/`-_.` differences (PEP 503 style, like
+    round2_tasks.norm_name): `mahmoud/boltons` and a frozen task's `boltons` are the same repository here (#400)."""
+    name = str(repo or "").strip().rstrip("/").split("/")[-1]
+    name = name[:-4] if name.lower().endswith(".git") else name
+    return re.sub(r"[-_.]+", "-", name).lower()
 
 
 def cache_path(cache: Path, name: str) -> Path:
@@ -81,7 +97,9 @@ def fetch(name: str, spec: dict, cache: Path, source: Path | None = None) -> Pat
         cands = [Path(source) / key, Path(source) / f"{key}.git"]
         local = next((c for c in cands if c.exists()), None)
         if local is None:
-            raise FileNotFoundError(f"--ext-cache has no copy of {name} (looked for {', '.join(map(str, cands))})")
+            raise FileNotFoundError(f"--ext-cache has no copy of {name} (looked for {', '.join(map(str, cands))}); "
+                                    "a cache made before #400 (named by the bare repository name) has to be "
+                                    "prepared again with the current code")
         origin = str(local)
     Path(cache).mkdir(parents=True, exist_ok=True)
     tmp = dest.with_name(dest.name + ".part")

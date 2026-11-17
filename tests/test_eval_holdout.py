@@ -163,3 +163,16 @@ def test_new_tests_match_the_commits_where_history_is_here():
         checked += 1
     if not checked:
         pytest.skip("no history of the hold-out commits here (shallow clone)")
+
+
+def test_same_repository_is_recognised_across_old_and_owner_name_formats(monkeypatch):
+    """#400: an older task's `boltons` and a round 2 task's `mahmoud/boltons` are one repository."""
+    monkeypatch.setattr(holdout_check, "static", lambda *a, **k: [])
+    monkeypatch.setattr(holdout_check, "change_of", lambda t, ctx: {"size": 10, "files": t["files"]})
+    old = {"id": "old", "repo": "boltons", "commit": "a" * 40, "files": ["boltons/x.py"], "tests": []}
+    new = {"id": "new", "repo": "mahmoud/boltons", "commit": "b" * 40, "files": ["boltons/x.py"], "tests": []}
+    other = {"id": "other", "repo": "o/pluggy", "commit": "c" * 40, "files": ["boltons/x.py"], "tests": []}
+    row = holdout_check.check(new, [old, other], Path("unused"), run_tests=False, ctx=object())
+    assert row["files_shared_with_other_set"] == ["boltons/x.py"]
+    lone = holdout_check.check(new, [other], Path("unused"), run_tests=False, ctx=object())
+    assert "files_shared_with_other_set" not in lone
