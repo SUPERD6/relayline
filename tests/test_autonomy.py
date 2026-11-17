@@ -337,3 +337,69 @@ def test_a_resumed_upstream_run_counts_only_the_sub_agents_change(tmp_path):
     out = autonomy.merge(p, resumed["run_id"], L2)
     assert out["lines"] == 3 and out["files"] == ["a.py"], out
     assert any("missing 1 commit(s)" in x for x in out["why_not"]), out
+
+
+# ---- #374: a resumed run works in the first run's worktree, so its branch is ccx/<first run_id> ----
+
+def resume_of(run_id, new_id, **extra):
+    """A record of `new_id` resuming `run_id` in the same worktree, as `ccx resume` writes it (no base of its own)."""
+    first = json.loads((paths().runs / run_id / "run.json").read_text(encoding="utf-8"))
+    return write_rec(new_id, ok=True, kind=None, state="done", cwd=first["cwd"], label=first["label"],
+                     check=first["check"], review=first["review"], resumed_from=run_id, **extra)
+
+
+def test_a_resumed_run_merges_its_first_runs_branch(tmp_path):
+    repo, run_id = repo_with_run(tmp_path)
+    resume_of(run_id, "20261025-000100-r1")
+    last = resume_of("20261025-000100-r1", "20261025-000200-r2")["run_id"]     # resumed twice
+    p = paths()
+    dry = autonomy.merge(p, last, L2)
+    assert dry["can_merge"] and dry["branch"] == f"ccx/{run_id}" and dry["lines"] == 3, dry
+    done = autonomy.merge(p, last, L2, apply=True)
+    assert done["merged"], done
+    assert "y2 = 2" in (repo / "a.py").read_text(encoding="utf-8")
+    assert git(repo, "log", "-1", "--format=%s") == f"Merge ccx/{run_id} (ccx autonomy L2)"
+
+
+def test_a_resumed_upstream_run_merges_once_the_branch_has_its_start(tmp_path):
+    repo, run_id = repo_behind_upstream(tmp_path)
+    last = resume_of(run_id, "20261116-000100-up02")["run_id"]
+    git(repo, "merge", "-q", "--ff-only", "origin/work")
+    done = autonomy.merge(paths(), last, L2, apply=True)
+    assert done["merged"] and done["branch"] == f"ccx/{run_id}" and done["files"] == ["a.py"], done
+    assert "y2 = 2" in (repo / "a.py").read_text(encoding="utf-8")
+
+
+def test_a_worktree_moved_off_its_run_branch_is_not_merged(tmp_path):
+    repo, run_id = repo_with_run(tmp_path)
+    wt = Path(json.loads((paths().runs / run_id / "run.json").read_text(encoding="utf-8"))["cwd"])
+    git(wt, "checkout", "-qb", "elsewhere")             # e.g. the sub-agent switched branches in its worktree
+    before = git(repo, "rev-parse", "HEAD")
+    for rid in (run_id, resume_of(run_id, "20261025-000100-r1")["run_id"]):
+        out = autonomy.merge(paths(), rid, L2, apply=True)
+        assert not out["merged"] and any("is on elsewhere, not a branch of this run" in x for x in out["why_not"]), out
+        assert not any("nothing changed" in x for x in out["why_not"]), out
+    assert git(repo, "rev-parse", "HEAD") == before
+
+
+def test_a_detached_worktree_is_not_merged(tmp_path):
+    repo, run_id = repo_with_run(tmp_path)
+    wt = Path(json.loads((paths().runs / run_id / "run.json").read_text(encoding="utf-8"))["cwd"])
+    git(wt, "checkout", "-q", "--detach")
+    before = git(repo, "rev-parse", "HEAD")
+    out = autonomy.merge(paths(), run_id, L2, apply=True)
+    assert not out["merged"] and any("not on a branch (detached HEAD)" in x for x in out["why_not"]), out
+    assert git(repo, "rev-parse", "HEAD") == before
+
+
+def test_a_resume_chain_broken_before_the_branch_is_not_merged(tmp_path):
+    repo, run_id = repo_with_run(tmp_path)
+    resume_of(run_id, "20261025-000100-r1")
+    last = resume_of("20261025-000100-r1", "20261025-000200-r2")["run_id"]
+    (paths().runs / "20261025-000100-r1" / "run.json").unlink()        # the middle record is gone
+    before = git(repo, "rev-parse", "HEAD")
+    out = autonomy.merge(paths(), last, L2, apply=True)
+    assert not out["merged"], out
+    assert any("cannot tell which branch this run worked on" in x and "is missing" in x for x in out["why_not"]), out
+    assert not any("nothing changed" in x for x in out["why_not"]), out
+    assert git(repo, "rev-parse", "HEAD") == before

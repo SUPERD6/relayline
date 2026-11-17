@@ -98,6 +98,8 @@ review said pass; at most `max_lines` changed lines in `max_files` files (80 / 5
 approval rules; risk is not visible or critical; the project's branch is not protected (`main`, `master`, `trunk`,
 `release/*` and the remote's default branch). It merges locally into the branch the project is on; pushing and any
 PR into the main branch stay with the person. Undo: the `undo` line in the answer.
+A resumed run merges the branch of the run it resumed (`ccx/<first run_id>`, the worktree it works in); a
+worktree moved off that branch is refused.
 
 `ccx batch` and `ccx q run` don't read the level: at L0 and L1 start them only after the person said yes to that
 plan.
