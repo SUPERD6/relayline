@@ -253,9 +253,9 @@ def user_fixed_text(route: dict | None, given: dict | None) -> str | None:
 
 def cold_start(p: Paths, cfg: dict, spec: dict, route: dict, pk: dict, agents: list[str],
                max_esc: int = 1) -> dict | None:
-    """Experimental, off unless routing.cold_start is on (#426). When task-routing has no learned outcome yet for any
-    candidate vendor (its pick is then priors only), the first rung's tier comes from the [cold_start] table: by the
-    kind of work and difficulty b, at most bound -> tier. The table names tiers, never a vendor: the vendor stays
+    """Experimental, off unless routing.cold_start is on (#426). When task-routing has no learned outcome yet of this
+    kind of work for any candidate vendor (#437; its pick is then priors only), the first rung's tier comes from the
+    [cold_start] table: by the kind of work and difficulty b, at most bound -> tier. The table names tiers, never a vendor: the vendor stays
     task-routing's pick, its model and effort for that tier come from [tiers]. A person's or role's fixed choice is
     left alone. Returns the replacement {rung, agent, model, effort, ladder, tier, ...}, or None (pick unchanged);
     when on and not applied, route["cold_start"] says why."""
@@ -267,18 +267,35 @@ def cold_start(p: Paths, cfg: dict, spec: dict, route: dict, pk: dict, agents: l
         route["cold_start"] = {"applied": False, "why": f"user-fixed: {', '.join(fixed)}"}
         return None
     try:
-        counts = learn.module(p, "routing").load_state().get("counts") or {}
+        state = learn.module(p, "routing").load_state() or {}
     except Exception:  # noqa: BLE001 — no routing skill / unreadable state: leave the pick as it is
         return None
-    # agents = the candidates task-routing chose among, after quota / readiness filtering: a vendor filtered out this
-    # time is not counted, so its history does not make this pick warm. counts carry no kind of work (#426 follow-up)
-    seen = sum(int(n or 0) for rung, n in counts.items() if str(rung).split(":", 1)[0] in agents)
-    if seen:
-        route["cold_start"] = {"applied": False,
-                               "why": f"{seen} learned outcome(s) for {', '.join(agents)}: task-routing's pick"}
-        return None
-    table = cfg.get("cold_start") or {}
+    counts = state.get("counts") or {}
     kind = learn.task_kind(spec.get("mode"), spec.get("kind"))
+    names = ", ".join(agents)
+    # agents = the candidates task-routing chose among, after quota / readiness filtering: a vendor filtered out this
+    # time is not counted, so its history does not make this pick warm. #437: judged per kind of work; runs the state
+    # recorded with no kind (before #437) count as history, so an old state file is never taken for "cold"
+    hist = learn.kind_history(state, agents, kind)
+    if hist is None:      # defensive only: task_kind never returns None today; then per vendor, as #426 shipped it
+        seen = sum(int(n or 0) for rung, n in counts.items() if str(rung).split(":", 1)[0] in agents)
+        if seen:
+            route["cold_start"] = {"applied": False,
+                                   "why": f"{seen} learned outcome(s) for {names}: task-routing's pick"}
+            return None
+        cold_why, by_kind = f"no learned outcome for {names}", {}
+    else:
+        by_kind = {"by_kind": kind}
+        if hist["kind"] or hist["unknown"]:
+            parts = ([f"{hist['kind']} learned outcome(s) of kind {kind}"] if hist["kind"] else []) + \
+                    ([f"{hist['unknown']} learned outcome(s) with no recorded kind"] if hist["unknown"] else [])
+            route["cold_start"] = {"applied": False, **by_kind,
+                                   "why": f"judged by kind {kind}: {' + '.join(parts)} for {names}: "
+                                          f"task-routing's pick"}
+            return None
+        cold_why = (f"judged by kind {kind}: no learned outcome of kind {kind} for {names}"
+                    + (f" ({hist['other']} of other kinds)" if hist["other"] else ""))
+    table = cfg.get("cold_start") or {}
     bands = table.get(kind) if isinstance(table.get(kind), dict) else table.get("default")
     if not isinstance(bands, dict):
         route["cold_start"] = {"applied": False, "why": f"no [cold_start] table for {kind} or default"}
@@ -305,8 +322,8 @@ def cold_start(p: Paths, cfg: dict, spec: dict, route: dict, pk: dict, agents: l
             ladder.append(rung)
         nxt = next_tier(nxt)
     rung = f"{agent}:{ts['model']}:{ts['effort']}"
-    route["cold_start"] = {"applied": True, "kind": kind, "b": b, "tier": tier, "from": pk["rung"],
-                           "why": f"no learned outcome for {', '.join(agents)}"}
+    route["cold_start"] = {"applied": True, "kind": kind, "b": b, "tier": tier, "from": pk["rung"], **by_kind,
+                           "why": cold_why}
     return {"rung": rung, "agent": agent, "model": ts["model"], "effort": ts["effort"],
             "ladder": [r for r in ladder if r != rung], "tier": tier}
 

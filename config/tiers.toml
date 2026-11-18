@@ -150,13 +150,14 @@ avoid_above = 0.8         # any window > 80%, or projected > 100%, sorts last / 
 routing = "on"           # off keeps the previous routing / off 关闭配额排序
 
 # Cold-start table (#426, experimental; used only with routing.cold_start = true, shipped false). When task-routing has
-# no learned outcome yet for any candidate vendor (its pick is then priors only), the first rung's tier comes from here:
+# no learned outcome yet of this kind of work for any candidate vendor (its pick is then priors only), the first
+# rung's tier comes from here:
 # difficulty b (task-routing's, about log2 of minutes) at most the bound -> that tier; above every bound -> T4. One row
 # per kind of work (code | read | research | write), `default` for the rest. The table names tiers, never a vendor: the
 # vendor is still routing's pick, and its model / effort for the tier come from [tiers]. A person's --to / --model /
-# --tier / --provider (--effort with --model), or a role, is left alone. "No history" counts any kind of work (the
-# learned counts record no kind; #437). Bounds are provisional, not measured.
-# 起步表（实验性，默认关）：候选的几家都还没有学到的结果时（任何类别都算，计数没记类别，见 #437），按任务类别和难度 b
+# --tier / --provider (--effort with --model), or a role, is left alone. "No history" is per kind of work (#437): runs
+# with no recorded kind (older state) count for every kind. Bounds are provisional, not measured.
+# 起步表（实验性，默认关）：候选的几家都还没有这一类任务学到的结果时（#437；没记类别的旧记录对每类都算有历史），按任务类别和难度 b
 # 定首档（只写档位，不写哪一家）；用户用 --to/--model/--tier/--provider（--effort 要和 --model 一起）或角色表固定了的不动。
 # 阈值是暂定值，未实测。
 [cold_start]

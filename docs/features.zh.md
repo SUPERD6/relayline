@@ -477,22 +477,28 @@ Fail（做对 29 对 30），事后解读为未定。按配对看，三个都没
 
 默认关（`routing.cold_start = false`）；关着时每次选档和以前逐字一样（`tests/test_cold_start.py` 锁住）。用
 `ccx config set routing.cold_start on` 打开。它只作用于 task-routing 的选择（带评分项、`--minutes` 或 `--b` 的运行），
-而且只在候选的几家都还没有任何学到的结果、task-routing 只能靠先验时生效。这时首档的档位查 `config/tiers.toml`
+而且只在候选的几家都还没有这一类任务学到的结果、task-routing 只能靠先验时生效。这时首档的档位查 `config/tiers.toml`
 里的 `[cold_start]` 表（可在 `hub/ccx/tiers.toml` 覆盖）：按任务类别一行（`code`、`read`、`research`、`write`，没配的类别用
 `default`），难度 b 不超过某个上限就用那一档，超过所有上限用 T4。表里只写档位，不写哪一家：用哪家仍是 task-routing
 选的，这一家在该档的模型和推理强度取自 `[tiers]`。之后升档只在同一家里往上走（T4 没有后续档），不再用 task-routing
 原来升档路径里的跨厂商档。默认阈值是暂定值，未实测。
 
-"没有历史"按候选厂商算，不按任务类别：task-routing 学到的计数没记任务类别，所以候选厂商只要记下过一次任何类别的
-运行结果就算有历史；候选指配额和登录过滤之后剩下的几家。实际上起步表只对候选厂商还没有任何结果时带难度 b 的头几次
-运行生效，有效窗口很短。按任务类别判定见 #437。
+"没有历史"按任务类别和候选厂商算（#437）：每条学到的结果现在也记下任务类别（routing state 里的 `kind_counts`
+{类别: {档: 次数}}，以及结果条目上的 `kind`；只加不改，skill 原来的 `counts` 不变）。候选厂商只有 `code` 历史时，
+`read` 任务仍走起步表；记下一次 `read` 结果后，`read` 任务恢复 task-routing 的选择。状态里没记类别的运行（#437 之前写的
+状态文件，或没带类别记录的运行，如 task-routing 自己的 `record` 命令）对每个类别都算有历史，所以旧状态文件不会被误判为冷启动，
+行为和以前一样。类别取 `--kind`；没给时只读运行算 `read`，其余算 `code`；用 `--tier`、`--model` 或 `--provider`
+固定了选择的运行也按运行模式这样记类别（这类运行的 `--kind` 不保留）。任务类别未知时退回按厂商判定（任何一次运行都算）；
+这一支只是防御用，目前类别总能确定。候选指配额和登录过滤之后剩下的几家。
+起步表开不开都会记类别，这不改变任何选择。
 
 用户固定的选择不动：`--to`、`--model`、`--tier`、`--provider`、和 `--model` 或 `--provider` 一起给的 `--effort`（单独给
 `--effort` 会被忽略，`ccx run` 会提示），或角色表（任何角色，即使设成 `auto:auto:auto`）。起步表一档都不改，`rung_why.user_fixed`
 写明（`user-fixed / 用户固定: --to codex; automatic selection keeps them as given`）；`ccx run` 只要固定了什么就有这一行，
 起步表开不开都一样；`ccx batch` 和队列运行只在起步表开着时有（取自起步表的记录）。
 起步表开着时，运行和 dry-run 的 `route.cold_start` 写明是否生效、为什么（`applied`、`why`，生效时还有 `kind`、`b`、`tier`、
-`from`：task-routing 原来选的档），`rung_why.model` / `rung_why.effort` 写明来自起步表。dry-run 的首档和真实运行一致。
+`from`：task-routing 原来选的档；`by_kind` 和 `why` 写明按哪个类别判断，例如
+`judged by kind read: no learned outcome of kind read for codex, claude (2 of other kinds)`），`rung_why.model` / `rung_why.effort` 写明来自起步表。dry-run 的首档和真实运行一致。
 
 ## 配额感知
 

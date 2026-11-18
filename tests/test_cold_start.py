@@ -192,3 +192,105 @@ def test_cold_start_off_is_a_no_op():
     cfg = {"routing": {}, "cold_start": {"default": {"T1": 3}}, "tiers": {}}
     assert cold_start(None, cfg, {}, route, {"agent": "claude", "rung": "claude:x:y"}, ["claude"]) is None
     assert route == {"b": 6.0}
+
+
+class TestColdStartByKind(ColdStartEnv):
+    """#437: "no history" is judged per kind of work when the learned state says which kind a run was."""
+
+    def kinded(self, counts, kind_counts):
+        d = self.hub / "ccx"
+        d.mkdir(parents=True, exist_ok=True)
+        (d / "routing-state.json").write_text(json.dumps({"offsets": {}, "counts": counts, "outcomes": [],
+                                                          "kind_counts": kind_counts}), encoding="utf-8")
+
+    def state(self):
+        return json.loads((self.hub / "ccx" / "routing-state.json").read_text(encoding="utf-8"))
+
+    def test_code_history_only_read_work_still_starts_cold(self):
+        self.kinded({"claude:sonnet:medium": 2}, {"code": {"claude:sonnet:medium": 2}})
+        self.on()
+        dry = self.dry(("--from", "claude", "--b", "4", "--mode", "read"))
+        cs = dry["route"]["cold_start"]
+        self.assertTrue(cs["applied"])
+        self.assertEqual(dry["first_rung"], "claude:haiku:low")
+        self.assertEqual(cs["by_kind"], "read")
+        self.assertIn("kind read", cs["why"])
+        # the same history makes code work warm: task-routing's pick, and the receipt says by which kind
+        dry = self.dry(("--from", "claude", "--b", "6", "--mode", "write"))
+        cs = dry["route"]["cold_start"]
+        self.assertFalse(cs["applied"])
+        self.assertEqual(dry["first_rung"], "claude:sonnet:medium")
+        self.assertEqual(cs["by_kind"], "code")
+        self.assertIn("kind code", cs["why"])
+
+    def test_read_history_restores_task_routings_pick(self):
+        self.kinded({"claude:sonnet:medium": 3}, {"code": {"claude:sonnet:medium": 2},
+                                                  "read": {"claude:sonnet:medium": 1}})
+        args = ("--from", "claude", "--b", "4", "--mode", "read")
+        self.on()
+        dry = self.dry(args)
+        self.assertFalse(dry["route"]["cold_start"]["applied"])
+        self.assertIn("kind read", dry["route"]["cold_start"]["why"])
+        self.j("config", "set", "routing.cold_start", "off")
+        self.assertEqual(self.dry(args)["first_rung"], dry["first_rung"])
+
+    def test_runs_with_no_recorded_kind_count_as_history(self):
+        # a run recorded without a kind: unknown kind is never taken for "cold"
+        self.kinded({"claude:sonnet:medium": 3}, {"code": {"claude:sonnet:medium": 2}})
+        self.on()
+        dry = self.dry(("--from", "claude", "--b", "4", "--mode", "read"))
+        cs = dry["route"]["cold_start"]
+        self.assertFalse(cs["applied"])
+        self.assertIn("no recorded kind", cs["why"])
+
+    def test_old_state_file_reads_and_behaves_as_before(self):
+        self.learned({"claude:sonnet:medium": 1})        # no kind_counts at all (state written before #437)
+        self.on()
+        dry = self.dry(("--from", "claude", "--b", "4", "--mode", "read"))
+        self.assertFalse(dry["route"]["cold_start"]["applied"])
+        self.assertIn("learned outcome", dry["route"]["cold_start"]["why"])
+
+    def test_a_real_run_records_its_kind(self):
+        self.on()
+        args = ("--from", "claude", "--b", "4", "--mode", "read")
+        out = json.loads(self.ccx("run", *args, *FLAGS, BRIEF).stdout)
+        rec = self.rec(out["run_id"])
+        rung = rec["attempts"][0]["rung"]
+        self.j("verify", out["run_id"], "--ok", "1")       # the lead's verdict is what feeds the learned state
+        st = self.state()
+        self.assertEqual(st["kind_counts"], {"read": {rung: 1}})
+        self.assertEqual(st["outcomes"][-1]["kind"], "read")
+        # now read work is warm, code work for the same vendor is still cold
+        self.assertFalse(self.dry(args)["route"]["cold_start"]["applied"])
+        self.assertTrue(self.dry(("--from", "claude", "--b", "6", "--mode", "write"))["route"]["cold_start"]["applied"])
+
+    def test_a_fixed_tier_run_records_its_kind_from_the_mode(self):
+        # --tier skips task-routing, so route.kind is not set; the kind then comes from the run's mode, not "unknown"
+        args = ("--from", "user", "--tier", "T2", "--b", "4", "--mode", "read")
+        out = json.loads(self.ccx("run", *args, *FLAGS, BRIEF).stdout)
+        rung = self.rec(out["run_id"])["attempts"][0]["rung"]
+        self.j("verify", out["run_id"], "--ok", "1")
+        st = self.state()
+        self.assertEqual(st["kind_counts"], {"read": {rung: 1}})
+        self.assertEqual(sum(st["counts"].values()), 1)                  # nothing left as "unknown kind"
+
+
+def test_kind_history_splits_kind_other_and_unknown():
+    from ccx.learn import kind_history
+    st = {"counts": {"claude:a:b": 5, "codex:c:d": 2, "gemini:e:f": 9},
+          "kind_counts": {"code": {"claude:a:b": 2, "codex:c:d": 2}, "read": {"claude:a:b": 1}}}
+    assert kind_history(st, ["claude", "codex"], "read") == {"kind": 1, "other": 4, "unknown": 2}
+    assert kind_history(st, ["claude", "codex"], "code") == {"kind": 4, "other": 1, "unknown": 2}
+    assert kind_history({"counts": {"claude:a:b": 1}}, ["claude"], "code") == {"kind": 0, "other": 0, "unknown": 1}
+    assert kind_history({}, ["claude"], "code") == {"kind": 0, "other": 0, "unknown": 0}
+    assert kind_history(st, ["claude", "codex"], None) is None      # kind not known: caller falls back per vendor
+
+
+def test_note_kind_adds_only():
+    from ccx.learn import note_kind
+    st = {"counts": {"claude:a:b": 1}, "outcomes": [{"rung": "claude:a:b", "ok": True}]}
+    note_kind(st, "claude:a:b", "read")
+    assert st["kind_counts"] == {"read": {"claude:a:b": 1}} and st["outcomes"][-1]["kind"] == "read"
+    before = json.dumps(st, sort_keys=True)
+    note_kind(st, "claude:a:b", None)                               # no kind: nothing written, stays "unknown"
+    assert json.dumps(st, sort_keys=True) == before

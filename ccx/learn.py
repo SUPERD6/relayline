@@ -310,6 +310,52 @@ def price_usd(p: Paths, agent: str, model: str, usage: dict, ts: float | None = 
             + (usage.get("output_tokens", 0) or 0) * pr["output"]) / 1e6
 
 
+def note_kind(state: dict, rung: str, kind: str | None) -> None:
+    """Which kind of work a just-recorded outcome was (#437). Adds only: `kind_counts` {kind: {rung: n}} next to the
+    skill's `counts`, and `kind` on the last outcome. No kind -> nothing written, so the run stays "unknown kind"."""
+    if not kind:
+        return
+    by = state.setdefault("kind_counts", {}).setdefault(str(kind), {})
+    by[rung] = int(by.get(rung, 0) or 0) + 1
+    outs = state.get("outcomes") or []
+    if outs and outs[-1].get("rung") == rung:
+        outs[-1]["kind"] = str(kind)
+
+
+def kind_history(state: dict, agents: list[str], kind: str | None) -> dict | None:
+    """Learned runs of the candidate vendors, split by kind of work (#437): `kind` (this kind), `other` (other kinds)
+    and `unknown` (counted by the skill but with no recorded kind: state written before #437, or a run recorded
+    without one). None when the kind itself is not known: the caller then judges per vendor, as before."""
+    if not kind:
+        return None
+
+    def mine(rung) -> bool:
+        return str(rung).split(":", 1)[0] in agents
+
+    def n(v) -> int:
+        try:
+            return max(0, int(v or 0))
+        except (TypeError, ValueError):
+            return 0
+    by_kind = state.get("kind_counts") if isinstance(state.get("kind_counts"), dict) else {}
+    same = other = unknown = 0
+    per_rung: dict[str, int] = {}
+    for k, rungs in by_kind.items():
+        if not isinstance(rungs, dict):
+            continue
+        for rung, c in rungs.items():
+            if mine(rung):
+                per_rung[rung] = per_rung.get(rung, 0) + n(c)
+                if k == kind:
+                    same += n(c)
+                else:
+                    other += n(c)
+    for rung, c in (state.get("counts") or {}).items():
+        if mine(rung):
+            unknown += max(0, n(c) - per_rung.get(rung, 0))
+    return {"kind": same, "other": other, "unknown": unknown}
+
+
 def record_outcomes(p: Paths, record: dict, final_ok: bool) -> list[dict]:
     """Feed every attempt of a run back into the skills. Failed earlier attempts count as failures of
     their rung; the last attempt counts as `final_ok`. Needs a difficulty b (from the rubric)."""
@@ -327,6 +373,10 @@ def record_outcomes(p: Paths, record: dict, final_ok: bool) -> list[dict]:
         except FileNotFoundError:
             sp = None
     atts = record.get("attempts", [])
+    # #437: task-routing picks carry route.kind (--kind, else read mode -> read, else code). A pick fixed with
+    # --tier / --model / --provider has none, so its kind comes from the run's mode the same way; --kind is not
+    # kept on those records. Without this the run would count as "unknown kind", i.e. history for every kind
+    kind = route.get("kind") or task_kind(record.get("mode"))
     first_p = None
     for i, a in enumerate(atts):
         if a.get("kind") in ("quota", "capacity", "auth", "timeout", "model", "policy", "needs_write", "split", "over_budget",
@@ -341,6 +391,7 @@ def record_outcomes(p: Paths, record: dict, final_ok: bool) -> list[dict]:
                 r = tr.record(rung, float(b), ok, pri, st, cost_usd=cost, seconds=a.get("seconds"))
             except TypeError:                            # skill copy without time learning
                 r = tr.record(rung, float(b), ok, pri, st, cost_usd=cost)
+            note_kind(st, rung, kind)                    # #437: kind of work, for the per-kind cold-start check
             tr.save_state(st)
         if first_p is None:
             first_p = r.get("predicted_p")

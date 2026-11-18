@@ -725,17 +725,24 @@ wins over `[lanes] default` and an explicit `--lanes` over `[merge] default`; bo
 Off by default (`routing.cold_start = false`); with it off, every pick is byte for byte what it was before (locked
 by `tests/test_cold_start.py`). Switch it on with `ccx config set routing.cold_start on`. It acts only on
 task-routing's pick (a run given the rubric, `--minutes` or `--b`) and only when task-routing has no learned outcome
-yet for any candidate vendor, so its pick would rest on priors alone. Then the first rung's tier comes from the
+yet of this kind of work for any candidate vendor, so its pick would rest on priors alone. Then the first rung's tier comes from the
 `[cold_start]` table in `config/tiers.toml` (override in `hub/ccx/tiers.toml`): one row per kind of work (`code`,
 `read`, `research`, `write`; a kind with no row uses `default`), difficulty b at most the bound gives that tier, above
 every bound T4. The table names tiers, never a vendor: the vendor is still task-routing's pick, and its model and
 effort for that tier come from `[tiers]`. Escalation then climbs only the same vendor's next tiers (from T4 there is
 none), not the cross-vendor rungs task-routing's own ladder may hold. The shipped bounds are provisional, not measured.
 
-"No history" is per candidate vendor, not per kind of work: task-routing's learned counts do not record the kind, so
-any recorded run for a candidate vendor (of any kind) counts. The candidates are those left after quota and readiness
-filtering. In practice the table therefore applies only to the first runs with a difficulty b before any candidate
-vendor has a recorded outcome: a short window. Judging by kind of work is #437.
+"No history" is per kind of work and candidate vendor (#437): each learned outcome now also records its kind
+(`kind_counts` {kind: {rung: n}} in the routing state, and `kind` on the outcome; only added, the skill's `counts`
+are unchanged). A candidate vendor with only `code` runs is still cold for `read` work; once a `read` outcome is
+recorded, `read` work gets task-routing's pick again. Runs the state holds with no recorded kind (a state file written
+before #437, or a run recorded without one, such as task-routing's own `record` command) count as history for every kind, so an old
+state file is never taken for "cold" and behaves as before. The kind is `--kind` when given, else `read` for a
+read-only run and `code` for the rest; a run whose pick was fixed with `--tier`, `--model` or `--provider` records
+its kind from the run's mode the same way (its `--kind` is not kept). If the kind of work were unknown, the check
+would fall back to per vendor (any recorded run counts); that branch is defensive only, the kind is always known
+today. The candidates are those left after quota and readiness filtering.
+Recording the kind happens whether the table is on or off; it changes no pick.
 
 A choice the person fixed is left alone: `--to`, `--model`, `--tier`, `--provider`, `--effort` together with
 `--model` or `--provider` (alone it is ignored, see the note `ccx run` prints), or a role (any role, even one set to
@@ -743,7 +750,8 @@ A choice the person fixed is left alone: `--to`, `--model`, `--tier`, `--provide
 codex; automatic selection keeps them as given`). For `ccx run` that line appears whenever something was fixed, with
 the table on or off; for `ccx batch` and queue runs only while the table is on (it comes from the table's note). When the table is on,
 the run's and the dry run's `route.cold_start` says whether it applied and why (`applied`, `why`, and when applied
-`kind`, `b`, `tier`, `from`: task-routing's rung), and `rung_why.model` / `rung_why.effort` name the table. The dry
+`kind`, `b`, `tier`, `from`: task-routing's rung; `by_kind` and the `why` text name the kind the history was judged
+by, e.g. `judged by kind read: no learned outcome of kind read for codex, claude (2 of other kinds)`), and `rung_why.model` / `rung_why.effort` name the table. The dry
 run's first rung and the real run's are the same.
 
 ## Quota awareness
