@@ -60,8 +60,10 @@ _RECURSIVE = re.compile(r"(?<![\w.-])(?:rg|ag|tree|find|grep\s+(?:-\w*[rR]\w*|--
 _END = r"(?=$|[\s\"'`;)|,&<>])"
 _TOKEN_END = r"/?" + _END
 # In order: a `cd`-like command with no target (bash: home), one with its target (cmd's `/d` and PowerShell's
-# -switches skipped), or a relative path starting with `..` or `./..`
-_CD = r"(?<![\w-])(?:cd|chdir|pushd|push-location|set-location|sl)"
+# -switches skipped), or a relative path starting with `..` or `./..`. A cd counts only where a command starts: the
+# beginning, after ; & | ( { ` or a newline, or right after the quote that opens a `-Command '...'`/`-c "..."`
+# string; `echo cd` or `grep -w sl` mention the word without running it.
+_CD = r"(?:^|(?<=[;&|(\n{`'\"]))\s*(?:cd|chdir|pushd|push-location|set-location|sl)(?![\w-])"
 _NAV = re.compile(_CD + r"(?P<bare>(?=\s*(?:$|[;&|\n])))"
                   r"|" + _CD + r"\s+(?:(?:-\w+|/d|d:)\s+)*(?P<q>[\"']?)(?P<cd>[^\s\"';|&)]+)"   # canon: /d -> d:
                   r"|" + PF._B + r"(?P<up>(?:\./)?\.\.(?:/[^\s\"'`;)|,&<>]*)?)" + _END, re.I)

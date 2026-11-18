@@ -56,7 +56,9 @@ Grep 和 Glob，Edit 规则作用于所有改文件的工具）。Codex 单元�
 pattern，不看写入的正文，所以代码里写 `tree` 或 `../..` 不算命中）：任何命令里以 `..` 或 `./..` 开头的相对路径落到
 单元目录之外，按这次运行的工作目录判断（run.json 的 `cwd`：repo，或 ccx worktree `<unit>/.ccx-worktrees/repo/<run id>`，
 从那里 `cd ../../..` 仍在单元内）；`cd`/`pushd`/`Push-Location`/`Set-Location`（跳过 cmd 的 `/d`）不带参数、到 `~`、
-或到单元外某个包含禁读路径的上级目录；解析不了的 `cd` 目标（变量、子 shell）只要带 `..`；对禁读路径的上级目录做递归
+或到单元外某个包含禁读路径的上级目录；解析不了的 `cd` 目标（变量、子 shell）只要带 `..`（cd 只在命令开头的位置才算，`echo cd` 不算；`cd ~`、`cd $HOME`、
+`cd %USERPROFILE%` 会命中，因为它们到达 home，而 home 是禁读路径的上级目录；`cd "$CODEX_HOME"` 这类其他变量不展开，
+只有带 `..` 才算命中）；对禁读路径的上级目录做递归
 搜索（`rg`、`grep -r`、`Get-ChildItem -Recurse` 等）或 Grep/Glob。命中时该行记为无效（`--on-invalid continue`）或停止
 整组（默认）。dry-run 带 `--tasks` 或 `--hide` 时输出 `isolation` 字段：`--hide` 路径、第一个单元实际禁读的全部路径和
 内容模式。
@@ -66,7 +68,8 @@ pattern，不看写入的正文，所以代码里写 `tree` 或 `../..` 不算�
 写进这里的局限，不再一轮轮补。已知抓不到的：短名和长名混写的路径；从文件系统根目录搜索；先在一次工具调用里 `cd` 到单元
 外一个本身不含禁读路径的目录，再在后续调用里用相对路径读（每次调用都按运行工作目录判断）；Write/Edit 写出的代码不提
 内容模式字样就够到禁读目录（只检查运行它的命令）；运行时拼出来的路径（变量、字符串拼接、读环境变量）；preflight
-`tool_inputs` 解析不了的 DSH 日志格式。Codex 的读取只能事后发现。
+`tool_inputs` 解析不了的 DSH 日志格式。Codex 的读取只能事后发现。第一次真跑 Codex 单元时，要看 `path_audit` 里有没有
+`cd ~` 这类没读任何东西的误报。
 
 `results.jsonl` 保留隐藏测试失败、运行失败和中断。花费未知时保留全部单元预留并停止，不当作零；
 总预算耗尽、单次超预留、中断，或 ccx 回执 `status: "error"`（如 `kind: auth`）时也不再启动下一单元；

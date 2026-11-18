@@ -277,6 +277,15 @@ def test_out_inside_the_persons_hub_refused(tmp_path, monkeypatch):
     ("Push-Location ..\\..\\..\\..", True),
     ("cd /d ..\\..\\..\\..", True),
     ("cd /d ..\\..", False),
+    # last review: the word cd or sl in a sentence is not a command
+    ("echo cd", False),
+    ("git log | grep -w sl", False),
+    ("cat README.md # cd", False),
+    ("git status\ncd", True),
+    ("powershell.exe -Command 'cd ..\\..\\..\\..; Get-Content x'", True),
+    ("cd $HOME", True),                           # canon() expands it: the home holds forbidden folders
+    ("cd %USERPROFILE%", True),
+    ('cd "$CODEX_HOME"', False),                  # another variable is not expanded and does not climb
 ])
 def test_climbs_judged_by_where_they_land(tmp_path, call, hit):
     """(should-fix 2) the sub-agent works in <unit>/.ccx-worktrees/repo/<run id>; only leaving the unit is a hit."""

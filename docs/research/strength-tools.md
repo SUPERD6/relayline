@@ -75,7 +75,9 @@ pattern; never a written body, so code that says `tree` or `../..` is not a hit)
 (run.json's `cwd`: the repo, or the ccx worktree `<unit>/.ccx-worktrees/repo/<run id>`, from which `cd ../../..` is
 still inside); a `cd`/`pushd`/`Push-Location`/`Set-Location` (cmd's `/d` skipped) with no target, to `~`, or to a
 folder outside the unit that holds a forbidden path; a `cd` whose target cannot be resolved (a variable or subshell)
-and contains `..`; and a recursive search (`rg`, `grep -r`, `Get-ChildItem -Recurse`, ...) or Grep/Glob call on a
+and contains `..` (a cd counts only where a command starts, so `echo cd` is not one; `cd ~`, `cd $HOME` and
+`cd %USERPROFILE%` are hits, as they reach the home, a parent folder of forbidden paths; another variable such as
+`cd "$CODEX_HOME"` is not expanded and is a hit only if it contains `..`); and a recursive search (`rg`, `grep -r`, `Get-ChildItem -Recurse`, ...) or Grep/Glob call on a
 parent folder of a forbidden path. A hit makes the row invalid (`--on-invalid continue`) or stops the group (the
 default). The dry run prints an `isolation` field (with `--tasks` or `--hide`) with the `--hide` paths, every path the
 first unit is denied and the content patterns.
@@ -88,7 +90,8 @@ than patched one by one. Known misses: a path mixing 8.3 short and long parts; a
 reads in later calls (each call is judged from the run's working folder); code written by Write/Edit that reaches a
 forbidden folder without naming a content pattern (only the command that runs it is checked); paths built at run
 time (variables, string joins, environment lookups); and DSH logs in a format preflight's `tool_inputs` does not
-parse. A Codex read is found only afterwards.
+parse. A Codex read is found only afterwards. On the first real run with Codex units, look at `path_audit` for
+false hits such as a `cd ~` the agent ran without reading anything.
 
 Results, hidden-test failures and interruptions are retained in `results.jsonl`;
 unknown cost keeps the full reservation and stops the batch, rather than charging
