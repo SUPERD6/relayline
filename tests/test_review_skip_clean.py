@@ -23,7 +23,7 @@ RENAMED = ("diff --git a/test_acceptance.py b/acceptance_off.py\nsimilarity inde
 DELETED = ("diff --git a/tests/test_old.py b/tests/test_old.py\ndeleted file mode 100644\nindex 1..0\n"
            "--- a/tests/test_old.py\n+++ /dev/null\n")
 SKIP_MARK = ("diff --git a/test_acceptance.py b/test_acceptance.py\n--- a/test_acceptance.py\n"
-             "+++ b/test_acceptance.py\n@@ -2,0 +3 @@\n+@pytest.mark.skip\n")
+             "+++ b/test_acceptance.py\n@@ -2,0 +3 @@\n+" + "@pytest.mark.skip\n")   # split: not an e-mail
 
 
 def unmet(rc=None, **kw):
