@@ -1,6 +1,6 @@
 # 进度
 
-[English](STATUS.md) · 中文 · 更新于 2026-11-18 · 0.7.0 已打 tag 并建 GitHub Release（尚未发 PyPI，PyPI 上仍是 0.6.0，2026-11-17 核实）；main 已领先
+[English](STATUS.md) · 中文 · 更新于 2026-11-18 · 0.7.0 已打 tag 并建 GitHub Release（尚未发 PyPI，PyPI 上仍是 0.6.0，2026-11-18 核实）；main 已领先
 
 供接手时读的一页，由统筹维护。历史见[归档](STATUS-archive.zh.md)；
 改动见 [CHANGELOG](../CHANGELOG.md) 和[各 PR 记录](../changes/README.zh.md)。
@@ -30,7 +30,7 @@
 
 **此后合入（PR #382–#409，2026-11-17）。** 都未发版，没改默认值，各项效果仍为 **Unknown**。*评测脚本（不起子智能体；只有 #389、#390、#405 是只读，其余会改等待、杀进程或克隆/baseline 行为）：* p4 打分和第二轮运行把 `src/` 加进 PYTHONPATH（#382、#385）；便宜首轮 v2 汇总（#386）；B/C 开发题选题（#387、#399）；回执假阳性统计（#389）、交接开销分解（#390）、账本离线回放（#405）；超时结束整棵进程树（#395、#408）。*合并路径：* `ccx autonomy merge`（#388）和 `ccx q accept`（#401）对续跑的运行合最初运行的分支，worktree 是 detached 或被切走就拒绝。*测试与 CI：* 修好 Ctrl+C 测试卡住的根因，CI test job 加 `timeout-minutes: 90`（#393）；关闭 Job Object 时等进程真正退出（#394）。*自动选模型（只让选档看得见）：* `ccx run --dry-run` 打印选档和理由，账本和回执记 `planned_first_rung` / `actual_first_rung`（#398）。*每日使用与计时：* `ccx report --daily` 一页真实使用记录（#406）；运行记录和账本新增交接计时字段（#409）。*评测记录：* 7 份中文预登记摘要（#404）；第二轮 A 组题目集 112 题，带离线校验和 SHA 清单（哈希 `c7bc6a6d…`；B/C 未完成）（#407）。
 
-**此后合入（PR #410–#439，2026-11-17 至 11-18）。** 都未发版，没改默认值，各开关效果均为 **Unknown**。*第二轮选题与防泄漏：* 选题环境修复（#416）、扫描 `ext-python` 里内嵌的 pip/setuptools 副本（#422）、克隆缓存键改为 owner/name（#423）、10 分钟 pytest 限制按仓库算、显式加载声明的 pytest 插件并带 deny 列表、stub 用 tag 版本（#425）；预登记修改记录（#421、#431）；A 组题目集已冻结（#407）。*合并路径：* `branch_landed` 看 worktree 当前提交（#412），并认出 squash / cherry-pick / rebase 合入（#420）。*测试：* `preflight.kill()` 等进程真正退出（#410）。*自动选模型与分流：* 按任务类别判定有无历史的冷启动起步表，用户固定选择时完全让位（#426/#436、#437/#439；`routing.cold_start`，**默认关**，实验性）；离线校准脚本 `routing_calibration.py`（#429/#432）：真实账本目前给不出阈值；`ccx ab` 样本记下和派活运行相同的规模信号（#433/#438）。*降开销开关（都**默认关**，实验性）：* `[review] skip_when_clean` 运行干净时跳过自动审查，用机械白名单规则（#427/#434）；`[brief] slim` 给子 agent 的简报瘦身（#428/#435）。*Relay：* packet 加 `captured_at`、接续记录加 `started_at`，UTC（#414/#419）。
+**此后合入（PR #410–#439，2026-11-17 至 11-18）。** 都未发版，没改默认值，各开关效果均为 **Unknown**。*第二轮选题与防泄漏：* 选题环境修复（#416；选题仍被 #442 挡住）、扫描 `ext-python` 里内嵌的 pip/setuptools 副本（#422）、克隆缓存键改为 owner/name（#423）、10 分钟 pytest 限制按仓库算、显式加载声明的 pytest 插件并带 deny 列表、stub 用 tag 版本（#425）；预登记修改记录（#421、#431）；A 组题目集已冻结（#407）。*合并路径：* `branch_landed` 看 worktree 当前提交（#412），并认出 squash / cherry-pick / rebase 合入（#420）。*测试：* `preflight.kill()` 等进程真正退出（#410）。*自动选模型与分流：* 按任务类别判定有无历史的冷启动起步表，用户固定选择时完全让位（#426/#436、#437/#439；`routing.cold_start`，**默认关**，实验性）；离线校准脚本 `routing_calibration.py`（#429/#432）：真实账本目前给不出阈值；`ccx ab` 样本记下和派活运行相同的规模信号（#433/#438）。*降开销开关（都**默认关**，实验性）：* `[review] skip_when_clean` 运行干净时跳过自动审查，用一组全部满足才跳过的机械条件，且要求 sensitivity = sensitive（#427/#434）；`[brief] slim` 给子 agent 的简报瘦身（#428/#435）。*Relay：* packet 加 `captured_at`、接续记录加 `started_at`，UTC（#414/#419）。
 
 **已有默认：** 路由 auto，配额感知/审查开；`small_self`、精简开关、记忆去重、无历史子会话/batch 合并、复现门禁关/实验性；worktree 默认 `sibling`，`inside` 自选/实验性；预算 0/不限，计费 `api`；`memory.by_kind` 关/实验性；`run.stall_minutes` 0/关/实验性；`worktree.base` 为 `head`；`routing.cold_start`、`review.skip_when_clean`、`brief.slim` 关/实验性。
 
@@ -45,7 +45,7 @@
 
 ## 接下来三件
 
-1. 第二轮（预登记 #369）：A 组题目集已冻结（#407）；B/C 的正式 `select` 在跑。跑完、题目集冻结后：写 B/C 的 SHA 修改记录，开发题冒烟，再开跑。预算：评测累计上限 $450（维护者，2026-11-16），目前约花 $165（统筹估算）；这一轮的上限（$67，含 C 组 $103）在范围内。
+1. 第二轮（预登记 #369）：A 组题目集已冻结（#407）；正式 B/C `select` 已跑完但因 #442 无一有效题（B 0/60、C 0/24）。先修 #442（pytest 没装上不能静默通过），修好后先在 10 个仓库上冒烟，确认有效题 > 0，再全量重跑 B/C 选题；之后写 B/C 的 SHA 修改记录，开发题冒烟，再开跑。预算：评测累计上限 $450（维护者，2026-11-16），目前约花 $165（统筹估算）；这一轮的上限（$67，含 C 组 $103）在范围内。
 2. 评测规则三条决定（PR #411，草稿）：等维护者回答其中 9 个问题；合入即表示同意。决定 1 对第二轮不变；决定 2（回执假阳性门槛）要在第二轮开跑前定，否则第二轮仍按旧写法。
 3. 开始真实使用（阶段 2）：分流校准需要真实使用记录和 `ccx ab` 自己做样本（#432 结论：现有账本给不出阈值），所以要维护者选 2–3 个项目日常用 ccx；之后从旧运行记录回填冷启动的 `kind_counts`（#440）。维护者同意后把 0.7.0 发到 PyPI（先 TestPyPI，见[维护说明 §5](maintenance.zh.md)）。
 
@@ -54,7 +54,7 @@
 - **real（Windows，已登录 CLI）：** 双向派活、检查/审查、停止/续跑/记账、归档、DeepSeek 主导、discuss、对话板/叫醒、共享上下文 A/B、hc1/pg3b/hc2 和阶段 0、batch/worktree/undo、非 ASCII 路径/隐藏控制台、Windows Codex hook、交互式 Codex 每轮 hook、dsh 排队归档、临时 Claude 插件市场安装、UI 隐藏测试、Codex 实现/审查流程。
 - **只有 fake / 工程检查（含 #271 之后合入的内容），例如：** 席位、配额排序/改派、额度接力、模型满载换模型、角色、就绪/刷新、一行结果、看板、收据 UNVERIFIED 显示、超时收据、Git 未完成步骤列表、简报/模式矛盾检查、self_first、slim_context、Claude 侧凭据禁读、汇总脚本、check 敏感度（#333）、卡住检测（#339）、worktree 基准（#341）、未提交文件回执（#340）、选档理由和 `--dry-run`（#398）、每日报告（#406）、计时字段（#409）、relay 时间字段（#419）、冷启动起步表（#426、#437）、干净时跳过审查（#427）、简报瘦身（#428）、分流校准和 `ab` 规模信号（#429、#433）、`branch_landed` 的 squash 判断（#420）、`autonomy merge` / `q accept` 的合并分支核对（#388、#401）、#382–#432 里的评测脚本（选题含 #422、#425 的泄漏扫描只在这台 Windows 机器上跑过）。**部分真实：** Codex 侧凭据禁读（#352，`codex-cli 0.164.0`，用假凭据文件）：elevated 的 `codex sandbox` 读被禁路径返回拒绝，unelevated 沙箱直接拒绝运行，开关打开时 `ccx run --to codex` 在启动前拒绝；elevated 沙箱会在这些路径上留下持久的 DENY ACL（撤销：`icacls <路径> /remove:d CodexSandboxUsers`）。**真实样本回放：** #245 Claude 限额事件/四条探针读数；Codex 拒绝样本仍为合成，不证明真实自动改派（[样本](../tests/data/real_signals/)）。
 - **未验证：** 在 elevated 沙箱下开着 Codex 侧凭据禁读完整跑一次 `ccx run`（已登录又是 elevated 的只有用户自己的 `~/.codex`，会加持久 ACL，由维护者决定）；真实 Codex 子 agent 在 `--worktree` 里是否遵守不提交的规则（#340，只用假 CLI 测过）；真实限额改派、macOS 钥匙串就绪（缺凭据 = Unknown）、真实离线/慢网络 fetch 超时、已安装 `gpt-6.1-terra` 计价；macOS/Linux 真机（只有 CI）、Gemini CLI、Codex 桌面 `say --now`/doctor 规则/叫醒 hook、dsh 后续写归档、从 GitHub 装 Codex 插件、真实子智能体上限、`--review auto` 触发率、真实 hook 超时、GitHub intake、L2 自动合并整条链、评测外路由；除共享上下文和记忆外，上面列出的各开关对成本或成功率的影响（Unknown）。
-- **已知问题：** 开着的：#375（第二轮题目集：B/C 未完成）、#440（冷启动从旧运行记录回填 `kind_counts`）。#402、#413、#414、#400、#396、#415、#417 已修复并关闭；#349、#359、#362 和评测工具 #365、#367、#370、#371 已关闭。**局限：** 第二轮选题在 Windows 上跑，偏向 Windows 上测试能全过的仓库；题目集不是所有 Python 项目的样本。此前仍未验证：没有本地 plan-review；CI 对 `/private/var`、8.3 短名和 `\\?\` 前缀的修复没复查；真实子智能体上限（F11 未触发）。
+- **已知问题：** 开着的：#442（第二轮 `prepare` 钉版本下载失败仍报 pytest 已装；正式 B/C `select` 跑完但无一有效，B 0/60、C 0/24）、#375（第二轮题目集：B/C 未完成）、#440（冷启动从旧运行记录回填 `kind_counts`）。#402、#413、#414、#400、#396、#415、#417 已修复并关闭；#349、#359、#362 和评测工具 #365、#367、#370、#371 已关闭。**局限：** 第二轮选题在 Windows 上跑，偏向 Windows 上测试能全过的仓库；题目集不是所有 Python 项目的样本。此前仍未验证：没有本地 plan-review；CI 对 `/private/var`、8.3 短名和 `\\?\` 前缀的修复没复查；真实子智能体上限（F11 未触发）。
 
 ### 待本人验证（2026-11-18）
 
