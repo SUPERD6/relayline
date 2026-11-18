@@ -265,6 +265,18 @@ def test_out_inside_the_persons_hub_refused(tmp_path, monkeypatch):
     ("rg -n settle ../../../..", True),
     ("Get-ChildItem -Recurse ..\\..\\..\\..", True),
     ("cd $(dirname $PWD)/../../..", True),        # cannot be resolved and climbs: counted as leaving
+    # third review: any command's relative path, ./.., bare cd, cd ~, Push-Location, cmd's cd /d
+    ("cat ../../../../../dev/scripts/eval/x.py", True),
+    ("cat ./../../../../x.txt", True),
+    ("type ..\\..\\..\\..\\x.txt", True),
+    ("cat ../../x.txt", False),
+    ("python ./../../../x.py", False),           # lands in the unit's folder
+    ("cd", True),
+    ("cd ; cat x", True),
+    ("cd ~", True),
+    ("Push-Location ..\\..\\..\\..", True),
+    ("cd /d ..\\..\\..\\..", True),
+    ("cd /d ..\\..", False),
 ])
 def test_climbs_judged_by_where_they_land(tmp_path, call, hit):
     """(should-fix 2) the sub-agent works in <unit>/.ccx-worktrees/repo/<run id>; only leaving the unit is a hit."""
@@ -274,14 +286,41 @@ def test_climbs_judged_by_where_they_land(tmp_path, call, hit):
     assert bool(runner.audit_hits([json.dumps(call)], u, cwd=cwd)) is hit, call
 
 
-def test_written_code_is_not_a_search(tmp_path):
-    """(should-fix 3) a Write/Edit body is not navigation: code that says tree, find, ../.. or round2_a reads nothing."""
+def test_cd_to_a_parent_of_a_forbidden_folder_is_a_hit(tmp_path):
+    """(third review 2) a cd outside the unit into a folder holding a forbidden one, then a relative read."""
     dest = tmp_path / "u"
     u = runner.isolation_unit(dest, dest / "hub", runner.isolation_paths())
-    body = "def walk(tree):\n    # find files, rg style\n    return os.path.join(root, '../..')\nNAME = 'round2_a'\n"
+    up = ROOT.parent.as_posix()
+    for call in (f"cd {up} && cat README.md", f"Push-Location {up}; Get-Content x.txt", f"cd /d {up}",
+                 f"pushd \"{up}\""):
+        assert runner.audit_hits([json.dumps(call)], u), call
+    elsewhere = tmp_path / "elsewhere-454"
+    assert runner.audit_hits([json.dumps(f"cd {elsewhere.as_posix()} && ls")], u) == []
+
+
+def test_home_holding_a_forbidden_folder_is_not_masked(tmp_path):
+    dest = tmp_path / "u"
+    u = runner.isolation_unit(dest, dest / "hub", runner.isolation_paths())
+    read = json.dumps(f"cat {(ROOT / 'scripts' / 'eval' / 'common.py').as_posix()}")
+    assert runner.audit_hits([read], u, homes=(ROOT.parent,))
+
+
+def test_written_code_is_not_a_search(tmp_path):
+    """(should-fix 3) a Write/Edit body is not navigation: code that says tree, find or ../.. reads nothing."""
+    dest = tmp_path / "u"
+    u = runner.isolation_unit(dest, dest / "hub", runner.isolation_paths())
+    body = "def walk(tree):\n    # find files, rg style\n    return os.path.join(root, '../..')\n"
     edits = [json.dumps({"file_path": str(dest / "repo" / "walk.py"), "content": body}),
              json.dumps({"file_path": str(dest / "repo" / "walk.py"), "old_string": "x", "new_string": body})]
     assert runner.audit_hits(edits, u) == []
+
+
+def test_written_script_naming_the_task_folder_is_a_hit(tmp_path):
+    """(third review) a body is still scanned for the content patterns: a script written to read round2_a, then run."""
+    dest = tmp_path / "u"
+    u = runner.isolation_unit(dest, dest / "hub", runner.isolation_paths())
+    body = "print(open('../../../../relayline/scripts/eval/round2_a/spec.py').read())\n"
+    assert runner.audit_hits([json.dumps({"file_path": str(dest / "repo" / "peek.py"), "content": body})], u)
 
 
 def test_absolute_path_with_dots_is_resolved(tmp_path):

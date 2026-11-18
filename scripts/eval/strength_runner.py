@@ -59,9 +59,12 @@ _RECURSIVE = re.compile(r"(?<![\w.-])(?:rg|ag|tree|find|grep\s+(?:-\w*[rR]\w*|--
                         re.I)
 _END = r"(?=$|[\s\"'`;)|,&<>])"
 _TOKEN_END = r"/?" + _END
-# In order: a `cd`-like command with its target, or a relative path starting with `..`
-_NAV = re.compile(r"(?<![\w-])(?:cd|pushd|set-location|sl|chdir)\s+(?:-\w+\s+)*(?P<q>[\"']?)(?P<cd>[^\s\"';|&)]+)"
-                  r"|" + PF._B + r"(?P<up>\.\.(?:/[^\s\"'`;)|,&<>]*)?)" + _END, re.I)
+# In order: a `cd`-like command with no target (bash: home), one with its target (cmd's `/d` and PowerShell's
+# -switches skipped), or a relative path starting with `..` or `./..`
+_CD = r"(?<![\w-])(?:cd|chdir|pushd|push-location|set-location|sl)"
+_NAV = re.compile(_CD + r"(?P<bare>(?=\s*(?:$|[;&|\n])))"
+                  r"|" + _CD + r"\s+(?:(?:-\w+|/d|d:)\s+)*(?P<q>[\"']?)(?P<cd>[^\s\"';|&)]+)"   # canon: /d -> d:
+                  r"|" + PF._B + r"(?P<up>(?:\./)?\.\.(?:/[^\s\"'`;)|,&<>]*)?)" + _END, re.I)
 _ABS_DOTS = re.compile(PF._B + r"(?P<p>(?:[a-z]:)?/[^\s\"'`;)|,&<>]*/\.\.(?:/[^\s\"'`;)|,&<>]*)?)", re.I)
 # Fields that say where a tool call goes (a Bash/Codex command, a path, a Grep/Glob pattern); never a written body
 NAV_KEYS = {"command", "cmd", "file_path", "path", "paths", "pattern", "glob", "notebook_path", "cwd", "workdir",
@@ -122,18 +125,20 @@ def python_paths() -> list[Path]:
     return [Path(sys.prefix), Path(sys.executable).parent]
 
 
-def _ancestors(paths, home) -> list[re.Pattern]:
-    """Each forbidden path's parent folders (not a drive or the file-system root), as a whole path token: a recursive
-    search or a Grep/Glob tool call there reads the forbidden folder too."""
-    seen, out = set(), []
+def _ancestor_paths(paths, home) -> list[str]:
+    """Each forbidden path's parent folders, canonical (not a drive or the file-system root)."""
+    out: list[str] = []
     for p in paths:
         for a in PurePosixPath(PF.canon(Path(p).as_posix(), home)).parents:
             s = str(a).rstrip("/")
-            if len([x for x in s.split("/") if x]) < 2 or s in seen:
-                continue
-            seen.add(s)
-            out.append(re.compile(PF._B + re.escape(s) + _TOKEN_END))
+            if len([x for x in s.split("/") if x]) >= 2 and s not in out:
+                out.append(s)
     return out
+
+
+def _ancestors(paths, home) -> list[re.Pattern]:
+    """The same as whole path tokens: a recursive search or a Grep/Glob tool call there reads the forbidden folder."""
+    return [re.compile(PF._B + re.escape(s) + _TOKEN_END) for s in _ancestor_paths(paths, home)]
 
 
 def content_hit(p) -> str | None:
@@ -170,38 +175,36 @@ def nav_view(s: str) -> tuple[str, bool]:
     return "\n".join(_nav_values(obj)), False
 
 
-def _parent(p: str, n: int) -> str:
-    q = PurePosixPath(p)
-    for _ in range(n):
-        q = q.parent
-    return q.as_posix()
-
-
-def climbs_out(text: str, cwd: str, work: str) -> bool:
-    """Does a `cd` or a recursive search in this (canonical) navigation text reach outside the unit's folder `work`,
-    starting from `cwd`? Targets are resolved in the order they appear; a `cd` moves the starting point. A `cd`
-    target that cannot be resolved (a variable, a subshell) and climbs is counted as leaving."""
+def climbs_out(text: str, cwd: str, work: str, parents=frozenset()) -> bool:
+    """Does this (canonical) navigation text leave the unit's folder `work`, starting from `cwd`? Paths are resolved
+    in the order they appear; a `cd` moves the starting point. A hit: any relative path starting with `..` or `./..`
+    (whatever the command) that lands outside `work`; a `cd` with no target or to `~` (home, outside the unit); a `cd`
+    to a folder outside `work` that holds a forbidden path (`parents`: their canonical parent folders), from which a
+    relative read would reach it; a `cd` target that cannot be resolved (a variable, a subshell) and contains `..`."""
     import posixpath
-    here, recursive, outside = cwd, bool(_RECURSIVE.search(text)), False
+    here = cwd
     for m in _NAV.finditer(text):
+        if m.group("bare") is not None:
+            return True
         target = m.group("cd")
         if target is not None:
-            if target in ("-", "~"):
+            if target == "-":
                 continue
+            if target == "~":
+                return True
             if re.search(r"[$%`(]", target):
                 segment = re.split(r"[;&|\n]", text[m.start():], maxsplit=1)[0]     # this cd's whole argument
                 if ".." in segment:
                     return True
                 continue
             new = posixpath.normpath(target if re.match(r"^(?:[a-z]:)?/", target, re.I) else here + "/" + target)
-            if ".." in target.split("/") and not PF._under(new, [work]):
+            if not PF._under(new, [work]) and (".." in target.split("/") or new.rstrip("/") in parents):
                 return True
             here = new
             continue
-        up = m.group("up")
-        if recursive and not PF._under(posixpath.normpath(here + "/" + up), [work]):
-            outside = True
-    return outside
+        if not PF._under(posixpath.normpath(here + "/" + m.group("up")), [work]):
+            return True
+    return False
 
 
 def _with_resolved(t: str) -> str:
@@ -223,10 +226,11 @@ def audit_hits(inputs: list[str], u: PF.Unit, homes=(), cwd=None) -> list[str]:
     """Tool calls a unit must not make:
     - preflight.path_hits on the whole call: a forbidden path in any spelling canon() knows (also once an absolute
       path's `..` parts are resolved);
-    - a content pattern (CONTENT_PATTERNS) in its navigation fields (nav_view: not a Write/Edit body);
-    - a `cd`, or a recursive search's relative path, that lands outside the unit's folder from `cwd` (the run's working
-      folder, default the unit's repo);
-    - a recursive search, or a Grep/Glob call, on a parent folder of a forbidden path.
+    - a content pattern (CONTENT_PATTERNS) anywhere, a Write/Edit body included (a script written to read the task
+      folder, then run);
+    - in its navigation fields only (nav_view: never a Write/Edit body), a relative `..` path or a `cd` that leaves
+      the unit's folder from `cwd` (the run's working folder, default the unit's repo; see climbs_out);
+    - there too, a recursive search, or a Grep/Glob call, on a parent folder of a forbidden path.
     The unit's own folder and its logged-in `homes` (--claude-home, --codex-home) are masked before any pattern is
     matched, so their names never make a hit (#455); so are the interpreter's folders (running Python is never a hit).
     preflight already lets this checkout's ccx.py through."""
@@ -235,20 +239,21 @@ def audit_hits(inputs: list[str], u: PF.Unit, homes=(), cwd=None) -> list[str]:
     work = PF.canon(Path(u.work).absolute().as_posix(), home)
     here = PF.canon(Path(cwd or u.repo).absolute().as_posix(), home)
     py = [p for p in python_paths() if not any(PF._inside(f, p) for f in forbidden)]   # never hide a forbidden one
-    masks = _masks([u.work], home, "<unit>") + _masks([h for h in homes if h], home, "<home>") + \
-        _masks(py, home, "<python>")
+    homes = [h for h in homes if h and not any(PF._inside(f, h) for f in forbidden)]   # likewise
+    masks = _masks([u.work], home, "<unit>") + _masks(homes, home, "<home>") + _masks(py, home, "<python>")
     parents = _ancestors(forbidden, home)
+    parent_paths = frozenset(_ancestor_paths(forbidden, home))
     no_flags = dataclasses.replace(u, flags=())
     hits = []
     for s in inputs:
         nav, search_tool = nav_view(s)
         nav_c = PF.canon(nav, home)
-        bad = climbs_out(nav_c, here, work)
+        bad = climbs_out(nav_c, here, work, parent_paths)
         full, nav_m = _with_resolved(PF.canon(s, home)), _with_resolved(nav_c)
         for rx, label in masks:
             full, nav_m = rx.sub(label, full), rx.sub(label, nav_m)
         bad = bad or bool(PF.path_hits([full], no_flags))
-        bad = bad or any(re.search(rx, nav_m, re.I) for rx in CONTENT_PATTERNS)
+        bad = bad or any(re.search(rx, full, re.I) for rx in CONTENT_PATTERNS)
         if not bad and (search_tool or _RECURSIVE.search(nav_m)) and any(a.search(nav_m) for a in parents):
             bad = True
         if bad:

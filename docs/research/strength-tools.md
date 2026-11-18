@@ -63,22 +63,32 @@ rules on each (Claude Code 2.1.316 docs: Read rules also apply to Grep and Glob,
 file-editing tool). Codex units cannot be confined: `workspace-write` limits writes only and `codex exec` (codex-cli
 0.164.0 `--help`) has no read deny, so their reads are audited, not blocked. After each unit every tool call in its ccx
 logs is audited (`path_audit` in the row). The unit's own folder, its logged-in homes and the interpreter's folders
-are masked first, so working on its own files or running Python (or this checkout's `ccx.py`) is never a hit. A hit
+are masked first (one that holds a forbidden path is not), so working on its own files or running Python (or this
+checkout's `ccx.py`) is never a hit. A hit
 is: a forbidden path anywhere in the call, in any spelling preflight's `path_hits` knows (also after an absolute
 path's `..` parts are resolved); a path-independent content pattern (`round2_a`, `round2_bc`, `round2-tasks`,
 `round2~N`, `l5_memory`, `shared_context_ab`, catching relative reads such as
-`cd ../.. && cat scripts/eval/round2_a/x.py`) in the call's navigation fields (a command, a file path, a Grep/Glob
-path or pattern; not the body a Write/Edit writes); a `cd`, or a recursive search's (`rg`, `grep -r`,
-`Get-ChildItem -Recurse`, ...) relative path, that lands outside the unit's folder, judged from the run's working
-folder (run.json's `cwd`: the repo, or the ccx worktree `<unit>/.ccx-worktrees/repo/<run id>`, from which `cd ../../..`
-is still inside); or a recursive search or Grep/Glob call on a parent folder of a forbidden path. A `cd` whose target
-cannot be resolved (a variable or subshell) and contains `..` is counted as leaving. A hit makes the row invalid
-(`--on-invalid continue`) or stops the group (the default). The dry run prints an `isolation` field (with `--tasks`
-or `--hide`) with the `--hide` paths, every path the first unit is denied and the content patterns. Limits: a path
-mixing 8.3 short and long parts, a search from the file-system root, a `cd` in one tool call followed by relative
-reads in later ones (each call is judged from the run's working folder), code written by Write/Edit that reads a
-forbidden folder when run (only the command that runs it is checked), and DSH logs in a format preflight's
-`tool_inputs` does not parse are not caught; a Codex read is found only afterwards.
+`cd ../.. && cat scripts/eval/round2_a/x.py`) anywhere in the call, a Write/Edit body included (a script written to
+read the task folder, then run). In the call's navigation fields only (a command, a file path, a Grep/Glob path or
+pattern; never a written body, so code that says `tree` or `../..` is not a hit): any relative path starting with
+`..` or `./..`, whatever the command, that lands outside the unit's folder, judged from the run's working folder
+(run.json's `cwd`: the repo, or the ccx worktree `<unit>/.ccx-worktrees/repo/<run id>`, from which `cd ../../..` is
+still inside); a `cd`/`pushd`/`Push-Location`/`Set-Location` (cmd's `/d` skipped) with no target, to `~`, or to a
+folder outside the unit that holds a forbidden path; a `cd` whose target cannot be resolved (a variable or subshell)
+and contains `..`; and a recursive search (`rg`, `grep -r`, `Get-ChildItem -Recurse`, ...) or Grep/Glob call on a
+parent folder of a forbidden path. A hit makes the row invalid (`--on-invalid continue`) or stops the group (the
+default). The dry run prints an `isolation` field (with `--tasks` or `--hide`) with the `--hide` paths, every path the
+first unit is denied and the content patterns.
+
+**How the layers fit.** The protection is the Claude deny rules plus running from an independent clone with every
+other local checkout passed as `--hide`; the audit is a best-effort backstop that finds what slipped through, mainly
+for Codex units, whose reads nothing blocks. It cannot see every spelling, and further bypasses are listed here rather
+than patched one by one. Known misses: a path mixing 8.3 short and long parts; a search from the file-system root; a
+`cd` in one tool call to a folder outside the unit that does not itself hold a forbidden path, followed by relative
+reads in later calls (each call is judged from the run's working folder); code written by Write/Edit that reaches a
+forbidden folder without naming a content pattern (only the command that runs it is checked); paths built at run
+time (variables, string joins, environment lookups); and DSH logs in a format preflight's `tool_inputs` does not
+parse. A Codex read is found only afterwards.
 
 Results, hidden-test failures and interruptions are retained in `results.jsonl`;
 unknown cost keeps the full reservation and stops the batch, rather than charging
