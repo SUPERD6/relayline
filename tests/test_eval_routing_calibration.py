@@ -175,3 +175,16 @@ def test_cli_json_text_and_refuses_eval_codex_home(tmp_path):
     write_jsonl(bad / "ledger.jsonl", [])
     res = subprocess.run([sys.executable, script, "--ledger", str(bad / "ledger.jsonl")], capture_output=True, text=True)
     assert res.returncode != 0 and "eval-codex-home" in res.stderr
+
+
+def test_dismissed_selfrun_is_left_out():
+    rep = C.calibrate([selfrun(b=2.2), selfrun(b=2.2, dismissed=True)])
+    assert bucket(rep, "real", "b", "2-3")["self"]["n"] == 1
+    assert rep["input"]["dismissed_selfruns"] == 1
+
+
+def test_categorical_signals_have_no_threshold_candidate():
+    rows = many("d", 20, 18, route={"rubric": {"coupling": "one", "clarity": "spec"}})
+    sig = C.calibrate(rows)["strata"]["real"]["signals"]
+    for name in ("coupling", "clarity"):
+        assert sig[name]["buckets"] and sig[name]["threshold"]["status"] == "not_ordinal"

@@ -31,7 +31,7 @@ over the judged runs with a known value, with how many are known), usd per right
 compared by Newcombe's score interval of (self - delegated) in right rate, only when both arms have at least
 --min-n judged runs; otherwise verdict "insufficient". Verdict: delegate_better (the whole interval < 0),
 self_not_worse (interval lower bound >= -margin, default 0.10), else unresolved.
-Threshold candidate per ordered signal (b, files, minutes, band, coupling, clarity): from the smallest bucket up, the
+Threshold candidate per ordered signal (b, files, minutes, band; coupling and clarity are categories: table only): from the smallest bucket up, the
 longest run of self_not_worse buckets ends at `self_ok_up_to`; the first delegate_better bucket starts at
 `delegate_better_from`. The interval between them is unresolved; with no such bucket the end is null (Unknown).
 
@@ -152,6 +152,9 @@ def cohort(rows: list[dict], run_records: dict | None = None, results: list[dict
         t = r.get("type")
         if t == "selfrun":
             inp["selfruns"] += 1
+            if r.get("dismissed"):
+                inp["dismissed_selfruns"] += 1
+                continue
             ok = r.get("ok")
             recs.append({"arm": "self", "stratum": "eval" if _ledger.is_eval(r) else "real",
                          "ok": ok if type(ok) is bool else None, "osrc": "selfrun_ok" if type(ok) is bool else None,
@@ -210,7 +213,14 @@ def compare(selfc: dict, delc: dict, min_n: int, margin: float) -> dict:
 
 
 def threshold(signal: str, buckets: list[dict]) -> dict:
-    """From the smallest bucket up: where the self_not_worse run ends, and the first delegate_better bucket."""
+    """From the smallest bucket up: where the self_not_worse run ends, and the first delegate_better bucket. The scan
+    of the self_not_worse run stops at the first bucket that is not self_not_worse, an insufficient one included: a
+    bucket with too few runs ends the run, it is not skipped. coupling and clarity are categories, not a size order,
+    so they get the bucket table only and no candidate."""
+    if signal in ("coupling", "clarity"):
+        return {"signal": signal, "status": "not_ordinal", "self_ok_up_to": None, "delegate_better_from": None,
+                "buckets_compared": [], "buckets_insufficient": [],
+                "note": "not a size order: no threshold candidate, bucket table only"}
     ordered = [b for b in buckets if b["bucket"] != MISSING]
     up_to = None
     for b in ordered:
@@ -227,7 +237,8 @@ def threshold(signal: str, buckets: list[dict]) -> dict:
             "buckets_compared": decided, "buckets_insufficient": [b["bucket"] for b in ordered if
                                                                   b["compare"]["verdict"] == "insufficient"],
             "note": "buckets between self_ok_up_to and delegate_better_from are unresolved; null = Unknown, "
-                    "not 'no threshold'"}
+                    "not 'no threshold'; the self_ok run stops at the first bucket that is not self_not_worse "
+                    "(an insufficient bucket stops it too)"}
 
 
 def signal_table(recs: list[dict], signal: str, min_n: int, margin: float) -> dict:
