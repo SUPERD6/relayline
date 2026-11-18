@@ -1,0 +1,24 @@
+{
+ "id": "r2bd-tabula-2",
+ "dev": true,
+ "subject": "Multi-key sorting with missing values last; right-align numeric columns",
+ "brief": "Two changes to the tabula package.\n\nA. Sorting. `Table.sort_by` accepts one or more column names: `sort_by(*keys, reverse=False)`, the first key most significant. A key written with a leading minus sign sorts that column descending, except when the table really has a column whose name is exactly that string (then it is that column, ascending). `reverse=True` flips the direction of every key, so the old one-column calls keep their meaning. The sort is stable: rows that compare equal on all keys keep their original order, also in descending order. Missing values (None) always come after every present value of that key, in ascending and in descending order alike (they are not treated as smallest or largest). Calling it without any key raises ValueError; an unknown column (with or without the minus sign) raises KeyError.\n\nB. Rendering. A column counts as numeric when it has at least one value that is not None and every value that is not None is an int or a float; booleans do not count as numbers, and a column of only None is not numeric. Expose this as `numeric_columns(table)` in the render module and from the package: one boolean per column, in column order (a table without rows gives False for every column). In `render_text`, numeric columns are right-aligned within their width, header included; all other columns stay left-aligned; widths, the two-space gap, the dashed rule and the dropping of trailing spaces are unchanged. This changes the expected plain-text output for a numeric column in the existing render test, which must be updated accordingly. In `render_markdown`, the separator cell under a numeric column becomes the right-aligned form (three dashes followed by a colon); other columns keep the plain three dashes.\n\nAll behavior that the existing tests check must keep working, apart from that right alignment.",
+ "hidden_tests": ["tests/test_render.py", "tests/test_sort_keys.py"],
+ "trace_by_test": {
+  "test_render_text_alignment": "In `render_text`, numeric columns are right-aligned within their width, header included; all other columns stay left-aligned; widths, the two-space gap, the dashed rule and the dropping of trailing spaces are unchanged.",
+  "test_render_text_bool": "All behavior that the existing tests check must keep working, apart from that right alignment.",
+  "test_render_markdown_escapes_pipes": "All behavior that the existing tests check must keep working, apart from that right alignment.",
+  "test_numeric_header_right_aligned_and_mixed_column_left": "In `render_text`, numeric columns are right-aligned within their width, header included; all other columns stay left-aligned; widths, the two-space gap, the dashed rule and the dropping of trailing spaces are unchanged.",
+  "test_bool_and_empty_columns_left_aligned": "A column counts as numeric when it has at least one value that is not None and every value that is not None is an int or a float; booleans do not count as numbers, and a column of only None is not numeric.",
+  "test_numeric_columns_helper": "Expose this as `numeric_columns(table)` in the render module and from the package: one boolean per column, in column order (a table without rows gives False for every column).",
+  "test_markdown_alignment_row": "In `render_markdown`, the separator cell under a numeric column becomes the right-aligned form (three dashes followed by a colon); other columns keep the plain three dashes.",
+  "test_single_key_keeps_old_call": "`reverse=True` flips the direction of every key, so the old one-column calls keep their meaning.",
+  "test_two_keys_with_descending_prefix": "A key written with a leading minus sign sorts that column descending, except when the table really has a column whose name is exactly that string (then it is that column, ascending).",
+  "test_descending_first_key": "`Table.sort_by` accepts one or more column names: `sort_by(*keys, reverse=False)`, the first key most significant.",
+  "test_missing_values_last_both_ways": "Missing values (None) always come after every present value of that key, in ascending and in descending order alike (they are not treated as smallest or largest).",
+  "test_reverse_flips_every_key": "`reverse=True` flips the direction of every key, so the old one-column calls keep their meaning.",
+  "test_stable_for_equal_keys": "The sort is stable: rows that compare equal on all keys keep their original order, also in descending order.",
+  "test_column_named_with_dash": "A key written with a leading minus sign sorts that column descending, except when the table really has a column whose name is exactly that string (then it is that column, ascending).",
+  "test_errors": "Calling it without any key raises ValueError; an unknown column (with or without the minus sign) raises KeyError."
+ }
+}
