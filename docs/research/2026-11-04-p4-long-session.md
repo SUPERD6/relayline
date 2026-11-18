@@ -66,10 +66,16 @@ The forbidden list covers the person's homes, hub, config, skills, this checkout
 another checkout of the repository on the same machine. When the run uses an independent clone, pass
 `--hide PATH` (repeatable) for each other local checkout, e.g. the everyday development one, which holds authored
 tasks' reference solutions and hidden tests (`scripts/eval/round2_a/`, `scripts/eval/round2_bc/*/tasks/*/{reference,hidden}/`)
-(#451). Each path is made absolute against the start folder; a missing path, or one holding the work folder, this
-checkout or `--ext-python`, is refused. Claude gets Read/Edit deny rules on it and the audit flags any tool call naming
-it (reads are not confined on Windows). The dry-run's `isolation` field (printed for `--split r2b/r2c` or with `--hide`)
-lists the `--hide` paths and every path the first unit would be denied.
+(#451). Each path is made absolute against the start folder and kept in both spellings when they differ (as given,
+e.g. through a junction or symlink, and with links resolved); a missing path, this checkout itself, or one holding the
+work folder, this checkout or `--ext-python`, is refused. Claude gets Read/Edit deny rules on it. Codex and shell reads
+are not confined on Windows, so the audit checks tool calls: it recognizes absolute paths in the spellings `canon()`
+understands (either slash, `~`, `$HOME`, `%USERPROFILE%`, Git Bash `/c/...`, any case on Windows), but not relative
+paths, 8.3 short names (e.g. `CLAUDE~1`) or aliases made during the run. With `--hide` it also flags any mention of the
+`round2_a` / `round2_bc` task folders, however the path is written, and a hidden folder's parent folders named on their
+own (`rg x D:/parent`), except parents that hold something the run names. The dry-run's `isolation` field (printed for
+`--split r2b/r2c` or with `--hide`) lists the `--hide` paths, every folder `preflight.forbidden` gives the first unit,
+and the extra audit regexes.
 
 ## Revised frozen task selection and offline results
 

@@ -392,27 +392,63 @@ def unit_hidden(a, key: str) -> tuple:
     return (a.ext_cache, a.artifacts, *other_roots, *grade_files(a), *(getattr(a, "hide", None) or ()))
 
 
+# With --hide, the audit also flags any tool call naming the authored round-2 task folders, however the path is
+# written (relative, from a parent folder, an alias): the agents' own task repositories never contain these names.
+HIDE_CONTENT_FLAGS = (r"(?<![a-z0-9_.-])round2_(?:bc|a)(?:_tasks)?(?![a-z0-9_-])",)
+
+
 def resolve_hide(values) -> list[Path]:
-    """--hide paths made absolute against the folder the eval starts in, de-duplicated. A missing one is refused:
-    a typo would deny nothing and leave the checkout it meant readable."""
+    """--hide paths made absolute against the folder the eval starts in, each in both spellings when they differ:
+    as given (absolute(), e.g. a junction or symlink) and with links resolved (resolve()), de-duplicated. Deny rules
+    and the audit match the spelling, not the file, so an alias left out would stay readable. A missing path is
+    refused: a typo would deny nothing and leave the checkout it meant readable."""
     out: list[Path] = []
     for v in values or ():
-        p = Path(v).expanduser().resolve()
-        if not p.exists():
-            raise SystemExit(f"--hide {v}: no such file or folder ({p}); no model called")
-        if p not in out:
-            out.append(p)
+        given = Path(v).expanduser().absolute()
+        real = given.resolve()
+        if not real.exists():
+            raise SystemExit(f"--hide {v}: no such file or folder ({real}); no model called")
+        for p in (given, real):
+            if p not in out:
+                out.append(p)
     return out
 
 
 def check_hide(hide, work: Path | None, python: str | None = None) -> None:
-    """Refuse a --hide path that holds the run's own work folder (preflight.forbidden drops a folder the work folder
-    is inside, so it would deny nothing), this checkout (the lead runs its ccx.py) or the --ext-python interpreter
-    (every shell call would name a denied path and fail the audit)."""
+    """Refuse a --hide path that is or holds this checkout (the lead runs its ccx.py; it is denied already), holds
+    the run's own work folder (preflight.forbidden drops a folder the work folder is inside, so it would deny
+    nothing) or the --ext-python interpreter (every shell call would name a denied path and fail the audit)."""
     for h in hide or ():
+        if Path(h).resolve() == ROOT.resolve():
+            raise SystemExit(f"--hide {h} is the checkout running this eval, which is denied already; for a counted "
+                             "run start from an independent clone and pass this path to it with --hide. "
+                             "No model called")
         for what, p in (("the work folder", work), ("this checkout", ROOT), ("--ext-python", python)):
             if p and PF._inside(Path(p), h):
                 raise SystemExit(f"--hide {h} holds {what} ({p}); hide the other checkout itself. No model called")
+
+
+def hide_flags(a) -> tuple:
+    """Audit regexes for --hide (empty without it): HIDE_CONTENT_FLAGS, and each hidden folder's parent folders named
+    on their own (`rg x D:/parent`, `cd D:/parent`), in canon()'s spelling. A parent holding something the run
+    legitimately names (the work folder, this checkout, --ext-python, the task cache, the results, the eval Codex
+    home, the person's home) and a drive or filesystem root are left out."""
+    hide = getattr(a, "hide", None) or ()
+    if not hide:
+        return ()
+    home = PF.real_paths()["home"]
+    used = [Path(p) for p in (getattr(a, "work", None), ROOT, getattr(a, "ext_python", None),
+                              getattr(a, "ext_cache", None), getattr(a, "out", None),
+                              getattr(a, "codex_home", None) or None, home) if p]
+    out = list(HIDE_CONTENT_FLAGS)
+    for h in hide:
+        for anc in Path(h).parents:
+            if anc.parent == anc or any(PF._inside(u, anc) for u in used):
+                continue
+            rx = re.escape(PF.canon(anc.as_posix(), home).rstrip("/")) + r"/?(?=$|[\s\"'`;|)&,])"
+            if rx not in out:
+                out.append(rx)
+    return tuple(out)
 
 
 def isolation_plan(a, units: list[dict]) -> dict:
@@ -423,17 +459,29 @@ def isolation_plan(a, units: list[dict]) -> dict:
     work = Path(a.workdir).resolve() if a.workdir else Path(tempfile.gettempdir()) / "p4-<run id>"
     out = Path(a.out).resolve()
     keys = sorted({f"{u['round']}-{u['episode']}-{u['arm']}" for u in units})
-    view = SimpleNamespace(work=work, out=out, session_keys=set(keys), hide=a.hide,
+    view = SimpleNamespace(work=work, out=out, session_keys=set(keys), hide=a.hide, ext_python=a.ext_python,
+                           codex_home=a.codex_home or None,
                            ext_cache=Path(a.ext_cache).resolve() if a.ext_cache else None,
                            artifacts=out.parent / f"{out.stem}-artifacts" / "<run start>")
+    base = {"hide": [str(p) for p in a.hide or ()], "audit_flags": list(hide_flags(view)), "note": ISOLATION_NOTE}
+    if not keys:
+        return {**base, "unit": None, "forbidden_paths": []}
     key = keys[0]
     u = PF.Unit(key, work, work / ("repo-" + key), work / ("hub-" + key),
                 claude=getattr(a, "claude_isolation", "flags"),
                 hidden=tuple(p for p in unit_hidden(view, key) if p is not None))
-    return {"hide": [str(p) for p in a.hide or ()], "unit": key,
-            "forbidden_paths": [str(p) for p in PF.forbidden(u)],
-            "note": "Claude: Read/Edit deny rules on each path; Codex and shell calls: the audit flags any tool call "
-                    "naming one (reads are not confined on Windows). Other units also deny the other episodes' folders"}
+    return {**base, "unit": key, "forbidden_paths": [str(p) for p in PF.forbidden(u)]}
+
+
+ISOLATION_NOTE = (
+    "forbidden_paths: every folder preflight.forbidden gives the first unit (other units also deny the other episodes' "
+    "folders; ~/.claude.json, the grade files and, in flags mode, the Claude home's private files are denied on top). "
+    "Claude gets Read/Edit deny rules on each. Codex and shell reads are not confined on Windows: the audit (path_hits) "
+    "flags a tool call naming one of these folders as an absolute path, in the spellings canon() understands "
+    "(either slash, ~, $HOME, %USERPROFILE%, Git Bash /c/..., any case on Windows). It does not recognize a relative "
+    "path, an 8.3 short name (e.g. CLAUDE~1), an alias made during the run (junction, symlink, subst) or another "
+    "variable; with --hide, audit_flags also flags any mention of the round2_a / round2_bc task folders and a hidden "
+    "folder's parent folders named on their own")
 
 
 class Episode:
@@ -445,7 +493,7 @@ class Episode:
                            hidden=unit_hidden(a, key),
                            # The same settings file reaches ccx's Claude sub-agents (CCX_CLAUDE_SETTINGS).
                            deny=(*WEB_TOOLS, *(f"Read({PF._rule_path(p)})" for p in grades)),
-                           flags=(*r5.EXT_FLAGS, r"git\s+(?:fetch|clone|pull)"))
+                           flags=(*r5.EXT_FLAGS, r"git\s+(?:fetch|clone|pull)", *hide_flags(a)))
         self.before, self.job = PF.snapshot(), PF.Job()
         self.wall = 0.0
         self.lead_total = 0.0

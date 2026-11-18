@@ -52,9 +52,14 @@ evidence_streams 的脱敏。Codex 使用工作区内的独立 TMP。隐藏测�
 禁读名单包括本人的各个 home、hub、配置、技能、当前这份检出及其 git worktree，但不包括同一台机器上的其他检出。
 正式运行用独立 clone 时，要为本机每份其他检出（例如日常开发检出）加 `--hide PATH`（可重复）：那里有新写题的
 参考实现和隐藏测试（`scripts/eval/round2_a/`、`scripts/eval/round2_bc/*/tasks/*/{reference,hidden}/`）（#451）。
-路径按启动目录转成绝对路径；不存在的路径，或包含工作目录、当前检出、`--ext-python` 的路径会被拒绝。Claude 对它
-有 Read/Edit 拒绝规则，审计会标出任何提到它的工具调用（Windows 上读取不受沙盒限制）。dry-run 的 `isolation`
-字段（`--split r2b/r2c` 或带 `--hide` 时输出）列出 `--hide` 路径和第一个单元实际被禁读的全部路径。
+路径按启动目录转成绝对路径；两种写法不同时都保留（原样写法，例如经过 junction 或符号链接的别名，以及解析链接后的
+真实路径）。不存在的路径、当前检出本身，或包含工作目录、当前检出、`--ext-python` 的路径会被拒绝。Claude 对它有
+Read/Edit 拒绝规则。Windows 上 Codex 和 shell 的读取不受沙盒限制，靠审计检查工具调用：审计认 `canon()` 能处理的
+绝对路径写法（正反斜杠、`~`、`$HOME`、`%USERPROFILE%`、Git Bash 的 `/c/...`、Windows 上不分大小写），不认相对路径、
+8.3 短路径名（如 `CLAUDE~1`）和运行中新建的别名。带 `--hide` 时，审计还会标出任何提到 `round2_a` / `round2_bc`
+题目目录的调用（不管路径怎么写），以及单独写出被屏蔽目录的上级目录（如 `rg x D:/上级`），包含本次运行要用到的
+东西的上级目录除外。dry-run 的 `isolation` 字段（`--split r2b/r2c` 或带 `--hide` 时输出）列出 `--hide` 路径、
+`preflight.forbidden` 给第一个单元的全部目录，以及额外的审计正则。
 
 ## 修正后的固定选题与实际离线结果
 
