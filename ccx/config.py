@@ -349,6 +349,10 @@ SETTINGS = {   # key -> (type, help). Only these can be set with `ccx config set
     "review.tests_model": (str, "test reviewer model or vendor:model[:effort]; empty keeps the cross-vendor candidate"),
     "review.tests_effort": (str, "task-derived test reviewer effort; empty keeps the selected candidate's effort"),
     "review.contract_diag": (bool, "experimental offline contract diagnostic; default false; never changes verdicts"),
+    "review.skip_when_clean": (_bool, "experimental (#427, effect Unknown): skip an automatic review when the run is "
+                                      "clean (check passed and sensitive, small, no edited tests); default false"),
+    "review.skip_max_files": (int, "skip_when_clean: at most this many changed files (default 3)"),
+    "review.skip_max_lines": (int, "skip_when_clean: at most this many changed lines, added + removed (default 49)"),
     "delegate.user_words": (bool, "experimental: attach the Claude lead's latest real user message (default false)"),
     "delegate.user_words_max_chars": (int, "maximum retained original-wording characters (default 8000)"),
     # Arbitrary roles.<name> and roles.defaults.<name> mode/worktree/review/check use ccx.roles
@@ -495,6 +499,8 @@ def set_setting(p: Paths, key: str, raw: str) -> dict:
         raise ValueError("billing.mode must be api or subscription")
     if key == "review.mode" and raw not in ("read", "tests", "auto", "on", "off"):
         raise ValueError("review.mode must be read, tests, auto, on or off")
+    if key in ("review.skip_max_files", "review.skip_max_lines") and not int(raw) >= 0:
+        raise ValueError(f"{key} must be 0 or a positive whole number")
     if key == "defaults.tradeoff" and raw not in ("save", "balanced", "fast", "cheapest"):
         k = float(raw)
         if not 0 <= k <= 1:

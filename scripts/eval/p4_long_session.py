@@ -504,7 +504,8 @@ class Episode:
         row["side_ledger"] = [{k: entry[k] for k in
                               ("run_id", "label", "vendor", "model", "rungs", "ae_usd", "dispatch",
                                # #392 handover timings (handover_overhead.py reads them)
-                               "startup_seconds", "check_seconds", "check_timing", "review_timing")
+                               "startup_seconds", "check_seconds", "check_timing", "review_timing",
+                               "review_skipped")
                               if k in entry}
                              for entry in ledger[self.side_ledger_count:] if not entry.get("type")]
         self.side_ledger_count = len(ledger)

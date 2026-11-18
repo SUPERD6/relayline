@@ -33,6 +33,8 @@ What is measured and what is not:
   wall.check_review  measured when the rows carry `check_timing` (#392: every check's start and seconds, passed ones
       too) and, for a reviewed run, `review_timing`: per run the union of those intervals, so a background review
       that overlapped the check counts once. A background review dropped because its check failed is not in it.
+      A review skipped as clean ([review] skip_when_clean, #427) has no review_timing and adds nothing here; its
+      ledger row says `review_skipped: true`, so skipped runs can be grouped apart from runs that needed no review.
   Rows written before #392 have none of these fields: startup and check_review stay Unknown, as before.
   cost.startup: Unknown. A CLI's start-up tokens are billed inside its first request; no separate cost is recorded.
 Shares use only items known for every counted unit (an Unknown item is listed and left out of the denominator).

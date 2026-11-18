@@ -605,6 +605,46 @@ B3 has only 30 clean pairs per arm (nomem 29 valid), rather than the registered 
 B3 ratios of medians were lower (0.645, 0.565, 0.538), but paired statistics do not support reliable savings; see the [report, “The median and the pairs disagree”](research/2026-10-31-b3-lean-switches.md).
 No command, option, JSON meaning, exit code or runtime default is changed by this documentation.
 
+### Experimental: skip the review when the run is clean (`[review] skip_when_clean`, off until measured)
+
+**Experimental, effect Unknown, to be evaluated** (#427). Default `false`: nothing changes. With `true` (`ccx config
+set review.skip_when_clean true`), a write run whose independent review would have started automatically does not
+start it when the run is clean. Clean means every condition below holds; any one unmet and the run is reviewed as
+before:
+
+- the review is an automatic one: not `--review on` / `[review] mode = "on"`, not a fix round, not `--risk visible`
+  or `critical` (the routing rubric reviews those);
+- ccx's `--check` passed, is not weak, and its sensitivity is `sensitive` (it failed on the dispatch-time tree and
+  passes now, #333). This needs `[check] sensitivity = "warn"` or `"escalate"`; with sensitivity off no run is clean;
+- at most `skip_max_files` (3) changed files and `skip_max_lines` (49) changed lines (added + removed, docs
+  included), and no binary file or new untracked file longer than the 4000 characters the diff carries of it. 49 is
+  one below `min_lines` (50), so by default a review due for its size is never skipped;
+- every changed file is on a whitelist: a source file (`.py`, `.js`, `.ts`, `.go`, `.rs`, `.java`, `.cs`, `.c`,
+  `.cpp` ... as in `CODE_SUFFIXES`) changed in place or added, or a test file only when it is new. Not on it: any
+  deleted or renamed file (judged with `--no-renames`, so a rename's old name counts as deleted), any other file
+  (`.json`, `.toml`, `.ini`, `.cfg`, `.yaml`, `.lock`, `.snap`, `Makefile`, `package.json` ...), `conftest.py`,
+  `noxfile.py`, `setup.py`, anything under `testdata/` or `__snapshots__/`, and a changed pre-existing test file
+  (also under a `*.Tests/` directory). No pre-existing test edited (`edited_tests` empty) and no line added to one
+  (a skip / xfail marker is only added lines);
+- the check basis is not only the sub-agent's own tests (not judged when `[escalate] on_self_checked = "off"`);
+- the sub-agent raised no `open_questions`, reported the files it changed and they match the diff (a run that
+  reported no files is not clean either), and did not commit: in a `--worktree` run as `commit_state` sees it,
+  elsewhere HEAD differs from the run's snapshot.
+
+A skipped review is recorded as `review.verdict = "skipped"` with `review.skipped` (why it is clean) and
+`review.reason` (the review it replaced); the one-line receipt keeps `verdict` and `skipped`, and the recap says
+`review=skipped`; `ccx ui` shows it in a neutral colour as "skipped (clean)" with the reason. run.json also keeps
+`review_skip.unmet` (empty when skipped) for later evaluation; a skipped review has no `review_timing`, and its
+ledger row says `review_skipped: true`, so it is told apart from a run that needed no review. With the switch on and
+sensitivity on, an automatic review that could be skipped waits for the check instead of running beside it
+(`--review on`, a fix round, `--risk visible` / `critical` and `[review] mode = "on"` keep it beside the check).
+The saving and any missed problems have not been measured.
+
+What it cannot judge: inline tests inside source files (Rust `#[cfg(test)]` with an added `#[ignore]`, doctests)
+look like ordinary source changes, and the conditions do not stop an adversarial source or new-test change (a new
+test file that monkeypatches at its top level, say). That is why the effect is Unknown and the switch is off by
+default.
+
 ### Experimental: lean sub-agent switches (`[subagent]`, off until measured)
 
 Three switches in `config/tiers.toml` (override in `hub/ccx/tiers.toml`) change what a delegated sub-agent loads at

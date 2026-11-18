@@ -197,7 +197,8 @@ def _timed_review(req: Request, p: Paths, cfg: dict, record: dict, cwd: Path, ru
     # identity, not equality: review_run (and review_tests.run_review) always assign a new dict to record["review"]
     # when they record a review, so the same object as before means no review was recorded this time. If one ever
     # updates record["review"] in place instead, this check must change (it would then leave that review untimed)
-    if isinstance(rv, dict) and rv is not before:      # no review due (nothing recorded): nothing to time
+    # a review skipped as clean (#427) did not run: no timing, so review_timing measures only real reviews
+    if isinstance(rv, dict) and rv is not before and rv.get("verdict") != "skipped":
         rv.update(started_at=started, ended_at=wall_now(), seconds=round(time.perf_counter() - t0, 3),
                   background=background)
 
@@ -227,7 +228,7 @@ def _finish_review(bg: dict, record: dict, p: Paths, keep: bool, wait: float = 1
     t, shadow = bg["thread"], bg["shadow"]
     if keep:
         t.join()
-        for k in ("review", "edited_tests", "max_usd", "review_test_mode"):
+        for k in ("review", "edited_tests", "max_usd", "review_test_mode", "review_skip"):
             if k in shadow:
                 record[k] = shadow[k]
         if shadow.get("kind") in ("review_issues", "review_failed"):
@@ -831,6 +832,16 @@ def run(req: Request, p: Paths) -> dict:
     checks = Checks(dispatch.check_config(cfg, cheap_dispatch), cwd, run_dir, record, run_check,
                     enabled=bool(req.check or str(req.label or "").startswith(("merge:", "eval-merge:"))))
     want_review = req.mode == "write" and req.review != "off" and not req.ephemeral
+    # #427 [review] skip_when_clean (default off): whether the run is clean needs the check's real result and
+    # sensitivity, so the review then waits for the check instead of running beside it. A run that cannot be clean
+    # whatever the check says (--review on, a fix round, risk visible / critical, [review] mode = "on") keeps it
+    # beside the check
+    from .review import skip_when_clean
+    from .review_tests import trigger
+    rcfg = cfg.get("review") or {}
+    could_skip = (skip_when_clean(rcfg) and checks.sensitivity != "off" and req.review == "auto"
+                  and not req.review_round and req.risk not in ("visible", "critical") and trigger(rcfg) == "auto")
+    defer_review = checks.defer_review or could_skip
     stop_file = run_dir / "stop.request"         # written by `ccx stop <run_id>`
 
     def on_start(pid: int) -> None:
@@ -1140,7 +1151,7 @@ def run(req: Request, p: Paths) -> dict:
             # "done" but ccx's own run of the check fails: that is a failure too, so climb while a rung is left.
             # Before, only blocked/failed escalated, and a cheap model that wrongly said done stopped there
             # (needed once tradeoff = save picks cheap models first, 2026-10-25)
-            if want_review and not checks.defer_review:
+            if want_review and not defer_review:
                 bg_review = _start_review(req, p, cfg, record, cwd, run_dir, oc.result)
             # did this attempt change anything: told before the check runs, so files the check writes don't count
             left = _left_unchanged(p, record) if req.mode == "write" else None
@@ -1272,7 +1283,7 @@ def run(req: Request, p: Paths) -> dict:
         record["check"], record["kind"], check_passed = nc_fail, "check_failed", False
     elif req.check and oc.ok and status in ("done", "partial"):
         reuse = early_check and early_check[0] == len(record["attempts"])    # already run on this very attempt
-        if not reuse and want_review and bg_review is None and not checks.defer_review:
+        if not reuse and want_review and bg_review is None and not defer_review:
             # the review runs while ccx runs the check (it needs only the command, not its result); it counts
             # only if the check passes, and is stopped otherwise
             bg_review = _start_review(req, p, cfg, record, cwd, run_dir, oc.result)
@@ -1777,7 +1788,7 @@ def compact(record: dict) -> dict:
     if record.get("review"):
         rv = record["review"]
         out["review"] = {k: rv[k] for k in ("verdict", "reason", "by", "issues", "notes", "usd", "error",
-                                            "edited_tests", "downgraded") if rv.get(k)}
+                                            "edited_tests", "downgraded", "skipped") if rv.get(k)}
         if rv.get("review_mode") == "tests":
             out["review_mode"] = "tests"
             out["review"].update({k: rv[k] for k in ("review_mode", "tests_written", "tests_run", "tests_failed",

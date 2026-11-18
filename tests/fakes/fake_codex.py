@@ -193,7 +193,7 @@ if mode == "policy" or (mode == "policy_then_done" and not resuming):   # as cod
     print('ERROR codex_core::tools::router: error=exec_command failed: CreateProcess { message: "Rejected('
           '\\"`powershell.exe -Command \'Get-Content README.md\'` rejected: blocked by policy\\")" }',
           file=sys.stderr)
-res = {"status": status, "summary": os.environ.get("FAKE_SUMMARY") or f"fake codex {status}", "files_changed": ["a.py"] if status == "done" else [],
+res = {"status": status, "summary": os.environ.get("FAKE_SUMMARY") or f"fake codex {status}", "files_changed": (os.environ.get("FAKE_FILES_CHANGED") or "a.py").split(";") if status == "done" else [],
        "commands_run": ["pytest -q"], "verification": "pytest -q passed" if status == "done" else "not-run",
        "open_questions": [] if status == "done" else ["need X"], "next_step": ""}
 from fake_discuss import answer as _discuss  # noqa: E402
