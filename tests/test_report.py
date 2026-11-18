@@ -227,6 +227,41 @@ class TestAB(ReportEnv):
         self.assertEqual(s["ab"][0]["self_n"], 1)
         self.assertEqual(s["ab"][0]["delegated_n"], 1)
 
+    def test_selfrun_row_carries_size_signals(self):
+        """#433: the self-run row has the size signals a delegated run's row has (files, minutes, band, coupling,
+        clarity), so routing calibration can compare the two arms; a sample without them gains no fields."""
+        out = self.j("run", "--from", "claude", "--files", "2", "--minutes", "20", "--coupling", "cross",
+                     "--clarity", "goal", "implement", env={"CCX_AB_RATE": "1"})
+        self.assertFalse(out["delegated"])
+        self.claude_transcript("lead-ab", ts=time.time())
+        row = self.j("ab", "done", out["route"]["ab"], "--ok", "1")
+        self.assertEqual((row["estimate_files"], row["estimate_minutes"]), (2, 20))
+        self.assertEqual((row["coupling"], row["clarity"]), ("cross", "goal"))
+        self.assertIn(row["band"], ("small", "medium", "large"))
+        self.assertEqual(row["route"]["rubric"], {"coupling": "cross", "clarity": "goal"})
+        # read-to-use: routing_calibration.signals_of reads the real row's signals, no extra step
+        import sys
+        from pathlib import Path
+        sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts" / "eval"))
+        import routing_calibration
+        sig = routing_calibration.signals_of(row)
+        self.assertEqual((sig["files"], sig["minutes"], sig["coupling"], sig["clarity"]), (2, 20, "cross", "goal"))
+        self.assertEqual(sig["band"], row["band"])
+        out = self.j("run", "--from", "claude", "--b", "4", "implement", env={"CCX_AB_RATE": "1"})
+        row = self.j("ab", "done", out["route"]["ab"], "--ok", "1")      # --b alone: the band only, as a run's row
+        for k in ("estimate_files", "estimate_minutes", "coupling", "clarity", "route"):
+            self.assertNotIn(k, row)                  # nothing given, nothing guessed
+        # a sample opened before this change (no signal fields) closes as it always did
+        from ccx.config import Paths
+        d = Paths(self.hub).state / "ab"
+        d.mkdir(parents=True, exist_ok=True)
+        (d / "old-433.json").write_text(json.dumps({"id": "old-433", "caller": "claude", "b": 4.0, "would_route": "x",
+                                                    "brief_chars": 3, "ts": time.time()}), encoding="utf-8")
+        row = self.j("ab", "done", "old-433", "--ok", "0")
+        self.assertEqual((row["type"], row["ok"]), ("selfrun", False))
+        for k in ("estimate_files", "estimate_minutes", "band", "coupling", "clarity", "route"):
+            self.assertNotIn(k, row)
+
     def test_opt_out(self):
         out = self.j("run", "--from", "claude", "--b", "4", "--no-ab", "implement", env={"CCX_AB_RATE": "1"})
         self.assertNotIn("delegated", out)
