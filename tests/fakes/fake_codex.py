@@ -259,6 +259,11 @@ if os.environ.get("FAKE_COMMAND_OUTPUT") is not None:
     print(json.dumps({"type": "item.completed", "item": {
         "id": "c1", "type": "command_execution", "command": cmd,
         "aggregated_output": output, "exit_code": code, "status": "completed" if code == 0 else "failed"}}))
+for i, cmd in enumerate(filter(None, (os.environ.get("FAKE_COMMANDS") or "").split("\n"))):
+    # FAKE_COMMANDS: newline-separated shell commands it ran, one command_execution item each (no output)
+    print(json.dumps({"type": "item.completed", "item": {"id": f"fc{i}", "type": "command_execution", "command": cmd,
+                                                         "aggregated_output": "", "exit_code": 0,
+                                                         "status": "completed"}}))
 if os.environ.get("FAKE_ERROR_EVENT"):       # an `error` event with this message (the run still ends normally)
     print(json.dumps({"type": "error", "message": os.environ["FAKE_ERROR_EVENT"]}))
 if os.environ.get("FAKE_ERROR_ITEM"):        # an item.completed of type error with this message
