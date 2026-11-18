@@ -803,9 +803,14 @@ def run(req: Request, p: Paths) -> dict:
                     enabled=bool(req.check or str(req.label or "").startswith(("merge:", "eval-merge:"))))
     want_review = req.mode == "write" and req.review != "off" and not req.ephemeral
     # #427 [review] skip_when_clean (default off): whether the run is clean needs the check's real result and
-    # sensitivity, so the review then waits for the check instead of running beside it
+    # sensitivity, so the review then waits for the check instead of running beside it. A run that cannot be clean
+    # whatever the check says (--review on, a fix round, risk critical, [review] mode = "on") keeps it beside the check
     from .review import skip_when_clean
-    defer_review = checks.defer_review or (skip_when_clean(cfg.get("review") or {}) and checks.sensitivity != "off")
+    from .review_tests import trigger
+    rcfg = cfg.get("review") or {}
+    could_skip = (skip_when_clean(rcfg) and checks.sensitivity != "off" and req.review == "auto"
+                  and not req.review_round and req.risk != "critical" and trigger(rcfg) == "auto")
+    defer_review = checks.defer_review or could_skip
     stop_file = run_dir / "stop.request"         # written by `ccx stop <run_id>`
 
     def on_start(pid: int) -> None:

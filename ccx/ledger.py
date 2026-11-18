@@ -171,6 +171,10 @@ def _slim(record: dict, cfg: dict | None = None) -> dict:
     if "check_baseline_seconds" in record:
         slim["check_baseline_seconds"] = record["check_baseline_seconds"]
     slim.update(timing_fields(record))
+    if (record.get("review") or {}).get("verdict") == "skipped":
+        # #427 [review] skip_when_clean: a review was due and skipped as clean (it has no review_timing), told apart
+        # from a run that needed none, so an evaluation can group the two
+        slim["review_skipped"] = True
     if "dispatch" in record:
         slim["dispatch"] = record["dispatch"]
     costs = [a["cost_usd"] for a in record["attempts"] if a.get("cost_usd") is not None]

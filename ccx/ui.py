@@ -742,7 +742,8 @@ def piece_of_run(rd: Reader, rec: dict, verdict: dict | None, now: float, title:
         "summary": res.get("summary") or rec.get("error") or "", "files": res.get("files_changed") or [],
         "verification": _clip(res.get("verification"), JUDGE_TEXT_MAX),     # U1: what the agent says it checked
         "check": check_view(rec.get("check")),                              # ... and what ccx ran (cmd, exit, tail)
-        "review": ({"verdict": rv.get("verdict"), "issues": rv.get("issues") or []} if rv else None),
+        "review": ({"verdict": rv.get("verdict"), "issues": rv.get("issues") or [],
+                    **({"skipped": rv["skipped"]} if rv.get("skipped") else {})} if rv else None),
         "verdict": ({"ok": v.get("ok"), "soft": bool(v.get("soft")), "reason": v.get("reason")} if v else None),
         "attempts": len(atts), "rungs": [a.get("rung") for a in atts],
         "native": [{"id": k[-8:], "tokens": int(sum(x.values())) if isinstance(x, dict) else 0}
@@ -2067,7 +2068,7 @@ def full_run(rd: Reader, rid: str, after: int = 0, source: str = "") -> dict:
                        "basis_changed": check.get("basis_changed", (check.get("covers") or {}).get("basis_changed")),
                        "added_to": check.get("added_to", (check.get("covers") or {}).get("added_to"))},
             "review": {"by": review.get("by"), "verdict": review.get("verdict"),
-                       "error": review.get("error"),
+                       "error": review.get("error"), "skipped": review.get("skipped"),
                        "summary": review.get("summary"), "issues": review.get("issues_full") or review.get("issues") or [],
                        "notes": review.get("notes") or [],
                        "fixes": fixes, "round": rec.get("review_round")},

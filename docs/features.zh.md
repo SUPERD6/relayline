@@ -394,15 +394,21 @@ B3 三组的中位数比分别较低（0.645、0.565、0.538），但配对统�
 true`）后，本该自动触发独立审查的写运行，在"干净"时不起审查。干净 = 下面全部满足，任一不满足照常审查：
 
 - 审查是自动触发的：不是 `--review on` / `[review] mode = "on"`，不是修复轮，不是 `--risk critical`；
-- ccx 的 `--check` 通过、不弱、不是在未改动的树上跑的，且 sensitivity 为 `sensitive`（在派活时的树上失败、现在通过，#333）。
+- ccx 的 `--check` 通过、不弱，且 sensitivity 为 `sensitive`（在派活时的树上失败、现在通过，#333）。
   需要 `[check] sensitivity = "warn"` 或 `"escalate"`；sensitivity 关时任何运行都不算干净；
-- 改动文件数 ≤ `skip_max_files`（3），改动行数（增 + 删，文档也算）≤ `skip_max_lines`（50）；
-- 没改既有测试（`edited_tests` 为空），验收不全是子智能体自己写的测试；
-- 子智能体没提 `open_questions`，也没自己 commit（没有 `commit_state.note`）。
+- 改动文件数 ≤ `skip_max_files`（3），改动行数（增 + 删，文档也算）≤ `skip_max_lines`（49），且没有二进制文件、没有超过
+  diff 所带 4000 字符的未跟踪新文件。49 比 `min_lines`（50）小 1，所以默认情况下因改动行数触发的审查不会被跳过；
+- 没改、没改名、没删既有测试（`edited_tests` 为空），也没往既有测试里加行（加 skip / xfail 标记只有 + 行）；没改测试配置
+  （`pytest.ini`、`pyproject.toml`、`setup.cfg`、`tox.ini`、`conftest.py`，addopts 或 deselect 能把失败的测试去掉）；
+- 验收不全是子智能体自己写的测试（`[escalate] on_self_checked = "off"` 时这条不查）；
+- 子智能体没提 `open_questions`，报告了改动的文件且和实际改动对得上（没报告任何文件也不算干净），也没自己 commit：
+  `--worktree` 运行看 `commit_state`，其他运行比较快照时的 HEAD 和现在的 HEAD。
 
 跳过的审查记为 `review.verdict = "skipped"`，`review.skipped` 写为什么算干净，`review.reason` 写原本要审的原因；一行回执保留
-`verdict` 和 `skipped`，recap 显示 `review=skipped`。run.json 另存 `review_skip.unmet`（跳过时为空）供评测用；跳过的审查没有
-`review_timing`。开关开且 sensitivity 开时，审查改为等检查跑完再决定，不再与检查并行。省下多少、会漏掉什么，都还没测。
+`verdict` 和 `skipped`，recap 显示 `review=skipped`；`ccx ui` 用中性色显示"已跳过（干净）"并附原因。run.json 另存
+`review_skip.unmet`（跳过时为空）供评测用；跳过的审查没有 `review_timing`，账本行写 `review_skipped: true`，和本来就不用审的运行
+分得开。开关开且 sensitivity 开时，可能被跳过的自动审查改为等检查跑完再决定，不再与检查并行（`--review on`、修复轮、
+`--risk critical`、`[review] mode = "on"` 仍与检查并行）。省下多少、会漏掉什么，都还没测。
 
 ### 实验性：子智能体精简开关（`[subagent]`，实测前不开）
 

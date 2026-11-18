@@ -613,18 +613,27 @@ start it when the run is clean. Clean means every condition below holds; any one
 before:
 
 - the review is an automatic one: not `--review on` / `[review] mode = "on"`, not a fix round, not `--risk critical`;
-- ccx's `--check` passed, is not weak and did not run on an unchanged tree, and its sensitivity is `sensitive` (it
-  failed on the dispatch-time tree and passes now, #333). This needs `[check] sensitivity = "warn"` or `"escalate"`;
-  with sensitivity off no run is clean;
-- at most `skip_max_files` (3) changed files and `skip_max_lines` (50) changed lines (added + removed, docs included);
-- no pre-existing test edited (`edited_tests` empty), and the check basis is not only the sub-agent's own tests;
-- the sub-agent raised no `open_questions` and did not commit (no `commit_state.note`).
+- ccx's `--check` passed, is not weak, and its sensitivity is `sensitive` (it failed on the dispatch-time tree and
+  passes now, #333). This needs `[check] sensitivity = "warn"` or `"escalate"`; with sensitivity off no run is clean;
+- at most `skip_max_files` (3) changed files and `skip_max_lines` (49) changed lines (added + removed, docs
+  included), and no binary file or new untracked file longer than the 4000 characters the diff carries of it. 49 is
+  one below `min_lines` (50), so by default a review due for its size is never skipped;
+- no pre-existing test edited (`edited_tests` empty), renamed or deleted, and no line added to one (a skip / xfail
+  marker is only added lines); no test configuration changed (`pytest.ini`, `pyproject.toml`, `setup.cfg`,
+  `tox.ini`, `conftest.py`, where addopts or a deselect can drop the failing test);
+- the check basis is not only the sub-agent's own tests (not judged when `[escalate] on_self_checked = "off"`);
+- the sub-agent raised no `open_questions`, reported the files it changed and they match the diff (a run that
+  reported no files is not clean either), and did not commit: in a `--worktree` run as `commit_state` sees it,
+  elsewhere HEAD differs from the run's snapshot.
 
 A skipped review is recorded as `review.verdict = "skipped"` with `review.skipped` (why it is clean) and
 `review.reason` (the review it replaced); the one-line receipt keeps `verdict` and `skipped`, and the recap says
-`review=skipped`. run.json also keeps `review_skip.unmet` (empty when skipped) for later evaluation, and a skipped
-review has no `review_timing`. With the switch on and sensitivity on, the review waits for the check instead of
-running beside it. The saving and any missed problems have not been measured.
+`review=skipped`; `ccx ui` shows it in a neutral colour as "skipped (clean)" with the reason. run.json also keeps
+`review_skip.unmet` (empty when skipped) for later evaluation; a skipped review has no `review_timing`, and its
+ledger row says `review_skipped: true`, so it is told apart from a run that needed no review. With the switch on and
+sensitivity on, an automatic review that could be skipped waits for the check instead of running beside it
+(`--review on`, a fix round, `--risk critical` and `[review] mode = "on"` keep it beside the check). The saving and
+any missed problems have not been measured.
 
 ### Experimental: lean sub-agent switches (`[subagent]`, off until measured)
 
