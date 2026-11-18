@@ -239,6 +239,14 @@ class TestAB(ReportEnv):
         self.assertEqual((row["coupling"], row["clarity"]), ("cross", "goal"))
         self.assertIn(row["band"], ("small", "medium", "large"))
         self.assertEqual(row["route"]["rubric"], {"coupling": "cross", "clarity": "goal"})
+        # read-to-use: routing_calibration.signals_of reads the real row's signals, no extra step
+        import sys
+        from pathlib import Path
+        sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts" / "eval"))
+        import routing_calibration
+        sig = routing_calibration.signals_of(row)
+        self.assertEqual((sig["files"], sig["minutes"], sig["coupling"], sig["clarity"]), (2, 20, "cross", "goal"))
+        self.assertEqual(sig["band"], row["band"])
         out = self.j("run", "--from", "claude", "--b", "4", "implement", env={"CCX_AB_RATE": "1"})
         row = self.j("ab", "done", out["route"]["ab"], "--ok", "1")      # --b alone: the band only, as a run's row
         for k in ("estimate_files", "estimate_minutes", "coupling", "clarity", "route"):

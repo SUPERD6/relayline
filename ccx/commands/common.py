@@ -475,6 +475,9 @@ def picked_tier(cfg: dict) -> str:
     return v if v in ("save", "balanced", "fast", "cheapest") else ""
 
 
+SIZE_SIGNALS = ("estimate_files", "estimate_minutes", "band", "coupling", "clarity")   # the keys, in one place
+
+
 def ab_size_signals(route: dict, spec: dict) -> dict:
     """#433: the size signals a delegated run's ledger row carries (estimate_files, estimate_minutes, band, coupling,
     clarity: the tier plan's and the rubric's values, as plan/ledger record them), for an A/B self-run sample, so the
@@ -482,10 +485,12 @@ def ab_size_signals(route: dict, spec: dict) -> dict:
     tp = route.get("policy") or {}
     sig = tp.get("signals") or {}
     rub = route.get("rubric") or {}
-    out = {"estimate_files": sig.get("files") or None,
-           "estimate_minutes": sig.get("minutes") or route.get("minutes") or spec.get("minutes") or None,
-           "band": tp.get("band"), "coupling": rub.get("coupling"), "clarity": rub.get("clarity")}
-    return {k: v for k, v in out.items() if v}
+    # minutes: the tier plan's; the lead's own --minutes only when there is no plan (an older task-routing skill
+    # copy returns none, a bad [policy] returns an error entry), so a given estimate is not lost
+    out = dict(zip(SIZE_SIGNALS, (sig.get("files") or None,
+                                  sig.get("minutes") or route.get("minutes") or spec.get("minutes") or None,
+                                  tp.get("band"), rub.get("coupling"), rub.get("clarity"))))
+    return {k: v for k, v in out.items() if v is not None}
 
 
 def _ab_open(p, caller: str, b: float, rung: str, brief: str, size: dict | None = None, **extra) -> str:

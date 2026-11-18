@@ -17,7 +17,7 @@ from ..delegate import Request, compact, exit_ok, human_summary, recap, run, ver
 from ..gitstate import SHARED_WHY, STALE_WHY, clean, in_git
 from ..runners import find_bin
 from ..workspace import missing_test_paths
-from .common import (_brief, _caller, _out, lead_out, _routing_args, human_tail, _spec_from_args, _target, find_continuable,
+from .common import (SIZE_SIGNALS, _brief, _caller, _out, lead_out, _routing_args, human_tail, _spec_from_args, _target, find_continuable,
     apply_mode, find_seat, installed_agents, lead_session_id, parse_quota, person_named_to, picked_tier,
     provider_agents, resolve, tier_policy)
 from .install import tier_spec_safe
@@ -48,9 +48,6 @@ def _run_spec(a, text: str) -> dict:
     if getattr(a, "role", None):
         spec.update(role=a.role, explicit=getattr(a, "_explicit", set()))
     return spec
-
-
-SIZE_SIGNALS = ("estimate_files", "estimate_minutes", "band", "coupling", "clarity")   # #433, as a run's row
 
 
 def cmd_ab(a) -> int:
