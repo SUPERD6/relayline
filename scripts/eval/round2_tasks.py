@@ -1182,6 +1182,7 @@ def fetch_meta(snapshot: dict, out: Path, limit: int, get=None) -> list[str]:
 
 DEP_GROUPS = ("test", "tests", "testing", "dev")  # PEP 735 groups whose requirements prepare also downloads (#415)
 RUNNER = ("pytest",)  # always needed to run any suite; pinned like any other kept dependency when it is kept
+NEVER_PIN = ("pip",)  # the installer itself: not reinstalled under the running pip, and no task depends on it (#442)
 
 
 def _dist(filename: str) -> str:
@@ -1297,7 +1298,7 @@ def prepare(repos: list[dict], cache: Path, wheels: Path, python: str, run=subpr
     if needed and meta_dir is None:
         raise ValueError("kept packages are needed as dependencies (" + ", ".join(sorted(needed)) + "); pass "
                          "--pypi-meta (the meta step's folder) to pin them")
-    pins, todo, before = {}, sorted(needed), _since_ts(since)
+    pins, todo, before = {}, sorted(needed - set(NEVER_PIN)), _since_ts(since)
     while todo:  # kept dependencies of the pinned packages are pinned the same way
         name = todo.pop(0)
         path = Path(meta_dir) / f"{name}.json"
@@ -1310,8 +1311,11 @@ def prepare(repos: list[dict], cache: Path, wheels: Path, python: str, run=subpr
         pin["downloaded"] = _download(run, python, target, f"{name}=={version}")
         files = sorted(p for p in target.glob("*") if p.is_file()) if target.is_dir() else []
         own = [p for p in files if _dist(p.name) == name]
-        other_kept = sorted({_dist(p.name) for p in files} & kept - {name})
+        other_kept = sorted({_dist(p.name) for p in files} & kept - {name} - set(NEVER_PIN))
         todo += [k for k in other_kept if k not in pins and k not in todo]
+        if not own:  # nothing of the package itself to install: never report it installed (#442)
+            pin.update(installed=False, reason=f"no file of {name} {version} was downloaded")
+            continue
         failed = []
         pin["installed"] = _install(run, python, own + [p for p in files if _dist(p.name) not in kept], failed)
         if failed:
@@ -1324,11 +1328,15 @@ def prepare(repos: list[dict], cache: Path, wheels: Path, python: str, run=subpr
                         key=lambda d: norm_name(d["name"]))
     except (ValueError, TypeError, KeyError):
         frozen = None
+    present = {norm_name(d["name"]) for d in frozen or ()}
     return {"rule": f"kept packages never installed at their latest release; a kept dependency (and "
                     f"{', '.join(RUNNER)}) at its highest final release uploaded before {since}, kept dependencies of "
-                    f"a pin pinned the same way; test extras of each project's latest release plus the "
-                    f"[dependency-groups] {'/'.join(DEP_GROUPS)} of the clone's HEAD pyproject.toml",
-            "repos": rows, "pins": pins, "pip_list": frozen}
+                    f"a pin pinned the same way; never pinned: {', '.join(NEVER_PIN)}; test extras of each project's "
+                    f"latest release plus the [dependency-groups] {'/'.join(DEP_GROUPS)} of the clone's HEAD "
+                    f"pyproject.toml",
+            "repos": rows, "pins": pins, "pip_list": frozen,
+            # the test runner must be importable; unknown (no pip list) counts as missing (#442)
+            "runner_missing": [r for r in RUNNER if frozen is None or norm_name(r) not in present]}
 
 
 # ---------------------------------------------------------------- manifest
@@ -1405,6 +1413,10 @@ def main(argv=None) -> int:
               + (f"; not installed: {', '.join(unpinned)}" if unpinned else ""))
         if data["pip_list"] is None:
             print("error: `pip list` of --ext-python could not be read; the environment is not frozen")
+            return 1
+        if data["runner_missing"]:
+            print(f"error: {', '.join(data['runner_missing'])} is not installed in --ext-python; every baseline would "
+                  "fail (run prepare again)")
             return 1
         return 0
     if a.cmd == "select":

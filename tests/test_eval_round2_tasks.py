@@ -505,6 +505,43 @@ def test_prepare_pins_kept_dependencies_and_the_runner_before_the_date_limit(tmp
     assert installed.count("six-1.0-py3-none-any.whl") == 1      # the pin's kept dependency, pinned once
 
 
+def test_failed_pin_download_is_not_reported_installed_and_pip_is_never_pinned(tmp_path, monkeypatch):
+    """#442: a pin whose download produced no file of the package was reported installed (pytest missing went
+    unnoticed until every baseline failed); pip itself is never reinstalled; a missing runner fails the command."""
+    calls = []
+    monkeypatch.setattr(R.E, "fetch", lambda name, spec, cache: cache / name)
+    dl = {"my-pkg": ["my_pkg-2.0-py3-none-any.whl", "pip-26.3-py3-none-any.whl", "attrs-25.1.0-py3-none-any.whl"],
+          "attrs==24.1.0": ["attrs-24.1.0-py3-none-any.whl"], "pytest==8.0": []}   # pytest's download fails
+
+    def run(cmd, **kw):
+        calls.append(cmd)
+        if "download" in cmd:
+            d = Path(cmd[cmd.index("-d") + 1])
+            d.mkdir(parents=True, exist_ok=True)
+            for name in dl.get(cmd[-1].split("[")[0], []):
+                (d / name).write_bytes(b"")
+            return subprocess.CompletedProcess(cmd, 0 if dl.get(cmd[-1].split("[")[0]) else 1, "", "")
+        if "list" in cmd:
+            return subprocess.CompletedProcess(cmd, 0, json.dumps([{"name": "attrs", "version": "24.1.0"}]), "")
+        return subprocess.CompletedProcess(cmd, 0, "", "")
+    meta = tmp_path / "meta"
+    meta.mkdir()
+    for name, rel in (("attrs", _rel("24.1.0", "2026-06-01T00:00:00Z")), ("pytest", _rel("8.0", "2026-01-01T00:00:00Z")),
+                      ("pip", _rel("25.0", "2026-01-01T00:00:00Z"))):
+        (meta / f"{name}.json").write_text(json.dumps({"releases": rel}), encoding="utf-8")
+    repos = [{"repo": n, "project": n, "url": "u"} for n in ("my-pkg", "attrs", "pytest", "pip")]
+    data = R.prepare(repos, tmp_path / "c", tmp_path / "w", "py", run, meta_dir=meta)
+    assert data["pins"]["pytest"]["installed"] is False and "no file of pytest" in data["pins"]["pytest"]["reason"]
+    assert data["pins"]["attrs"]["installed"] is True
+    assert "pip" not in data["pins"]
+    assert not any(Path(a).name.startswith("pip-") for c in calls if "install" in c for a in c)
+    assert data["runner_missing"] == ["pytest"]
+    (tmp_path / "repos.json").write_text(json.dumps({"kept": []}), encoding="utf-8")
+    monkeypatch.setattr(R, "prepare", lambda *a, **k: {"repos": [], "pins": {}, "pip_list": [], "runner_missing": ["pytest"]})
+    assert R.main(["prepare", "--repos-json", str(tmp_path / "repos.json"), "--ext-cache", str(tmp_path / "c"),
+                   "--wheels", str(tmp_path / "w"), "--ext-python", "py", "--out", str(tmp_path / "p.json")]) == 1
+
+
 def test_dependency_groups_resolve_includes_and_prepare_downloads_them(tmp_path, monkeypatch):
     config = {"dependency-groups": {"test": ["pytest>=8", {"include-group": "extra"}, "trustme"],
                                     "extra": ["hypothesis"], "docs": ["sphinx"]}}
