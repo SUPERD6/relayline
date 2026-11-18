@@ -374,8 +374,8 @@ SETTINGS = {   # key -> (type, help). Only these can be set with `ccx config set
     "routing.strict_escalate": (_bool, "true | false: experimental cheapest-rung guard for unchecked writes or strict interfaces (default false)"),
     "routing.cold_start": (_bool, "true | false: experimental: with no learned outcome yet for the candidate "
                                   "vendors, task-routing's first rung takes its tier from the [cold_start] table "
-                                  "(kind, difficulty b); a person's --to/--model/--effort/--tier or a role is left "
-                                  "alone (default false)"),
+                                  "(kind, difficulty b); a person's --to/--model/--tier/--provider (--effort with "
+                                  "--model) or a role is left alone (default false)"),
     "routing.small_self": (_bool, "true | false: `ccx route` / `ccx propose` advise doing a small task yourself "
                                   "instead of delegating it, sized by routing.small_self_by; `ccx run` still "
                                   "delegates (default false until a measured round backs it)"),

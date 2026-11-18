@@ -216,11 +216,20 @@ def _strict_start(req: Request, p: Paths, cfg: dict, out: list[dict]) -> list[di
 COLD_START_TIERS = ("T1", "T2", "T3", "T4")
 
 
+FIXED_FLAGS = ("to", "model", "effort", "tier", "provider")
+
+
+def _effort_counts(d: dict) -> bool:
+    """--effort alone is ignored (EFFORT_ALONE_NOTE: the route picks model and effort), so it fixes nothing then."""
+    return bool(d.get("model") or d.get("provider"))
+
+
 def fixed_by_user(spec: dict) -> list[str]:
-    """What the person or a role table fixed for this pick (#426): --to/--model/--effort/--tier/--provider, a role.
-    Automatic selection (the cold-start table) then changes none of it."""
-    out = [f"--{k} {spec[k]}" for k in ("to", "model", "effort", "tier", "provider")
-           if spec.get(k) and spec.get(k) != "auto"]
+    """What the person or a role table fixed for this pick (#426): --to/--model/--tier/--provider, --effort together
+    with --model or --provider, a role (any role, even auto:auto:auto). Automatic selection (the cold-start table)
+    then changes none of it."""
+    out = [f"--{k} {spec[k]}" for k in FIXED_FLAGS
+           if spec.get(k) and spec.get(k) != "auto" and (k != "effort" or _effort_counts(spec))]
     if spec.get("role"):
         out.append(f"role {spec['role']}")
     return out
@@ -228,11 +237,15 @@ def fixed_by_user(spec: dict) -> list[str]:
 
 def user_fixed_text(route: dict | None, given: dict | None) -> str | None:
     """The rung reasons' line for a pick the person fixed (#426), or None. Names flags and the role only: a role's
-    source may be a path with a user name in it, so it is left out."""
+    source may be a path with a user name in it, so it is left out. `given` comes from `ccx run`; a run without it
+    (batch, queue) falls back to what the cold-start table recorded when it stepped aside (only while it is on)."""
     route, given = route or {}, given or {}
-    items = [f"--{k} {given[k]}" for k in ("to", "model", "effort", "tier", "provider") if given.get(k)]
+    items = [f"--{k} {given[k]}" for k in FIXED_FLAGS if given.get(k) and (k != "effort" or _effort_counts(given))]
     if route.get("role"):
         items.append(f"role {route['role']}")
+    cs = route.get("cold_start") or {}
+    if not items and not cs.get("applied") and str(cs.get("why", "")).startswith("user-fixed: "):
+        items = [cs["why"][len("user-fixed: "):]]
     if not items:
         return None
     return f"user-fixed / 用户固定: {', '.join(items)}; automatic selection keeps them as given"
@@ -257,6 +270,8 @@ def cold_start(p: Paths, cfg: dict, spec: dict, route: dict, pk: dict, agents: l
         counts = learn.module(p, "routing").load_state().get("counts") or {}
     except Exception:  # noqa: BLE001 — no routing skill / unreadable state: leave the pick as it is
         return None
+    # agents = the candidates task-routing chose among, after quota / readiness filtering: a vendor filtered out this
+    # time is not counted, so its history does not make this pick warm. counts carry no kind of work (#426 follow-up)
     seen = sum(int(n or 0) for rung, n in counts.items() if str(rung).split(":", 1)[0] in agents)
     if seen:
         route["cold_start"] = {"applied": False,

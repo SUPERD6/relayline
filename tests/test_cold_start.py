@@ -32,8 +32,6 @@ BASELINE = [
 # the person fixed something: with the table on, the first rung is what it is with the table off
 FIXED = [
     (("--from", "claude", "--to", "codex", "--b", "6", "--mode", "write"), "codex:gpt-6.1-sol:high", "--to codex"),
-    (("--from", "claude", "--b", "6", "--effort", "high", "--mode", "write"), "claude:sonnet:medium",
-     "--effort high"),
     (("--from", "user", "--tier", "T2", "--b", "6", "--mode", "write"), "codex:gpt-6.1-sol:medium", "--tier T2"),
     (("--from", "claude", "--model", "sonnet", "--effort", "low", "--b", "6", "--mode", "write"),
      "claude:sonnet:low", "--model sonnet"),
@@ -132,6 +130,14 @@ class TestColdStart(ColdStartEnv):
             self.assertIn("用户固定", fixed)
             self.assertIn(item, fixed)
 
+    def test_effort_alone_fixes_nothing(self):
+        # --effort without --model is ignored (EFFORT_ALONE_NOTE), so it neither stops the table nor shows as fixed
+        self.on()
+        dry = self.dry(("--from", "claude", "--b", "6", "--effort", "high", "--mode", "write"))
+        self.assertEqual(dry["first_rung"], "claude:opus:high")
+        self.assertTrue(dry["route"]["cold_start"]["applied"])
+        self.assertNotIn("user_fixed", dry["rung_why"])
+
     def test_role_table_steps_aside(self):
         self.j("roles", "set", "build", "codex:auto:auto")
         args = ("--from", "claude", "--role", "build", "--b", "6", "--mode", "read", "--no-worktree")
@@ -158,8 +164,21 @@ class TestColdStart(ColdStartEnv):
 
 def test_fixed_by_user_names_flags_and_role():
     assert fixed_by_user({"to": "auto", "effort": None}) == []
-    assert fixed_by_user({"to": "codex", "effort": "high", "role": "build"}) == \
-        ["--to codex", "--effort high", "role build"]
+    assert fixed_by_user({"to": "codex", "effort": "high", "role": "build"}) == ["--to codex", "role build"]
+
+
+def test_effort_counts_only_with_a_model_or_provider():
+    assert fixed_by_user({"to": "auto", "effort": "high"}) == []
+    assert fixed_by_user({"model": "sonnet", "effort": "high"}) == ["--model sonnet", "--effort high"]
+    assert user_fixed_text({}, {"effort": "high"}) is None
+    assert "--effort high" in user_fixed_text({}, {"provider": "deepseek", "effort": "high"})
+
+
+def test_user_fixed_text_without_given_reads_the_table_note():
+    # batch / queue runs pass no `given`: the note the table wrote when it stepped aside is used instead
+    route = {"cold_start": {"applied": False, "why": "user-fixed: --to codex"}}
+    assert "用户固定: --to codex" in user_fixed_text(route, None)
+    assert user_fixed_text({"cold_start": {"applied": False, "why": "3 learned outcome(s)"}}, None) is None
 
 
 def test_user_fixed_text_names_no_path():
