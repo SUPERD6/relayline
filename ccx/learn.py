@@ -11,8 +11,10 @@ Learned state lives in the hub (CCX_HUB/ccx/routing-state.json, split-state.json
 from __future__ import annotations
 
 import importlib.util
+import json
 import os
 import sys
+import time
 from functools import lru_cache
 from pathlib import Path
 
@@ -356,6 +358,63 @@ def kind_history(state: dict, agents: list[str], kind: str | None) -> dict | Non
     return {"kind": same, "other": other, "unknown": unknown}
 
 
+# attempt failures that say nothing about the model's ability: record_outcomes skips them, and so does the backfill
+NOT_ABILITY = ("quota", "capacity", "auth", "timeout", "model", "policy", "needs_write", "split", "over_budget",
+               "user_stopped", "killed", "interrupted")
+
+
+def backfill_kinds(p: Paths) -> dict:
+    """One-off (#440, `ccx doctor --backfill-kinds`): rebuild `kind_counts` for runs learned before #437 from the run
+    records (`runs/*/run.json`, read only). Adds only: `counts` and everything else in the state stay as they are.
+    A learned run (`learned` set, route.b set) puts each of its ability-counting attempts under its kind: route.kind,
+    else the run's mode the way record_outcomes derives it; a record with neither, or an attempt without a rung,
+    stays "unknown kind". Never more than the skill counted per rung (a corrected verdict is learned twice but has one
+    record), so the rest stays unknown instead of being spread. Done once: `kind_backfill` in the state marks it, under
+    the same lock record_outcomes uses."""
+    tr = module(p, "routing")
+    with tr._Lock(tr.state_path()):
+        st = tr.load_state()
+        if st.get("kind_backfill"):
+            return {"done": False, "already": True, **st["kind_backfill"]}
+        counted = {k: int(v or 0) for k, v in (st.get("counts") or {}).items() if isinstance(v, (int, float))}
+        have: dict[str, int] = {}
+        for rungs in (st.get("kind_counts") or {}).values():
+            for rung, c in (rungs or {}).items():
+                have[rung] = have.get(rung, 0) + int(c or 0)
+        added = skipped = runs = 0
+        for f in sorted(p.runs.glob("*/run.json")):
+            try:
+                rec = json.loads(f.read_text(encoding="utf-8"))
+            except (OSError, ValueError):
+                continue
+            route = rec.get("route") or {}
+            if not rec.get("learned") or route.get("b") is None:
+                continue
+            kind = route.get("kind") or (task_kind(rec.get("mode")) if rec.get("mode") else None)
+            hit = False
+            for a in rec.get("attempts") or []:
+                if a.get("kind") in NOT_ABILITY:
+                    continue
+                if not kind or not all(a.get(x) for x in ("agent", "model", "effort")):
+                    skipped += 1
+                    continue
+                rung = f"{a['agent']}:{a['model']}:{a['effort']}"
+                if have.get(rung, 0) >= counted.get(rung, 0):
+                    skipped += 1
+                    continue
+                by = st.setdefault("kind_counts", {}).setdefault(str(kind), {})
+                by[rung] = int(by.get(rung, 0) or 0) + 1
+                have[rung] = have.get(rung, 0) + 1
+                added += 1
+                hit = True
+            runs += hit
+        if not counted:
+            return {"done": False, "already": False, "added": 0, "skipped": skipped, "runs": 0}
+        st["kind_backfill"] = {"added": added, "skipped": skipped, "runs": runs, "ts": time.time()}
+        tr.save_state(st)
+    return {"done": True, "already": False, **st["kind_backfill"]}
+
+
 def record_outcomes(p: Paths, record: dict, final_ok: bool) -> list[dict]:
     """Feed every attempt of a run back into the skills. Failed earlier attempts count as failures of
     their rung; the last attempt counts as `final_ok`. Needs a difficulty b (from the rubric)."""
@@ -379,8 +438,7 @@ def record_outcomes(p: Paths, record: dict, final_ok: bool) -> list[dict]:
     kind = route.get("kind") or task_kind(record.get("mode"))
     first_p = None
     for i, a in enumerate(atts):
-        if a.get("kind") in ("quota", "capacity", "auth", "timeout", "model", "policy", "needs_write", "split", "over_budget",
-                             "user_stopped", "killed", "interrupted"):
+        if a.get("kind") in NOT_ABILITY:
             continue                      # not the model's fault: says nothing about ability
         rung = f"{a['agent']}:{a['model']}:{a['effort']}"
         ok = final_ok if i == len(atts) - 1 else False

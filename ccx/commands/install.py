@@ -296,6 +296,15 @@ def cmd_doctor(a) -> int:
     if a.codex_rule:
         print(codex_lead_rule(), end="")
         return 0
+    if getattr(a, "backfill_kinds", False):
+        from .. import learn
+        r = learn.backfill_kinds(paths())
+        if r["already"]:
+            print(f"kind backfill: already done earlier ({r.get('added', 0)} outcome(s) counted then)")
+        else:
+            print(f"kind backfill: {r['added']} outcome(s) of {r['runs']} run(s) put under their kind; "
+                  f"{r['skipped']} stay unknown" + ("" if r["done"] else " (no learned history yet: nothing marked)"))
+        return 0
     from .common import lead_identity
     ok = doctor(paths(), codex_lead=bool(getattr(a, "codex_lead", False)) or lead_identity() == "codex",
                 verbose=bool(getattr(a, "verbose", False)))
@@ -347,6 +356,9 @@ def register(sub) -> None:
     dr.add_argument("--codex-lead", action="store_true",
                     help="show the 'Codex as lead (sandbox)' row in full: whether a Codex lead's sandbox lets it hand "
                          "work out, and how to set it up (shown in full anyway when Codex runs this)")
+    dr.add_argument("--backfill-kinds", action="store_true",
+                    help="one-off: put learned outcomes from before the per-kind cold-start check under their kind "
+                         "of work, rebuilt from old run records (adds only; repeating does nothing)")
     dr.add_argument("--verbose", "-v", action="store_true",
                     help="also the rows about ccx's own workings (routing prior, tier policy, hub layout, ...) "
                          "when they are ok")

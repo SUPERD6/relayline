@@ -743,6 +743,13 @@ its kind from the run's mode the same way (its `--kind` is not kept). If the kin
 would fall back to per vendor (any recorded run counts); that branch is defensive only, the kind is always known
 today. The candidates are those left after quota and readiness filtering.
 Recording the kind happens whether the table is on or off; it changes no pick.
+Old history can be put under its kind once (#440): `ccx doctor --backfill-kinds` reads the run records
+(`runs/*/run.json`, never changed) of runs that were learned from, and adds their ability-counting attempts to
+`kind_counts` under the run's `route.kind`, else the kind of its mode (`read` / `code`). A run with neither, or an
+attempt without agent/model/effort, stays "no recorded kind". It never adds more per rung than the skill's `counts`
+holds, and it does not spread what it cannot place, nor drop it. It runs once (`kind_backfill` in the state marks it;
+repeating prints "already done" and changes nothing) under the same lock as recording, and only adds. It is an explicit
+option, not done on first read, so a state file is never rewritten by a command that looked read-only.
 
 A choice the person fixed is left alone: `--to`, `--model`, `--tier`, `--provider`, `--effort` together with
 `--model` or `--provider` (alone it is ignored, see the note `ccx run` prints), or a role (any role, even one set to
