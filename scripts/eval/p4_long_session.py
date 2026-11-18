@@ -379,17 +379,72 @@ def run_hidden(repo: Path, tests: list[str], python: str, src_layout: bool = Fal
             "output": text, "environment_error": rc not in (0, 1)}
 
 
+def grade_files(a) -> tuple:
+    return a.out, a.out.with_suffix(".pending.jsonl"), a.out.with_suffix(".events.jsonl")
+
+
+def unit_hidden(a, key: str) -> tuple:
+    """More folders and files episode `key`'s agents must not open, on top of preflight.forbidden's own list: the
+    task cache, this run's evidence, the other episodes' folders, the grade files, and every --hide path (#451:
+    another local checkout holding authored tasks' reference solutions and hidden tests)."""
+    other_roots = tuple(a.work / (prefix + other) for other in sorted(a.session_keys) if other != key
+                        for prefix in ("repo-", "hub-", "x-"))
+    return (a.ext_cache, a.artifacts, *other_roots, *grade_files(a), *(getattr(a, "hide", None) or ()))
+
+
+def resolve_hide(values) -> list[Path]:
+    """--hide paths made absolute against the folder the eval starts in, de-duplicated. A missing one is refused:
+    a typo would deny nothing and leave the checkout it meant readable."""
+    out: list[Path] = []
+    for v in values or ():
+        p = Path(v).expanduser().resolve()
+        if not p.exists():
+            raise SystemExit(f"--hide {v}: no such file or folder ({p}); no model called")
+        if p not in out:
+            out.append(p)
+    return out
+
+
+def check_hide(hide, work: Path | None, python: str | None = None) -> None:
+    """Refuse a --hide path that holds the run's own work folder (preflight.forbidden drops a folder the work folder
+    is inside, so it would deny nothing), this checkout (the lead runs its ccx.py) or the --ext-python interpreter
+    (every shell call would name a denied path and fail the audit)."""
+    for h in hide or ():
+        for what, p in (("the work folder", work), ("this checkout", ROOT), ("--ext-python", python)):
+            if p and PF._inside(Path(p), h):
+                raise SystemExit(f"--hide {h} holds {what} ({p}); hide the other checkout itself. No model called")
+
+
+def isolation_plan(a, units: list[dict]) -> dict:
+    """What a dry run prints about isolation (#451): the --hide paths and every path the first unit would be denied
+    (preflight.forbidden with this run's extra list). Other units differ only in which other episodes' folders they
+    deny. Folders made when the run starts are named here as placeholders."""
+    from types import SimpleNamespace
+    work = Path(a.workdir).resolve() if a.workdir else Path(tempfile.gettempdir()) / "p4-<run id>"
+    out = Path(a.out).resolve()
+    keys = sorted({f"{u['round']}-{u['episode']}-{u['arm']}" for u in units})
+    view = SimpleNamespace(work=work, out=out, session_keys=set(keys), hide=a.hide,
+                           ext_cache=Path(a.ext_cache).resolve() if a.ext_cache else None,
+                           artifacts=out.parent / f"{out.stem}-artifacts" / "<run start>")
+    key = keys[0]
+    u = PF.Unit(key, work, work / ("repo-" + key), work / ("hub-" + key),
+                claude=getattr(a, "claude_isolation", "flags"),
+                hidden=tuple(p for p in unit_hidden(view, key) if p is not None))
+    return {"hide": [str(p) for p in a.hide or ()], "unit": key,
+            "forbidden_paths": [str(p) for p in PF.forbidden(u)],
+            "note": "Claude: Read/Edit deny rules on each path; Codex and shell calls: the audit flags any tool call "
+                    "naming one (reads are not confined on Windows). Other units also deny the other episodes' folders"}
+
+
 class Episode:
     def __init__(self, key: str, a, material: dict, task: dict):
         self.sid = str(uuid.uuid4())
-        other_roots = tuple(a.work / (prefix + other) for other in a.session_keys if other != key
-                            for prefix in ("repo-", "hub-", "x-"))
-        grade_files = (a.out, a.out.with_suffix(".pending.jsonl"), a.out.with_suffix(".events.jsonl"))
+        grades = grade_files(a)
         self.iso = PF.Unit(key, a.work, a.work / ("repo-" + key), a.work / ("hub-" + key),
                            claude=getattr(a, "claude_isolation", "flags"), codex_home=Path(a.codex_home), codex_workspace_tmp=True,
-                           hidden=(a.ext_cache, a.artifacts, *other_roots, *grade_files),
+                           hidden=unit_hidden(a, key),
                            # The same settings file reaches ccx's Claude sub-agents (CCX_CLAUDE_SETTINGS).
-                           deny=(*WEB_TOOLS, *(f"Read({PF._rule_path(p)})" for p in grade_files)),
+                           deny=(*WEB_TOOLS, *(f"Read({PF._rule_path(p)})" for p in grades)),
                            flags=(*r5.EXT_FLAGS, r"git\s+(?:fetch|clone|pull)"))
         self.before, self.job = PF.snapshot(), PF.Job()
         self.wall = 0.0
@@ -761,6 +816,11 @@ def parser():
     p.add_argument("--ext-cache", type=Path)
     p.add_argument("--ext-python", default=sys.executable)
     p.add_argument("--timeout", type=int, default=1200)
+    p.add_argument("--hide", action="append", default=[], metavar="PATH",
+                   help="repeatable (#451): another folder every unit's agents must not open, e.g. your everyday "
+                        "relayline checkout when this run uses an independent clone (it holds authored tasks' "
+                        "reference solutions and hidden tests); made absolute against the folder you start in. "
+                        "The dry-run's isolation field lists every denied path")
     PF.add_options(p)
     p.set_defaults(claude_isolation="flags", codex_workspace_tmp=True)
     return p
@@ -795,6 +855,8 @@ def resolve_options(a) -> None:
 def main(argv=None) -> int:
     a = parser().parse_args(argv)
     resolve_options(a)
+    a.hide = resolve_hide(a.hide)
+    check_hide(a.hide, Path(a.workdir).resolve() if a.workdir else None, a.ext_python)
     if a.validate_native:
         if not native_checkout(a) or not a.ext_cache:
             raise SystemExit("--validate-native requires --native-checkout (or --split p5) and --ext-cache; no model called")
@@ -889,6 +951,8 @@ def main(argv=None) -> int:
                     src_layout_tasks=sum(t.get("src_layout") is True for t in tasks))
     if a.split in ROUND2 or set(DE.ARMS) & set(arms):
         plan.update(plan_settings(a, arms))
+    if a.split in ROUND2 or a.hide:
+        plan["isolation"] = isolation_plan(a, units)
     if a.split == "p5" and len(tasks) != 8:
         plan["selection_status"] = "Unknown: incomplete eligible episodes; selected estimate is not a full experiment price"
         if len(TASKS.P5_AUDITED_T) == 8:
@@ -1050,6 +1114,7 @@ def run_experiment(a, tasks: list[dict], units: list[dict]) -> int:
     if not a.ext_cache or not a.codex_home:
         raise ValueError("--ext-cache and a dedicated --codex-home are required")
     a.work = (a.workdir or Path(tempfile.gettempdir()) / ("p4-" + uuid.uuid4().hex)).resolve()
+    check_hide(getattr(a, "hide", None), a.work, a.ext_python)
     a.out = a.out.resolve()
     a.session_keys = {f"{u['round']}-{u['episode']}-{u['arm']}" for u in units}
     _, a.artifacts = r5.run_artifacts_dir(a.out)

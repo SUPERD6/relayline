@@ -62,6 +62,15 @@ per-task and cumulative episode dollars/wall time, review cost, raw lead cost, r
 growth, cache reads, audit and `env_clean`. Missing accounting is Unknown and stops scheduling. Interrupted
 attempts and already observed spend are retained. Session cleanup conservatively applies to all its rows.
 
+The forbidden list covers the person's homes, hub, config, skills, this checkout and its git worktrees, but not
+another checkout of the repository on the same machine. When the run uses an independent clone, pass
+`--hide PATH` (repeatable) for each other local checkout, e.g. the everyday development one, which holds authored
+tasks' reference solutions and hidden tests (`scripts/eval/round2_a/`, `scripts/eval/round2_bc/*/tasks/*/{reference,hidden}/`)
+(#451). Each path is made absolute against the start folder; a missing path, or one holding the work folder, this
+checkout or `--ext-python`, is refused. Claude gets Read/Edit deny rules on it and the audit flags any tool call naming
+it (reads are not confined on Windows). The dry-run's `isolation` field (printed for `--split r2b/r2c` or with `--hide`)
+lists the `--hide` paths and every path the first unit would be denied.
+
 ## Revised frozen task selection and offline results
 
 Selection is fixed before any model results: repository priority **more-itertools, boltons, pluggy, humanize, itsdangerous**; within each,

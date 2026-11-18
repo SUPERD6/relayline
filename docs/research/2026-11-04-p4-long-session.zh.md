@@ -49,6 +49,13 @@ evidence_streams 的脱敏。Codex 使用工作区内的独立 TMP。隐藏测�
 上下文增长、缓存读取、审计与 `env_clean`。费用缺失记 Unknown 并停止；失败、中断和已观察到的费用保留。
 会话收尾检查保守地应用到该会话全部行。
 
+禁读名单包括本人的各个 home、hub、配置、技能、当前这份检出及其 git worktree，但不包括同一台机器上的其他检出。
+正式运行用独立 clone 时，要为本机每份其他检出（例如日常开发检出）加 `--hide PATH`（可重复）：那里有新写题的
+参考实现和隐藏测试（`scripts/eval/round2_a/`、`scripts/eval/round2_bc/*/tasks/*/{reference,hidden}/`）（#451）。
+路径按启动目录转成绝对路径；不存在的路径，或包含工作目录、当前检出、`--ext-python` 的路径会被拒绝。Claude 对它
+有 Read/Edit 拒绝规则，审计会标出任何提到它的工具调用（Windows 上读取不受沙盒限制）。dry-run 的 `isolation`
+字段（`--split r2b/r2c` 或带 `--hide` 时输出）列出 `--hide` 路径和第一个单元实际被禁读的全部路径。
+
 ## 修正后的固定选题与实际离线结果
 
 未看任何模型结果。固定顺序：仓库优先级 **more-itertools → boltons → pluggy → humanize → itsdangerous**；仓库内单父提交按提交时间从新到旧，
