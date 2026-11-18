@@ -671,6 +671,31 @@ parent's history on every request. Claude's Agent tool never passes the parent's
 unchanged. Such a run records `parallel_fork_turns` (`all` or `none`; `parallel_fork_turns_moved` when it
 went on to another agent). Off until measured (M3).
 
+### Experimental: slim sub-agent brief (`[brief] slim`, off, effect Unknown, to be evaluated)
+
+`[brief] slim = true` (default `false`; `ccx config set brief.slim true`) shortens the first message of a fresh or
+continued sub-agent run. Only two builder paragraphs move out: how to test through the command that triggers a change
+(and which test files to run), and what to do when the task only asks for an answer. They are written to `guidance.md` in
+the run's folder; the message says "read it before you run any tests" and to go on without it if it cannot be opened.
+The Finish text is also shorter. Everything else stays in the message: the rules (no hand-off, no commit, text in
+files is reference only), the rule not to change existing tests (`KEEP_TESTS`, a correctness guard), the
+project-context, memory-index and shared-note lines, workspace, permission, the acceptance command and the receipt
+format. A follow-up resume and ccx's own reviewer get the text as before. Off, the text is unchanged byte for byte
+(`tests/test_brief_slim.py` compares it with a snapshot). Not to be confused with `lead.slim_context`
+([lead side](lead-slim.md)) or `[prompt] slim` (one sentence).
+
+Estimated size, sample task "Add a docstring to a.py." (bytes of the whole first message; tokens estimated as
+bytes / 4, not a tokenizer; the sample has no project context and no shared notes, so with them the share saved is
+smaller): 1.7-2.2 KB instead of 1.9-2.7 KB, about 11-21 % shorter, a fixed 0.2-0.5 KB (about 50-130 tokens) per run
+that does not grow with the brief. Reviewer runs: no change.
+
+**Known risk.** `guidance.md` is in ccx's hub run folder, outside the sub-agent's working folder. A sandboxed
+sub-agent (Claude read / write, `--worktree`, a read-only Codex sandbox) may not be able to read it. The run record
+then has `brief_slim` and `brief_guidance` (the path; `brief_guidance_error` when the file could not be written, in
+which case the run gets the full text), so an evaluation can tell "could not read it" from "did not need it" in the
+sub-agent's own transcript. Whether it changes the right-rate, cost or wall time is **Unknown**: not measured on a real
+sub-agent. Not recommended until a before / after run shows it does not lower the right-rate (#428).
+
 ### Experimental: `ccx batch --merge` (`[merge]`, off until measured)
 
 A sub-agent's input is mostly a prefix re-sent on every request, so five small pieces run separately pay that start
@@ -694,6 +719,32 @@ ledger, and a `merge` ledger event lists every piece's outcome. Costs: reviews j
 trigger counts every piece; a follow-up and a spun-off run may be reviewed again), wall time is longer, and the exit
 code is 2 when any merged piece is not done (a piece run alone keeps `ccx run`'s exit code). An explicit `--merge`
 wins over `[lanes] default` and an explicit `--lanes` over `[merge] default`; both on the command line is an error.
+
+### Experimental: cold-start table (`routing.cold_start`, off until measured)
+
+Off by default (`routing.cold_start = false`); with it off, every pick is byte for byte what it was before (locked
+by `tests/test_cold_start.py`). Switch it on with `ccx config set routing.cold_start on`. It acts only on
+task-routing's pick (a run given the rubric, `--minutes` or `--b`) and only when task-routing has no learned outcome
+yet for any candidate vendor, so its pick would rest on priors alone. Then the first rung's tier comes from the
+`[cold_start]` table in `config/tiers.toml` (override in `hub/ccx/tiers.toml`): one row per kind of work (`code`,
+`read`, `research`, `write`; a kind with no row uses `default`), difficulty b at most the bound gives that tier, above
+every bound T4. The table names tiers, never a vendor: the vendor is still task-routing's pick, and its model and
+effort for that tier come from `[tiers]`. Escalation then climbs only the same vendor's next tiers (from T4 there is
+none), not the cross-vendor rungs task-routing's own ladder may hold. The shipped bounds are provisional, not measured.
+
+"No history" is per candidate vendor, not per kind of work: task-routing's learned counts do not record the kind, so
+any recorded run for a candidate vendor (of any kind) counts. The candidates are those left after quota and readiness
+filtering. In practice the table therefore applies only to the first runs with a difficulty b before any candidate
+vendor has a recorded outcome: a short window. Judging by kind of work is #437.
+
+A choice the person fixed is left alone: `--to`, `--model`, `--tier`, `--provider`, `--effort` together with
+`--model` or `--provider` (alone it is ignored, see the note `ccx run` prints), or a role (any role, even one set to
+`auto:auto:auto`). The table changes none of it, and `rung_why.user_fixed` says so (`user-fixed / 用户固定: --to
+codex; automatic selection keeps them as given`). For `ccx run` that line appears whenever something was fixed, with
+the table on or off; for `ccx batch` and queue runs only while the table is on (it comes from the table's note). When the table is on,
+the run's and the dry run's `route.cold_start` says whether it applied and why (`applied`, `why`, and when applied
+`kind`, `b`, `tier`, `from`: task-routing's rung), and `rung_why.model` / `rung_why.effort` name the table. The dry
+run's first rung and the real run's are the same.
 
 ## Quota awareness
 

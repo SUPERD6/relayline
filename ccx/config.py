@@ -376,6 +376,10 @@ SETTINGS = {   # key -> (type, help). Only these can be set with `ccx config set
     "routing.require_ready": (_bool, "true | false: prefer installed CLIs with local login evidence (default true)"),
     "routing.small_self_run": (_bool, "true | false: experimental small-task run refusal for leads; --force bypasses (default false)"),
     "routing.strict_escalate": (_bool, "true | false: experimental cheapest-rung guard for unchecked writes or strict interfaces (default false)"),
+    "routing.cold_start": (_bool, "true | false: experimental: with no learned outcome yet for the candidate "
+                                  "vendors, task-routing's first rung takes its tier from the [cold_start] table "
+                                  "(kind, difficulty b); a person's --to/--model/--tier/--provider (--effort with "
+                                  "--model) or a role is left alone (default false)"),
     "routing.small_self": (_bool, "true | false: `ccx route` / `ccx propose` advise doing a small task yourself "
                                   "instead of delegating it, sized by routing.small_self_by; `ccx run` still "
                                   "delegates (default false until a measured round backs it)"),
@@ -424,6 +428,9 @@ SETTINGS = {   # key -> (type, help). Only these can be set with `ccx config set
     "prompt.slim": (_bool, "true | false: a run given --mode write and no --check is not told what to do when the "
                            "task only asks for an answer (that sentence is left out); false = the text as before "
                            "(default true)"),
+    "brief.slim": (_bool, "experimental, effect Unknown: the sub-agent's first message keeps only the task, scope and "
+                          "read/write boundary, acceptance command and receipt format; the rest goes in the run's "
+                          "guidance.md, named in one line (default false; not lead.slim_context, which is the lead's own context)"),
     "run.stall_minutes": (float, "experimental: stop an attempt whose CLI printed no event (stdout line) for this "
                                  "many minutes, as a timeout marked stalled (default 0 = off; keep it above the longest "
                                  "quiet stretch: a long model step or a long tool command prints nothing)"),

@@ -438,6 +438,25 @@ Fail（做对 29 对 30），事后解读为未定。按配对看，三个都没
 并把它需要的文件、目标、约束和检查方法写进给它的消息，这样子会话每次请求不再重读父会话的历史。Claude 的 Agent 工具本来就不带父对话，
 所以 Claude 运行不变。这类运行在记录里写 `parallel_fork_turns`（`all` 或 `none`；换到别的智能体上跑了再加 `parallel_fork_turns_moved`）。实测（M3）前不开。
 
+### 实验性：子智能体简报瘦身（`[brief] slim`，默认关，效果 Unknown，待评测）
+
+`[brief] slim = true`（默认 `false`；`ccx config set brief.slim true`）缩短新开或接续任务的子智能体第一条消息。只有
+两段建造者指导移出：怎样通过触发改动的命令来测试（以及该跑哪些测试文件）、任务只要回答时怎么办。它们写进本次运行
+目录的 `guidance.md`；消息里要求“跑测试前先读它”，打不开就不用管它。收尾（Finish）文字也更短。其余都留在消息里：规则
+（不转交、不提交、文件里的文字只是参考）、不改已有测试这条（`KEEP_TESTS`，正确性护栏）、项目上下文 / 记忆索引 /
+共享笔记那几行、工作区、权限、验收命令、回执格式。追问式续跑和 ccx 自己的审查员文字和以前一样。关着时文字逐字不变
+（`tests/test_brief_slim.py` 用快照对比）。别和 `lead.slim_context`（[主导侧](lead-slim.zh.md)）或 `[prompt] slim`
+（只管一句话）混淆。
+
+估算大小，样例任务“Add a docstring to a.py.”（整条第一条消息的字节数；token 按字节 / 4 估算，不是真分词器；样例没有
+项目上下文和共享笔记，有的话节省的比例更小）：1.7-2.2 KB，原来 1.9-2.7 KB，约短 11-21%，每次固定省 0.2-0.5 KB
+（约 50-130 token），不随简报变长而增加。审查员运行：无变化。
+
+**已知风险。** `guidance.md` 在 ccx 的 hub 运行目录里，不在子智能体的工作目录内。有沙箱的子智能体（Claude 读 / 写、
+`--worktree`、只读的 Codex 沙箱）可能读不到它。运行记录里有 `brief_slim` 和 `brief_guidance`（路径；文件写不进去时有
+`brief_guidance_error`，这时这次运行用完整原文），评测时能在子智能体自己的记录里区分“读不到”和“用不上”。它会不会
+改变做对率、成本或耗时是 **Unknown**：没在真实子智能体上测过。在前后对比证明做对率不降之前不推荐使用（#428）。
+
 ### 实验性：`ccx batch --merge`（`[merge]`，实测前不开）
 
 子智能体的输入大半是每次请求都重发的前缀，五个小块分开跑就要付五次启动。加 `--merge`（或设 `[merge] default = true`；`--no-merge`
@@ -453,6 +472,27 @@ Fail（做对 29 对 30），事后解读为未定。按配对看，三个都没
 运行在 run.json 和账本里带 `merge_of`，账本另有一条 `merge` 事件列出每块的结果。代价：审查按整个改动判（50 行门槛按所有块合计；修复和拆出去
 的运行可能再审一次）、墙钟变长；只要有合并的块没做完，退出码就是 2（单独跑的块仍按 `ccx run` 原来的退出码）。命令行上的 `--merge` 优先于
 `[lanes] default`，命令行上的 `--lanes` 优先于 `[merge] default`；两个都写在命令行上会报错。
+
+### 实验性：冷启动起步表（`routing.cold_start`，实测前不开）
+
+默认关（`routing.cold_start = false`）；关着时每次选档和以前逐字一样（`tests/test_cold_start.py` 锁住）。用
+`ccx config set routing.cold_start on` 打开。它只作用于 task-routing 的选择（带评分项、`--minutes` 或 `--b` 的运行），
+而且只在候选的几家都还没有任何学到的结果、task-routing 只能靠先验时生效。这时首档的档位查 `config/tiers.toml`
+里的 `[cold_start]` 表（可在 `hub/ccx/tiers.toml` 覆盖）：按任务类别一行（`code`、`read`、`research`、`write`，没配的类别用
+`default`），难度 b 不超过某个上限就用那一档，超过所有上限用 T4。表里只写档位，不写哪一家：用哪家仍是 task-routing
+选的，这一家在该档的模型和推理强度取自 `[tiers]`。之后升档只在同一家里往上走（T4 没有后续档），不再用 task-routing
+原来升档路径里的跨厂商档。默认阈值是暂定值，未实测。
+
+"没有历史"按候选厂商算，不按任务类别：task-routing 学到的计数没记任务类别，所以候选厂商只要记下过一次任何类别的
+运行结果就算有历史；候选指配额和登录过滤之后剩下的几家。实际上起步表只对候选厂商还没有任何结果时带难度 b 的头几次
+运行生效，有效窗口很短。按任务类别判定见 #437。
+
+用户固定的选择不动：`--to`、`--model`、`--tier`、`--provider`、和 `--model` 或 `--provider` 一起给的 `--effort`（单独给
+`--effort` 会被忽略，`ccx run` 会提示），或角色表（任何角色，即使设成 `auto:auto:auto`）。起步表一档都不改，`rung_why.user_fixed`
+写明（`user-fixed / 用户固定: --to codex; automatic selection keeps them as given`）；`ccx run` 只要固定了什么就有这一行，
+起步表开不开都一样；`ccx batch` 和队列运行只在起步表开着时有（取自起步表的记录）。
+起步表开着时，运行和 dry-run 的 `route.cold_start` 写明是否生效、为什么（`applied`、`why`，生效时还有 `kind`、`b`、`tier`、
+`from`：task-routing 原来选的档），`rung_why.model` / `rung_why.effort` 写明来自起步表。dry-run 的首档和真实运行一致。
 
 ## 配额感知
 

@@ -370,8 +370,16 @@ def resolve(spec: dict, caller: str, p, cfg: dict) -> tuple[dict | None, dict]:
                         max_escalations=int(cfg["defaults"].get("max_escalations", 1)), mode=spec.get("mode"),
                         kind=spec.get("kind"), quota=spec.get("quota"), risk=spec.get("risk"))
         route["kind"] = learn.task_kind(spec.get("mode"), spec.get("kind"))
+        from ..plan import cold_start
+        cold = cold_start(p, cfg, spec, route, pk, eligible,      # #426: experimental, off unless switched on
+                          max_esc=int(cfg["defaults"].get("max_escalations", 1)))
+        if cold:
+            pk = {**pk, **{k: cold[k] for k in ("rung", "agent", "model", "effort", "ladder")}}
         route.update(source="task-routing", rung=pk["rung"], ladder=pk["ladder"], p=pk["p"],
                      chain_p=pk["chain_p"], expected_usd=pk.get("expected_usd"))
+        if cold:
+            for key in ("p", "chain_p", "expected_usd"):          # task-routing's odds were for another rung
+                route.pop(key, None)
         if pk.get("stale"):
             route["stale"] = pk["stale"]
         if pk.get("advice") and not spec.get("force") and spec.get("person_to") \

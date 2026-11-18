@@ -36,6 +36,7 @@ from .agents.codex import _add_children, _codex_growth, _codex_seen, _codex_tota
 from .ledger import write_record as _write_record  # noqa: F401
 from .plan import _fallback_plan, _plan, _provider_envs, _rung_spec, _usable, _within_budget, other  # noqa: F401
 from .prompts import (CLEAN_LANG, CHECK_RETRY, CHECK_RETRY_SAME, CHECK_RETRY_STRONGER, CHECK_TAIL_CHARS, CONTINUE, ESCALATE, FOLLOWUP, LEAD_NOTE, NEEDS_WRITE, POLICY_MARKERS, POLICY_RETRY, PROMPT,  # noqa: F401
+                      CONTINUE_SLIM, GUIDANCE_FILE, GUIDANCE_LINE, PROMPT_SLIM, SELFCHECK_CMD_SLIM, SELFCHECK_SLIM, guidance_text,
                       REVIEW_CALLER, REVIEW_FINISH, REVIEW_PERMISSION, SELF_CHECKED_RETRY, SELFCHECK, SELFCHECK_CMD, SELFCHECK_WRITE, _policy_rejections,
                       is_policy_line, review_permission)
 from .coverage import SELF_CHECKED, SELF_CHECKED_NOTE, on_self_checked, self_checked as coverage_self_checked
@@ -142,6 +143,14 @@ def slim_prompt(cfg: dict) -> bool:
     """[prompt] slim (default true): no answer-only sentence for a `--mode write` run without --check (P0-11 item 2)."""
     v = (cfg.get("prompt") or {}).get("slim", True)
     return v if isinstance(v, bool) else str(v).strip().lower() not in ("false", "0", "no", "off")
+def slim_brief(cfg: dict) -> bool:
+    """[brief] slim (#428, experimental, default false): the sub-agent's first message keeps only the task, the scope,
+    the acceptance command and the receipt format; the rest is one line pointing at guidance.md in the run's folder.
+    Only a real true turns it on. Not `lead.slim_context` (the lead's own context)."""
+    v = (cfg.get("brief") or {}).get("slim", False)
+    return v if isinstance(v, bool) else str(v).strip().lower() in ("true", "1", "yes", "on")
+
+
 def _capped(req: Request, record: dict, before: str) -> bool:
     """P0-15 --max-usd: the chain has spent its cap, so `before` (the next attempt, the review, the fix round) does
     not start; record["max_usd"] says so. Called only where that step would really start (the review: in review_run,
@@ -538,7 +547,7 @@ def rung_why(req: Request, plan: list[dict], requested: dict, cheap: bool,
              before_budget: list[dict] | None = None) -> dict:
     """The planned first rung (routing's pick, before the strict floor, cheap-first, a model swap or the budget), the
     rung the run starts on, and why (#379). Recorded and shown; it decides nothing."""
-    from .plan import pick_reasons, plan_changes
+    from .plan import pick_reasons, plan_changes, user_fixed_text
     planned = requested.get("raised_from") or requested["rung"]
     kw = {"to": requested["agent"], "model": requested["model"], "effort": requested["effort"],
           "tier": requested.get("tier")}
@@ -549,6 +558,9 @@ def rung_why(req: Request, plan: list[dict], requested: dict, cheap: bool,
     changes = plan_changes(planned, plan, cheap, requested, before_budget)
     if changes:
         why["changes"] = changes
+    fixed = user_fixed_text(req.route, req.given)    # #426: what the person / a role fixed; selection leaves it alone
+    if fixed:
+        why["user_fixed"] = fixed
     return why
 
 
@@ -649,9 +661,20 @@ def run(req: Request, p: Paths) -> dict:
         # codex-cli 0.164 offers its multi_agent v2 tools (spawn_agent ...) even with both features disabled and
         # --ignore-user-config (checked 2026-10-24), so the rule has to be said; the spend watchdog stays as backstop
         mode_text += "; do not start sub-agents of your own (no spawn_agent / Agent tool)"
+    # [brief] slim (#428, experimental, default off): see prompts.PROMPT_SLIM. ccx's own reviewer has no builder advice to
+    # move out, so for it nothing changes. If guidance.md cannot be written, the run gets the full text as before.
+    slim_cfg = slim_brief(cfg)
+    slim, guidance_path, guidance_err = slim_cfg and not reviewer and (not prev or cont), None, None
+    if slim:
+        try:
+            guidance_path = run_dir / GUIDANCE_FILE
+            guidance_path.write_text(guidance_text(), encoding="utf-8")
+        except OSError as x:
+            slim, guidance_path, guidance_err = False, None, str(x)
     selfcheck = (REVIEW_FINISH if reviewer
                  else req.finish_note if req.finish_note
-                 else SELFCHECK_CMD.format(check=req.check) if req.check
+                 else (SELFCHECK_CMD_SLIM if slim else SELFCHECK_CMD).format(check=req.check) if req.check
+                 else SELFCHECK_SLIM if slim
                  else SELFCHECK_WRITE if (req.mode == "write" and req.mode_why == "--mode given"   # the lead said so
                                           and slim_prompt(cfg))
                  else SELFCHECK)
@@ -687,8 +710,10 @@ def run(req: Request, p: Paths) -> dict:
     # "you are the implementer" only where it is true and the block it refers to is there: a write run with the
     # lead's shared context attached; never ccx's read-only reviewer or a read task
     lead_note = LEAD_NOTE if shared and req.mode == "write" and not reviewer else ""
+    guidance_line = GUIDANCE_LINE.format(path=guidance_path) if slim else ""
     def make_fresh_prompt():
-        return PROMPT.format(
+        return (PROMPT_SLIM if slim else PROMPT).format(
+            guidance_line=guidance_line,
             run_id=run_id, caller=req.caller, cwd=cwd, brief=brief,
             mode_text=mode_text, selfcheck=selfcheck, lead_note=lead_note,
             context_line=f"Project context (read first): {ctx}\n" if ctx else "",
@@ -697,8 +722,9 @@ def run(req: Request, p: Paths) -> dict:
         )
     fresh_prompt = None
     if cont:
-        first_prompt = CONTINUE.format(run_id=run_id, caller=req.caller, cwd=cwd, brief=brief,
-                                       mode_text=mode_text, selfcheck=selfcheck, lead_note=lead_note)
+        first_prompt = (CONTINUE_SLIM if slim else CONTINUE).format(
+            run_id=run_id, caller=req.caller, cwd=cwd, brief=brief, mode_text=mode_text, selfcheck=selfcheck,
+            lead_note=lead_note, guidance_line=guidance_line)
     elif prev:
         first_prompt = FOLLOWUP.format(run_id=run_id, brief=req.brief)
     else:
@@ -733,6 +759,10 @@ def run(req: Request, p: Paths) -> dict:
         "state": "running", "error": None, "auth_problem": False, "kind": None,
         "route": req.route, "task": req.task, "step": req.step, "learned": None, "ts": time.time(),
         "provider": req.provider, "lead_session": req.lead_session, "continued": cont,
+        # [brief] slim (#428): only when switched on, so a run record without the switch is as before. brief_guidance
+        # is where the pointer line sent the sub-agent: a run that did not read it can be told from one that had none
+        **({"brief_slim": slim, "brief_guidance": str(guidance_path) if guidance_path else None,
+            **({"brief_guidance_error": guidance_err} if guidance_err else {})} if slim_cfg else {}),
         "first_rung": plan[0]["rung"],
         # #379: routing's first rung, the first rung that really took the task (set after each attempt), and why
         "planned_first_rung": why_rung["planned_first_rung"], "actual_first_rung": None, "rung_why": why_rung,
