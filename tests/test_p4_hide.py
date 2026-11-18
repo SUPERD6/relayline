@@ -186,3 +186,18 @@ def test_isolation_plan_without_units(tmp_path):
                         ext_cache=None, claude_isolation="flags")
     iso = P.isolation_plan(a, [])
     assert iso["unit"] is None and iso["forbidden_paths"] == []
+
+
+def test_hide_flags_skip_the_system_temp_folder(monkeypatch, tmp_path):
+    """A checkout hidden under the temp folder (Linux /tmp): a plain `cd /tmp` must stay clean."""
+    temp = tmp_path / "machine"
+    dev = other_checkout(temp / "projects")
+    monkeypatch.setattr(P.tempfile, "gettempdir", lambda: str(temp))
+    a = SimpleNamespace(hide=[dev.resolve()], work=tmp_path / "work", out=tmp_path / "r.jsonl", ext_python=None,
+                        ext_cache=None, codex_home=None)
+    flags = P.hide_flags(a)
+    home = P.PF.real_paths()["home"]
+    named = lambda p: P.re.compile(flags[-1], P.re.I).search(P.PF.canon(p.as_posix(), home))  # noqa: E731
+    assert any(P.re.search(f, P.PF.canon((temp / "projects").as_posix(), home), P.re.I) for f in flags)
+    assert not any(P.re.search(f, P.PF.canon(f"cd {temp.as_posix()}", home), P.re.I) for f in flags)
+    assert named(temp / "projects")

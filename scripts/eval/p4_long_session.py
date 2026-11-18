@@ -392,8 +392,10 @@ def unit_hidden(a, key: str) -> tuple:
     return (a.ext_cache, a.artifacts, *other_roots, *grade_files(a), *(getattr(a, "hide", None) or ()))
 
 
-# With --hide, the audit also flags any tool call naming the authored round-2 task folders, however the path is
-# written (relative, from a parent folder, an alias): the agents' own task repositories never contain these names.
+# With --hide, the audit also flags any tool call that writes out the authored round-2 task folders' names literally
+# (in a relative path, from a parent folder, through an alias): the agents' own task repositories never contain these
+# names. Not recognized: wildcards (round2_*, find -name), names built by string concatenation. If P4 ever runs group
+# A's tasks, add round2-tasks (docs/research/data/round2-tasks) here.
 HIDE_CONTENT_FLAGS = (r"(?<![a-z0-9_.-])round2_(?:bc|a)(?:_tasks)?(?![a-z0-9_-])",)
 
 
@@ -432,14 +434,15 @@ def hide_flags(a) -> tuple:
     """Audit regexes for --hide (empty without it): HIDE_CONTENT_FLAGS, and each hidden folder's parent folders named
     on their own (`rg x D:/parent`, `cd D:/parent`), in canon()'s spelling. A parent holding something the run
     legitimately names (the work folder, this checkout, --ext-python, the task cache, the results, the eval Codex
-    home, the person's home) and a drive or filesystem root are left out."""
+    home, the person's home, the system temp folder) and a drive or filesystem root are left out. Not recognized: a
+    parent followed by a wildcard or a redirection (`D:/parent/*`, `D:/parent>x`)."""
     hide = getattr(a, "hide", None) or ()
     if not hide:
         return ()
     home = PF.real_paths()["home"]
     used = [Path(p) for p in (getattr(a, "work", None), ROOT, getattr(a, "ext_python", None),
                               getattr(a, "ext_cache", None), getattr(a, "out", None),
-                              getattr(a, "codex_home", None) or None, home) if p]
+                              getattr(a, "codex_home", None) or None, home, tempfile.gettempdir()) if p]
     out = list(HIDE_CONTENT_FLAGS)
     for h in hide:
         for anc in Path(h).parents:
@@ -480,8 +483,9 @@ ISOLATION_NOTE = (
     "flags a tool call naming one of these folders as an absolute path, in the spellings canon() understands "
     "(either slash, ~, $HOME, %USERPROFILE%, Git Bash /c/..., any case on Windows). It does not recognize a relative "
     "path, an 8.3 short name (e.g. CLAUDE~1), an alias made during the run (junction, symlink, subst) or another "
-    "variable; with --hide, audit_flags also flags any mention of the round2_a / round2_bc task folders and a hidden "
-    "folder's parent folders named on their own")
+    "variable; with --hide, audit_flags also flags any tool call that writes out the round2_a / round2_bc names "
+    "literally and a hidden folder's parent folders named on their own (not: wildcards such as round2_* or find -name, "
+    "names built by string concatenation, a parent followed by a wildcard or a redirection)")
 
 
 class Episode:

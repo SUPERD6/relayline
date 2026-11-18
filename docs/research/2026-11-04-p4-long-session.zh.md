@@ -56,9 +56,10 @@ evidence_streams 的脱敏。Codex 使用工作区内的独立 TMP。隐藏测�
 真实路径）。不存在的路径、当前检出本身，或包含工作目录、当前检出、`--ext-python` 的路径会被拒绝。Claude 对它有
 Read/Edit 拒绝规则。Windows 上 Codex 和 shell 的读取不受沙盒限制，靠审计检查工具调用：审计认 `canon()` 能处理的
 绝对路径写法（正反斜杠、`~`、`$HOME`、`%USERPROFILE%`、Git Bash 的 `/c/...`、Windows 上不分大小写），不认相对路径、
-8.3 短路径名（如 `CLAUDE~1`）和运行中新建的别名。带 `--hide` 时，审计还会标出任何提到 `round2_a` / `round2_bc`
-题目目录的调用（不管路径怎么写），以及单独写出被屏蔽目录的上级目录（如 `rg x D:/上级`），包含本次运行要用到的
-东西的上级目录除外。dry-run 的 `isolation` 字段（`--split r2b/r2c` 或带 `--hide` 时输出）列出 `--hide` 路径、
+8.3 短路径名（如 `CLAUDE~1`）和运行中新建的别名。带 `--hide` 时，审计还会标出任何字面写出 `round2_a` /
+`round2_bc` 名字的调用，以及单独写出被屏蔽目录的上级目录（如 `rg x D:/上级`），包含本次运行要用到的东西的上级目录
+和系统临时目录除外。通配写法（`round2_*`、`find -name`）、字符串拼接、上级目录后面跟通配或重定向的写法都认不出来。
+以后 P4 若也跑 A 组，名字正则要加上 `round2-tasks`。dry-run 的 `isolation` 字段（`--split r2b/r2c` 或带 `--hide` 时输出）列出 `--hide` 路径、
 `preflight.forbidden` 给第一个单元的全部目录，以及额外的审计正则。
 
 ## 修正后的固定选题与实际离线结果

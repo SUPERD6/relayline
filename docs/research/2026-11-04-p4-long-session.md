@@ -71,9 +71,11 @@ e.g. through a junction or symlink, and with links resolved); a missing path, th
 work folder, this checkout or `--ext-python`, is refused. Claude gets Read/Edit deny rules on it. Codex and shell reads
 are not confined on Windows, so the audit checks tool calls: it recognizes absolute paths in the spellings `canon()`
 understands (either slash, `~`, `$HOME`, `%USERPROFILE%`, Git Bash `/c/...`, any case on Windows), but not relative
-paths, 8.3 short names (e.g. `CLAUDE~1`) or aliases made during the run. With `--hide` it also flags any mention of the
-`round2_a` / `round2_bc` task folders, however the path is written, and a hidden folder's parent folders named on their
-own (`rg x D:/parent`), except parents that hold something the run names. The dry-run's `isolation` field (printed for
+paths, 8.3 short names (e.g. `CLAUDE~1`) or aliases made during the run. With `--hide` it also flags any tool call that
+writes out the `round2_a` / `round2_bc` names literally, and a hidden folder's parent folders named on their own
+(`rg x D:/parent`), except parents that hold something the run names or the system temp folder. It does not recognize
+wildcards (`round2_*`, `find -name`), names built by string concatenation, or a parent followed by a wildcard or a
+redirection. If P4 ever runs group A's tasks, the name regex must add `round2-tasks`. The dry-run's `isolation` field (printed for
 `--split r2b/r2c` or with `--hide`) lists the `--hide` paths, every folder `preflight.forbidden` gives the first unit,
 and the extra audit regexes.
 
