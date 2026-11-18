@@ -317,6 +317,7 @@ def note_kind(state: dict, rung: str, kind: str | None) -> None:
     skill's `counts`, and `kind` on the last outcome. No kind -> nothing written, so the run stays "unknown kind"."""
     if not kind:
         return
+    state.setdefault("kind_since", time.time())          # #440: from here on runs are in kind_counts (backfill skips them)
     by = state.setdefault("kind_counts", {}).setdefault(str(kind), {})
     by[rung] = int(by.get(rung, 0) or 0) + 1
     outs = state.get("outcomes") or []
@@ -363,37 +364,77 @@ NOT_ABILITY = ("quota", "capacity", "auth", "timeout", "model", "policy", "needs
                "user_stopped", "killed", "interrupted")
 
 
+# when kind recording shipped (#437, commit time): a state that holds kind_counts but no `kind_since` was written by
+# code from this moment on, so runs learned from then on are already in kind_counts
+KIND_RECORDING_SINCE = 1794975944.0
+
+
+def _num(v) -> int:
+    try:
+        return max(0, int(v or 0))
+    except (TypeError, ValueError):
+        return 0
+
+
+def _learned_at(rec: dict) -> float:
+    """Latest moment this run could have been learned from: its start plus attempt time, or its verdict."""
+    t = 0.0
+    try:
+        t = float(rec.get("ts") or 0) + sum(float(a.get("seconds") or 0) for a in rec["attempts"]
+                                            if isinstance(a, dict))
+        v = rec.get("verdict")
+        if isinstance(v, dict):
+            t = max(t, float(v.get("ts") or 0))
+    except (TypeError, ValueError, KeyError):
+        pass
+    return t
+
+
 def backfill_kinds(p: Paths) -> dict:
     """One-off (#440, `ccx doctor --backfill-kinds`): rebuild `kind_counts` for runs learned before #437 from the run
     records (`runs/*/run.json`, read only). Adds only: `counts` and everything else in the state stay as they are.
     A learned run (`learned` set, route.b set) puts each of its ability-counting attempts under its kind: route.kind,
-    else the run's mode the way record_outcomes derives it; a record with neither, or an attempt without a rung,
-    stays "unknown kind". Never more than the skill counted per rung (a corrected verdict is learned twice but has one
-    record), so the rest stays unknown instead of being spread. Done once: `kind_backfill` in the state marks it, under
-    the same lock record_outcomes uses."""
+    else the kind of the run's mode (read/code); a record with neither (mode missing stays unknown, unlike
+    record_outcomes), or an attempt without a rung, stays "unknown kind". Runs learned once kinds were recorded are
+    skipped: they are in kind_counts already (`kind_since` in the state, else the date #437 shipped when kind_counts
+    exists), so nothing counts twice. Never more per rung than the skill counted. Done once (`kind_backfill` marks it).
+    Run records are read before the state lock is taken (a lock held over 10 s is taken for stale by other writers);
+    inside it only load, count and save."""
     tr = module(p, "routing")
+    records = []
+    for f in sorted(p.runs.glob("*/run.json")):
+        try:
+            rec = json.loads(f.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            continue
+        if isinstance(rec, dict) and isinstance(rec.get("route"), dict) and isinstance(rec.get("attempts"), list):
+            records.append(rec)
     with tr._Lock(tr.state_path()):
         st = tr.load_state()
+        if not isinstance(st, dict):
+            return {"done": False, "already": False, "added": 0, "skipped": 0, "runs": 0, "bad_state": True}
         if st.get("kind_backfill"):
             return {"done": False, "already": True, **st["kind_backfill"]}
-        counted = {k: int(v or 0) for k, v in (st.get("counts") or {}).items() if isinstance(v, (int, float))}
+        counts = st.get("counts") if isinstance(st.get("counts"), dict) else {}
+        counted = {k: _num(v) for k, v in counts.items()}
         have: dict[str, int] = {}
-        for rungs in (st.get("kind_counts") or {}).values():
-            for rung, c in (rungs or {}).items():
-                have[rung] = have.get(rung, 0) + int(c or 0)
+        kc = st.get("kind_counts") if isinstance(st.get("kind_counts"), dict) else {}
+        for rungs in kc.values():
+            for rung, c in (rungs.items() if isinstance(rungs, dict) else ()):
+                have[rung] = have.get(rung, 0) + _num(c)
+        since = st.get("kind_since")
+        cutoff = float(since) if isinstance(since, (int, float)) else (KIND_RECORDING_SINCE if kc else None)
         added = skipped = runs = 0
-        for f in sorted(p.runs.glob("*/run.json")):
-            try:
-                rec = json.loads(f.read_text(encoding="utf-8"))
-            except (OSError, ValueError):
-                continue
-            route = rec.get("route") or {}
+        for rec in records:
+            route = rec["route"]
             if not rec.get("learned") or route.get("b") is None:
                 continue
+            if cutoff is not None and _learned_at(rec) >= cutoff:
+                continue                  # learned after kinds were recorded: already in kind_counts
             kind = route.get("kind") or (task_kind(rec.get("mode")) if rec.get("mode") else None)
             hit = False
-            for a in rec.get("attempts") or []:
-                if a.get("kind") in NOT_ABILITY:
+            for a in rec["attempts"]:
+                if not isinstance(a, dict) or a.get("kind") in NOT_ABILITY:
                     continue
                 if not kind or not all(a.get(x) for x in ("agent", "model", "effort")):
                     skipped += 1
@@ -403,7 +444,7 @@ def backfill_kinds(p: Paths) -> dict:
                     skipped += 1
                     continue
                 by = st.setdefault("kind_counts", {}).setdefault(str(kind), {})
-                by[rung] = int(by.get(rung, 0) or 0) + 1
+                by[rung] = _num(by.get(rung)) + 1
                 have[rung] = have.get(rung, 0) + 1
                 added += 1
                 hit = True

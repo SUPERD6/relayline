@@ -745,8 +745,10 @@ today. The candidates are those left after quota and readiness filtering.
 Recording the kind happens whether the table is on or off; it changes no pick.
 Old history can be put under its kind once (#440): `ccx doctor --backfill-kinds` reads the run records
 (`runs/*/run.json`, never changed) of runs that were learned from, and adds their ability-counting attempts to
-`kind_counts` under the run's `route.kind`, else the kind of its mode (`read` / `code`). A run with neither, or an
-attempt without agent/model/effort, stays "no recorded kind". It never adds more per rung than the skill's `counts`
+`kind_counts` under the run's `route.kind`, else the kind of its mode (`read` / `code`). A run with neither (a missing mode stays unknown here, unlike
+`record_outcomes`, which takes `code`), or an attempt without agent/model/effort, stays "no recorded kind". Runs learned
+once kinds were recorded are skipped, as they are in `kind_counts` already (`kind_since` in the state, else the date #437
+shipped), so nothing counts twice; run records are read before the state lock is taken. It never adds more per rung than the skill's `counts`
 holds, and it does not spread what it cannot place, nor drop it. It runs once (`kind_backfill` in the state marks it;
 repeating prints "already done" and changes nothing) under the same lock as recording, and only adds. It is an explicit
 option, not done on first read, so a state file is never rewritten by a command that looked read-only.

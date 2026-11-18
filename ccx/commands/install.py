@@ -299,7 +299,9 @@ def cmd_doctor(a) -> int:
     if getattr(a, "backfill_kinds", False):
         from .. import learn
         r = learn.backfill_kinds(paths())
-        if r["already"]:
+        if r.get("bad_state"):
+            print("kind backfill: the routing state could not be read; nothing changed")
+        elif r["already"]:
             print(f"kind backfill: already done earlier ({r.get('added', 0)} outcome(s) counted then)")
         else:
             print(f"kind backfill: {r['added']} outcome(s) of {r['runs']} run(s) put under their kind; "
