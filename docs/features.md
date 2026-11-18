@@ -655,6 +655,32 @@ trigger counts every piece; a follow-up and a spun-off run may be reviewed again
 code is 2 when any merged piece is not done (a piece run alone keeps `ccx run`'s exit code). An explicit `--merge`
 wins over `[lanes] default` and an explicit `--lanes` over `[merge] default`; both on the command line is an error.
 
+### Experimental: cold-start table (`routing.cold_start`, off until measured)
+
+Off by default (`routing.cold_start = false`); with it off, every pick is byte for byte what it was before (locked
+by `tests/test_cold_start.py`). Switch it on with `ccx config set routing.cold_start on`. It acts only on
+task-routing's pick (a run given the rubric, `--minutes` or `--b`) and only when task-routing has no learned outcome
+yet for any candidate vendor, so its pick would rest on priors alone. Then the first rung's tier comes from the
+`[cold_start]` table in `config/tiers.toml` (override in `hub/ccx/tiers.toml`): one row per kind of work (`code`,
+`read`, `research`, `write`; a kind with no row uses `default`), difficulty b at most the bound gives that tier, above
+every bound T4. The table names tiers, never a vendor: the vendor is still task-routing's pick, and its model and
+effort for that tier come from `[tiers]`. Escalation then climbs only the same vendor's next tiers (from T4 there is
+none), not the cross-vendor rungs task-routing's own ladder may hold. The shipped bounds are provisional, not measured.
+
+"No history" is per candidate vendor, not per kind of work: task-routing's learned counts do not record the kind, so
+any recorded run for a candidate vendor (of any kind) counts. The candidates are those left after quota and readiness
+filtering. In practice the table therefore applies only to the first runs with a difficulty b before any candidate
+vendor has a recorded outcome: a short window. Judging by kind of work is #437.
+
+A choice the person fixed is left alone: `--to`, `--model`, `--tier`, `--provider`, `--effort` together with
+`--model` or `--provider` (alone it is ignored, see the note `ccx run` prints), or a role (any role, even one set to
+`auto:auto:auto`). The table changes none of it, and `rung_why.user_fixed` says so (`user-fixed / 用户固定: --to
+codex; automatic selection keeps them as given`). For `ccx run` that line appears whenever something was fixed, with
+the table on or off; for `ccx batch` and queue runs only while the table is on (it comes from the table's note). When the table is on,
+the run's and the dry run's `route.cold_start` says whether it applied and why (`applied`, `why`, and when applied
+`kind`, `b`, `tier`, `from`: task-routing's rung), and `rung_why.model` / `rung_why.effort` name the table. The dry
+run's first rung and the real run's are the same.
+
 ## Quota awareness
 
 Before a large task, run `ccx quota --refresh`. Claude's windows come from `rate_limit_event` /

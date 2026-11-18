@@ -425,6 +425,27 @@ Fail（做对 29 对 30），事后解读为未定。按配对看，三个都没
 的运行可能再审一次）、墙钟变长；只要有合并的块没做完，退出码就是 2（单独跑的块仍按 `ccx run` 原来的退出码）。命令行上的 `--merge` 优先于
 `[lanes] default`，命令行上的 `--lanes` 优先于 `[merge] default`；两个都写在命令行上会报错。
 
+### 实验性：冷启动起步表（`routing.cold_start`，实测前不开）
+
+默认关（`routing.cold_start = false`）；关着时每次选档和以前逐字一样（`tests/test_cold_start.py` 锁住）。用
+`ccx config set routing.cold_start on` 打开。它只作用于 task-routing 的选择（带评分项、`--minutes` 或 `--b` 的运行），
+而且只在候选的几家都还没有任何学到的结果、task-routing 只能靠先验时生效。这时首档的档位查 `config/tiers.toml`
+里的 `[cold_start]` 表（可在 `hub/ccx/tiers.toml` 覆盖）：按任务类别一行（`code`、`read`、`research`、`write`，没配的类别用
+`default`），难度 b 不超过某个上限就用那一档，超过所有上限用 T4。表里只写档位，不写哪一家：用哪家仍是 task-routing
+选的，这一家在该档的模型和推理强度取自 `[tiers]`。之后升档只在同一家里往上走（T4 没有后续档），不再用 task-routing
+原来升档路径里的跨厂商档。默认阈值是暂定值，未实测。
+
+"没有历史"按候选厂商算，不按任务类别：task-routing 学到的计数没记任务类别，所以候选厂商只要记下过一次任何类别的
+运行结果就算有历史；候选指配额和登录过滤之后剩下的几家。实际上起步表只对候选厂商还没有任何结果时带难度 b 的头几次
+运行生效，有效窗口很短。按任务类别判定见 #437。
+
+用户固定的选择不动：`--to`、`--model`、`--tier`、`--provider`、和 `--model` 或 `--provider` 一起给的 `--effort`（单独给
+`--effort` 会被忽略，`ccx run` 会提示），或角色表（任何角色，即使设成 `auto:auto:auto`）。起步表一档都不改，`rung_why.user_fixed`
+写明（`user-fixed / 用户固定: --to codex; automatic selection keeps them as given`）；`ccx run` 只要固定了什么就有这一行，
+起步表开不开都一样；`ccx batch` 和队列运行只在起步表开着时有（取自起步表的记录）。
+起步表开着时，运行和 dry-run 的 `route.cold_start` 写明是否生效、为什么（`applied`、`why`，生效时还有 `kind`、`b`、`tier`、
+`from`：task-routing 原来选的档），`rung_why.model` / `rung_why.effort` 写明来自起步表。dry-run 的首档和真实运行一致。
+
 ## 配额感知
 
 开大活前可以运行 `ccx quota --refresh`。Claude 从 stream-json 的 `rate_limit_event` /
