@@ -751,7 +751,9 @@ learned once kinds were recorded are skipped, as they are in `kind_counts` alrea
 with `kind_noted: true` (written when the run was learned from) is skipped; without that mark, when the state holds any
 `kind_counts`, a run is skipped if it was learned (start + attempt time, or verdict time) within an hour before, or after,
 `kind_since` / the time #437 was committed (whichever is earlier), or if it has no usable start time `ts`. The #437
-commit time is not when you installed it, so runs between the two stay "no recorded kind" (conservative). Run
+commit time is not when you installed it, so runs between the two stay "no recorded kind" (conservative). An old run
+that a later `ccx verify` or probable verdict learned again carries `kind_noted` from then on, so the backfill skips it
+whole: it stays unknown, never counted twice. Run
 records are read before the state lock is taken. It never adds more per rung than the skill's `counts`
 holds, and it does not spread what it cannot place, nor drop it. It runs once (`kind_backfill` in the state marks it;
 repeating prints "already done" and changes nothing) under the same lock as recording, and only adds. It is an explicit
