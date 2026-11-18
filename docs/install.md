@@ -198,7 +198,7 @@ ccx config set defaults.tradeoff 0.3  # the save <-> fast knob: save / balanced 
 ccx config set routing.mode off      # delegate no work: do it yourself; ccx ask / discuss / run --mode read (a
                                      # cross-vendor review), mem, board as before; run / batch / q run / q resume /
                                      # way refuse without --force (auto = as shipped)
-ccx ab done <id> --ok 1               # close an A/B sample (the ~10% the lead does itself)
+ccx ab done <id> --ok 1               # close an A/B sample (the ~10% the lead does itself); its ledger row keeps the run's size signals
 ccx send --list | --thread <id> "msg" # message a live Codex desktop / interactive session (Codex only: a Claude Code
                                       # session, terminal or desktop app, has no way in for an outside message;
                                       # follow up a Claude sub-agent with ccx resume <run_id>)

@@ -50,6 +50,9 @@ def _run_spec(a, text: str) -> dict:
     return spec
 
 
+SIZE_SIGNALS = ("estimate_files", "estimate_minutes", "band", "coupling", "clarity")   # #433, as a run's row
+
+
 def cmd_ab(a) -> int:
     """Close an A/B self-run sample: sum the lead's own usage since the sample opened."""
     p = paths()
@@ -65,7 +68,9 @@ def cmd_ab(a) -> int:
            "would_route": s["would_route"], "ok": bool(a.ok), "usage4": w["usage"],
            "messages": w["messages"], "ae_usd": None if ae is None else round(ae, 6),
            "seconds": round(time.time() - s["ts"], 1), "ts": time.time(),
-           **{k: s[k] for k in ("trial", "bucket", "kind") if s.get(k)}}
+           **{k: s[k] for k in ("trial", "bucket", "kind", *SIZE_SIGNALS) if s.get(k)}}
+    if s.get("coupling") or s.get("clarity"):      # where scripts/eval/routing_calibration.py reads them for a run
+        row["route"] = {"rubric": {k: s[k] for k in ("coupling", "clarity") if s.get(k)}}
     ledger.append_event(p, row)
     f.unlink()
     _out(row)
