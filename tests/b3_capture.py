@@ -36,7 +36,7 @@ def _norm(text: str, subs: list[tuple[str, str]]) -> str:
 
 def capture(to: str, mode: str, parallel: bool = False, subagent: dict | None = None,
             env_extra: dict | None = None, req_kw: dict | None = None, results: list[dict] | None = None,
-            tiers_extra: str = "", git_init: bool = False) -> dict:
+            tiers_extra: str = "", git_init: bool = False, files: dict | None = None) -> dict:
     """One sub-agent start in a throwaway hub and home. `subagent`: a [subagent] table for the hub's tiers.toml.
     `req_kw`: more Request fields; `tiers_extra`: more text for the hub's tiers.toml (e.g. a `[brief]` table);
     `git_init`: the working folder is a git repository with one commit (a --worktree run needs one); `results`: what each attempt returns in turn (default one "done"); every attempt's
@@ -68,6 +68,9 @@ def capture(to: str, mode: str, parallel: bool = False, subagent: dict | None = 
                                      if subagent else "") + tiers_extra, encoding="utf-8")
         cwd = tmp / "work"
         cwd.mkdir()
+        for rel, text in (files or {}).items():       # e.g. {".ccx/context.md": "..."}: the project context line
+            (cwd / rel).parent.mkdir(parents=True, exist_ok=True)
+            (cwd / rel).write_text(text, encoding="utf-8")
         if git_init:
             import subprocess
             (cwd / "a.py").write_text("x = 1\n", encoding="utf-8")
@@ -78,7 +81,7 @@ def capture(to: str, mode: str, parallel: bool = False, subagent: dict | None = 
         todo = list(results or [])
 
         def fake_execute(cli, inv, timeout, env, **_kw):
-            g = re.search(r"Guidance[^\n]*`([^`\n]*guidance\.md)`", inv.stdin or "")   # [brief] slim: the file it names
+            g = re.search(r"`([^`\n]*guidance\.md)`", inv.stdin or "")   # [brief] slim: the file its line names
             seen.append({"argv": list(inv.argv), "prompt": inv.stdin,
                          "guidance": Path(g.group(1)).read_text(encoding="utf-8") if g and Path(g.group(1)).is_file() else None,
                          "env": {k: env.get(k) for k in ENV_KEYS}})
@@ -97,6 +100,7 @@ def capture(to: str, mode: str, parallel: bool = False, subagent: dict | None = 
         argv = ["<BIN>"] + [_norm(x, subs) for x in first["argv"][bin_len:]]
         prompt = first["prompt"].replace(codex_agent.WINDOWS_SHELL, "")
         return {"argv": argv, "prompt": _norm(prompt, subs), "guidance": first.get("guidance"),
+                "brief": {k: rec[k] for k in ("brief_slim", "brief_guidance", "brief_guidance_error") if k in rec},
                 "env": {k: (_norm(v, subs) if isinstance(v, str) else v) for k, v in first["env"].items()},
                 "attempts_argv": [[_norm(x, subs) for x in a["argv"][bin_len:]] for a in seen],
                 "attempts_prompt": [_norm(a["prompt"], subs) for a in seen],
@@ -112,7 +116,7 @@ def capture(to: str, mode: str, parallel: bool = False, subagent: dict | None = 
 
 
 def golden() -> dict:
-    return {name: {k: v for k, v in capture(to, mode, parallel).items() if k not in ("record", "guidance")}
+    return {name: {k: v for k, v in capture(to, mode, parallel).items() if k not in ("record", "guidance", "brief")}
             for name, to, mode, parallel in CASES}
 
 
