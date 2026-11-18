@@ -874,7 +874,8 @@ def review_run(req: Request, p: Paths, cfg: dict, record: dict, cwd: Path, run_d
         miss, clean_text = rv.clean_skip(rc, mode=mode, risk=req.risk, result=res, check=record.get("check"),
                                          actual=actual, diff=diff, edited=edited, self_checked=selfc,
                                          committed=committed, claimed=res.get("files_changed") or [],
-                                         unread=rv.unreadable((snap or {}).get("repo"), actual, diff))
+                                         unread=rv.unreadable((snap or {}).get("repo"), actual, diff),
+                                         status=rv.name_status(cwd, snap, actual))
         record["review_skip"] = {"unmet": miss}
         if not miss:
             record["review"] = {"verdict": "skipped", "reason": why, "skipped": clean_text}
@@ -988,7 +989,9 @@ def review_run(req: Request, p: Paths, cfg: dict, record: dict, cwd: Path, run_d
 
 
 SKIP_MAX_FILES, SKIP_MAX_LINES = 3, 49     # 49: below [review] min_lines (50), whose reviews stay
-TEST_CONFIG_FILES = ("pytest.ini", "pyproject.toml", "setup.cfg", "tox.ini", "conftest.py")
+# source files that steer how tests run, or what they compare against: never on the whitelist
+NOT_SOURCE_NAMES = ("conftest.py", "noxfile.py", "setup.py", "makefile")
+NOT_SOURCE_DIRS = ("testdata", "__snapshots__")
 UNTRACKED_READ_CHARS = 4000     # changes() puts at most this much of a new untracked file into the diff
 
 
@@ -1010,21 +1013,43 @@ def changed_lines(diff: str) -> int:
     return sum(1 for ln in diff.splitlines() if ln.startswith(("+", "-")) and not ln.startswith(("---", "+++")))
 
 
-def moved_tests(diff: str) -> list[str]:
-    """Pre-existing test files the diff renames or deletes. A rename can carry 0 changed lines, so edited_tests does
-    not see it, and a renamed test file may no longer be collected: its check then passes."""
-    out: list[str] = []
-    cur = None
-    for ln in diff.splitlines():
-        if ln.startswith("diff --git "):
-            m = re.match(r"diff --git a/(.+?) b/", ln)
-            cur = m.group(1) if m else None
-        elif ln.startswith("rename from "):
-            cur = ln[len("rename from "):].strip()
-            if is_test_file(cur) and cur not in out:
-                out.append(cur)
-        elif ln.startswith("deleted file mode") and cur and is_test_file(cur) and cur not in out:
-            out.append(cur)
+def name_status(cwd: Path, snap: dict | None, actual: list[str]) -> list[tuple[str, str]] | None:
+    """[(status letter, path)] of every file changed since the snapshot, renames split into a delete of the old name
+    and an add of the new one (--no-renames), new untracked files as "A". None when git cannot say."""
+    if not snap or not snap.get("base"):
+        return None
+    out = _git(cwd, "-c", "core.quotepath=off", "diff", "--name-status", "--no-renames", snap["base"])
+    rows = []
+    for ln in out.splitlines():
+        code, _, path = ln.partition("\t")
+        if code and path and not path.startswith(".ccx/"):
+            rows.append((code[0], path))
+    seen = {p for _, p in rows}
+    tracked = set(_git(cwd, "-c", "core.quotepath=off", "diff", "--name-only", snap["base"]).splitlines())
+    if tracked - seen:                # the two git answers disagree: not shown clean
+        return None
+    rows += [("A", n) for n in actual if n not in seen]
+    return rows
+
+
+def off_whitelist(status: list[tuple[str, str]]) -> list[str]:
+    """#427 whitelist: the changed files that keep a run from being clean. Only source files (CODE_SUFFIXES) changed
+    in place or added, and test files only when new, may be skipped; any delete or rename (its old name is a "D"),
+    any configuration, data, lock or snapshot file (.json, .toml, .ini, .cfg, .yaml, .lock, .snap, Makefile ...),
+    conftest.py / noxfile.py / setup.py, and anything under testdata/ or __snapshots__/ is not."""
+    out = []
+    for code, path in status:
+        n = _norm(path)
+        parts = n.split("/")
+        name = parts[-1]
+        if code not in ("M", "A"):
+            out.append(f"{path} (deleted or renamed)")
+        elif any(d in NOT_SOURCE_DIRS for d in parts[:-1]):
+            out.append(f"{path} (test data or snapshot)")
+        elif name in NOT_SOURCE_NAMES or not n.endswith(CODE_SUFFIXES):
+            out.append(f"{path} (not a source file)")
+        elif code != "A" and (is_test_file(path) or any(d.endswith((".tests", ".test")) for d in parts[:-1])):
+            out.append(f"{path} (existing test changed)")
     return out
 
 
@@ -1047,10 +1072,13 @@ def unreadable(repo, actual: list[str], diff: str) -> list[str]:
 
 def clean_skip(rc: dict, *, mode: str, risk: str | None, result: dict, check: dict | None, actual: list[str],
                diff: str, edited: list[str], self_checked: bool, committed: bool, claimed: list[str] | None = None,
-               unread: list[str] | None = None) -> tuple[list[str], str]:
+               unread: list[str] | None = None,
+               status: list[tuple[str, str]] | None = None) -> tuple[list[str], str]:
     """#427: (the clean conditions this run does not meet, a short text of why it is clean). Mechanical: every one
     must hold for the automatic review to be skipped; any unmet one keeps the review as before. `claimed`: the
-    files the sub-agent reported (None = not judged); `unread`: changed files whose lines are not fully counted."""
+    files the sub-agent reported (None = not judged); `unread`: changed files whose lines are not fully counted;
+    `status`: name_status() of the change (None = unknown, not clean). Inline tests in source files (Rust
+    #[cfg(test)], doctests) and adversarial source or new-test changes cannot be judged reliably."""
     from .coverage import added_to_tests
     chk = check or {}
     files, lines = len(actual), changed_lines(diff)
@@ -1058,8 +1086,8 @@ def clean_skip(rc: dict, *, mode: str, risk: str | None, result: dict, check: di
     miss = []
     if mode != "auto":
         miss.append("review asked (not automatic)")
-    if risk == "critical":
-        miss.append("risk critical")
+    if risk in ("visible", "critical"):    # the routing rubric reviews visible+ (#434 re-review)
+        miss.append(f"risk {risk}")
     if not chk:
         miss.append("no check")
     elif chk.get("passed") is not True:
@@ -1078,14 +1106,15 @@ def clean_skip(rc: dict, *, mode: str, risk: str | None, result: dict, check: di
         miss.append("lines not fully counted (binary or long new file): " + ", ".join(unread[:3]))
     if edited:
         miss.append("edited tests")
-    moved, added = moved_tests(diff), added_to_tests(diff)
-    if moved:
-        miss.append("renamed or deleted tests: " + ", ".join(moved[:3]))
+    added = added_to_tests(diff)
     if added:                         # a skip / xfail marker is only added lines
         miss.append("lines added to existing tests: " + ", ".join(added[:3]))
-    conf = [f for f in actual if _norm(f).rsplit("/", 1)[-1] in TEST_CONFIG_FILES]
-    if conf:                          # addopts / deselect can drop the failing test
-        miss.append("test configuration changed: " + ", ".join(conf[:3]))
+    if status is None:
+        miss.append("file status unknown")
+    else:                             # a whitelist: a blacklist of test configs was bypassed (#434 re-review)
+        off = off_whitelist(status)
+        if off:
+            miss.append("not on the source whitelist: " + ", ".join(off[:3]))
     if self_checked:
         miss.append("check basis self-authored")
     if result.get("open_questions"):

@@ -1394,7 +1394,8 @@ def receipt_row(rd: Reader, p: Paths, rec: dict, verdict: dict | None, piece_run
             "running": rec.get("state") == "running", "ok": rec.get("ok"), "kind": rec.get("kind"),
             "headline": leadview.record_headline(rec),
             "check": check,
-            "review": rv.get("verdict") if rv.get("verdict") not in (None, "not-run", "skipped") else None,
+            # "skipped" (#427) is shown as such (map_rv_skipped), like the detail panel; only not-run means none
+            "review": rv.get("verdict") if rv.get("verdict") not in (None, "not-run") else None,
             "reviewer": _who_rung(rv.get("by")) if rv.get("verdict") not in (None, "not-run", "skipped") else None,
             "verdict": v.get("ok") if v else None, "outcome": _outcome(rec, verdict),
             "notes": brief_notes(rd, p.runs / rec["run_id"])}
