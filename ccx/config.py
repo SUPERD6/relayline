@@ -424,6 +424,9 @@ SETTINGS = {   # key -> (type, help). Only these can be set with `ccx config set
     "prompt.slim": (_bool, "true | false: a run given --mode write and no --check is not told what to do when the "
                            "task only asks for an answer (that sentence is left out); false = the text as before "
                            "(default true)"),
+    "brief.slim": (_bool, "experimental, effect Unknown: the sub-agent's first message keeps only the task, scope and "
+                          "read/write boundary, acceptance command and receipt format; the rest goes in the run's "
+                          "guidance.md, named in one line (default false; not lead.slim_context, which is the lead's own context)"),
     "run.stall_minutes": (float, "experimental: stop an attempt whose CLI printed no event (stdout line) for this "
                                  "many minutes, as a timeout marked stalled (default 0 = off; keep it above the longest "
                                  "quiet stretch: a long model step or a long tool command prints nothing)"),

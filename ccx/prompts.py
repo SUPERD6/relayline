@@ -122,6 +122,37 @@ Final message = the JSON result (schema enforced). summary <= 120 words, facts o
 """
 
 
+# [brief] slim (#428, experimental, default off, effect Unknown): the same texts as PROMPT / CONTINUE / FOLLOWUP, with
+# only the builder advice that is not a correctness guard moved out: WIRING (how to test through the command that
+# triggers a change, which tests to run) and ANSWER (an answer-only task) go in <run dir>/guidance.md, with one line
+# telling the sub-agent to read it, and the Finish text is shorter. Everything else stays in the message: the rules
+# (no hand-off, no commit, reference-only text), KEEP_TESTS (a correctness guard), the project-context, memory-index
+# and shared-note lines, Workspace, Permission, the acceptance command, the receipt format. FOLLOWUP is unchanged.
+# Off, none of these is used and the texts above are as before (tests/test_brief_slim.py holds them byte for byte).
+# Not the lead's `lead.slim_context` (#300), not `[prompt] slim` (one sentence of SELFCHECK).
+GUIDANCE_LINE = ("More guidance (how to test through the command that triggers a change; what to do when the task "
+                 "only asks for an answer): read `{path}` before you run any tests. If you cannot open it, go on "
+                 "without it.\n")
+GUIDANCE_FILE = "guidance.md"
+PROMPT_SLIM = PROMPT.replace("{context_line}{memory_line}\n## Task", "{context_line}{memory_line}{guidance_line}\n## Task")
+CONTINUE_SLIM = CONTINUE.replace("\n\n## Task", "\n{guidance_line}\n## Task")
+assert PROMPT_SLIM != PROMPT and CONTINUE_SLIM != CONTINUE
+SELFCHECK_SLIM = ("Check your work with the tests or commands that exist; list what you ran in commands_run and the "
+                  "outcome in verification. summary says what changed and why (for a task that only asks for an "
+                  "answer, summary is the answer itself); put anything you are unsure of, or that the lead must "
+                  "decide, in open_questions.")
+SELFCHECK_CMD_SLIM = ("The acceptance check is `{check}`; ccx runs it again afterwards, outside your sandbox, and that "
+                      "result counts. List the check in commands_run and its outcome in verification. summary says "
+                      "what changed and why; put anything you are unsure of, or that the lead must decide, in "
+                      "open_questions.")
+
+
+def guidance_text() -> str:
+    """The guidance.md a slim run points at: the two builder paragraphs the full text carries inline."""
+    return "\n".join(["# ccx guidance for this run", "", f"- Wiring and which tests to run: {WIRING.strip()}",
+                      f"- Answers: {ANSWER.strip()}"]) + "\n"
+
+
 ESCALATE = """[ccx escalation {run_id}] The previous attempt ended with status={status}: {summary}
 You now run on a stronger model. Re-check the earlier reasoning, finish the original task, and return the JSON result."""
 
