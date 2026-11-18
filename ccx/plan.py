@@ -277,7 +277,7 @@ def cold_start(p: Paths, cfg: dict, spec: dict, route: dict, pk: dict, agents: l
     # time is not counted, so its history does not make this pick warm. #437: judged per kind of work; runs the state
     # recorded with no kind (before #437) count as history, so an old state file is never taken for "cold"
     hist = learn.kind_history(state, agents, kind)
-    if hist is None:                                  # kind unknown: per vendor, as #426 shipped it
+    if hist is None:      # defensive only: task_kind never returns None today; then per vendor, as #426 shipped it
         seen = sum(int(n or 0) for rung, n in counts.items() if str(rung).split(":", 1)[0] in agents)
         if seen:
             route["cold_start"] = {"applied": False,

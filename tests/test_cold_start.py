@@ -264,6 +264,16 @@ class TestColdStartByKind(ColdStartEnv):
         self.assertFalse(self.dry(args)["route"]["cold_start"]["applied"])
         self.assertTrue(self.dry(("--from", "claude", "--b", "6", "--mode", "write"))["route"]["cold_start"]["applied"])
 
+    def test_a_fixed_tier_run_records_its_kind_from_the_mode(self):
+        # --tier skips task-routing, so route.kind is not set; the kind then comes from the run's mode, not "unknown"
+        args = ("--from", "user", "--tier", "T2", "--b", "4", "--mode", "read")
+        out = json.loads(self.ccx("run", *args, *FLAGS, BRIEF).stdout)
+        rung = self.rec(out["run_id"])["attempts"][0]["rung"]
+        self.j("verify", out["run_id"], "--ok", "1")
+        st = self.state()
+        self.assertEqual(st["kind_counts"], {"read": {rung: 1}})
+        self.assertEqual(sum(st["counts"].values()), 1)                  # nothing left as "unknown kind"
+
 
 def test_kind_history_splits_kind_other_and_unknown():
     from ccx.learn import kind_history

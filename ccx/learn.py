@@ -373,6 +373,10 @@ def record_outcomes(p: Paths, record: dict, final_ok: bool) -> list[dict]:
         except FileNotFoundError:
             sp = None
     atts = record.get("attempts", [])
+    # #437: task-routing picks carry route.kind (--kind, else read mode -> read, else code). A pick fixed with
+    # --tier / --model / --provider has none, so its kind comes from the run's mode the same way; --kind is not
+    # kept on those records. Without this the run would count as "unknown kind", i.e. history for every kind
+    kind = route.get("kind") or task_kind(record.get("mode"))
     first_p = None
     for i, a in enumerate(atts):
         if a.get("kind") in ("quota", "capacity", "auth", "timeout", "model", "policy", "needs_write", "split", "over_budget",
@@ -387,7 +391,7 @@ def record_outcomes(p: Paths, record: dict, final_ok: bool) -> list[dict]:
                 r = tr.record(rung, float(b), ok, pri, st, cost_usd=cost, seconds=a.get("seconds"))
             except TypeError:                            # skill copy without time learning
                 r = tr.record(rung, float(b), ok, pri, st, cost_usd=cost)
-            note_kind(st, rung, route.get("kind"))       # #437: kind of work, for the per-kind cold-start check
+            note_kind(st, rung, kind)                    # #437: kind of work, for the per-kind cold-start check
             tr.save_state(st)
         if first_p is None:
             first_p = r.get("predicted_p")

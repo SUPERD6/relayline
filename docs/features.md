@@ -697,8 +697,11 @@ none), not the cross-vendor rungs task-routing's own ladder may hold. The shippe
 are unchanged). A candidate vendor with only `code` runs is still cold for `read` work; once a `read` outcome is
 recorded, `read` work gets task-routing's pick again. Runs the state holds with no recorded kind (a state file written
 before #437, or a run recorded without one, such as task-routing's own `record` command) count as history for every kind, so an old
-state file is never taken for "cold" and behaves as before. If the kind of work itself were unknown, the check falls
-back to per vendor (any recorded run counts). The candidates are those left after quota and readiness filtering.
+state file is never taken for "cold" and behaves as before. The kind is `--kind` when given, else `read` for a
+read-only run and `code` for the rest; a run whose pick was fixed with `--tier`, `--model` or `--provider` records
+its kind from the run's mode the same way (its `--kind` is not kept). If the kind of work were unknown, the check
+would fall back to per vendor (any recorded run counts); that branch is defensive only, the kind is always known
+today. The candidates are those left after quota and readiness filtering.
 Recording the kind happens whether the table is on or off; it changes no pick.
 
 A choice the person fixed is left alone: `--to`, `--model`, `--tier`, `--provider`, `--effort` together with
