@@ -69,7 +69,7 @@ def test_execute_refuses_out_inside_a_forbidden_folder(tmp_path, monkeypatch):
         if out == tmp_path / "out-454":
             data = retest.plan("context", 1, tasks=path, tasks_sha256=sha, agents=["dsh"], hide=[tmp_path])
         with pytest.raises(ValueError, match="--out"):
-            runner.execute(data, out, 1.0, 0.1)
+            runner.execute(data, out, 0.5, 0.1)
         assert not out.exists()
 
 

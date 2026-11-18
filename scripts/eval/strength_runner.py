@@ -1,11 +1,15 @@
 """Serial, budgeted execution of strength manifests using seven_func's isolated ccx mechanism."""
 from __future__ import annotations
 
+import dataclasses
 import json
 import math
-from pathlib import Path
+import os
+from pathlib import Path, PurePosixPath
+import re
 import subprocess
 import sys
+import tempfile
 import time
 import uuid
 
@@ -36,6 +40,166 @@ CODEX_NO_WEB_CONFIG = "[subagent]\ncodex_lean_tools = true\n"
 SYNTHETIC_LEAD_FOLDER = "ccx-strength-synthetic"
 
 
+# ------------------------------------------------------------------ isolation (#454)
+# What a unit's agents must not open, on top of preflight.forbidden's own list (the person's homes, hub, config,
+# this checkout and its git worktrees): the task generators and hidden tests (scripts/eval, e.g. round2_a/), the
+# frozen task files (docs/research/data, e.g. round2-tasks/), the --tasks file itself and every --hide path. Claude
+# units get Read/Edit deny rules on them (Claude Code applies Read deny rules to Grep and Glob, best effort; Edit
+# rules to every file-editing tool); every unit's tool calls are audited after the run (path_audit).
+EVAL_ABS = Path(__file__).absolute().parent      # the spelling the script was started by (a junction kept)
+DATA_DIRS = ("scripts/eval", "docs/research/data")
+# Path-independent patterns: a relative read (`cd ../.. && cat scripts/eval/round2_a/x.py`), another folder name or an
+# 8.3 short name (ROUND2~1) still names the task folder or module. Matched case-insensitively on preflight.canon text.
+CONTENT_PATTERNS = (r"round2_a", r"round2_bc", r"round2-tasks", r"(?<![a-z0-9_])round2~\d",
+                    r"(?<![a-z0-9_])(?:l5_memory|shared_context_ab)(?![a-z0-9_])")
+# A recursive listing or search, and a climb above the unit's own folder (its repo's parent is still the unit's)
+_RECURSIVE = re.compile(r"(?<![\w.-])(?:rg|ag|tree|find|grep\s+(?:-\w*[rR]\w*|--recursive)|findstr\s+/s|"
+                        r"dir\s+/s|ls\s+-\w*R\w*|(?:get-childitem|gci|ls|dir)\b[^|;&]*\s-r(?:ecurse)?\b)(?![\w-])",
+                        re.I)
+_TOKEN_END = r"/?(?=$|[\s\"'`;)|,&<>])"
+_CLIMB = re.compile(PF._B + r"\.\./\.\." + r"(?=/|$|[\s\"'`;)|,&<>])")
+_CD_CLIMB = re.compile(r"(?<![\w-])(?:cd|pushd|set-location|sl|chdir)\s+(?:-\w+\s+)?[\"']?\.\./\.\.", re.I)
+
+
+def short_path(p) -> Path | None:
+    """Windows: the 8.3 short spelling of an existing path (None elsewhere, or when it cannot be read). A volume with
+    8.3 names turned off gives back the long name."""
+    if os.name != "nt":
+        return None
+    try:
+        import ctypes
+        buf = ctypes.create_unicode_buffer(32768)
+        n = ctypes.windll.kernel32.GetShortPathNameW(str(Path(p).resolve()), buf, len(buf))
+        return Path(buf.value) if 0 < n < len(buf) else None
+    except (OSError, AttributeError, ValueError):
+        return None
+
+
+def aliases(p) -> list[Path]:
+    """Every spelling of `p` the deny rules and the audit know: as given (absolute, a junction or symbolic link kept),
+    resolved, and on Windows their 8.3 short names. A path mixing short and long parts is not one of them."""
+    p = Path(p).expanduser()
+    out: list[Path] = []
+    for q in (p.absolute(), p.resolve()):
+        for r in (q, short_path(q) if q.exists() else None):
+            if r is not None and os.path.normcase(str(r)) not in {os.path.normcase(str(x)) for x in out}:
+                out.append(r)
+    return out
+
+
+def isolation_paths(tasks_file=None, hide=()) -> list[Path]:
+    """The run's own checkout (both spellings), its task generators and data, the --tasks file and the --hide paths,
+    each with its aliases."""
+    roots = [ROOT, EVAL_ABS.parents[1]]
+    base = [*roots, *(r / d for r in roots for d in DATA_DIRS), *([Path(tasks_file)] if tasks_file else []),
+            *(Path(h) for h in hide or ())]
+    out: list[Path] = []
+    for p in base:
+        for q in aliases(p):
+            if os.path.normcase(str(q)) not in {os.path.normcase(str(x)) for x in out}:
+                out.append(q)
+    return out
+
+
+def isolation_unit(dest: Path, hub: Path, hidden) -> PF.Unit:
+    """preflight.Unit for a strength unit: its own folder `dest` (repo, hub, homes) stays readable and writable. A
+    hidden file (the --tasks file) gets its own deny rules: forbidden()'s rules cover a folder's contents (/**)."""
+    files = [p for p in hidden if Path(p).is_file()]
+    return PF.Unit(f"strength-{Path(dest).name}", Path(dest), Path(dest) / "repo", Path(hub), claude="config-dir",
+                   hidden=tuple(hidden), deny=tuple(f"{t}({PF._rule_path(f)})" for f in files for t in ("Read", "Edit")),
+                   flags=CONTENT_PATTERNS)
+
+
+def python_paths() -> list[Path]:
+    """The interpreter the units' `python` is (common.lead_env puts its folder first on PATH) and its prefix (a venv)."""
+    return [Path(sys.prefix), Path(sys.executable).parent]
+
+
+def _ancestors(paths, home) -> list[re.Pattern]:
+    """Each forbidden path's parent folders (not a drive or the file-system root), as a whole path token: a recursive
+    search or a Grep/Glob tool call there reads the forbidden folder too."""
+    seen, out = set(), []
+    for p in paths:
+        for a in PurePosixPath(PF.canon(Path(p).as_posix(), home)).parents:
+            s = str(a).rstrip("/")
+            if len([x for x in s.split("/") if x]) < 2 or s in seen:
+                continue
+            seen.add(s)
+            out.append(re.compile(PF._B + re.escape(s) + _TOKEN_END))
+    return out
+
+
+def audit_hits(inputs: list[str], u: PF.Unit) -> list[str]:
+    """Tool calls a unit must not make: preflight.path_hits (a forbidden path in any spelling canon() knows, or one of
+    the unit's content patterns), a `cd` above the unit's folder, a recursive search climbing above it, and a recursive
+    search or Grep/Glob call on a parent of a forbidden folder. The interpreter's own folders are masked first, so
+    running Python is never a hit; preflight already lets this checkout's ccx.py through."""
+    home = u.real["home"]
+    forbidden = PF.forbidden(u)
+    masks = []
+    for p in python_paths():
+        if any(PF._inside(f, p) for f in forbidden):      # never mask a folder that holds a forbidden one
+            continue
+        for q in aliases(p):
+            masks.append(re.compile(re.escape(PF.canon(q.as_posix(), home)) + r"(?=/|$|[\s\"'`;)|,&<>])"))
+    parents = _ancestors(forbidden, home)
+    hits = []
+    for s in inputs:
+        t = PF.canon(s, home)
+        for m in masks:
+            t = m.sub("<python>", t)
+        bad = bool(PF.path_hits([t], u)) or bool(_CD_CLIMB.search(t))
+        if not bad and _RECURSIVE.search(t) and _CLIMB.search(t):
+            bad = True
+        if not bad and (_RECURSIVE.search(t) or '"pattern"' in t) and any(a.search(t) for a in parents):
+            bad = True
+        if bad:
+            hits.append(s[:200])
+    return hits
+
+
+def path_audit(u: PF.Unit) -> dict:
+    """The unit's sub-agent tool calls (every runs/*/events* log ccx kept in its hub, read by preflight.tool_inputs:
+    Claude stream-json and Codex --json) checked by audit_hits. clean: False on any hit, None when no log was found."""
+    runs = u.hub / "ccx" / "runs"
+    files = sorted(runs.glob("*/events*")) if runs.is_dir() else []
+    inputs: list[str] = []
+    for f in files:
+        inputs += PF.tool_inputs(f.read_text(encoding="utf-8", errors="replace"))
+    hits = audit_hits(inputs, u)
+    return {"logs": len(files), "tool_calls": len(inputs), "path_hits": hits[:20], "n_path_hits": len(hits),
+            "clean": False if hits else (True if files else None)}
+
+
+def dirty(row: dict) -> bool:
+    return (row.get("path_audit") or {}).get("clean") is False
+
+
+def isolation_plan(tasks_file=None, hide=(), out=None) -> dict:
+    """What a dry run prints about isolation (#454): the --hide paths and every path the first unit is denied. Other
+    units differ only in their own folder."""
+    hidden = isolation_paths(tasks_file, hide)
+    dest = (Path(out).resolve() if out else Path(tempfile.gettempdir()) / "strength-<out>") / "unit-0000"
+    u = isolation_unit(dest, dest / "hub", hidden)
+    return {"hide": [str(p) for p in hide or ()], "unit": "unit-0000",
+            "forbidden_paths": [str(p) for p in PF.forbidden(u)],
+            "claude_deny_rules": len(PF.claude_settings(u)["permissions"]["deny"]),
+            "content_patterns": list(CONTENT_PATTERNS),
+            "note": "Claude units: Read/Edit deny rules on each path (Read rules also cover Grep/Glob, best effort). "
+                    "Codex units: workspace-write confines writes only and codex exec has no read deny, so reads are "
+                    "audited, not blocked. Every unit's tool calls are audited after the run (forbidden paths in "
+                    "any spelling, the content patterns, a cd or recursive search above the unit's folder); a hit "
+                    "makes the row invalid. DSH logs are audited only as far as their format is parsed"}
+
+
+def check_out(out: Path, hidden) -> None:
+    """--out must not lie inside a folder the units are denied: preflight.forbidden drops a folder that holds a unit's
+    own folder, so that folder would stay readable."""
+    for p in [*hidden, PF.ROOT, *PF.other_worktrees(PF.ROOT)]:
+        if PF._inside(out, p):
+            raise ValueError(f"--out {out} is inside {p}, which the units must not read; put it outside")
+
+
 def needs_codex_home(units) -> bool:
     return any(u.get("agent") == "codex" for u in units)
 
@@ -45,10 +209,11 @@ def needs_claude_home(units) -> bool:
 
 
 def unit_env(unit: dict, dest: Path, codex_home: Path | None, claude_home: Path | None = None,
-             fresh: bool = False) -> dict:
+             fresh: bool = False, extra_deny=()) -> dict:
     """The unit's environment and its own folders. Everything stays in `dest` except the logged-in homes a unit's own
     CLI needs: a Codex unit uses `codex_home`, a Claude unit `claude_home` (issue #320 / #345: an empty home has no
-    login). Claude units never get web tools; a `fresh` (--tasks) run's Codex units neither."""
+    login). Claude units never get web tools; a `fresh` (--tasks) run's Codex units neither. `extra_deny`: more
+    Claude deny rules (the isolation rules run_unit passes, #454)."""
     agent = unit.get("agent")
     if agent == "codex" and codex_home is None:
         raise ValueError("a Codex unit needs a logged-in Codex home (--codex-home)")
@@ -66,7 +231,8 @@ def unit_env(unit: dict, dest: Path, codex_home: Path | None, claude_home: Path 
         raw = isolated.get("CCX_CLAUDE_SETTINGS", "").strip()
         given = json.loads(raw if raw.startswith("{") else Path(raw).read_text(encoding="utf-8")) if raw else {}
         perms = dict(given.get("permissions") or {})
-        perms["deny"] = sorted(set(perms.get("deny") or []) | set(CLAUDE_NO_WEB["permissions"]["deny"]))
+        perms["deny"] = sorted(set(perms.get("deny") or []) | set(CLAUDE_NO_WEB["permissions"]["deny"])
+                               | set(extra_deny))
         isolated["CCX_CLAUDE_SETTINGS"] = json.dumps({**given, "permissions": perms})
     env = check_env(dest, isolated)
     for name in ("codex-home", "claude-home", "dsh-home"):
@@ -90,7 +256,8 @@ def write_lead_transcript(task: dict, home: Path, sid: str, folder: str = "lead"
 
 
 def run_unit(unit: dict, kind: str, dest: Path, budget: float, codex_home: Path | None = None,
-             claude_home: Path | None = None, tasks: list[dict] | None = None, fresh: bool = False) -> dict:
+             claude_home: Path | None = None, tasks: list[dict] | None = None, fresh: bool = False,
+             hidden=None) -> dict:
     """All writes and client state stay in this unit, except a Codex unit's own Codex files: those go to the
     caller's logged-in `codex_home` (shared by the run's Codex units, as in p4_long_session.py), because a fresh
     empty CODEX_HOME has no login (issue #320: every Codex unit got 401). A Claude unit likewise uses the caller's
@@ -98,10 +265,13 @@ def run_unit(unit: dict, kind: str, dest: Path, budget: float, codex_home: Path 
     TMP/TEMP/TMPDIR is its own tmp/ folder, and each workspace-write `codex exec` gets a private temp folder inside
     its working directory, as in p4 (issue #327: under the unelevated sandbox the system %TEMP% is not writable and
     PowerShell hangs). `tasks`: a frozen --tasks file's tasks instead of the built-in ones. Hidden tests arrive after
-    the CLI exits."""
+    the CLI exits. `hidden`: the paths its agents must not open (isolation_paths(); default: this checkout and its
+    task data, #454): deny rules for a Claude unit, and every unit's tool calls are audited (row["path_audit"])."""
     pool = tasks if tasks is not None else (TASKS if kind == "context" else CASES)
     task = next(t for t in pool if t["id"] == unit["task"])
-    env = unit_env(unit, dest, codex_home, claude_home, fresh)
+    iso = isolation_unit(dest, dest / "hub", isolation_paths() if hidden is None else tuple(hidden))
+    deny = PF.claude_settings(iso)["permissions"]["deny"] if unit.get("agent") == "claude" else ()
+    env = unit_env(unit, dest, codex_home, claude_home, fresh, extra_deny=deny)
     repo = make_repo(task, dest / "repo")
     if unit.get("agent") == "codex":
         tmp = dest / "tmp"
@@ -109,6 +279,7 @@ def run_unit(unit: dict, kind: str, dest: Path, budget: float, codex_home: Path 
         env.update({k: str(tmp) for k in ("TMP", "TEMP", "TMPDIR")})
         env.update(PF.codex_workspace_tmp_env(repo, dest))
     hub = Path(env["CCX_HUB"])
+    iso = dataclasses.replace(iso, hub=hub)
     # No app/session archiving: these synthetic homes are retained as evidence.
     def command(args):
         return run_tree([sys.executable, str(ROOT / "ccx.py"), *args], cwd=repo, env=env, timeout=180)
@@ -169,6 +340,11 @@ def run_unit(unit: dict, kind: str, dest: Path, budget: float, codex_home: Path 
         row["error"] = type(exc).__name__
     finally:
         row["usd"] = unit_cost(hub) if started else 0.0
+        if started:
+            try:
+                row["path_audit"] = path_audit(iso)
+            except OSError as exc:
+                row["path_audit"] = {"clean": None, "error": type(exc).__name__}
         row["wall_s"] = round(time.monotonic() - t0, 4)
     return row
 
@@ -191,6 +367,9 @@ def execute(manifest: dict, out: Path, budget: float, unit_budget: float, codex_
     on_invalid = manifest.get("on_invalid", "stop")
     if on_invalid not in ("stop", "continue"):
         raise ValueError("on_invalid must be stop or continue")
+    # What every unit must not open (#454): this checkout, its task data, the task file, the plan's --hide paths
+    hidden = isolation_paths(manifest.get("tasks_file"), (manifest.get("isolation") or {}).get("hide") or ())
+    check_out(out, hidden)
     # A fresh directory prevents accidental cost resets, repeated units and overwriting evidence.
     out.mkdir(parents=True, exist_ok=False)
     frozen_plan = {**manifest, "runtime_budget_usd": budget, "unit_budget_usd": unit_budget,
@@ -200,28 +379,29 @@ def execute(manifest: dict, out: Path, budget: float, unit_budget: float, codex_
     (out / "manifest.json").write_text(json.dumps(frozen_plan, indent=2) + "\n", encoding="utf-8", newline="")
     if on_invalid == "continue":
         rows, spent, charged, stopped, reason = _run_continuing(manifest, out, budget, unit_budget, codex_home,
-                                                                claude_home, tasks, fresh)
+                                                                claude_home, tasks, fresh, hidden)
         invalid = sum(r.get("invalid") is True for r in rows)
         extra = {"on_invalid": "continue", "invalid": invalid,
                  "unknown_cost_units": sum(r.get("usd") is None for r in rows)}
     else:
         rows, spent, charged, stopped, reason = _run_stopping(manifest, out, budget, unit_budget, codex_home,
-                                                              claude_home, tasks, fresh)
+                                                              claude_home, tasks, fresh, hidden)
         extra = {}
     report = {"kind": manifest["kind"], "dry_run": False, "evidence": "engineering check",
               "attempted": len(rows), "planned": manifest["n"], "rows": rows,
               "successes": sum(r.get("ok") is True for r in rows), "budget_usd": budget,
               "known_spent_usd": round(spent, 8), "spent_usd": round(spent, 8) if charged == spent else None,
               "charged_usd": round(charged, 8), "budget_stopped": stopped, "stop_reason": reason,
-              "gate": "Unknown", "native_hook_execution": "Unknown", **extra}
+              "gate": "Unknown", "native_hook_execution": "Unknown",
+              "path_audit_unclean": sum(dirty(r) for r in rows), **extra}
     (out / "report.json").write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8", newline="")
     return report
 
 
-def _one(manifest, index, unit, out, reservation, codex_home, claude_home, tasks, fresh) -> dict:
+def _one(manifest, index, unit, out, reservation, codex_home, claude_home, tasks, fresh, hidden=None) -> dict:
     try:
         row = run_unit(unit, manifest["kind"], out / f"unit-{index:04d}", reservation, codex_home,
-                       claude_home=claude_home, tasks=tasks, fresh=fresh)
+                       claude_home=claude_home, tasks=tasks, fresh=fresh, hidden=hidden)
     except (Exception, KeyboardInterrupt) as exc:  # retain a failed unit even when setup could not start
         row = {**unit, "ok": None, "usd": None, "error": type(exc).__name__}
     row.update(code_pin=manifest["code_pin"], reservation_usd=reservation)
@@ -232,19 +412,20 @@ ENVIRONMENT_KINDS = ("auth", "quota")   # a receipt saying the CLI could not wor
 ARM_LIMIT_KINDS = ("timeout", "over_budget", "max_usd")   # the sub-agent's own time/cost cap (ccx/delegate.py)
 
 
-def _run_continuing(manifest, out, budget, unit_budget, codex_home, claude_home, tasks, fresh):
+def _run_continuing(manifest, out, budget, unit_budget, codex_home, claude_home, tasks, fresh, hidden=None):
     """--on-invalid continue (the round-2 preregistration): an environment error, a receipt status "error" or an
     unknown cost makes the row invalid (recorded, "invalid": true) and the group goes on. An arm's own timeout or
     cap hit with a known cost is a valid row with ok false. The group stops only on: the budget, a unit that spent
     more than its reservation, Ctrl-C, more than MAX_UNKNOWN_COST_UNITS unknown-cost units (each charged at its
-    reservation), or the environment check: a receipt of kind auth/quota (issue #321: 42 units ran on with 401)."""
+    reservation), or the environment check: a receipt of kind auth/quota (issue #321: 42 units ran on with 401).
+    A tool call on a forbidden path (path_audit, #454) makes the row invalid too."""
     from strength_retest import MAX_UNKNOWN_COST_UNITS
     rows, spent, charged, unknown = [], 0.0, 0.0, 0
     for index, unit in enumerate(manifest["units"]):
         if charged >= budget - 1e-9:
             return rows, spent, charged, True, "budget exhausted"
         reservation = min(unit_budget, round(budget - charged, 8))
-        row = _one(manifest, index, unit, out, reservation, codex_home, claude_home, tasks, fresh)
+        row = _one(manifest, index, unit, out, reservation, codex_home, claude_home, tasks, fresh, hidden)
         amount = row["usd"]
         if (row.get("status") == "error" and row.get("kind") in ARM_LIMIT_KINDS and amount is not None
                 and not row.get("error")):
@@ -253,7 +434,8 @@ def _run_continuing(manifest, out, budget, unit_budget, codex_home, claude_home,
             row.update(arm_limit=row["kind"], hidden_ok=row.get("ok"), ok=False)
         receipt_error = row.get("status") == "error" and "arm_limit" not in row
         reasons = [r for r, bad in (("error", bool(row.get("error"))), ("receipt status error", receipt_error),
-                                    ("unknown cost", amount is None), ("no outcome", row.get("ok") is None)) if bad]
+                                    ("unknown cost", amount is None), ("no outcome", row.get("ok") is None),
+                                    ("forbidden path in a tool call", dirty(row))) if bad]
         row.update(invalid=bool(reasons), invalid_reason=", ".join(reasons) or None)
         rows.append(row)
         append_jsonl(out / "results.jsonl", row)
@@ -275,15 +457,18 @@ def _run_continuing(manifest, out, budget, unit_budget, codex_home, claude_home,
     return rows, spent, charged, False, ""
 
 
-def _run_stopping(manifest, out, budget, unit_budget, codex_home, claude_home, tasks, fresh):
-    """The default: the group stops on the first errored, receipt-error or unknown-cost unit (round 1)."""
+def _run_stopping(manifest, out, budget, unit_budget, codex_home, claude_home, tasks, fresh, hidden=None):
+    """The default: the group stops on the first errored, receipt-error or unknown-cost unit (round 1), or on the
+    first unit whose tool calls touched a forbidden path (#454: that row alone is marked invalid)."""
     rows, spent, charged, stopped, reason = [], 0.0, 0.0, False, ""
     for index, unit in enumerate(manifest["units"]):
         if charged >= budget - 1e-9:
             stopped, reason = True, "budget exhausted"
             break
         reservation = min(unit_budget, round(budget - charged, 8))
-        row = _one(manifest, index, unit, out, reservation, codex_home, claude_home, tasks, fresh)
+        row = _one(manifest, index, unit, out, reservation, codex_home, claude_home, tasks, fresh, hidden)
+        if dirty(row):
+            row.update(invalid=True, invalid_reason="forbidden path in a tool call")
         rows.append(row)
         append_jsonl(out / "results.jsonl", row)
         amount = row["usd"]
@@ -295,6 +480,9 @@ def _run_stopping(manifest, out, budget, unit_budget, codex_home, claude_home, t
         charged += amount
         if amount > reservation + 1e-9 or row.get("kind") == "over_budget" or row.get("error"):
             stopped, reason = True, "unit exceeded reservation or interrupted"
+            break
+        if dirty(row):
+            stopped, reason = True, "forbidden path in a tool call (path audit)"
             break
         if row.get("status") == "error":
             # The ccx receipt says the run itself failed (e.g. kind=auth): the preregistration stops the group on

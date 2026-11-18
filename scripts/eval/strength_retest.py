@@ -101,6 +101,36 @@ def load_tasks(path: Path, sha256: str | None, kind: str) -> list[dict]:
     return out
 
 
+def resolve_hide(values) -> list[Path]:
+    """--hide paths (#454, the semantics of p4's --hide, #451): made absolute against the folder the eval starts in,
+    de-duplicated; a missing one is refused (a typo would deny nothing). Both spellings are kept when a junction or
+    symbolic link makes them differ. A path holding the Python that runs the units is refused: their `python` is it."""
+    out: list[Path] = []
+    seen: set[str] = set()
+    for v in values or ():
+        given = Path(v).expanduser().absolute()
+        real = given.resolve()
+        if not real.exists():
+            raise ValueError(f"--hide {v}: no such file or folder ({real}); no model called")
+        if any(_inside(Path(x), q) for x in (sys.executable, Path(sys.executable).resolve()) for q in (given, real)):
+            raise ValueError(f"--hide {v} holds the Python running the units ({sys.executable}); hide the other "
+                             "checkout itself. No model called")
+        for q in (given, real):
+            key = str(q).lower() if sys.platform == "win32" else str(q)
+            if key not in seen:
+                seen.add(key)
+                out.append(q)
+    return out
+
+
+def _inside(p: Path, root: Path) -> bool:
+    try:
+        Path(p).absolute().relative_to(Path(root).absolute())
+        return True
+    except ValueError:
+        return False
+
+
 def chosen_agents(kind: str, agents) -> list[str]:
     picked = list(agents) if agents else (list(MODELS) if kind == "context" else ["codex"])
     if not picked or len(set(picked)) != len(picked) or any(a not in AGENT_MODELS for a in picked):
@@ -109,14 +139,16 @@ def chosen_agents(kind: str, agents) -> list[str]:
 
 
 def plan(kind: str, reps: int = 3, unit_usd: float | None = None, tasks: Path | None = None,
-         tasks_sha256: str | None = None, agents=None) -> dict:
-    """tasks/tasks_sha256/agents (issue #345) are off by default: without them the plan is the old one."""
+         tasks_sha256: str | None = None, agents=None, hide=None, out: Path | None = None) -> dict:
+    """tasks/tasks_sha256/agents (issue #345) are off by default: without them the plan is the old one. With tasks or
+    hide (#454) it also prints `isolation`: what every unit is denied (`out`: the run's --out, for the unit folder)."""
     if reps < 1 or (unit_usd is not None and (not math.isfinite(unit_usd) or unit_usd < 0)):
         raise ValueError("reps must be positive; unit estimate must be finite and non-negative")
     if tasks is None and tasks_sha256:
         raise ValueError("--tasks-sha256 is given without --tasks")
     fresh = load_tasks(tasks, tasks_sha256, kind) if tasks is not None else None
     picked = chosen_agents(kind, agents)
+    hidden = resolve_hide(hide)
     if kind == "context":
         task_list = fresh if fresh is not None else TASKS
         units = [{"task": t["id"], "scenario": "neutral" if t["neutral"] else "favourable",
@@ -183,6 +215,10 @@ def plan(kind: str, reps: int = 3, unit_usd: float | None = None, tasks: Path | 
                     subagent_tools={a: SUBAGENT_TOOLS[a] for a in picked})
         if unit_usd is None:
             data["estimate_basis"] += " (old tasks; new, harder tasks may cost more)"
+    if fresh is not None or hidden:
+        # Units are isolated either way (#454); the list is printed when it can matter, so old plans stay as they were
+        from strength_runner import isolation_plan
+        data["isolation"] = isolation_plan(Path(tasks).resolve() if tasks is not None else None, hidden, out)
     return data
 
 
@@ -290,6 +326,11 @@ def main(argv=None):
         parser.add_argument("--agents", type=lambda v: [x.strip() for x in v.split(",") if x.strip()],
                             help=f"comma-separated sub-agents from {', '.join(AGENT_MODELS)} "
                                  "(default: context codex,dsh; memory codex)")
+        parser.add_argument("--hide", action="append", default=[], metavar="PATH",
+                            help="repeatable (#454): another folder or file every unit's agents must not open, e.g. "
+                                 "your everyday relayline checkout when the run uses an independent clone; made "
+                                 "absolute against the folder you start in, a missing path is refused. This checkout "
+                                 "and its task data are always denied; the plan's isolation field lists every path")
     hook = sub.add_parser("probe-hook")
     hook.add_argument("--hub", required=True, type=Path, help="synthetic hub only")
     hook.add_argument("--cwd", required=True, type=Path)
@@ -297,7 +338,8 @@ def main(argv=None):
     a = p.parse_args(argv)
     try:
         if a.cmd == "execute":
-            data = plan(a.kind, a.reps, tasks=a.tasks, tasks_sha256=a.tasks_sha256, agents=a.agents)
+            data = plan(a.kind, a.reps, tasks=a.tasks, tasks_sha256=a.tasks_sha256, agents=a.agents, hide=a.hide,
+                        out=a.out)
             if a.budget is not None and (not math.isfinite(a.budget) or not 0 < a.budget <= data["cap_usd"]):
                 raise ValueError("budget must be positive, finite and within the kind's cap")
             if not math.isfinite(a.unit_budget) or a.unit_budget <= 0:
@@ -317,7 +359,8 @@ def main(argv=None):
                 claude_home = checked_claude_home(a.claude_home) if needs_claude_home(data["units"]) else None
                 data = execute(data, a.out, a.budget, a.unit_budget, codex_home, claude_home)
         elif a.cmd == "plan":
-            data = plan(a.kind, a.reps, a.unit_usd, tasks=a.tasks, tasks_sha256=a.tasks_sha256, agents=a.agents)
+            data = plan(a.kind, a.reps, a.unit_usd, tasks=a.tasks, tasks_sha256=a.tasks_sha256, agents=a.agents,
+                        hide=a.hide)
         else:
             data = probe_hook(a.hub, a.cwd, a.agent)
     except (ValueError, OSError) as e:

@@ -37,6 +37,24 @@ AGENTS.md/rules/plugins）。不给时，有 Codex 单元的运行在第一个�
 每次调用传入 `--budget`，串行单元预留由 `--unit-budget` 控制（默认 $0.05），关闭升档、
 回退、子智能体和审查。要作受控模型比较，必须先预登记隔离 home 的提供方设置和计价。
 
+**单元里的 agent 不能打开什么（#454）。** 每个单元都禁读：本人的各个 home、hub 和配置（同 `p4_long_session.py`，
+即 preflight 的 `forbidden()`）、运行所在的检出及其 git worktree、该检出的 `scripts/eval/`（题目生成器和隐藏测试，
+如 `round2_a/`）和 `docs/research/data/`（冻结的题目文件，如 `round2-tasks/`）、`--tasks` 文件本身，以及每个
+`--hide PATH`（可重复，例如正式运行用独立 clone 时的日常开发检出；按启动目录转成绝对路径并去重，不存在的路径或包含
+运行单元所用 Python 的路径会被拒绝）。这是默认行为，不带 `--tasks` 也生效：#454 之前单元能读到上面全部内容。每个路径
+按已知的所有写法列入：原样（保留 junction 或符号链接）、resolve 之后，以及 Windows 上的 8.3 短名。`--out` 落在其中
+任何一个里面会被拒绝。Claude 单元对每个路径有 Read/Edit 拒绝规则（Claude Code 2.1.316 文档：Read 规则也尽力作用于
+Grep 和 Glob，Edit 规则作用于所有改文件的工具）。Codex 单元无法限制读取：`workspace-write` 只限制写，`codex exec`
+（codex-cli 0.164.0 `--help`）没有禁读选项，所以只能审计、不能拦截。每个单元结束后审计它 ccx 日志里的全部工具调用
+（行里的 `path_audit`）：命中包括 preflight `path_hits` 认识的任何写法的禁读路径、与路径写法无关的内容模式（`round2_a`、
+`round2_bc`、`round2-tasks`、`round2~N`、`l5_memory`、`shared_context_ab`，能抓到 `cd ../.. && cat
+scripts/eval/round2_a/x.py` 这类相对读法）、`cd` 到单元目录之上、递归搜索（`rg`、`grep -r`、`Get-ChildItem -Recurse`
+等）越过单元目录、对禁读路径的上级目录做递归搜索或 Grep/Glob。运行 Python（其目录先被屏蔽）和本检出的 `ccx.py`
+不算命中。命中时该行记为无效（`--on-invalid continue`）或停止整组（默认）。dry-run 带 `--tasks` 或 `--hide` 时输出
+`isolation` 字段：`--hide` 路径、第一个单元实际禁读的全部路径和内容模式。局限：短名和长名混写的路径、从文件系统根目录
+搜索、分散在多次工具调用里的单级 `cd ..`、以及 preflight `tool_inputs` 解析不了的 DSH 日志格式，审计都抓不到；
+Codex 的读取只能事后发现。
+
 `results.jsonl` 保留隐藏测试失败、运行失败和中断。花费未知时保留全部单元预留并停止，不当作零；
 总预算耗尽、单次超预留、中断，或 ccx 回执 `status: "error"`（如 `kind: auth`）时也不再启动下一单元；
 `unified_summary.py` 把这种行算作无效（Unknown），不算任务失败。已发请求可能超出 token 监控预算，因此不是账单保证。
