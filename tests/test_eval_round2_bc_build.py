@@ -35,10 +35,16 @@ def test_text_is_normalized_to_lf(tmp_path):
     assert B.read_tree(tmp_path) == {"x.py": b"a = 1\nb = 2\n"}
 
 
-def test_cli_build_writes_dev_list(tmp_path):
-    out = tmp_path / "t.json"
+def test_cli_build_relative_cache_and_byte_identical_dev_file(tmp_path):
+    """#450 review: a relative --ext-cache lands where it says (the clone runs in a temporary folder), and
+    --dev-out reproduces the frozen b-dev.json byte for byte."""
+    out, dev = tmp_path / "t.json", tmp_path / "b-dev.json"
     r = subprocess.run([sys.executable, str(ROOT / "scripts/eval/round2_bc/build.py"), "build", "--ext-cache",
-                        str(tmp_path / "c"), "--tasks-out", str(out)], capture_output=True, text=True)
+                        "rel-cache", "--tasks-out", str(out), "--dev-out", str(dev)],
+                       capture_output=True, text=True, cwd=tmp_path)
     assert r.returncode == 0, r.stderr
     data = json.loads(out.read_text(encoding="utf-8"))
-    assert len(data["dev"]) == 4 and all(t["dev"] for t in data["dev"])
+    assert len(data["dev"]) == 4 and all(t["dev"] and t["author_model"] for t in data["dev"])
+    for lib in B.libraries():
+        assert (tmp_path / "rel-cache" / f"round2-authored__{lib}.git" / "HEAD").is_file()
+    assert dev.read_bytes() == (ROOT / "docs/research/data/round2-bc/b-dev.json").read_bytes().replace(b"\r\n", b"\n")

@@ -2,29 +2,29 @@
  {
   "id": "r2bd-cronlite-1",
   "valid": true,
-  "baseline": "19 passed in 0.03s",
-  "parent": "8 failed, 9 passed in 0.11s",
-  "reference": "17 passed in 0.03s"
+  "baseline": "56 passed in 0.14s",
+  "parent": "8 failed, 9 passed in 0.14s",
+  "reference": "17 passed in 0.04s"
  },
  {
   "id": "r2bd-cronlite-2",
   "valid": true,
-  "baseline": "19 passed in 0.04s",
+  "baseline": "56 passed in 0.15s",
   "parent": "1 error in 0.15s",
-  "reference": "9 passed in 0.03s"
+  "reference": "9 passed in 0.05s"
  },
  {
   "id": "r2bd-tabula-1",
   "valid": true,
-  "baseline": "29 passed in 0.03s",
-  "parent": "9 failed in 0.10s",
-  "reference": "9 passed in 0.02s"
+  "baseline": "93 passed in 0.13s",
+  "parent": "9 failed in 0.13s",
+  "reference": "9 passed in 0.04s"
  },
  {
   "id": "r2bd-tabula-2",
   "valid": true,
-  "baseline": "29 passed in 0.04s",
-  "parent": "1 error in 0.13s",
-  "reference": "15 passed in 0.02s"
+  "baseline": "93 passed in 0.14s",
+  "parent": "1 error in 0.16s",
+  "reference": "15 passed in 0.05s"
  }
 ]

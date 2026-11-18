@@ -1,7 +1,8 @@
 """Round 2 B authored tasks (#375): build their git repositories deterministically, and check them.
 
 Each library is a folder here: `<lib>/base/` is the starting tree (package + its own tests); each task is
-`<lib>/tasks/<task id>/` with `task.json` ({id, dev, subject, brief, hidden_tests, trace_by_test}), `reference/`
+`<lib>/tasks/<task id>/` with `task.json` ({id, dev, subject, author_model, brief, hidden_tests, trace_by_test}),
+`reference/`
 (files the reference change adds or replaces, relative to the repository root) and `hidden/` (the hidden test files).
 
     build  --ext-cache DIR --tasks-out FILE   one bare repository per library, `round2-authored/<lib>`, cached as
@@ -38,6 +39,8 @@ OWNER = "round2-authored"
 AUTHOR = ("round2 authored tasks", "authored@example.invalid")
 BASE_DATE = "2026-11-18T00:00:00+00:00"
 EPOCH = 1794960000  # BASE_DATE as a timestamp; task n is committed n minutes later
+DEV_ABOUT = ("Round 2 B development tasks (#375): authored, not analysed; for smoke runs and cost estimates "
+             "(pre-registration section 2 and 7). Built by scripts/eval/round2_bc/build.py build --dev-out.")
 
 
 def libraries() -> list[str]:
@@ -72,8 +75,10 @@ def _write(root: Path, files: dict[str, bytes]) -> None:
 
 
 def _git(cwd: Path, *args: str, when: int | None = None) -> str:
+    # no system or user configuration (hooks, templates, signing, attributes) can change what is committed
     env = {**os.environ, "GIT_AUTHOR_NAME": AUTHOR[0], "GIT_AUTHOR_EMAIL": AUTHOR[1],
-           "GIT_COMMITTER_NAME": AUTHOR[0], "GIT_COMMITTER_EMAIL": AUTHOR[1]}
+           "GIT_COMMITTER_NAME": AUTHOR[0], "GIT_COMMITTER_EMAIL": AUTHOR[1],
+           "GIT_CONFIG_NOSYSTEM": "1", "GIT_CONFIG_GLOBAL": os.devnull}
     if when is not None:
         env["GIT_AUTHOR_DATE"] = env["GIT_COMMITTER_DATE"] = f"{when} +0000"
     r = subprocess.run(["git", "-c", "core.autocrlf=false", "-c", "commit.gpgsign=false", "-c", "init.defaultBranch=main",
@@ -83,9 +88,21 @@ def _git(cwd: Path, *args: str, when: int | None = None) -> str:
     return r.stdout.decode("utf-8", "replace").strip()
 
 
+def _rmtree(path: Path) -> None:
+    """Remove a generated bare repository (git marks object files read-only on Windows)."""
+    def again(func, p, _exc):
+        os.chmod(p, 0o700)
+        func(p)
+    if sys.version_info >= (3, 12):
+        shutil.rmtree(path, onexc=again)
+    else:
+        shutil.rmtree(path, onerror=again)
+
+
 def build_library(lib: str, cache: Path) -> list[dict]:
     """The library's bare repository in `cache`; returns one task entry per task (P4 fields)."""
     repo_name = f"{OWNER}/{lib}"
+    cache = Path(cache).resolve()  # the clone below runs in a temporary folder: a relative path would land there
     base = read_tree(HERE / lib / "base")
     entries = []
     with tempfile.TemporaryDirectory(prefix=f"r2bc-{lib}-") as tmp:
@@ -94,7 +111,7 @@ def build_library(lib: str, cache: Path) -> list[dict]:
         _git(work, "init", "-q")
         _write(work, base)
         _git(work, "add", "-A")
-        _git(work, "commit", "-q", "-m", f"{lib}: starting tree", when=EPOCH)
+        _git(work, "commit", "-q", "--no-verify", "-m", f"{lib}: starting tree", when=EPOCH)
         base_sha = _git(work, "rev-parse", "HEAD")
         _git(work, "branch", "-q", "base")
         for n, task in enumerate(tasks_of(lib), 1):
@@ -105,7 +122,7 @@ def build_library(lib: str, cache: Path) -> list[dict]:
                 raise ValueError(f"{task['id']}: hidden/ holds {sorted(hidden)}, task.json names {task['hidden_tests']}")
             _write(work, {**reference, **hidden})
             _git(work, "add", "-A")
-            _git(work, "commit", "-q", "-m", task["subject"], when=EPOCH + 60 * n)
+            _git(work, "commit", "-q", "--no-verify", "-m", task["subject"], when=EPOCH + 60 * n)
             sha = _git(work, "rev-parse", "HEAD")
             _git(work, "branch", "-q", f"task/{task['id']}", sha)
             numstat = _git(work, "diff", "--numstat", base_sha, sha)
@@ -114,15 +131,16 @@ def build_library(lib: str, cache: Path) -> list[dict]:
                 add, rem, name = row.split("\t", 2)
                 if LCand.is_code(name):
                     code.append(name)
-                    lines += int(add) + int(rem)
+                    lines += (int(add) if add.isdigit() else 0) + (int(rem) if rem.isdigit() else 0)  # "-": binary
             entries.append({"id": task["id"], "repo": repo_name, "project": lib, "url": None, "commit": sha,
                             "timestamp": EPOCH + 60 * n, "subject": task["subject"], "brief": task["brief"],
                             "tests": list(task["hidden_tests"]), "code": sorted(code), "code_lines": lines,
-                            "group": "B", "source": "authored", "src_layout": False, "stubs": [],
-                            "pythonutf8": True, "pytest_plugins": [], **({"dev": True} if task.get("dev") else {})})
+                            "group": "B", "source": "authored", "author_model": task["author_model"],
+                            "src_layout": False, "stubs": [], "pythonutf8": True, "pytest_plugins": [],
+                            **({"dev": True} if task.get("dev") else {})})
         dest = E.cache_path(cache, repo_name)
         if dest.exists():
-            shutil.rmtree(dest, onerror=lambda f, p, e: (os.chmod(p, 0o700), f(p)))
+            _rmtree(dest)
         cache.mkdir(parents=True, exist_ok=True)
         _git(Path(tmp), "clone", "-q", "--bare", str(work), str(dest))
     return entries
@@ -176,6 +194,7 @@ def main(argv=None) -> int:
     s = sub.add_parser("build")
     s.add_argument("--ext-cache", type=Path, required=True)
     s.add_argument("--tasks-out", type=Path, required=True)
+    s.add_argument("--dev-out", type=Path, help="also write the development tasks as a P4 task file (b-dev.json)")
     s = sub.add_parser("check")
     s.add_argument("--python", default=sys.executable)
     s.add_argument("--out", type=Path, required=True)
@@ -185,6 +204,8 @@ def main(argv=None) -> int:
         data = {"about": "Round 2 B authored tasks (#375), built by scripts/eval/round2_bc/build.py",
                 "accepted": [e for e in entries if not e.get("dev")], "dev": [e for e in entries if e.get("dev")]}
         R.write_json(a.tasks_out, data)
+        if a.dev_out:  # the frozen development task file, byte for byte (P4 runs it as its own task file)
+            R.write_json(a.dev_out, {"about": DEV_ABOUT, "accepted": data["dev"]})
         print(f"built {len(libraries())} repositories, {len(data['accepted'])} final and {len(data['dev'])} "
               "development tasks")
         return 0

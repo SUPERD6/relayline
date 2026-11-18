@@ -5,4 +5,5 @@ bin/ccx text eol=lf
 docs/research/data/round2-tasks/*.json text eol=lf
 # the B/C task files too (p4_long_session --tasks-sha256 checks raw bytes); the authored libraries are built from LF
 docs/research/data/round2-bc/*.json text eol=lf
-scripts/eval/round2_bc/** text eol=lf
+scripts/eval/round2_bc/**/*.py text eol=lf
+scripts/eval/round2_bc/**/*.json text eol=lf

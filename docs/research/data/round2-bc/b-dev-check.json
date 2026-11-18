@@ -6,7 +6,7 @@
       "pythonutf8": true,
       "existing": {
         "rc": 0,
-        "summary": "19 passed in 0.03s",
+        "summary": "56 passed in 0.14s",
         "errors": []
       },
       "start": {
@@ -29,7 +29,7 @@
       },
       "reference": {
         "rc": 0,
-        "summary": "17 passed in 0.03s",
+        "summary": "17 passed in 0.04s",
         "errors": []
       },
       "assertions": 22,
@@ -86,12 +86,12 @@
       "pythonutf8": true,
       "existing": {
         "rc": 0,
-        "summary": "19 passed in 0.03s",
+        "summary": "56 passed in 0.13s",
         "errors": []
       },
       "start": {
         "rc": 2,
-        "summary": "1 error in 0.14s",
+        "summary": "1 error in 0.17s",
         "errors": [
           "E   ImportError: cannot import name 'next_run' from 'cronlite' (<tree>\\cronlite\\__init__.py)",
           "ERROR tests/test_backoff.py"
@@ -99,7 +99,7 @@
       },
       "reference": {
         "rc": 0,
-        "summary": "9 passed in 0.03s",
+        "summary": "9 passed in 0.05s",
         "errors": []
       },
       "assertions": 21,
@@ -119,12 +119,12 @@
       "pythonutf8": true,
       "existing": {
         "rc": 0,
-        "summary": "29 passed in 0.03s",
+        "summary": "93 passed in 0.14s",
         "errors": []
       },
       "start": {
         "rc": 1,
-        "summary": "9 failed in 0.11s",
+        "summary": "9 failed in 0.14s",
         "errors": [
           "E       AttributeError: 'Table' object has no attribute 'lines'",
           "E       AssertionError: assert 3 == 5",
@@ -142,7 +142,7 @@
       },
       "reference": {
         "rc": 0,
-        "summary": "9 passed in 0.02s",
+        "summary": "9 passed in 0.04s",
         "errors": []
       },
       "assertions": 19,
@@ -162,12 +162,12 @@
       "pythonutf8": true,
       "existing": {
         "rc": 0,
-        "summary": "29 passed in 0.03s",
+        "summary": "93 passed in 0.13s",
         "errors": []
       },
       "start": {
         "rc": 2,
-        "summary": "1 error in 0.14s",
+        "summary": "1 error in 0.15s",
         "errors": [
           "E   ImportError: cannot import name 'numeric_columns' from 'tabula' (<tree>\\tabula\\__init__.py)",
           "ERROR tests/test_render.py"
@@ -175,7 +175,7 @@
       },
       "reference": {
         "rc": 0,
-        "summary": "15 passed in 0.03s",
+        "summary": "15 passed in 0.05s",
         "errors": []
       },
       "assertions": 21,
