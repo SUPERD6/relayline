@@ -52,13 +52,20 @@ DATA_DIRS = ("scripts/eval", "docs/research/data")
 # 8.3 short name (ROUND2~1) still names the task folder or module. Matched case-insensitively on preflight.canon text.
 CONTENT_PATTERNS = (r"round2_a", r"round2_bc", r"round2-tasks", r"(?<![a-z0-9_])round2~\d",
                     r"(?<![a-z0-9_])(?:l5_memory|shared_context_ab)(?![a-z0-9_])")
-# A recursive listing or search, and a climb above the unit's own folder (its repo's parent is still the unit's)
+# A recursive listing or search. Climbing (`..`) is judged by where it lands: the sub-agent works in the unit's repo or
+# in a ccx worktree under <unit>/.ccx-worktrees/repo/<run id>, so `cd ../..` there is still inside the unit (#455).
 _RECURSIVE = re.compile(r"(?<![\w.-])(?:rg|ag|tree|find|grep\s+(?:-\w*[rR]\w*|--recursive)|findstr\s+/s|"
                         r"dir\s+/s|ls\s+-\w*R\w*|(?:get-childitem|gci|ls|dir)\b[^|;&]*\s-r(?:ecurse)?\b)(?![\w-])",
                         re.I)
-_TOKEN_END = r"/?(?=$|[\s\"'`;)|,&<>])"
-_CLIMB = re.compile(PF._B + r"\.\./\.\." + r"(?=/|$|[\s\"'`;)|,&<>])")
-_CD_CLIMB = re.compile(r"(?<![\w-])(?:cd|pushd|set-location|sl|chdir)\s+(?:-\w+\s+)?[\"']?\.\./\.\.", re.I)
+_END = r"(?=$|[\s\"'`;)|,&<>])"
+_TOKEN_END = r"/?" + _END
+# In order: a `cd`-like command with its target, or a relative path starting with `..`
+_NAV = re.compile(r"(?<![\w-])(?:cd|pushd|set-location|sl|chdir)\s+(?:-\w+\s+)*(?P<q>[\"']?)(?P<cd>[^\s\"';|&)]+)"
+                  r"|" + PF._B + r"(?P<up>\.\.(?:/[^\s\"'`;)|,&<>]*)?)" + _END, re.I)
+_ABS_DOTS = re.compile(PF._B + r"(?P<p>(?:[a-z]:)?/[^\s\"'`;)|,&<>]*/\.\.(?:/[^\s\"'`;)|,&<>]*)?)", re.I)
+# Fields that say where a tool call goes (a Bash/Codex command, a path, a Grep/Glob pattern); never a written body
+NAV_KEYS = {"command", "cmd", "file_path", "path", "paths", "pattern", "glob", "notebook_path", "cwd", "workdir",
+            "arguments"}
 
 
 def short_path(p) -> Path | None:
@@ -129,45 +136,147 @@ def _ancestors(paths, home) -> list[re.Pattern]:
     return out
 
 
-def audit_hits(inputs: list[str], u: PF.Unit) -> list[str]:
-    """Tool calls a unit must not make: preflight.path_hits (a forbidden path in any spelling canon() knows, or one of
-    the unit's content patterns), a `cd` above the unit's folder, a recursive search climbing above it, and a recursive
-    search or Grep/Glob call on a parent of a forbidden folder. The interpreter's own folders are masked first, so
-    running Python is never a hit; preflight already lets this checkout's ccx.py through."""
+def content_hit(p) -> str | None:
+    """The content pattern a path's own spelling matches (an --out, --claude-home or --codex-home named so would make
+    every tool call on the unit's own files look like a read of the task folder), or None."""
+    for q in aliases(p) if Path(p).exists() else [Path(p).expanduser().absolute()]:
+        t = PF.canon(q.as_posix(), Path.home())
+        for rx in CONTENT_PATTERNS:
+            if re.search(rx, t, re.I):
+                return rx
+    return None
+
+
+def _nav_values(obj, keyed: bool = True) -> list[str]:
+    if isinstance(obj, str):
+        return [obj] if keyed else []
+    if isinstance(obj, list):
+        return [x for o in obj for x in _nav_values(o, keyed)]
+    if isinstance(obj, dict):
+        return [x for k, v in obj.items() for x in _nav_values(v, k in NAV_KEYS) if isinstance(v, (str, list, dict))]
+    return []
+
+
+def nav_view(s: str) -> tuple[str, bool]:
+    """A tool call's navigation fields as text, and whether it is a Grep/Glob-style search (a "pattern" or "glob").
+    A Write/Edit body (content, old_string, new_string, edits) is left out: writing code that says `tree` or `../..`
+    reads nothing. Text that is not a JSON object (a Codex command string) is all navigation."""
+    try:
+        obj = json.loads(s)
+    except (ValueError, TypeError):
+        return s, False
+    if isinstance(obj, dict):
+        return "\n".join(_nav_values(obj)), "pattern" in obj or "glob" in obj
+    return "\n".join(_nav_values(obj)), False
+
+
+def _parent(p: str, n: int) -> str:
+    q = PurePosixPath(p)
+    for _ in range(n):
+        q = q.parent
+    return q.as_posix()
+
+
+def climbs_out(text: str, cwd: str, work: str) -> bool:
+    """Does a `cd` or a recursive search in this (canonical) navigation text reach outside the unit's folder `work`,
+    starting from `cwd`? Targets are resolved in the order they appear; a `cd` moves the starting point. A `cd`
+    target that cannot be resolved (a variable, a subshell) and climbs is counted as leaving."""
+    import posixpath
+    here, recursive, outside = cwd, bool(_RECURSIVE.search(text)), False
+    for m in _NAV.finditer(text):
+        target = m.group("cd")
+        if target is not None:
+            if target in ("-", "~"):
+                continue
+            if re.search(r"[$%`(]", target):
+                segment = re.split(r"[;&|\n]", text[m.start():], maxsplit=1)[0]     # this cd's whole argument
+                if ".." in segment:
+                    return True
+                continue
+            new = posixpath.normpath(target if re.match(r"^(?:[a-z]:)?/", target, re.I) else here + "/" + target)
+            if ".." in target.split("/") and not PF._under(new, [work]):
+                return True
+            here = new
+            continue
+        up = m.group("up")
+        if recursive and not PF._under(posixpath.normpath(here + "/" + up), [work]):
+            outside = True
+    return outside
+
+
+def _with_resolved(t: str) -> str:
+    """`t` plus each absolute path in it that has a `..` part, resolved (`/eval/u/../../relayline` names relayline)."""
+    import posixpath
+    extra = [posixpath.normpath(m.group("p")) for m in _ABS_DOTS.finditer(t)]
+    return t + ("\n" + "\n".join(extra) if extra else "")
+
+
+def _masks(paths, home, label: str) -> list[tuple[re.Pattern, str]]:
+    out = []
+    for p in paths:
+        for q in aliases(p):
+            out.append((re.compile(re.escape(PF.canon(q.as_posix(), home)) + r"(?=/|$|[\s\"'`;)|,&<>])"), label))
+    return sorted(out, key=lambda x: -len(x[0].pattern))       # longest first: a home inside the unit, say
+
+
+def audit_hits(inputs: list[str], u: PF.Unit, homes=(), cwd=None) -> list[str]:
+    """Tool calls a unit must not make:
+    - preflight.path_hits on the whole call: a forbidden path in any spelling canon() knows (also once an absolute
+      path's `..` parts are resolved);
+    - a content pattern (CONTENT_PATTERNS) in its navigation fields (nav_view: not a Write/Edit body);
+    - a `cd`, or a recursive search's relative path, that lands outside the unit's folder from `cwd` (the run's working
+      folder, default the unit's repo);
+    - a recursive search, or a Grep/Glob call, on a parent folder of a forbidden path.
+    The unit's own folder and its logged-in `homes` (--claude-home, --codex-home) are masked before any pattern is
+    matched, so their names never make a hit (#455); so are the interpreter's folders (running Python is never a hit).
+    preflight already lets this checkout's ccx.py through."""
     home = u.real["home"]
     forbidden = PF.forbidden(u)
-    masks = []
-    for p in python_paths():
-        if any(PF._inside(f, p) for f in forbidden):      # never mask a folder that holds a forbidden one
-            continue
-        for q in aliases(p):
-            masks.append(re.compile(re.escape(PF.canon(q.as_posix(), home)) + r"(?=/|$|[\s\"'`;)|,&<>])"))
+    work = PF.canon(Path(u.work).absolute().as_posix(), home)
+    here = PF.canon(Path(cwd or u.repo).absolute().as_posix(), home)
+    py = [p for p in python_paths() if not any(PF._inside(f, p) for f in forbidden)]   # never hide a forbidden one
+    masks = _masks([u.work], home, "<unit>") + _masks([h for h in homes if h], home, "<home>") + \
+        _masks(py, home, "<python>")
     parents = _ancestors(forbidden, home)
+    no_flags = dataclasses.replace(u, flags=())
     hits = []
     for s in inputs:
-        t = PF.canon(s, home)
-        for m in masks:
-            t = m.sub("<python>", t)
-        bad = bool(PF.path_hits([t], u)) or bool(_CD_CLIMB.search(t))
-        if not bad and _RECURSIVE.search(t) and _CLIMB.search(t):
-            bad = True
-        if not bad and (_RECURSIVE.search(t) or '"pattern"' in t) and any(a.search(t) for a in parents):
+        nav, search_tool = nav_view(s)
+        nav_c = PF.canon(nav, home)
+        bad = climbs_out(nav_c, here, work)
+        full, nav_m = _with_resolved(PF.canon(s, home)), _with_resolved(nav_c)
+        for rx, label in masks:
+            full, nav_m = rx.sub(label, full), rx.sub(label, nav_m)
+        bad = bad or bool(PF.path_hits([full], no_flags))
+        bad = bad or any(re.search(rx, nav_m, re.I) for rx in CONTENT_PATTERNS)
+        if not bad and (search_tool or _RECURSIVE.search(nav_m)) and any(a.search(nav_m) for a in parents):
             bad = True
         if bad:
             hits.append(s[:200])
     return hits
 
 
-def path_audit(u: PF.Unit) -> dict:
+def _run_cwd(run_dir: Path, u: PF.Unit) -> Path:
+    """The run's working folder (run.json's cwd: the repo or its ccx worktree), if it lies in the unit's folder."""
+    try:
+        cwd = Path(json.loads((run_dir / "run.json").read_text(encoding="utf-8")).get("cwd") or "")
+    except (OSError, ValueError, TypeError):
+        return u.repo
+    return cwd if str(cwd) not in ("", ".") and PF._inside(cwd, u.work) else u.repo
+
+
+def path_audit(u: PF.Unit, homes=()) -> dict:
     """The unit's sub-agent tool calls (every runs/*/events* log ccx kept in its hub, read by preflight.tool_inputs:
-    Claude stream-json and Codex --json) checked by audit_hits. clean: False on any hit, None when no log was found."""
+    Claude stream-json and Codex --json) checked by audit_hits from that run's working folder. clean: False on any
+    hit, None when no log was found."""
     runs = u.hub / "ccx" / "runs"
     files = sorted(runs.glob("*/events*")) if runs.is_dir() else []
-    inputs: list[str] = []
+    n, hits = 0, []
     for f in files:
-        inputs += PF.tool_inputs(f.read_text(encoding="utf-8", errors="replace"))
-    hits = audit_hits(inputs, u)
-    return {"logs": len(files), "tool_calls": len(inputs), "path_hits": hits[:20], "n_path_hits": len(hits),
+        inputs = PF.tool_inputs(f.read_text(encoding="utf-8", errors="replace"))
+        n += len(inputs)
+        hits += audit_hits(inputs, u, homes, _run_cwd(f.parent, u))
+    return {"logs": len(files), "tool_calls": n, "path_hits": hits[:20], "n_path_hits": len(hits),
             "clean": False if hits else (True if files else None)}
 
 
@@ -188,14 +297,24 @@ def isolation_plan(tasks_file=None, hide=(), out=None) -> dict:
             "note": "Claude units: Read/Edit deny rules on each path (Read rules also cover Grep/Glob, best effort). "
                     "Codex units: workspace-write confines writes only and codex exec has no read deny, so reads are "
                     "audited, not blocked. Every unit's tool calls are audited after the run (forbidden paths in "
-                    "any spelling, the content patterns, a cd or recursive search above the unit's folder); a hit "
-                    "makes the row invalid. DSH logs are audited only as far as their format is parsed"}
+                    "any spelling, the content patterns, a cd or recursive search landing outside the unit's "
+                    "folder, a search of a forbidden path's parent); a hit makes the row invalid. DSH logs are "
+                    "audited only as far as their format is parsed"}
 
 
-def check_out(out: Path, hidden) -> None:
+def check_out(out: Path, hidden, homes=()) -> None:
     """--out must not lie inside a folder the units are denied: preflight.forbidden drops a folder that holds a unit's
-    own folder, so that folder would stay readable."""
-    for p in [*hidden, PF.ROOT, *PF.other_worktrees(PF.ROOT)]:
+    own folder, so that folder would stay readable (this checkout, its worktrees, every hidden path, and the person's
+    own homes, hub and config). Neither --out nor a logged-in home may be named like a content pattern (#455)."""
+    for what, p in (("--out", out), *(("a logged-in home", h) for h in homes if h)):
+        rx = content_hit(p)
+        if rx:
+            raise ValueError(f"{what} {p} matches the audit's content pattern {rx!r}: every tool call on the unit's "
+                             "own files would look like a read of the task folder; rename it")
+    real = PF.real_paths()
+    own = [real[k] for k in ("home_codex", "codex_home", "ccx_home", "hub", "dsh_home", "agents_home",
+                             "home_claude", "claude_home")]
+    for p in [*hidden, PF.ROOT, *PF.other_worktrees(PF.ROOT), *own]:
         if PF._inside(out, p):
             raise ValueError(f"--out {out} is inside {p}, which the units must not read; put it outside")
 
@@ -342,7 +461,7 @@ def run_unit(unit: dict, kind: str, dest: Path, budget: float, codex_home: Path 
         row["usd"] = unit_cost(hub) if started else 0.0
         if started:
             try:
-                row["path_audit"] = path_audit(iso)
+                row["path_audit"] = path_audit(iso, (claude_home, codex_home))
             except OSError as exc:
                 row["path_audit"] = {"clean": None, "error": type(exc).__name__}
         row["wall_s"] = round(time.monotonic() - t0, 4)
@@ -369,7 +488,7 @@ def execute(manifest: dict, out: Path, budget: float, unit_budget: float, codex_
         raise ValueError("on_invalid must be stop or continue")
     # What every unit must not open (#454): this checkout, its task data, the task file, the plan's --hide paths
     hidden = isolation_paths(manifest.get("tasks_file"), (manifest.get("isolation") or {}).get("hide") or ())
-    check_out(out, hidden)
+    check_out(out, hidden, (codex_home, claude_home))
     # A fresh directory prevents accidental cost resets, repeated units and overwriting evidence.
     out.mkdir(parents=True, exist_ok=False)
     frozen_plan = {**manifest, "runtime_budget_usd": budget, "unit_budget_usd": unit_budget,

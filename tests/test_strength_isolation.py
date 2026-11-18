@@ -215,3 +215,92 @@ def test_unclean_unit_is_invalid_and_stops_the_default_group(tmp_path, monkeypat
     report = runner.execute(data, tmp_path / "out2", 1.0, 0.1)
     assert len(seen) == 2 and report["budget_stopped"] and "forbidden path" in report["stop_reason"]
     assert report["rows"][1]["invalid"] is True and "invalid" not in report["rows"][0]
+
+
+# ------------------------------------------------------------------ review of #455
+
+
+def test_unit_folder_named_like_a_pattern_is_masked(tmp_path):
+    """(blocker a) an --out whose name holds round2_a: the unit's own files are never a hit."""
+    dest = tmp_path / "r2-round2_a-l5_memory" / "unit-0000"
+    home = tmp_path / "claude-round2_a-home"
+    u = runner.isolation_unit(dest, dest / "hub", runner.isolation_paths())
+    own = [json.dumps({"file_path": str(dest / "repo" / "calc.py")}),
+           json.dumps({"pattern": "def", "path": str(dest / "repo")}),
+           json.dumps(f"cat {(dest / 'repo' / 'calc.py').as_posix()}"),
+           json.dumps({"file_path": str(home / "projects" / "x.jsonl")})]
+    assert runner.audit_hits(own, u, homes=(home,)) == []
+    assert runner.audit_hits([json.dumps("cat ../../relayline/scripts/eval/round2_a/spec.py")], u, homes=(home,))
+
+
+def test_out_or_home_named_like_a_pattern_refused(tmp_path):
+    """(blocker b) such an --out or logged-in home is refused before anything runs."""
+    with pytest.raises(ValueError, match="content pattern"):
+        runner.check_out(tmp_path / "eval-round2_a", runner.isolation_paths())
+    with pytest.raises(ValueError, match="content pattern"):
+        runner.check_out(tmp_path / "out", runner.isolation_paths(), homes=(tmp_path / "shared_context_ab-home",))
+    home = tmp_path / "claude-l5_memory"
+    home.mkdir()
+    (home / ".credentials.json").write_text("not read", encoding="utf-8")
+    with pytest.raises(ValueError, match="content pattern"):
+        retest.checked_claude_home(str(home))
+    with pytest.raises(ValueError, match="content pattern"):
+        retest.checked_codex_home(str(tmp_path / "codex-round2_bc"))
+
+
+def test_out_inside_the_persons_hub_refused(tmp_path, monkeypatch):
+    real = PF.real_paths()
+    monkeypatch.setattr(PF, "real_paths", lambda env=None: {**real, "hub": tmp_path / "hub"})
+    with pytest.raises(ValueError, match="--out"):
+        runner.check_out(tmp_path / "hub" / "eval", runner.isolation_paths())
+    runner.check_out(tmp_path / "eval", runner.isolation_paths())          # outside: fine
+
+
+@pytest.mark.parametrize("call,hit", [
+    ("cd ../..", False),                          # <unit>/.ccx-worktrees: still the unit's
+    ("cd ../../.. && rg -n settle .", False),     # the unit's folder itself
+    ("rg -n settle ../../..", False),
+    ("cd ../../../..", True),                     # out of the unit
+    ("cd ../../.. && cd ..", True),
+    ("rg -n settle ../../../..", True),
+    ("Get-ChildItem -Recurse ..\\..\\..\\..", True),
+    ("cd $(dirname $PWD)/../../..", True),        # cannot be resolved and climbs: counted as leaving
+])
+def test_climbs_judged_by_where_they_land(tmp_path, call, hit):
+    """(should-fix 2) the sub-agent works in <unit>/.ccx-worktrees/repo/<run id>; only leaving the unit is a hit."""
+    dest = tmp_path / "u"
+    u = runner.isolation_unit(dest, dest / "hub", runner.isolation_paths())
+    cwd = dest / ".ccx-worktrees" / "repo" / "run1"
+    assert bool(runner.audit_hits([json.dumps(call)], u, cwd=cwd)) is hit, call
+
+
+def test_written_code_is_not_a_search(tmp_path):
+    """(should-fix 3) a Write/Edit body is not navigation: code that says tree, find, ../.. or round2_a reads nothing."""
+    dest = tmp_path / "u"
+    u = runner.isolation_unit(dest, dest / "hub", runner.isolation_paths())
+    body = "def walk(tree):\n    # find files, rg style\n    return os.path.join(root, '../..')\nNAME = 'round2_a'\n"
+    edits = [json.dumps({"file_path": str(dest / "repo" / "walk.py"), "content": body}),
+             json.dumps({"file_path": str(dest / "repo" / "walk.py"), "old_string": "x", "new_string": body})]
+    assert runner.audit_hits(edits, u) == []
+
+
+def test_absolute_path_with_dots_is_resolved(tmp_path):
+    dest = tmp_path / "u"
+    u = runner.isolation_unit(dest, dest / "hub", runner.isolation_paths())
+    sneaky = f"{ROOT.parent.as_posix()}/zzz/../{ROOT.name}/ccx/cli.py"
+    assert runner.audit_hits([json.dumps(f"cat {sneaky}")], u)
+
+
+def test_hide_brings_the_checkouts_other_worktrees(tmp_path):
+    import subprocess
+    main = tmp_path / "main-454"
+    main.mkdir()
+    git = ["git", "-c", "user.name=t", "-c", "user.email=t@example.invalid"]
+    subprocess.run([*git, "init", "-q"], cwd=main, check=True)
+    (main / "a.txt").write_text("a\n", encoding="utf-8")
+    subprocess.run([*git, "add", "a.txt"], cwd=main, check=True)
+    subprocess.run([*git, "commit", "-q", "-m", "a"], cwd=main, check=True)
+    wt = tmp_path / "wt-454"
+    subprocess.run([*git, "worktree", "add", "-q", str(wt)], cwd=main, check=True)
+    got = norm(retest.resolve_hide([str(main)]))
+    assert os.path.normcase(str(wt.resolve())) in got and os.path.normcase(str(main.resolve())) in got

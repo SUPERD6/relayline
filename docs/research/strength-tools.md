@@ -52,23 +52,33 @@ must be preregistered before treating this as a controlled model comparison.
 `p4_long_session.py` list, preflight's `forbidden()`), the checkout the run starts from and its git worktrees, that
 checkout's `scripts/eval/` (task generators and hidden tests, e.g. `round2_a/`) and `docs/research/data/` (frozen task
 files, e.g. `round2-tasks/`), the `--tasks` file, and every `--hide PATH` (repeatable: e.g. your everyday checkout when
-the run uses an independent clone; made absolute against the start folder, de-duplicated, a missing path or one
-holding the Python that runs the units is refused). This is on by default, also without `--tasks`: before #454 a unit
-could read all of these. Each path is listed in every spelling known: as given (a junction or symbolic link kept),
-resolved, and on Windows its 8.3 short name. `--out` inside any of them is refused. Claude units get Read/Edit deny
+the run uses an independent clone; made absolute against the start folder, de-duplicated, a git checkout brings its
+other git worktrees along, a missing path or one holding the Python that runs the units is refused). This is on by
+default, also without `--tasks`: before #454 a unit could read all of these. Each path is listed in every spelling
+known: as given (a junction or symbolic link kept), resolved, and on Windows its 8.3 short name. **Where the eval
+folder goes:** `--out` must lie outside the clone, outside your everyday checkout (any `--hide` path) and outside your
+own homes, hub and config, or it is refused; and neither `--out` nor `--claude-home`/`--codex-home` may contain a
+content pattern word (below), or it is refused too. Claude units get Read/Edit deny
 rules on each (Claude Code 2.1.316 docs: Read rules also apply to Grep and Glob, best effort; Edit rules to every
 file-editing tool). Codex units cannot be confined: `workspace-write` limits writes only and `codex exec` (codex-cli
 0.164.0 `--help`) has no read deny, so their reads are audited, not blocked. After each unit every tool call in its ccx
-logs is audited (`path_audit` in the row): a hit is a forbidden path in any spelling preflight's `path_hits` knows, a
-path-independent content pattern (`round2_a`, `round2_bc`, `round2-tasks`, `round2~N`, `l5_memory`,
-`shared_context_ab`, catching relative reads such as `cd ../.. && cat scripts/eval/round2_a/x.py`), a `cd` climbing
-above the unit's folder, a recursive search (`rg`, `grep -r`, `Get-ChildItem -Recurse`, ...) climbing above it, or a
-recursive search or Grep/Glob call on a parent folder of a forbidden path. Running Python (its own folders are
-masked) or this checkout's `ccx.py` is never a hit. A hit makes the row invalid (`--on-invalid continue`) or stops the
-group (the default). The dry run prints an `isolation` field (with `--tasks` or `--hide`) with the `--hide` paths,
-every path the first unit is denied and the content patterns. Limits: a path mixing 8.3 short and long parts, a
-search from the file-system root, one-level `cd ..` steps spread over several tool calls, and DSH logs in a
-format preflight's `tool_inputs` does not parse are not caught by the audit; a Codex read is found only afterwards.
+logs is audited (`path_audit` in the row). The unit's own folder, its logged-in homes and the interpreter's folders
+are masked first, so working on its own files or running Python (or this checkout's `ccx.py`) is never a hit. A hit
+is: a forbidden path anywhere in the call, in any spelling preflight's `path_hits` knows (also after an absolute
+path's `..` parts are resolved); a path-independent content pattern (`round2_a`, `round2_bc`, `round2-tasks`,
+`round2~N`, `l5_memory`, `shared_context_ab`, catching relative reads such as
+`cd ../.. && cat scripts/eval/round2_a/x.py`) in the call's navigation fields (a command, a file path, a Grep/Glob
+path or pattern; not the body a Write/Edit writes); a `cd`, or a recursive search's (`rg`, `grep -r`,
+`Get-ChildItem -Recurse`, ...) relative path, that lands outside the unit's folder, judged from the run's working
+folder (run.json's `cwd`: the repo, or the ccx worktree `<unit>/.ccx-worktrees/repo/<run id>`, from which `cd ../../..`
+is still inside); or a recursive search or Grep/Glob call on a parent folder of a forbidden path. A `cd` whose target
+cannot be resolved (a variable or subshell) and contains `..` is counted as leaving. A hit makes the row invalid
+(`--on-invalid continue`) or stops the group (the default). The dry run prints an `isolation` field (with `--tasks`
+or `--hide`) with the `--hide` paths, every path the first unit is denied and the content patterns. Limits: a path
+mixing 8.3 short and long parts, a search from the file-system root, a `cd` in one tool call followed by relative
+reads in later ones (each call is judged from the run's working folder), code written by Write/Edit that reads a
+forbidden folder when run (only the command that runs it is checked), and DSH logs in a format preflight's
+`tool_inputs` does not parse are not caught; a Codex read is found only afterwards.
 
 Results, hidden-test failures and interruptions are retained in `results.jsonl`;
 unknown cost keeps the full reservation and stops the batch, rather than charging

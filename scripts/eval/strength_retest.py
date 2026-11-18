@@ -104,7 +104,8 @@ def load_tasks(path: Path, sha256: str | None, kind: str) -> list[dict]:
 def resolve_hide(values) -> list[Path]:
     """--hide paths (#454, the semantics of p4's --hide, #451): made absolute against the folder the eval starts in,
     de-duplicated; a missing one is refused (a typo would deny nothing). Both spellings are kept when a junction or
-    symbolic link makes them differ. A path holding the Python that runs the units is refused: their `python` is it."""
+    symbolic link makes them differ. A git checkout brings its other git worktrees along (#455: each holds the same
+    answers). A path holding the Python that runs the units is refused: their `python` is it."""
     out: list[Path] = []
     seen: set[str] = set()
     for v in values or ():
@@ -112,10 +113,14 @@ def resolve_hide(values) -> list[Path]:
         real = given.resolve()
         if not real.exists():
             raise ValueError(f"--hide {v}: no such file or folder ({real}); no model called")
-        if any(_inside(Path(x), q) for x in (sys.executable, Path(sys.executable).resolve()) for q in (given, real)):
-            raise ValueError(f"--hide {v} holds the Python running the units ({sys.executable}); hide the other "
-                             "checkout itself. No model called")
-        for q in (given, real):
+        more = []
+        if real.is_dir() and (real / ".git").exists():
+            import preflight as PF
+            more = [w for w in PF.other_worktrees(real) if Path(w).exists()]
+        for q in (given, real, *(Path(w).absolute() for w in more), *(Path(w).resolve() for w in more)):
+            if any(_inside(Path(x), q) for x in (sys.executable, Path(sys.executable).resolve())):
+                raise ValueError(f"--hide {v} holds the Python running the units ({sys.executable}) in {q}; hide "
+                                 "the other checkout itself. No model called")
             key = str(q).lower() if sys.platform == "win32" else str(q)
             if key not in seen:
                 seen.add(key)
@@ -235,6 +240,15 @@ def probe_hook(hub: Path, cwd: Path, agent: str) -> dict:
             "payload": result.stdout, "native_hook_execution": "Unknown"}
 
 
+def _content_name(what: str, home: Path) -> None:
+    """A logged-in home named like one of the audit's content patterns is refused (#455): the units' tool calls name
+    it, and each would look like a read of the task folder."""
+    from strength_runner import content_hit
+    rx = content_hit(home)
+    if rx:
+        raise ValueError(f"{what} refused: {home} matches the audit's content pattern {rx!r}; rename it")
+
+
 def checked_codex_home(arg: str) -> Path:
     """The --codex-home of a run with Codex units, prepared as p4_long_session.py's is (preflight's
     check_codex_home: an absolute folder apart from your own homes, a login present, nothing that reaches every
@@ -247,6 +261,7 @@ def checked_codex_home(arg: str) -> Path:
         raise ValueError("units run Codex: pass --codex-home <a Codex home you logged in to yourself>; "
                          "an empty home has no login (issue #320)")
     home, real = Path(PF.codex_home_arg(arg)), PF.real_paths()
+    _content_name("--codex-home", home)
     for write in (False, True):
         problems, _ = PF.check_codex_home(home, True, real, write=write)
         if problems:
@@ -269,6 +284,7 @@ def checked_claude_home(arg: str) -> Path:
         raise ValueError(f"--claude-home must be an absolute path: {arg}")
     if not home.is_dir():
         raise ValueError(f"--claude-home refused: {home} is not a folder")
+    _content_name("--claude-home", home)
     real = PF.real_paths()
     # As preflight.check_codex_home: no overlap either way with your own homes, hub or this checkout
     for name in ("claude_home", "home_claude", "codex_home", "home_codex", "ccx_home", "hub", "dsh_home",
