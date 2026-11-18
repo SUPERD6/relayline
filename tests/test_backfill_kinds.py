@@ -5,6 +5,7 @@ import json
 from test_adapters import AdapterEnv
 
 R1, R2 = "claude:sonnet:medium", "codex:gpt-6.1-sol:high"
+T = 1.7e9                                            # before #437 shipped, so kind_since is the bound
 
 
 def att(rung, kind=None):
@@ -77,8 +78,8 @@ class TestBackfill(BackfillEnv):
 
     def test_only_adds_next_to_existing_kind_counts(self):
         self.set_state({R1: 3}, kind_counts={"read": {R1: 1}})
-        self.run_rec("x", [att(R1)], route={"b": 4, "kind": "code"})
-        self.run_rec("y", [att(R1)], route={"b": 4, "kind": "read"})
+        self.run_rec("x", [att(R1)], route={"b": 4, "kind": "code"}, ts=10.0)
+        self.run_rec("y", [att(R1)], route={"b": 4, "kind": "read"}, ts=11.0)
         self.backfill()
         st = self.state()
         self.assertEqual(st["kind_counts"]["read"][R1], 1 + 1)
@@ -114,11 +115,11 @@ class TestBackfill(BackfillEnv):
     def test_runs_learned_after_kinds_were_recorded_are_not_counted_twice(self):
         # R1: 5 learned, 3 before kinds were recorded and 2 after (those 2 are already in kind_counts). The new runs'
         # records sort first; they must be skipped, so the old ones get the remaining quota with their own kind
-        self.set_state({R1: 5}, kind_since=1000.0, kind_counts={"code": {R1: 2}})
+        self.set_state({R1: 5}, kind_since=T, kind_counts={"code": {R1: 2}})
         for i in range(2):
-            self.run_rec(f"a-new{i}", [att(R1)], route={"b": 4, "kind": "code"}, ts=2000.0 + i)
+            self.run_rec(f"a-new{i}", [att(R1)], route={"b": 4, "kind": "code"}, ts=T + 100 + i)
         for i in range(3):
-            self.run_rec(f"b-old{i}", [att(R1)], route={"b": 4, "kind": "read"}, ts=10.0 + i)
+            self.run_rec(f"b-old{i}", [att(R1)], route={"b": 4, "kind": "read"}, ts=T - 100000 + i)
         self.backfill()
         self.assertEqual(self.state()["kind_counts"], {"code": {R1: 2}, "read": {R1: 3}})
 
@@ -135,7 +136,7 @@ class TestBackfill(BackfillEnv):
         self.run_rec("r", None, raw=json.dumps({"route": "nope", "attempts": [], "learned": "lead"}))
         self.run_rec("t", None, raw=json.dumps({"route": {"b": 1}, "attempts": "nope", "learned": "lead"}))
         self.run_rec("j", None, raw="{broken")
-        self.run_rec("ok", [att(R2)], route={"b": 4, "kind": "code"})
+        self.run_rec("ok", [att(R2)], route={"b": 4, "kind": "code"}, ts=10.0)
         r = self.backfill()
         self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
         self.assertEqual(self.state()["kind_counts"]["code"], {R2: 1})
@@ -149,3 +150,37 @@ class TestBackfill(BackfillEnv):
         first = st["kind_since"]
         note_kind(st, R1, "code")
         self.assertEqual(st["kind_since"], first)
+
+    def test_marked_run_is_skipped_whatever_its_time(self):
+        self.set_state({R1: 2}, kind_since=T, kind_counts={"code": {R1: 1}})
+        self.run_rec("m", None, raw=json.dumps({"route": {"b": 4, "kind": "code"}, "attempts": [att(R1)],
+                                               "learned": "lead", "ts": 10.0, "kind_noted": True}))
+        self.run_rec("u", [att(R1)], route={"b": 4, "kind": "read"}, ts=T - 100000)
+        self.backfill()
+        self.assertEqual(self.state()["kind_counts"], {"code": {R1: 1}, "read": {R1: 1}})
+
+    def test_unmarked_run_next_to_kind_since_is_skipped(self):
+        # started just before kind_since, learned after verification and review: its time is under-estimated by
+        # start + attempt time, but the grace keeps it out; it is in kind_counts already
+        self.set_state({R1: 2}, kind_since=T, kind_counts={"code": {R1: 1}})
+        self.run_rec("edge", [dict(att(R1), seconds=1)], route={"b": 4, "kind": "code"}, ts=T - 5)
+        self.run_rec("old", [att(R1)], route={"b": 4, "kind": "read"}, ts=T - 100000)
+        self.backfill()
+        self.assertEqual(self.state()["kind_counts"], {"code": {R1: 1}, "read": {R1: 1}})
+
+    def test_run_without_a_usable_start_time_is_skipped_when_kinds_exist(self):
+        self.set_state({R1: 2}, kind_since=T, kind_counts={"code": {R1: 1}})
+        self.run_rec("none", [att(R1)], route={"b": 4, "kind": "read"})
+        self.run_rec("bad", None, raw=json.dumps({"route": {"b": 4, "kind": "read"}, "attempts": [att(R1)],
+                                                 "learned": "lead", "ts": "soon"}))
+        self.backfill()
+        self.assertEqual(self.state()["kind_counts"], {"code": {R1: 1}})
+
+    def test_a_learned_run_is_marked_kind_noted_and_backfill_leaves_it(self):
+        out = json.loads(self.ccx("run", "--from", "claude", "--b", "4", "--mode", "read", "--new", "--context", "off",
+                                  "--no-ab", "--review", "off", "Read the parser").stdout)
+        self.j("verify", out["run_id"], "--ok", "1")
+        self.assertTrue(self.rec(out["run_id"]).get("kind_noted"))
+        before = self.state()["kind_counts"]
+        self.backfill()
+        self.assertEqual(self.state()["kind_counts"], before)

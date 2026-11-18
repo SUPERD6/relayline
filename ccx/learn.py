@@ -364,9 +364,11 @@ NOT_ABILITY = ("quota", "capacity", "auth", "timeout", "model", "policy", "needs
                "user_stopped", "killed", "interrupted")
 
 
-# when kind recording shipped (#437, commit time): a state that holds kind_counts but no `kind_since` was written by
-# code from this moment on, so runs learned from then on are already in kind_counts
+# when kind recording shipped (#437, the commit time, not when a person installed it: runs between the two are
+# skipped, which only leaves them "unknown kind"). Runs the backfill cannot tell apart by a `kind_noted` mark are judged
+# by time: learned within GRACE_S before this moment or later counts as already in kind_counts
 KIND_RECORDING_SINCE = 1794975944.0
+GRACE_S = 3600.0
 
 
 def _num(v) -> int:
@@ -376,18 +378,18 @@ def _num(v) -> int:
         return 0
 
 
-def _learned_at(rec: dict) -> float:
-    """Latest moment this run could have been learned from: its start plus attempt time, or its verdict."""
-    t = 0.0
+def _learned_at(rec: dict) -> float | None:
+    """Latest moment this run could have been learned from: its start plus attempt time, or its verdict. None when
+    the record has no usable start time: the caller then skips it (when in doubt, unknown kind)."""
     try:
-        t = float(rec.get("ts") or 0) + sum(float(a.get("seconds") or 0) for a in rec["attempts"]
-                                            if isinstance(a, dict))
+        ts = float(rec["ts"])
+        t = ts + sum(float(a.get("seconds") or 0) for a in rec["attempts"] if isinstance(a, dict))
         v = rec.get("verdict")
         if isinstance(v, dict):
             t = max(t, float(v.get("ts") or 0))
+        return t
     except (TypeError, ValueError, KeyError):
-        pass
-    return t
+        return None
 
 
 def backfill_kinds(p: Paths) -> dict:
@@ -396,8 +398,9 @@ def backfill_kinds(p: Paths) -> dict:
     A learned run (`learned` set, route.b set) puts each of its ability-counting attempts under its kind: route.kind,
     else the kind of the run's mode (read/code); a record with neither (mode missing stays unknown, unlike
     record_outcomes), or an attempt without a rung, stays "unknown kind". Runs learned once kinds were recorded are
-    skipped: they are in kind_counts already (`kind_since` in the state, else the date #437 shipped when kind_counts
-    exists), so nothing counts twice. Never more per rung than the skill counted. Done once (`kind_backfill` marks it).
+    skipped: they are in kind_counts already (the run record says `kind_noted`; without that mark, learned
+    within an hour of `kind_since` / the date #437 shipped or later, or no usable start time, when the state holds any
+    kind_counts), so nothing counts twice. Never more per rung than the skill counted. Done once (`kind_backfill` marks it).
     Run records are read before the state lock is taken (a lock held over 10 s is taken for stale by other writers);
     inside it only load, count and save."""
     tr = module(p, "routing")
@@ -423,14 +426,19 @@ def backfill_kinds(p: Paths) -> dict:
             for rung, c in (rungs.items() if isinstance(rungs, dict) else ()):
                 have[rung] = have.get(rung, 0) + _num(c)
         since = st.get("kind_since")
-        cutoff = float(since) if isinstance(since, (int, float)) else (KIND_RECORDING_SINCE if kc else None)
+        cutoff = (min(float(since), KIND_RECORDING_SINCE) if isinstance(since, (int, float))
+                  else KIND_RECORDING_SINCE) if (kc or since) else None
         added = skipped = runs = 0
         for rec in records:
             route = rec["route"]
             if not rec.get("learned") or route.get("b") is None:
                 continue
-            if cutoff is not None and _learned_at(rec) >= cutoff:
-                continue                  # learned after kinds were recorded: already in kind_counts
+            if rec.get("kind_noted"):
+                continue                  # recorded under its kind when it was learned
+            if cutoff is not None:
+                at = _learned_at(rec)
+                if at is None or at + GRACE_S >= cutoff:
+                    continue              # maybe learned after kinds were recorded: in kind_counts already
             kind = route.get("kind") or (task_kind(rec.get("mode")) if rec.get("mode") else None)
             hit = False
             for a in rec["attempts"]:
@@ -491,6 +499,8 @@ def record_outcomes(p: Paths, record: dict, final_ok: bool) -> list[dict]:
             except TypeError:                            # skill copy without time learning
                 r = tr.record(rung, float(b), ok, pri, st, cost_usd=cost)
             note_kind(st, rung, kind)                    # #437: kind of work, for the per-kind cold-start check
+            if kind:
+                record["kind_noted"] = True              # #440: the backfill must not count this run again
             tr.save_state(st)
         if first_p is None:
             first_p = r.get("predicted_p")
