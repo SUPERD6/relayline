@@ -1286,6 +1286,8 @@ def prepare(repos: list[dict], cache: Path, wheels: Path, python: str, run=subpr
             row["dependency_groups"] = groups
             row["groups_failed"] = [r for r in groups if not _download(run, python, target, r)]
         files = sorted(p for p in target.glob("*") if p.is_file()) if target.is_dir() else []
+        if not row["downloaded"] and files:  # as for pins: what an earlier run left is installed, deps may be missing
+            row["warning"] = "download failed; installing files already in the folder (dependencies may be missing)"
         deps = [p for p in files if _dist(p.name) not in kept]
         row["skipped_kept_packages"] = sorted({_dist(p.name) for p in files} & kept)
         needed |= set(row["skipped_kept_packages"]) - {norm_name(spec["project"])}
@@ -1343,17 +1345,21 @@ def prepare(repos: list[dict], cache: Path, wheels: Path, python: str, run=subpr
 
 
 def runner_missing(python: str, run=subprocess.run) -> list[str]:
-    """RUNNER modules that do not import in `python` (an interpreter that cannot start counts as missing)."""
+    """RUNNER modules that do not import in `python` (an interpreter that cannot start counts as missing). Checked as
+    a baseline would see it: no inherited PYTHONPATH, no user site-packages, from an empty folder."""
+    env = {k: v for k, v in os.environ.items() if k.upper() != "PYTHONPATH"}
+    env["PYTHONNOUSERSITE"] = "1"
     missing = []
-    for mod in RUNNER:
-        try:
-            r = run([python, "-c", f"import {mod}"], capture_output=True, text=True, encoding="utf-8",
-                    errors="replace", timeout=120)
-            ok = r.returncode == 0
-        except (OSError, subprocess.SubprocessError):
-            ok = False
-        if not ok:
-            missing.append(mod)
+    with tempfile.TemporaryDirectory(prefix="r2-runner-") as empty:
+        for mod in RUNNER:
+            try:
+                r = run([python, "-c", f"import {mod}"], capture_output=True, text=True, encoding="utf-8",
+                        errors="replace", timeout=120, env=env, cwd=empty)
+                ok = r.returncode == 0
+            except (OSError, subprocess.SubprocessError):
+                ok = False
+            if not ok:
+                missing.append(mod)
     return missing
 
 
@@ -1432,8 +1438,9 @@ def main(argv=None) -> int:
         rows = data["repos"]
         print(f"project downloads failed: {sum(r.get('downloaded') is False for r in rows)}; repositories with a "
               f"failed dependency-group requirement: {sum(bool(r.get('groups_failed')) for r in rows)}; with files "
-              f"that did not install: {sum(bool(r.get('install_failed')) for r in rows)}; pins installed from old "
-              f"files after a failed download: {sum('warning' in v for v in data['pins'].values())}")
+              f"that did not install: {sum(bool(r.get('install_failed')) for r in rows)}; installed from old files "
+              f"after a failed download: {sum('warning' in r for r in rows)} repositories, "
+              f"{sum('warning' in v for v in data['pins'].values())} pins")
         if data["pip_list"] is None:
             print("error: `pip list` of --ext-python could not be read; the environment is not frozen")
             return 1

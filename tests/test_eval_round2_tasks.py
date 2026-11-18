@@ -561,6 +561,20 @@ def test_failed_pin_download_is_not_reported_installed_and_pip_is_never_pinned(t
     assert R.prepare([{"repo": "x", "project": "x", "url": "u"}, {"repo": "pip", "project": "pip", "url": "u"}],
                      tmp_path / "c", tmp_path / "w4", "py", pip_only)["pins"] == {}
     assert R.runner_missing("no-such-python-here") == ["pytest"]
+    # the import is checked as a baseline sees it: no PYTHONPATH, no user site, from an empty folder
+    seen = {}
+    monkeypatch.setenv("PYTHONPATH", str(tmp_path))
+    def spy(cmd, **kw):
+        seen.update(kw, files=os.listdir(kw["cwd"]))
+        return subprocess.CompletedProcess(cmd, 0, "", "")
+    assert R.runner_missing("py", spy) == []
+    assert "PYTHONPATH" not in seen["env"] and seen["env"]["PYTHONNOUSERSITE"] == "1" and seen["files"] == []
+    # a project whose download failed over files an earlier run left gets the same warning as a pin
+    dl["my-pkg"] = []
+    (tmp_path / "w5/my-pkg").mkdir(parents=True)
+    (tmp_path / "w5/my-pkg/other-1.0-py3-none-any.whl").write_bytes(b"")
+    rows = R.prepare(repos[:1], tmp_path / "c", tmp_path / "w5", "py", run, meta_dir=meta)["repos"]
+    assert rows[0]["downloaded"] is False and "download failed" in rows[0]["warning"]
     (tmp_path / "repos.json").write_text(json.dumps({"kept": []}), encoding="utf-8")
     monkeypatch.setattr(R, "prepare", lambda *a, **k: {"repos": [], "pins": {}, "pip_list": [], "runner_missing": ["pytest"]})
     assert R.main(["prepare", "--repos-json", str(tmp_path / "repos.json"), "--ext-cache", str(tmp_path / "c"),
