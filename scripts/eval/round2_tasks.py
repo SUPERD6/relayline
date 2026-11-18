@@ -1295,10 +1295,11 @@ def prepare(repos: list[dict], cache: Path, wheels: Path, python: str, run=subpr
             if failed:
                 row["install_failed"] = failed
         rows.append(row)
+    needed -= set(NEVER_PIN)
     if needed and meta_dir is None:
         raise ValueError("kept packages are needed as dependencies (" + ", ".join(sorted(needed)) + "); pass "
                          "--pypi-meta (the meta step's folder) to pin them")
-    pins, todo, before = {}, sorted(needed - set(NEVER_PIN)), _since_ts(since)
+    pins, todo, before = {}, sorted(needed), _since_ts(since)
     while todo:  # kept dependencies of the pinned packages are pinned the same way
         name = todo.pop(0)
         path = Path(meta_dir) / f"{name}.json"
@@ -1316,6 +1317,8 @@ def prepare(repos: list[dict], cache: Path, wheels: Path, python: str, run=subpr
         if not own:  # nothing of the package itself to install: never report it installed (#442)
             pin.update(installed=False, reason=f"no file of {name} {version} was downloaded")
             continue
+        if not pin["downloaded"]:  # installed from what an earlier run left in the folder; its deps may be missing
+            pin["warning"] = "download failed; installed from files already in the folder (dependencies may be missing)"
         failed = []
         pin["installed"] = _install(run, python, own + [p for p in files if _dist(p.name) not in kept], failed)
         if failed:
@@ -1328,15 +1331,30 @@ def prepare(repos: list[dict], cache: Path, wheels: Path, python: str, run=subpr
                         key=lambda d: norm_name(d["name"]))
     except (ValueError, TypeError, KeyError):
         frozen = None
-    present = {norm_name(d["name"]) for d in frozen or ()}
     return {"rule": f"kept packages never installed at their latest release; a kept dependency (and "
                     f"{', '.join(RUNNER)}) at its highest final release uploaded before {since}, kept dependencies of "
                     f"a pin pinned the same way; never pinned: {', '.join(NEVER_PIN)}; test extras of each project's "
                     f"latest release plus the [dependency-groups] {'/'.join(DEP_GROUPS)} of the clone's HEAD "
                     f"pyproject.toml",
             "repos": rows, "pins": pins, "pip_list": frozen,
-            # the test runner must be importable; unknown (no pip list) counts as missing (#442)
-            "runner_missing": [r for r in RUNNER if frozen is None or norm_name(r) not in present]}
+            # the test runner must actually import (pip list is only the record; a pin installed without its
+            # dependencies is listed but does not import) (#442)
+            "runner_missing": runner_missing(python, run)}
+
+
+def runner_missing(python: str, run=subprocess.run) -> list[str]:
+    """RUNNER modules that do not import in `python` (an interpreter that cannot start counts as missing)."""
+    missing = []
+    for mod in RUNNER:
+        try:
+            r = run([python, "-c", f"import {mod}"], capture_output=True, text=True, encoding="utf-8",
+                    errors="replace", timeout=120)
+            ok = r.returncode == 0
+        except (OSError, subprocess.SubprocessError):
+            ok = False
+        if not ok:
+            missing.append(mod)
+    return missing
 
 
 # ---------------------------------------------------------------- manifest
@@ -1411,17 +1429,26 @@ def main(argv=None) -> int:
         unpinned = sorted(k for k, v in data["pins"].items() if not v.get("installed"))
         print(f"prepared {len(data['repos'])} repositories; pinned {len(data['pins'])} kept dependencies"
               + (f"; not installed: {', '.join(unpinned)}" if unpinned else ""))
+        rows = data["repos"]
+        print(f"project downloads failed: {sum(r.get('downloaded') is False for r in rows)}; repositories with a "
+              f"failed dependency-group requirement: {sum(bool(r.get('groups_failed')) for r in rows)}; with files "
+              f"that did not install: {sum(bool(r.get('install_failed')) for r in rows)}; pins installed from old "
+              f"files after a failed download: {sum('warning' in v for v in data['pins'].values())}")
         if data["pip_list"] is None:
             print("error: `pip list` of --ext-python could not be read; the environment is not frozen")
             return 1
-        if data["runner_missing"]:
-            print(f"error: {', '.join(data['runner_missing'])} is not installed in --ext-python; every baseline would "
+        if data.get("runner_missing"):
+            print(f"error: {', '.join(data['runner_missing'])} does not import in --ext-python; every baseline would "
                   "fail (run prepare again)")
             return 1
         return 0
     if a.cmd == "select":
         if not a.ext_cache.is_dir():
             ap.error("--ext-cache must exist (run prepare first)")
+        missing = runner_missing(a.ext_python)
+        if missing:  # checked before hours of baselines (#442)
+            print(f"error: {', '.join(missing)} does not import in --ext-python; run prepare first")
+            return 1
         data = select_upstream(a.ext_cache, read_json(a.repos_json)["kept"], a.ext_python,
                                corpus(exclude=[a.out, a.repos_json])["repos"],
                                raw_dir=a.raw_dir)

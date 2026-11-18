@@ -203,6 +203,7 @@ def test_cli_select_reports_dev_and_downstream_includes_dev(tmp_path, monkeypatc
     monkeypatch.setattr(R, "_validate", lambda *a: {"valid": True})
     monkeypatch.setattr(R, "installed_overlap", lambda *a, **k: None)  # no real --ext-python here (#415)
     monkeypatch.setattr(R, "ext_plugins", lambda python: [])
+    monkeypatch.setattr(R, "runner_missing", lambda python: [])
     monkeypatch.setattr(R, "corpus", lambda **k: {"repos": set()})
     (tmp_path / "cache").mkdir()
     (tmp_path / "repos.json").write_text(json.dumps({"kept": [{"repo": "r1"}]}), encoding="utf-8")
@@ -521,8 +522,11 @@ def test_failed_pin_download_is_not_reported_installed_and_pip_is_never_pinned(t
             for name in dl.get(cmd[-1].split("[")[0], []):
                 (d / name).write_bytes(b"")
             return subprocess.CompletedProcess(cmd, 0 if dl.get(cmd[-1].split("[")[0]) else 1, "", "")
-        if "list" in cmd:
-            return subprocess.CompletedProcess(cmd, 0, json.dumps([{"name": "attrs", "version": "24.1.0"}]), "")
+        if "list" in cmd:  # pytest is even listed: only the import decides (#444 review)
+            return subprocess.CompletedProcess(cmd, 0, json.dumps([{"name": "attrs", "version": "24.1.0"},
+                                                                   {"name": "pytest", "version": "8.0"}]), "")
+        if cmd[1:] == ["-c", "import pytest"]:
+            return subprocess.CompletedProcess(cmd, 1, "", "ModuleNotFoundError: No module named 'pluggy'")
         return subprocess.CompletedProcess(cmd, 0, "", "")
     meta = tmp_path / "meta"
     meta.mkdir()
@@ -536,10 +540,38 @@ def test_failed_pin_download_is_not_reported_installed_and_pip_is_never_pinned(t
     assert "pip" not in data["pins"]
     assert not any(Path(a).name.startswith("pip-") for c in calls if "install" in c for a in c)
     assert data["runner_missing"] == ["pytest"]
+    # only other packages' files in the pin's folder (own empty, files not): still not installed
+    dl["attrs==24.1.0"] = ["six-1.0-py3-none-any.whl"]
+    data = R.prepare(repos, tmp_path / "c", tmp_path / "w2", "py", run, meta_dir=meta)
+    assert data["pins"]["attrs"]["installed"] is False
+    # a failed download over files an earlier run left: installed, with a warning
+    dl["attrs==24.1.0"] = []
+    (tmp_path / "w3/_pins/attrs-24.1.0").mkdir(parents=True)
+    (tmp_path / "w3/_pins/attrs-24.1.0/attrs-24.1.0-py3-none-any.whl").write_bytes(b"")
+    data = R.prepare(repos, tmp_path / "c", tmp_path / "w3", "py", run, meta_dir=meta)
+    assert data["pins"]["attrs"]["installed"] is True and "download failed" in data["pins"]["attrs"]["warning"]
+    # only pip needed and no --pypi-meta: nothing to pin, no error
+    only_pip = lambda cmd, **kw: subprocess.CompletedProcess(cmd, 0, "[]", "")
+    def pip_only(cmd, **kw):
+        if "download" in cmd:
+            d = Path(cmd[cmd.index("-d") + 1])
+            d.mkdir(parents=True, exist_ok=True)
+            (d / "pip-26.3-py3-none-any.whl").write_bytes(b"")
+        return only_pip(cmd)
+    assert R.prepare([{"repo": "x", "project": "x", "url": "u"}, {"repo": "pip", "project": "pip", "url": "u"}],
+                     tmp_path / "c", tmp_path / "w4", "py", pip_only)["pins"] == {}
+    assert R.runner_missing("no-such-python-here") == ["pytest"]
     (tmp_path / "repos.json").write_text(json.dumps({"kept": []}), encoding="utf-8")
     monkeypatch.setattr(R, "prepare", lambda *a, **k: {"repos": [], "pins": {}, "pip_list": [], "runner_missing": ["pytest"]})
     assert R.main(["prepare", "--repos-json", str(tmp_path / "repos.json"), "--ext-cache", str(tmp_path / "c"),
                    "--wheels", str(tmp_path / "w"), "--ext-python", "py", "--out", str(tmp_path / "p.json")]) == 1
+    # select refuses to start when pytest does not import in --ext-python
+    (tmp_path / "cache").mkdir()
+    called = []
+    monkeypatch.setattr(R, "select_upstream", lambda *a, **k: called.append(1))
+    assert R.main(["select", "--repos-json", str(tmp_path / "repos.json"), "--ext-cache", str(tmp_path / "cache"),
+                   "--ext-python", "no-such-python-here", "--out", str(tmp_path / "s.json")]) == 1
+    assert called == []
 
 
 def test_dependency_groups_resolve_includes_and_prepare_downloads_them(tmp_path, monkeypatch):
