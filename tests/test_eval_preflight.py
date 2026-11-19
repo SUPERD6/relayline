@@ -1560,3 +1560,33 @@ def test_summaries_say_when_rows_ran_under_different_sandboxes(capsys, tmp_path)
     rows = [row("b1", None, arm="ccx-batch", batch="B"), row("b1", "unelevated", arm="ccx-pipeline", batch="B"),
             row("b1", "elevated", arm="self", batch="B")]
     assert batch.summarize(rows)["codex_windows_sandbox"]["counts"] == {"unknown": 1, "unelevated": 1}
+
+
+# ------------------------------------------------------------------ canon(): drive spellings (#456)
+
+
+@pytest.mark.skipif(not NT, reason="Git Bash's /c/... drive form only exists on Windows")
+def test_canon_drive_and_git_bash_spellings_agree(tmp_path):
+    c = lambda s: PF.canon(s, tmp_path / "h")       # noqa: E731
+    assert c("D:/a/x") == c("/d/a/x") == c("D:\\a\\x") == "d:/a/x"
+    assert c("D:/a/relayline/x") == c("/d/a/relayline/x") == "d:/a/relayline/x"
+    assert c("/c/Users/x") == "c:/users/x" and c("C:\\Users\\x") == "c:/users/x"
+    assert c("http://a/b") == "http://a/b" and c("https://github.com/a/b") == "https://github.com/a/b"
+    assert c("a:/c/x") == "a:/c/x"                                   # after an existing drive: not a second drive
+    assert c("cat D:/a/x /d/a/y && ls /c/q") == "cat d:/a/x d:/a/y && ls c:/q"
+    assert c("PATH=/usr/bin:/c/x") == "path=/usr/bin:c:/x"          # a list separator is still a boundary
+
+
+@pytest.mark.skipif(not NT, reason="Git Bash's /c/... drive form only exists on Windows")
+def test_path_hits_matches_git_bash_spelling_under_a_single_letter_dir(machine):
+    w = machine["work"]
+    u = PF.Unit(key="1-t-ccx", work=w, repo=w / "1-t-ccx", hub=w / "h-1-t-ccx", hidden=("D:/a/relayline/secret",))
+    for cmd in ("cat D:/a/relayline/secret/x", "cat /d/a/relayline/secret/x", "cat D:\\a\\relayline\\secret\\x"):
+        assert PF.path_hits([cmd], u), cmd
+    assert not PF.path_hits(["cat /d/a/relayline/other/x", "cat D:/a/relayline/secrets/x"], u)
+
+
+@pytest.mark.skipif(NT, reason="POSIX behaviour")
+def test_canon_is_unchanged_off_windows(tmp_path):
+    c = lambda s: PF.canon(s, tmp_path)             # noqa: E731
+    assert c("/d/a/x") == "/d/a/x" and c("D:/a/x") == "D:/a/x" and c("http://a/b") == "http:/a/b"
