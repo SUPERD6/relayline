@@ -63,6 +63,20 @@ pattern，不看写入的正文，所以代码里写 `tree` 或 `../..` 不算�
 整组（默认）。dry-run 带 `--tasks` 或 `--hide` 时输出 `isolation` 字段：`--hide` 路径、第一个单元实际禁读的全部路径和
 内容模式。
 
+**答案文件和其他单元（#467）。** 不该拿到答案的臂，单元目录里不放答案级文件：context 的 off 臂不写 lead 转写
+（`--context off` 时 ccx 根本不读它；会话 id 和环境变量与 on 臂相同），`nomem` 只有干扰笔记。第一轮把转写（即商定的
+答案）写进了每个 off 单元的 `claude-home/projects/lead/`。Claude 单元的转写放在共用的登录 home 里
+（`<claude-home>/projects/ccx-strength-synthetic/`），这个目录现在对每个单元都是禁读路径（deny 规则加审计），不再被
+home 屏蔽规则放过，只有 on 单元读自己的那份不算命中。每个单元也不能读 `--out` 里的其他内容：先屏蔽本单元目录，工具
+调用里剩下的任何 `--out` 写法都算命中（别的 `unit-*`，里面有 on 臂的 `shared-context.md` 或 mem 臂的笔记，以及
+`manifest.json`、`results.jsonl`、`report.json`），绝对路径、相对路径、junction、8.3 短名的处理同其他禁读路径；
+`--out` 及其上级目录也算禁读路径的上级目录（`cd` 过去、递归搜索都算）。Claude 单元对这些运行文件和本单元之前的单元
+另有 Read/Edit 拒绝规则，写成少量目录通配（`unit-00*`、`unit-010*`、`unit-0110`）：单元按顺序跑，后面的还不存在；
+每个单元一条规则会撑爆 ccx 传 `--settings` 的命令行。读本单元自己的 repo、`shared-context.md` 或记忆都不算命中。
+dry-run 的 `isolation` 字段还列出每个臂的答案级文件（`answer_files`）和每个单元在 `--out` 里被挡住的内容
+（`siblings`），开跑前核对。这里没有处理：共用登录 home 自己的会话记录（Codex home 的 `sessions/`、
+`<claude-home>/projects/` 下其他 Claude 会话）里有之前单元的提示词，见 #470。
+
 **几层保护的关系。**真正的保护是 Claude 的 deny 规则，加上正式运行用独立 clone、并把本机每份其他检出都传给 `--hide`；
 审计只是尽力而为的兜底，用来事后发现漏过去的读取，主要针对读取拦不住的 Codex 单元。审计看不全所有写法，之后发现的绕过
 写进这里的局限，不再一轮轮补。已知抓不到的：短名和长名混写的路径；从文件系统根目录搜索；先在一次工具调用里 `cd` 到单元

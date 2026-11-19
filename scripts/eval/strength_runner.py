@@ -71,6 +71,66 @@ _ABS_DOTS = re.compile(PF._B + r"(?P<p>(?:[a-z]:)?/[^\s\"'`;)|,&<>]*/\.\.(?:/[^\
 # Fields that say where a tool call goes (a Bash/Codex command, a path, a Grep/Glob pattern); never a written body
 NAV_KEYS = {"command", "cmd", "file_path", "path", "paths", "pattern", "glob", "notebook_path", "cwd", "workdir",
             "arguments"}
+# The run's own files next to the units in --out (#467): the frozen plan, every finished row, the final report
+RUN_FILES = ("manifest.json", "results.jsonl", "report.json")
+UNIT_NAME = re.compile(r"^unit-(\d+)$")       # execute() lays units out as <out>/unit-NNNN
+
+
+def answer_files(kind: str, arm: str, agent: str) -> list[str]:
+    """Where an arm's answer (the agreed decision, the convention) is written, as globs relative to the unit's folder
+    (a leading <claude-home> is the logged-in Claude home), each followed by what writes it (#467). An arm that must
+    not get the answer has none: the off arm gets no lead transcript (ccx never reads it with --context off) and
+    nomem only the distractors. A unit reading another unit's folder is a path-audit hit whatever is in it."""
+    runs = "hub/ccx/runs/*/* (ccx: the run's prompt, shared context and logs)"
+    if kind == "context":
+        if arm != "on":
+            return []
+        if agent == "claude":
+            return [f"<claude-home>/projects/{SYNTHETIC_LEAD_FOLDER}/strength-*.jsonl (the lead transcript, read by "
+                    "ccx; outside the unit, denied to every unit's agents, only this unit's own is not a hit)", runs]
+        return ["claude-home/projects/lead/strength-synthetic-lead.jsonl (the lead transcript, read by ccx)", runs]
+    if kind == "memory":
+        if arm == "nomem":
+            return []
+        own = {"mem": "repo/.ccx/context.md (ccx ctx add)"}.get(arm, "hub/memory/* (ccx mem add)")
+        return [own, runs]
+    raise ValueError("unknown retest kind")
+
+
+def sibling_globs(index: int, width: int = 4) -> list[str]:
+    """Folder-name globs matching exactly unit-<0..index-1> (zero-padded to `width`): units run one after another, so
+    these are the ones that exist while unit `index` runs. A few globs per digit (unit-00*, unit-010*, unit-0110), not
+    one per unit: ccx passes Claude its settings on the command line. Past 10**width units: none (audit only)."""
+    if index >= 10 ** width:
+        return []
+    out, i = [], 0
+    while i < index:
+        p = 0
+        while p + 1 < width and i % 10 ** (p + 1) == 0 and i + 10 ** (p + 1) <= index:
+            p += 1
+        out.append("unit-" + str(i).zfill(width)[:width - p] + ("*" if p else ""))
+        i += 10 ** p
+    return out
+
+
+def run_out(dest: Path) -> Path | None:
+    """The run's --out for a unit folder execute() made (<out>/unit-NNNN), else None (no sibling rules)."""
+    return Path(dest).parent if UNIT_NAME.match(Path(dest).name) else None
+
+
+def sibling_deny(dest: Path) -> list[str]:
+    """Claude Read/Edit deny rules on the run's own files and the units before this one, for each spelling of --out."""
+    out = run_out(dest)
+    if out is None:
+        return []
+    digits = UNIT_NAME.match(Path(dest).name).group(1)
+    globs = sibling_globs(int(digits), len(digits))
+    rules = set()
+    for o in aliases(out):
+        r = PF._rule_path(o)
+        for t in ("Read", "Edit"):
+            rules |= {f"{t}({r}/{f})" for f in RUN_FILES} | {f"{t}({r}/{g}/**)" for g in globs}
+    return sorted(rules)
 
 
 def short_path(p) -> Path | None:
@@ -224,7 +284,7 @@ def _masks(paths, home, label: str) -> list[tuple[re.Pattern, str]]:
     return sorted(out, key=lambda x: -len(x[0].pattern))       # longest first: a home inside the unit, say
 
 
-def audit_hits(inputs: list[str], u: PF.Unit, homes=(), cwd=None) -> list[str]:
+def audit_hits(inputs: list[str], u: PF.Unit, homes=(), cwd=None, out=None, own=()) -> list[str]:
     """Tool calls a unit must not make:
     - preflight.path_hits on the whole call: a forbidden path in any spelling PF.canon() knows (also once an absolute
       path's `..` parts are resolved);
@@ -232,19 +292,25 @@ def audit_hits(inputs: list[str], u: PF.Unit, homes=(), cwd=None) -> list[str]:
       folder, then run);
     - in its navigation fields only (nav_view: never a Write/Edit body), a relative `..` path or a `cd` that leaves
       the unit's folder from `cwd` (the run's working folder, default the unit's repo; see climbs_out);
-    - there too, a recursive search, or a Grep/Glob call, on a parent folder of a forbidden path.
-    The unit's own folder and its logged-in `homes` (--claude-home, --codex-home) are masked before any pattern is
-    matched, so their names never make a hit (#455); so are the interpreter's folders (running Python is never a hit).
-    preflight already lets this checkout's ccx.py through."""
+    - there too, a recursive search, or a Grep/Glob call, on a parent folder of a forbidden path;
+    - the run's --out (`out`) in any spelling once the unit's own folder is masked (#467): another unit's folder (an
+      on arm's shared-context.md, a mem arm's notes), manifest.json, results.jsonl; `out` and its parents also count
+      as parents of a forbidden path.
+    The unit's own folder, its `own` files elsewhere (a Claude on unit's lead transcript in the logged-in home) and its
+    logged-in `homes` (--claude-home, --codex-home) are masked before any pattern is matched, so their names never
+    make a hit (#455); so are the interpreter's folders (running Python is never a hit). A home holding a forbidden
+    folder is not masked. preflight already lets this checkout's ccx.py through."""
     home = u.real["home"]
     forbidden = PF.forbidden(u)
     work = PF.canon(Path(u.work).absolute().as_posix(), home)
     here = PF.canon(Path(cwd or u.repo).absolute().as_posix(), home)
     py = [p for p in python_paths() if not any(PF._inside(f, p) for f in forbidden)]   # never hide a forbidden one
     homes = [h for h in homes if h and not any(PF._inside(f, h) for f in forbidden)]   # likewise
-    masks = _masks([u.work], home, "<unit>") + _masks(homes, home, "<home>") + _masks(py, home, "<python>")
-    parents = _ancestors(forbidden, home)
-    parent_paths = frozenset(_ancestor_paths(forbidden, home))
+    masks = (_masks([u.work, *own], home, "<unit>") + _masks(homes, home, "<home>") + _masks(py, home, "<python>"))
+    others = _masks([out], home, "<out>") if out is not None else []
+    near = [*forbidden, *([Path(out) / "unit-x"] if out is not None else [])]   # unit-x: out itself is a parent
+    parents = _ancestors(near, home)
+    parent_paths = frozenset(_ancestor_paths(near, home))
     no_flags = dataclasses.replace(u, flags=())
     hits = []
     for s in inputs:
@@ -254,7 +320,7 @@ def audit_hits(inputs: list[str], u: PF.Unit, homes=(), cwd=None) -> list[str]:
         full, nav_m = _with_resolved(PF.canon(s, home)), _with_resolved(nav_c)
         for rx, label in masks:
             full, nav_m = rx.sub(label, full), rx.sub(label, nav_m)
-        bad = bad or bool(PF.path_hits([full], no_flags))
+        bad = bad or bool(PF.path_hits([full], no_flags)) or any(rx.search(full) for rx, _ in others)
         bad = bad or any(re.search(rx, full, re.I) for rx in CONTENT_PATTERNS)
         if not bad and (search_tool or _RECURSIVE.search(nav_m)) and any(a.search(nav_m) for a in parents):
             bad = True
@@ -272,17 +338,17 @@ def _run_cwd(run_dir: Path, u: PF.Unit) -> Path:
     return cwd if str(cwd) not in ("", ".") and PF._inside(cwd, u.work) else u.repo
 
 
-def path_audit(u: PF.Unit, homes=()) -> dict:
+def path_audit(u: PF.Unit, homes=(), out=None, own=()) -> dict:
     """The unit's sub-agent tool calls (every runs/*/events* log ccx kept in its hub, read by preflight.tool_inputs:
-    Claude stream-json and Codex --json) checked by audit_hits from that run's working folder. clean: False on any
-    hit, None when no log was found."""
+    Claude stream-json and Codex --json) checked by audit_hits from that run's working folder (`out`, `own`: as
+    there). clean: False on any hit, None when no log was found."""
     runs = u.hub / "ccx" / "runs"
     files = sorted(runs.glob("*/events*")) if runs.is_dir() else []
     n, hits = 0, []
     for f in files:
         inputs = PF.tool_inputs(f.read_text(encoding="utf-8", errors="replace"))
         n += len(inputs)
-        hits += audit_hits(inputs, u, homes, _run_cwd(f.parent, u))
+        hits += audit_hits(inputs, u, homes, _run_cwd(f.parent, u), out, own)
     return {"logs": len(files), "tool_calls": n, "path_hits": hits[:20], "n_path_hits": len(hits),
             "clean": False if hits else (True if files else None)}
 
@@ -291,16 +357,31 @@ def dirty(row: dict) -> bool:
     return (row.get("path_audit") or {}).get("clean") is False
 
 
-def isolation_plan(tasks_file=None, hide=(), out=None) -> dict:
+def isolation_plan(tasks_file=None, hide=(), out=None, kind=None, agents=()) -> dict:
     """What a dry run prints about isolation (#454): the --hide paths and every path the first unit is denied. Other
-    units differ only in their own folder."""
+    units differ only in their own folder. With `kind` (#467): each arm's answer-level files (answer_files), per
+    agent when they differ, and what each unit is kept from in --out."""
     hidden = isolation_paths(tasks_file, hide)
     dest = (Path(out).resolve() if out else Path(tempfile.gettempdir()) / "strength-<out>") / "unit-0000"
     u = isolation_unit(dest, dest / "hub", hidden)
+    extra = {}
+    if kind is not None:
+        arms = ("off", "on") if kind == "context" else ("nomem", "mem", "hubmem", "hubstart")
+        per = {a: {arm: answer_files(kind, arm, a) for arm in arms} for a in agents or ("codex",)}
+        first = next(iter(per.values()))
+        extra["answer_files"] = first if all(v == first for v in per.values()) else per
+        extra["siblings"] = {
+            "run_files": list(RUN_FILES),
+            "note": "Every unit is kept from the other unit-* folders in --out and from the run files there: a "
+                    "tool call naming --out in any spelling, once the unit's own folder is masked, is a path-audit "
+                    "hit; Claude units also get Read/Edit deny rules on the run files and on the units before "
+                    "theirs (a few unit-NN* globs). Claude units: <claude-home>/projects/"
+                    f"{SYNTHETIC_LEAD_FOLDER} is denied and audited for every unit; an on unit's own transcript "
+                    "there is not a hit"}
     return {"hide": [str(p) for p in hide or ()], "unit": "unit-0000",
             "forbidden_paths": [str(p) for p in PF.forbidden(u)],
             "claude_deny_rules": len(PF.claude_settings(u)["permissions"]["deny"]),
-            "content_patterns": list(CONTENT_PATTERNS),
+            "content_patterns": list(CONTENT_PATTERNS), **extra,
             "note": "Claude units: Read/Edit deny rules on each path (Read rules also cover Grep/Glob, best effort). "
                     "Codex units: workspace-write confines writes only and codex exec has no read deny, so reads are "
                     "audited, not blocked. Every unit's tool calls are audited after the run (forbidden paths in "
@@ -395,8 +476,17 @@ def run_unit(unit: dict, kind: str, dest: Path, budget: float, codex_home: Path 
     task data, #454): deny rules for a Claude unit, and every unit's tool calls are audited (row["path_audit"])."""
     pool = tasks if tasks is not None else (TASKS if kind == "context" else CASES)
     task = next(t for t in pool if t["id"] == unit["task"])
-    iso = isolation_unit(dest, dest / "hub", isolation_paths() if hidden is None else tuple(hidden))
-    deny = PF.claude_settings(iso)["permissions"]["deny"] if unit.get("agent") == "claude" else ()
+    hidden = isolation_paths() if hidden is None else tuple(hidden)
+    if claude_home is not None:
+        # Claude units' lead transcripts share the logged-in home (#467): denied to every unit, masked as no unit's
+        synth = Path(claude_home) / "projects" / SYNTHETIC_LEAD_FOLDER
+        synth.mkdir(parents=True, exist_ok=True)
+        seen = {os.path.normcase(str(p)) for p in hidden}
+        hidden = (*hidden, *(a for a in aliases(synth) if os.path.normcase(str(a)) not in seen))
+    out = run_out(dest)
+    iso = isolation_unit(dest, dest / "hub", hidden)
+    deny = ([*PF.claude_settings(iso)["permissions"]["deny"], *sibling_deny(dest)]
+            if unit.get("agent") == "claude" else ())
     env = unit_env(unit, dest, codex_home, claude_home, fresh, extra_deny=deny)
     repo = make_repo(task, dest / "repo")
     if unit.get("agent") == "codex":
@@ -416,7 +506,7 @@ def run_unit(unit: dict, kind: str, dest: Path, budget: float, codex_home: Path 
             raise RuntimeError("synthetic context/memory setup failed")
         return result.stdout
 
-    brief, payload = task["brief"], ""
+    brief, payload, own = task["brief"], "", ()
     row = {**unit, "ok": None, "usd": 0.0, "rc": None, "native_hook_execution": "Unknown"}
     if unit.get("agent") == "codex":
         row["tmp_policy"] = "codex-workspace-private"
@@ -424,13 +514,20 @@ def run_unit(unit: dict, kind: str, dest: Path, budget: float, codex_home: Path 
     t0 = time.monotonic()
     try:
         if kind == "context":
+            # Only the on arm gets the lead transcript (#467: it is the agreed answer). With --context off ccx never
+            # reads it, so the off arm keeps the same session id and environment, without the file.
+            on = unit["arm"] == "on"
             if unit.get("agent") == "claude":
                 # The shared logged-in home holds every Claude unit's transcript: a unique id per unit
-                sid, transcript = write_lead_transcript(task, claude_home, f"strength-{uuid.uuid4().hex}",
-                                                        SYNTHETIC_LEAD_FOLDER)
-                row["lead_transcript"] = str(transcript)
+                sid = f"strength-{uuid.uuid4().hex}"
+                if on:
+                    _, transcript = write_lead_transcript(task, claude_home, sid, SYNTHETIC_LEAD_FOLDER)
+                    row["lead_transcript"] = str(transcript)
+                    own = (transcript,)
             else:
-                sid, _ = write_lead_transcript(task, dest / "claude-home", "strength-synthetic-lead")
+                sid = "strength-synthetic-lead"
+                if on:
+                    write_lead_transcript(task, dest / "claude-home", sid)
             env.update(CCX_LEAD_SESSION=sid, CCX_LEAD_VIEW="full")
         else:
             # Same distractors in every arm; only the relevant note's delivery changes.
@@ -468,7 +565,7 @@ def run_unit(unit: dict, kind: str, dest: Path, budget: float, codex_home: Path 
         row["usd"] = unit_cost(hub) if started else 0.0
         if started:
             try:
-                row["path_audit"] = path_audit(iso, (claude_home, codex_home))
+                row["path_audit"] = path_audit(iso, (claude_home, codex_home), out, own)
             except OSError as exc:
                 row["path_audit"] = {"clean": None, "error": type(exc).__name__}
         row["wall_s"] = round(time.monotonic() - t0, 4)
