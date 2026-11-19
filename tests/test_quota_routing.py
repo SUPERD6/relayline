@@ -42,6 +42,13 @@ class TestQuotaRouting(Env):
             "type": "event_msg", "payload": {"type": "token_count", "rate_limits": {"primary": {
                 "used_percent": used * 100, "window_minutes": 300, "resets_at": self.reset}}}}) + "\n",
             encoding="utf-8")
+        # "0.16" -> "0.4" is 16.0 -> 40.0 percent: the same size. On a coarse clock (Windows CI, #464) two quick
+        # rewrites can share one mtime, and the cache key is (mtime, size). A real Codex session only grows, so
+        # the key is enough there; the test gives each write its own mtime instead of racing the clock.
+        prev = getattr(self, "_codex_mtime", 0)
+        t = max(time.time(), prev + 5)
+        os.utime(f, (t, t))
+        self._codex_mtime = t
 
     def j(self, *args, env=None, code=0):
         r = self.ccx(*args, env=env)
