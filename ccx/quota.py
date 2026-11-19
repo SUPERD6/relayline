@@ -137,7 +137,8 @@ def codex_readings(days: float = 8, p=None, home: Path | None = None, now: float
                    *, write_cache: bool = True) -> list[dict]:
     """Codex's quota readings, read only from the end of its newest session files (seconds -> milliseconds: a week
     of logs was read whole before, 9.65 of `ccx route`'s 10 s, PR #30). With a hub `p`, each file's readings are
-    kept by (path, mtime, size) in <hub>/ccx/codex-quota-cache.json, so a later call re-reads only changed files."""
+    kept by (path, mtime, size) in <hub>/ccx/codex-quota-cache.json, so a later call re-reads only changed files.
+    The key relies on Codex rollout files being append-only (a new reading always changes the size)."""
     from .config import codex_home
     now = now or time.time()
     root = (home or codex_home()) / "sessions"
