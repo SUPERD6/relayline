@@ -1156,9 +1156,19 @@ def canon(text: str, home: Path) -> str:
     t = re.sub(r"(?i)\$\{?env:userprofile\}?|%userprofile%|%homedrive%%homepath%|\$\{home\}|\$home\b|"
                r"\$\{userprofile\}|\$userprofile\b", lambda _m: h, t)
     t = re.sub(_B + r"~(?=/|$|[\s\"'`;)])", lambda m: m.group(1) + h, t)
+    if os.name == "nt":                                              # a URL's "://" is not a doubled slash
+        t = re.sub(r"(?<=[A-Za-z0-9+.-]{2}):/{2,}", "\0", t)
     t = re.sub(r"/{2,}", "/", t)
     if os.name == "nt":
-        t = re.sub(_B + r"/([A-Za-z])(?=/|$|[\s\"'`;)])", lambda m: f"{m.group(1)}{m.group(2)}:", t)
+        def _drive(m: re.Match) -> str:
+            # "/c/..." is Git Bash's drive form, but not right after an existing drive ("D:/a/x"; a "/" before the
+            # letter makes it a folder name, as in "PATH=/a:/c/x"). It reads the outer `t`, which the re.sub below
+            # is still scanning: do not rebind `t` before that call returns.
+            if m.group(1) == ":" and re.search(r"(?:^|[^A-Za-z0-9/])[A-Za-z]$", t[:m.start(1)]):
+                return m.group(0)
+            return f"{m.group(1)}{m.group(2)}:"
+        t = re.sub(_B + r"/([A-Za-z])(?=/|$|[\s\"'`;)])", _drive, t)
+    t = t.replace("\0", "://")
     return t.lower() if os.name == "nt" else t
 
 
