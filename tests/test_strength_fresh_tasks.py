@@ -180,7 +180,7 @@ def fake_rows(monkeypatch, outcomes):
     """run_unit replaced: each unit's row comes from `outcomes` in order (no CLI is started)."""
     seen = []
 
-    def fake(unit, kind, dest, budget, codex_home=None, claude_home=None, tasks=None, fresh=False):
+    def fake(unit, kind, dest, budget, codex_home=None, claude_home=None, tasks=None, fresh=False, **_):
         row = {**unit, "ok": False, "usd": 0.01, **outcomes[len(seen)]}
         seen.append(unit)
         return row

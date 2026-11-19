@@ -37,6 +37,40 @@ AGENTS.md/rules/plugins）。不给时，有 Codex 单元的运行在第一个�
 每次调用传入 `--budget`，串行单元预留由 `--unit-budget` 控制（默认 $0.05），关闭升档、
 回退、子智能体和审查。要作受控模型比较，必须先预登记隔离 home 的提供方设置和计价。
 
+**单元里的 agent 不能打开什么（#454）。** 每个单元都禁读：本人的各个 home、hub 和配置（同 `p4_long_session.py`，
+即 preflight 的 `forbidden()`）、运行所在的检出及其 git worktree、该检出的 `scripts/eval/`（题目生成器和隐藏测试，
+如 `round2_a/`）和 `docs/research/data/`（冻结的题目文件，如 `round2-tasks/`）、`--tasks` 文件本身，以及每个
+`--hide PATH`（可重复，例如正式运行用独立 clone 时的日常开发检出；按启动目录转成绝对路径并去重，git 检出会把它的
+其他 git worktree 一起加进来，不存在的路径或包含运行单元所用 Python 的路径会被拒绝）。这是默认行为，不带 `--tasks`
+也生效：#454 之前单元能读到上面全部内容。每个路径按已知的所有写法列入：原样（保留 junction 或符号链接）、resolve
+之后，以及 Windows 上的 8.3 短名。**评测目录放哪：**`--out` 必须在 clone 之外、日常检出（任何 `--hide` 路径）之外、
+本人的 home/hub/配置之外，否则拒绝；`--out`、`--claude-home`、`--codex-home` 的路径里也不能带下面的内容模式字样，
+否则同样拒绝。Claude 单元对每个路径有 Read/Edit 拒绝规则（Claude Code 2.1.316 文档：Read 规则也尽力作用于
+Grep 和 Glob，Edit 规则作用于所有改文件的工具）。Codex 单元无法限制读取：`workspace-write` 只限制写，`codex exec`
+（codex-cli 0.164.0 `--help`）没有禁读选项，所以只能审计、不能拦截。每个单元结束后审计它 ccx 日志里的全部工具调用
+（行里的 `path_audit`）。先屏蔽单元自己的目录、登录用的 home 和 Python 解释器的目录（包含禁读路径的不屏蔽），所以处理自己的文件、运行 Python
+（以及本检出的 `ccx.py`）都不算命中。命中包括：工具调用任何位置出现 preflight `path_hits` 认识的任何写法的禁读路径
+（绝对路径里的 `..` 解析后再比一次）；工具调用任何位置（包括 Write/Edit 写入的正文，防"先写脚本再执行"）出现与路径
+写法无关的内容模式（`round2_a`、`round2_bc`、`round2-tasks`、`round2~N`、`l5_memory`、`shared_context_ab`，能抓到
+`cd ../.. && cat scripts/eval/round2_a/x.py` 这类相对读法）。只在导航字段里看（命令、文件路径、Grep/Glob 的 path 或
+pattern，不看写入的正文，所以代码里写 `tree` 或 `../..` 不算命中）：任何命令里以 `..` 或 `./..` 开头的相对路径落到
+单元目录之外，按这次运行的工作目录判断（run.json 的 `cwd`：repo，或 ccx worktree `<unit>/.ccx-worktrees/repo/<run id>`，
+从那里 `cd ../../..` 仍在单元内）；`cd`/`pushd`/`Push-Location`/`Set-Location`（跳过 cmd 的 `/d`）不带参数、到 `~`、
+或到单元外某个包含禁读路径的上级目录；解析不了的 `cd` 目标（变量、子 shell）只要带 `..`（cd 只在命令开头的位置才算，`echo cd` 不算；`cd ~`、`cd $HOME`、
+`cd %USERPROFILE%` 会命中，因为它们到达 home，而 home 是禁读路径的上级目录；`cd "$CODEX_HOME"` 这类其他变量不展开，
+只有带 `..` 才算命中）；对禁读路径的上级目录做递归
+搜索（`rg`、`grep -r`、`Get-ChildItem -Recurse` 等）或 Grep/Glob。命中时该行记为无效（`--on-invalid continue`）或停止
+整组（默认）。dry-run 带 `--tasks` 或 `--hide` 时输出 `isolation` 字段：`--hide` 路径、第一个单元实际禁读的全部路径和
+内容模式。
+
+**几层保护的关系。**真正的保护是 Claude 的 deny 规则，加上正式运行用独立 clone、并把本机每份其他检出都传给 `--hide`；
+审计只是尽力而为的兜底，用来事后发现漏过去的读取，主要针对读取拦不住的 Codex 单元。审计看不全所有写法，之后发现的绕过
+写进这里的局限，不再一轮轮补。已知抓不到的：短名和长名混写的路径；从文件系统根目录搜索；先在一次工具调用里 `cd` 到单元
+外一个本身不含禁读路径的目录，再在后续调用里用相对路径读（每次调用都按运行工作目录判断）；Write/Edit 写出的代码不提
+内容模式字样就够到禁读目录（只检查运行它的命令）；运行时拼出来的路径（变量、字符串拼接、读环境变量）；preflight
+`tool_inputs` 解析不了的 DSH 日志格式。Codex 的读取只能事后发现。第一次真跑 Codex 单元时，要看 `path_audit` 里有没有
+`cd ~` 这类没读任何东西的误报。
+
 `results.jsonl` 保留隐藏测试失败、运行失败和中断。花费未知时保留全部单元预留并停止，不当作零；
 总预算耗尽、单次超预留、中断，或 ccx 回执 `status: "error"`（如 `kind: auth`）时也不再启动下一单元；
 `unified_summary.py` 把这种行算作无效（Unknown），不算任务失败。已发请求可能超出 token 监控预算，因此不是账单保证。

@@ -119,6 +119,11 @@ if "[ccx review" in prompt:   # F1 reviewer: FAKE_REVIEW="issues,pass" = the ans
     res.update(status="done", summary=f"REVIEW: {v}",
                open_questions=[os.environ.get("FAKE_REVIEW_MUST") or "[must] a.py:3 — off by one in the loop"]
                if v == "issues" else [])
+if stream and os.environ.get("FAKE_TOOL_INPUT"):
+    # FAKE_TOOL_INPUT: {"name": ..., "input": {...}} JSON, one tool call as stream-json reports it (assistant tool_use)
+    call = json.loads(os.environ["FAKE_TOOL_INPUT"])
+    print(json.dumps({"type": "assistant", "session_id": sid, "message": {"id": "msg_tool", "content": [
+        {"type": "tool_use", "id": "toolu_fake", "name": call.get("name", "Read"), "input": call.get("input", {})}]}}))
 denials = [{"tool_name": "Bash", "tool_use_id": f"t{i}", "tool_input": {"command": "cat a.py"}}
            for i in range(int(os.environ.get("FAKE_DENIALS") or 0))]     # FAKE_DENIALS: tool calls refused
 print(json.dumps({"type": "result", "subtype": "success", "is_error": False, "session_id": sid,
