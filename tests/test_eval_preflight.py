@@ -1575,6 +1575,8 @@ def test_canon_drive_and_git_bash_spellings_agree(tmp_path):
     assert c("a:/c/x") == "a:/c/x"                                   # after an existing drive: not a second drive
     assert c("cat D:/a/x /d/a/y && ls /c/q") == "cat d:/a/x d:/a/y && ls c:/q"
     assert c("PATH=/usr/bin:/c/x") == "path=/usr/bin:c:/x"          # a list separator is still a boundary
+    assert c("PATH=/a:/c/x") == "path=/a:c:/x"                      # "/a" is a folder, not a drive
+    assert c("file:///c/x") == "file://c/x"                         # known, left as is: a URL's "//" is kept
 
 
 @pytest.mark.skipif(not NT, reason="Git Bash's /c/... drive form only exists on Windows")
