@@ -241,7 +241,7 @@ def test_compiled_repository_is_excluded(monkeypatch):
     assert out["exclusions"] == [{"repo": "r", "reason": "not pure Python: src/speed.c"}]
 
 
-def _authored(root, reference_mul="a * b"):
+def _authored(root, reference_mul="a * b", reference_add="a + b"):
     (root / "start/tests").mkdir(parents=True)
     (root / "start/calc.py").write_text("def add(a, b):\n    return a + b\n", encoding="utf-8")
     (root / "start/tests/test_calc.py").write_text("from calc import add\n\ndef test_add():\n    assert add(1, 2) == 3\n",
@@ -249,7 +249,7 @@ def _authored(root, reference_mul="a * b"):
     (root / "reference").mkdir()
     import shutil
     shutil.copytree(root / "start/tests", root / "reference/tests")
-    (root / "reference/calc.py").write_text(f"def add(a, b):\n    return a + b\n\ndef mul(a, b):\n    return {reference_mul}\n",
+    (root / "reference/calc.py").write_text(f"def add(a, b):\n    return {reference_add}\n\ndef mul(a, b):\n    return {reference_mul}\n",
                                             encoding="utf-8")
     (root / "hidden/tests").mkdir(parents=True)
     (root / "hidden/tests/test_hidden.py").write_text(
@@ -268,6 +268,30 @@ def test_authored_task_valid_and_broken_reference_flagged(tmp_path):
     bad = R.check_authored(_authored(tmp_path / "bad", "a + b"), sys.executable)
     assert not bad["valid"]
     assert any(p.startswith("reference fails hidden tests") for p in bad["problems"])
+
+
+def test_authored_reference_must_keep_existing_tests(tmp_path):
+    """#452: a reference that passes the hidden tests but breaks an existing test is invalid, and the failing test is named."""
+    good = R.check_authored(_authored(tmp_path / "good"), sys.executable)
+    assert good["valid"] and good["reference_full"]["rc"] == 0 and good["reference_failed"] == []
+    bad = R.check_authored(_authored(tmp_path / "bad", reference_add="a - b"), sys.executable)
+    assert bad["reference"]["rc"] == 0  # the old check (hidden tests only) would have passed it
+    assert not bad["valid"]
+    assert any(p.startswith("reference breaks existing or hidden tests") and "test_add" in p for p in bad["problems"])
+    assert any("test_add" in n for n in bad["reference_failed"])
+
+
+def test_authored_hidden_version_replaces_same_named_existing_test(tmp_path):
+    """The hidden copy of a same-named existing file wins, so an old assertion the task changes does not fail the reference."""
+    root = _authored(tmp_path / "t", reference_add="a + b + 1")
+    (root / "hidden/tests/test_calc.py").write_text(
+        "from calc import add\n\ndef test_add():\n    assert add(1, 2) == 4\n", encoding="utf-8")
+    cfg = json.loads((root / "task.json").read_text(encoding="utf-8"))
+    cfg["hidden_tests"] = ["tests/test_calc.py", "tests/test_hidden.py"]
+    cfg["trace"] = []
+    (root / "task.json").write_text(json.dumps(cfg), encoding="utf-8")
+    out = R.check_authored(root, sys.executable)
+    assert out["reference_full"]["rc"] == 0 and out["reference_failed"] == []
 
 
 def test_brief_literal_overlap_and_trace_coverage():
@@ -928,7 +952,7 @@ def test_authored_check_runs_with_utf8(tmp_path):
     run = lambda tree, tests, python: seen.append(R.LE.environment(tree, sys.executable, tree / "t").get("PYTHONUTF8")) \
         or {"rc": 0}
     out = R.check_authored(root, "py", run)
-    assert seen == ["1", "1", "1"] and out["pythonutf8"] is True and R.LE.UTF8_MODE is False
+    assert seen == ["1", "1", "1", "1"] and out["pythonutf8"] is True and R.LE.UTF8_MODE is False
 
 
 def test_select_records_stubs_and_utf8(monkeypatch):
