@@ -349,7 +349,7 @@ def test_one_letter_folder_after_a_drive(tmp_path):
     dev = Path("D:/a/x454-relayline")                   # need not exist: only its spelling matters here
     dest = tmp_path / "u"
     u = runner.isolation_unit(dest, dest / "hub", runner.isolation_paths(hide=[dev]))
-    assert runner.canon("D:/a/x454-relayline", Path.home()) == "d:/a/x454-relayline"
+    assert runner.PF.canon("D:/a/x454-relayline", Path.home()) == "d:/a/x454-relayline"
     for call in ("cd D:/a && cat x454-relayline/README.md", "cat D:/a/zzz/../x454-relayline/ccx/cli.py",
                  "cat /d/a/x454-relayline/README.md", "type D:\\a\\x454-relayline\\README.md"):
         assert runner.audit_hits([json.dumps(call)], u), call

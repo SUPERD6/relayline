@@ -73,17 +73,6 @@ NAV_KEYS = {"command", "cmd", "file_path", "path", "paths", "pattern", "glob", "
             "arguments"}
 
 
-_DRIVE_MANGLED = re.compile(r"(?<![a-z0-9_])([a-z]):([a-z]):(?=/|$|[\s\"'`;)|,&<>])", re.I)
-
-
-def canon(text, home) -> str:
-    """preflight.canon, with one fix: on Windows it reads a one-letter folder right after a drive as a Git Bash drive
-    (`D:/a/relayline` -> `d:a:/relayline`, the CI layout), while `/d/a/relayline` gives `d:/a/relayline`. Undone here
-    so both spellings agree and the path still looks absolute. preflight.path_hits canons again on its own, the same
-    way on both sides of its comparison."""
-    return _DRIVE_MANGLED.sub(lambda m: f"{m.group(1)}:/{m.group(2)}", PF.canon(text, home))
-
-
 def short_path(p) -> Path | None:
     """Windows: the 8.3 short spelling of an existing path (None elsewhere, or when it cannot be read). A volume with
     8.3 names turned off gives back the long name."""
@@ -142,7 +131,7 @@ def _ancestor_paths(paths, home) -> list[str]:
     """Each forbidden path's parent folders, canonical (not a drive or the file-system root)."""
     out: list[str] = []
     for p in paths:
-        for a in PurePosixPath(canon(Path(p).as_posix(), home)).parents:
+        for a in PurePosixPath(PF.canon(Path(p).as_posix(), home)).parents:
             s = str(a).rstrip("/")
             if len([x for x in s.split("/") if x]) >= 2 and s not in out:
                 out.append(s)
@@ -158,7 +147,7 @@ def content_hit(p) -> str | None:
     """The content pattern a path's own spelling matches (an --out, --claude-home or --codex-home named so would make
     every tool call on the unit's own files look like a read of the task folder), or None."""
     for q in aliases(p) if Path(p).exists() else [Path(p).expanduser().absolute()]:
-        t = canon(q.as_posix(), Path.home())
+        t = PF.canon(q.as_posix(), Path.home())
         for rx in CONTENT_PATTERNS:
             if re.search(rx, t, re.I):
                 return rx
@@ -231,13 +220,13 @@ def _masks(paths, home, label: str) -> list[tuple[re.Pattern, str]]:
     out = []
     for p in paths:
         for q in aliases(p):
-            out.append((re.compile(re.escape(canon(q.as_posix(), home)) + r"(?=/|$|[\s\"'`;)|,&<>])"), label))
+            out.append((re.compile(re.escape(PF.canon(q.as_posix(), home)) + r"(?=/|$|[\s\"'`;)|,&<>])"), label))
     return sorted(out, key=lambda x: -len(x[0].pattern))       # longest first: a home inside the unit, say
 
 
 def audit_hits(inputs: list[str], u: PF.Unit, homes=(), cwd=None) -> list[str]:
     """Tool calls a unit must not make:
-    - preflight.path_hits on the whole call: a forbidden path in any spelling canon() knows (also once an absolute
+    - preflight.path_hits on the whole call: a forbidden path in any spelling PF.canon() knows (also once an absolute
       path's `..` parts are resolved);
     - a content pattern (CONTENT_PATTERNS) anywhere, a Write/Edit body included (a script written to read the task
       folder, then run);
@@ -249,8 +238,8 @@ def audit_hits(inputs: list[str], u: PF.Unit, homes=(), cwd=None) -> list[str]:
     preflight already lets this checkout's ccx.py through."""
     home = u.real["home"]
     forbidden = PF.forbidden(u)
-    work = canon(Path(u.work).absolute().as_posix(), home)
-    here = canon(Path(cwd or u.repo).absolute().as_posix(), home)
+    work = PF.canon(Path(u.work).absolute().as_posix(), home)
+    here = PF.canon(Path(cwd or u.repo).absolute().as_posix(), home)
     py = [p for p in python_paths() if not any(PF._inside(f, p) for f in forbidden)]   # never hide a forbidden one
     homes = [h for h in homes if h and not any(PF._inside(f, h) for f in forbidden)]   # likewise
     masks = _masks([u.work], home, "<unit>") + _masks(homes, home, "<home>") + _masks(py, home, "<python>")
@@ -260,9 +249,9 @@ def audit_hits(inputs: list[str], u: PF.Unit, homes=(), cwd=None) -> list[str]:
     hits = []
     for s in inputs:
         nav, search_tool = nav_view(s)
-        nav_c = canon(nav, home)
+        nav_c = PF.canon(nav, home)
         bad = climbs_out(nav_c, here, work, parent_paths)
-        full, nav_m = _with_resolved(canon(s, home)), _with_resolved(nav_c)
+        full, nav_m = _with_resolved(PF.canon(s, home)), _with_resolved(nav_c)
         for rx, label in masks:
             full, nav_m = rx.sub(label, full), rx.sub(label, nav_m)
         bad = bad or bool(PF.path_hits([full], no_flags))
