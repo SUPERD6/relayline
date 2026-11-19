@@ -349,10 +349,22 @@ def test_one_letter_folder_after_a_drive(tmp_path):
     dev = Path("D:/a/x454-relayline")                   # need not exist: only its spelling matters here
     dest = tmp_path / "u"
     u = runner.isolation_unit(dest, dest / "hub", runner.isolation_paths(hide=[dev]))
-    assert runner.canon("D:/a/x454-relayline", Path.home()) == "d:/a/x454-relayline"
+    assert runner.PF.canon("D:/a/x454-relayline", Path.home()) == "d:/a/x454-relayline"
     for call in ("cd D:/a && cat x454-relayline/README.md", "cat D:/a/zzz/../x454-relayline/ccx/cli.py",
                  "cat /d/a/x454-relayline/README.md", "type D:\\a\\x454-relayline\\README.md"):
         assert runner.audit_hits([json.dumps(call)], u), call
+
+
+@pytest.mark.skipif(os.name != "nt", reason="a drive letter followed by a one-letter folder is a Windows path")
+def test_literal_drive_colon_letter_colon_is_not_rewritten(tmp_path):
+    """#461: the old strength_runner wrapper rewrote the literal text `d:a:/x` into `d:/a/x`, so `cat d:a:/...` counted
+    as a hit. `d:a:/` is not a spelling Windows or Git Bash can open D:/a with, so the wrapper was dropped on purpose
+    and the text stays as it is (it is not read as the hidden path)."""
+    dev = Path("D:/a/x461-relayline")
+    dest = tmp_path / "u"
+    u = runner.isolation_unit(dest, dest / "hub", runner.isolation_paths(hide=[dev]))
+    assert runner.PF.canon("d:a:/x461-relayline", Path.home()) == "d:a:/x461-relayline"
+    assert not runner.audit_hits([json.dumps("cat d:a:/x461-relayline/README.md")], u)
 
 
 def test_hide_brings_the_checkouts_other_worktrees(tmp_path):
