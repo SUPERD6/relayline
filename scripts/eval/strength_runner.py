@@ -78,11 +78,16 @@ RUN_FILES = ("manifest.json", "results.jsonl", "report.json")
 # (CODEX_SQLITE_HOME is the same home). Claude (Claude Code 2.1.316): projects/<cwd slug>/ sessions and tool results,
 # file backups, todos, shell snapshots... Entries a CLI reads to start (auth.json, config.toml, .credentials.json) are
 # not records. A unit's own parts are not hits: its Claude project folders and its own Codex rollouts.
-CODEX_RECORDS = ("sessions", "archived_sessions", "history.jsonl", "memories", "memories_v2", "log",
-                 "shell_snapshots")
+CODEX_RECORDS = ("sessions", "archived_sessions", "history.jsonl", "session_index.jsonl", "memories", "memories_v2",
+                 "log", "shell_snapshots")
 CLAUDE_RECORDS = ("projects", "history.jsonl", "todos", "file-history", "sessions", "session-env", "shell-snapshots",
                   "plans", "backups", "debug")
 _SQLITE = r"[\w.-]+\.sqlite(?:-wal|-shm|-journal)?"
+# The audit's rule is wider than these lists: any spelling inside a shared home is a hit (a glob, `ls <home>`, a new
+# folder), except the unit's own parts and the files a CLI reads to start (HOME_START_FILES).
+HOME_START_FILES = ("auth.json", "config.toml", ".credentials.json")
+HOME_VARS = ("CODEX_HOME", "CODEX_SQLITE_HOME", "CLAUDE_CONFIG_DIR")   # set in every unit (unit_env)
+CLAUDE_SLUG_MAX = 200    # Claude Code cuts a longer project folder name and appends a hash (#472 review; not re-checked)
 SETTINGS_MAX_CHARS = 30000    # a Claude unit's --settings JSON; the Windows command line ends at 32767 (#467)
 UNIT_NAME = re.compile(r"^unit-(\d+)$")       # execute() lays units out as <out>/unit-NNNN
 
@@ -130,18 +135,40 @@ def own_project_masks(u: PF.Unit, claude_home, home) -> list[tuple[re.Pattern, s
     for h in aliases(claude_home):
         proj = PF.canon((h / "projects").as_posix(), home) + "/"
         for spelled in {*(PF.slug(r) for r in aliases(u.repo)), *(PF.slug(w) + "-" for w in aliases(u.worktrees))}:
+            if len(spelled) > CLAUDE_SLUG_MAX:
+                # cut and hashed by Claude Code: matched by the kept prefix (another unit's would differ before it)
+                spelled = spelled[:CLAUDE_SLUG_MAX] + "-"
             tail = r"[^/\s\"'`;)|,&<>]*" if spelled.endswith("-") else ""
             out.append((re.compile(re.escape(proj + PF.canon(spelled, home)) + tail + r"(?=/|$|[\s\"'`;)|,&<>])"),
                         "<unit>"))
     return out
 
 
-def record_patterns(homes, home) -> list[re.Pattern]:
-    """Any part of a shared home's session records (#470), in each spelling of the home and as masked (<home>)."""
-    names = "|".join(re.escape(n) for n in sorted({*CODEX_RECORDS, *CLAUDE_RECORDS}, key=len, reverse=True))
+def home_patterns(homes, home) -> list[re.Pattern]:
+    """Any spelling inside a shared home (#470, widened in review): each spelling of the home and as masked (<home>),
+    alone or followed by anything but one of HOME_START_FILES. Applied after the unit's own parts are masked."""
+    if not homes:
+        return []
+    start = "|".join(re.escape(f) for f in HOME_START_FILES)
+    end = r"(?=$|[\s\"'`;)|,&<>])"
     roots = {re.escape(PF.canon(a.as_posix(), home)) for h in homes for a in aliases(h)} | {re.escape("<home>")}
-    return [re.compile(r + r"/(?:" + names + "|" + _SQLITE + r")(?=/|$|[\s\"'`;)|,&<>])", re.I)
-            for r in sorted(roots, key=len, reverse=True)] if homes else []
+    return [re.compile(r + r"(?!/(?:" + start + r")" + end + r")(?=/|" + end[3:], re.I)
+            for r in sorted(roots, key=len, reverse=True)]
+
+
+def expand_home_vars(t: str, env_homes, home) -> str:
+    """Canonical text with $X, ${X}, $env:X and %X% of the units' home variables (HOME_VARS) replaced by the path, and
+    a Python os.environ['X'] / os.getenv('X') by the same: preflight.canon expands only the person's own home."""
+    for var, path in (env_homes or {}).items():
+        if not path:
+            continue
+        v = re.escape(var.lower())
+        c = PF.canon(Path(path).absolute().as_posix(), home)
+        t = re.sub(r"\$\{" + v + r"\}|\$env:" + v + r"(?![\w])|%" + v + r"%|\$" + v + r"(?![\w])", lambda _m: c, t,
+                   flags=re.I)
+        t = re.sub(r"(?:environ(?:\.get)?\s*[\[(]|getenv\s*\()\s*['\"]" + v + r"['\"]\s*[\])]?", lambda _m: c, t,
+                   flags=re.I)
+    return t
 
 
 def own_sessions(hub: Path, codex_home) -> list[Path]:
@@ -181,8 +208,9 @@ def record_deny(claude_home, dest: Path) -> list[str]:
                 *(f"{n}/**" if "." not in n else n for n in CLAUDE_RECORDS if n != "projects")]
         if out is not None:
             # unit-0011 -> unit-0011-* (its repo, its worktrees); unit-001* already covers the rest of the name
+            # the folder Claude names after the cwd ccx gives it (the absolute or resolved path, never an 8.3 one)
             pats += [f"projects/{s}-{g if g.endswith('*') else g + '-*'}/**"
-                     for s in {PF.slug(o) for o in aliases(out)} for g in globs]
+                     for s in {PF.slug(Path(out).absolute()), PF.slug(Path(out).resolve())} for g in globs]
         rules |= {f"Read({r}/{x})" for x in pats}     # Read only: editing them leaks nothing; keeps the line short
     return sorted(rules)
 
@@ -193,7 +221,7 @@ def run_out(dest: Path) -> Path | None:
 
 
 def sibling_deny(dest: Path) -> list[str]:
-    """Claude Read/Edit deny rules on the run's own files and the units before this one, for each spelling of --out."""
+    """Claude Read deny rules on the run's own files and the units before this one, for each spelling of --out."""
     out = run_out(dest)
     if out is None:
         return []
@@ -202,8 +230,8 @@ def sibling_deny(dest: Path) -> list[str]:
     rules = set()
     for o in aliases(out):
         r = PF._rule_path(o)
-        for t in ("Read", "Edit"):
-            rules |= {f"{t}({r}/{f})" for f in RUN_FILES} | {f"{t}({r}/{g}/**)" for g in globs}
+        # Read only (#472 review): writing there reveals nothing, and the settings travel on the command line
+        rules |= {f"Read({r}/{f})" for f in RUN_FILES} | {f"Read({r}/{g}/**)" for g in globs}
     return sorted(rules)
 
 
@@ -358,7 +386,7 @@ def _masks(paths, home, label: str) -> list[tuple[re.Pattern, str]]:
     return sorted(out, key=lambda x: -len(x[0].pattern))       # longest first: a home inside the unit, say
 
 
-def audit_hits(inputs: list[str], u: PF.Unit, homes=(), cwd=None, out=None, own=()) -> list[str]:
+def audit_hits(inputs: list[str], u: PF.Unit, homes=(), cwd=None, out=None, own=(), env_homes=None) -> list[str]:
     """Tool calls a unit must not make:
     - preflight.path_hits on the whole call: a forbidden path in any spelling PF.canon() knows (also once an absolute
       path's `..` parts are resolved);
@@ -369,7 +397,10 @@ def audit_hits(inputs: list[str], u: PF.Unit, homes=(), cwd=None, out=None, own=
     - there too, a recursive search, or a Grep/Glob call, on a parent folder of a forbidden path;
     - the run's --out (`out`) in any spelling once the unit's own folder is masked (#467): another unit's folder (an
       on arm's shared-context.md, a mem arm's notes), manifest.json, results.jsonl; `out` and its parents also count
-      as parents of a forbidden path.
+      as parents of a forbidden path;
+    - any spelling left inside a shared logged-in home in `homes` (#470: other units' session records, a glob, the
+      home itself) once the unit's own parts are masked, except HOME_START_FILES; `env_homes` ({variable: path} of
+      HOME_VARS) expands $X, ${X}, $env:X, %X% and os.environ['X'] first.
     The unit's own folder, its `own` files elsewhere (a Claude on unit's lead transcript in the logged-in home) and its
     logged-in `homes` (--claude-home, --codex-home) are masked before any pattern is matched, so their names never
     make a hit (#455); so are the interpreter's folders (running Python is never a hit). A home holding a forbidden
@@ -384,7 +415,7 @@ def audit_hits(inputs: list[str], u: PF.Unit, homes=(), cwd=None, out=None, own=
     own_proj = [m for h in shared for m in own_project_masks(u, h, home)]
     masks = (own_proj + _masks([u.work, *own], home, "<unit>") + _masks(homes, home, "<home>")
              + _masks(py, home, "<python>"))
-    records = record_patterns(shared, home)
+    records = home_patterns(shared, home)
     others = _masks([out], home, "<out>") if out is not None else []
     # unit-x: out itself is a parent; every spelling of out (a junction given and its target)
     near = [*forbidden, *([a / "unit-x" for a in aliases(out)] if out is not None else []),
@@ -395,9 +426,9 @@ def audit_hits(inputs: list[str], u: PF.Unit, homes=(), cwd=None, out=None, own=
     hits = []
     for s in inputs:
         nav, search_tool = nav_view(s)
-        nav_c = PF.canon(nav, home)
+        nav_c = expand_home_vars(PF.canon(nav, home), env_homes, home)
         bad = climbs_out(nav_c, here, work, parent_paths)
-        full, nav_m = _with_resolved(PF.canon(s, home)), _with_resolved(nav_c)
+        full, nav_m = _with_resolved(expand_home_vars(PF.canon(s, home), env_homes, home)), _with_resolved(nav_c)
         for rx, label in masks:
             full, nav_m = rx.sub(label, full), rx.sub(label, nav_m)
         bad = bad or bool(PF.path_hits([full], no_flags)) or any(rx.search(full) for rx, _ in others)
@@ -419,7 +450,7 @@ def _run_cwd(run_dir: Path, u: PF.Unit) -> Path:
     return cwd if str(cwd) not in ("", ".") and PF._inside(cwd, u.work) else u.repo
 
 
-def path_audit(u: PF.Unit, homes=(), out=None, own=()) -> dict:
+def path_audit(u: PF.Unit, homes=(), out=None, own=(), env_homes=None) -> dict:
     """The unit's sub-agent tool calls (every runs/*/events* log ccx kept in its hub, read by preflight.tool_inputs:
     Claude stream-json and Codex --json) checked by audit_hits from that run's working folder (`out`, `own`: as
     there). clean: False on any hit, None when no log was found."""
@@ -429,7 +460,7 @@ def path_audit(u: PF.Unit, homes=(), out=None, own=()) -> dict:
     for f in files:
         inputs = PF.tool_inputs(f.read_text(encoding="utf-8", errors="replace"))
         n += len(inputs)
-        hits += audit_hits(inputs, u, homes, _run_cwd(f.parent, u), out, own)
+        hits += audit_hits(inputs, u, homes, _run_cwd(f.parent, u), out, own, env_homes)
     return {"logs": len(files), "tool_calls": n, "path_hits": hits[:20], "n_path_hits": len(hits),
             "clean": False if hits else (True if files else None)}
 
@@ -505,6 +536,38 @@ def needs_claude_home(units) -> bool:
     return any(u.get("agent") == "claude" for u in units)
 
 
+def claude_settings_json(env: dict, extra_deny=()) -> str:
+    """A Claude unit's CCX_CLAUDE_SETTINGS: merged into settings the caller's environment may already give (e.g. deny
+    rules), never replacing them, plus no web tools and `extra_deny`."""
+    raw = env.get("CCX_CLAUDE_SETTINGS", "").strip()
+    given = json.loads(raw if raw.startswith("{") else Path(raw).read_text(encoding="utf-8")) if raw else {}
+    perms = dict(given.get("permissions") or {})
+    perms["deny"] = sorted(set(perms.get("deny") or []) | set(CLAUDE_NO_WEB["permissions"]["deny"]) | set(extra_deny))
+    return json.dumps({**given, "permissions": perms})
+
+
+def unit_hidden(hidden, claude_home) -> tuple:
+    """The unit's hidden paths: `hidden` plus, with a Claude home, the shared lead-transcript folder in it (#467)."""
+    if claude_home is None:
+        return tuple(hidden)
+    synth = Path(claude_home) / "projects" / SYNTHETIC_LEAD_FOLDER
+    seen = {os.path.normcase(str(p)) for p in hidden}
+    return (*hidden, *(a for a in aliases(synth) if os.path.normcase(str(a)) not in seen))
+
+
+def claude_deny(dest: Path, claude_home, hidden) -> list[str]:
+    """A Claude unit's isolation deny rules: preflight's (forbidden paths), --out's (#467) and the home's records (#470)."""
+    iso = isolation_unit(dest, dest / "hub", hidden)
+    return [*PF.claude_settings(iso)["permissions"]["deny"], *sibling_deny(dest), *record_deny(claude_home, dest)]
+
+
+def last_unit_settings_chars(out: Path, n_units: int, claude_home, hidden) -> int:
+    """The --settings length of the run's last unit (the most earlier units to deny), from the real --out and home
+    spellings: checked before a run starts, so an overflow never stops it half-way (#472 review)."""
+    dest = Path(out) / f"unit-{max(n_units - 1, 0):04d}"
+    return len(claude_settings_json(lead_env(), claude_deny(dest, claude_home, unit_hidden(hidden, claude_home))))
+
+
 def unit_env(unit: dict, dest: Path, codex_home: Path | None, claude_home: Path | None = None,
              fresh: bool = False, extra_deny=()) -> dict:
     """The unit's environment and its own folders. Everything stays in `dest` except the logged-in homes a unit's own
@@ -524,13 +587,7 @@ def unit_env(unit: dict, dest: Path, codex_home: Path | None, claude_home: Path 
                     DSH_HOME=str(dest / "dsh-home"), CCX_NO_AUTO_ARCHIVE="1",
                     CCX_CLAUDE_NO_SKILLS="1", CCX_CLAUDE_SETTING_SOURCES="project,local")
     if agent == "claude":
-        # Merged into settings the caller's environment may already give (e.g. deny rules), never replacing them
-        raw = isolated.get("CCX_CLAUDE_SETTINGS", "").strip()
-        given = json.loads(raw if raw.startswith("{") else Path(raw).read_text(encoding="utf-8")) if raw else {}
-        perms = dict(given.get("permissions") or {})
-        perms["deny"] = sorted(set(perms.get("deny") or []) | set(CLAUDE_NO_WEB["permissions"]["deny"])
-                               | set(extra_deny))
-        isolated["CCX_CLAUDE_SETTINGS"] = json.dumps({**given, "permissions": perms})
+        isolated["CCX_CLAUDE_SETTINGS"] = claude_settings_json(isolated, extra_deny)
     env = check_env(dest, isolated)
     for name in ("codex-home", "claude-home", "dsh-home"):
         (dest / name).mkdir(parents=True, exist_ok=True)
@@ -569,14 +626,11 @@ def run_unit(unit: dict, kind: str, dest: Path, budget: float, codex_home: Path 
     hidden = isolation_paths() if hidden is None else tuple(hidden)
     if claude_home is not None:
         # Claude units' lead transcripts share the logged-in home (#467): denied to every unit, masked as no unit's
-        synth = Path(claude_home) / "projects" / SYNTHETIC_LEAD_FOLDER
-        synth.mkdir(parents=True, exist_ok=True)
-        seen = {os.path.normcase(str(p)) for p in hidden}
-        hidden = (*hidden, *(a for a in aliases(synth) if os.path.normcase(str(a)) not in seen))
+        (Path(claude_home) / "projects" / SYNTHETIC_LEAD_FOLDER).mkdir(parents=True, exist_ok=True)
+    hidden = unit_hidden(hidden, claude_home)
     out = run_out(dest)
     iso = isolation_unit(dest, dest / "hub", hidden)
-    deny = ([*PF.claude_settings(iso)["permissions"]["deny"], *sibling_deny(dest), *record_deny(claude_home, dest)]
-            if unit.get("agent") == "claude" else ())
+    deny = claude_deny(dest, claude_home, hidden) if unit.get("agent") == "claude" else ()
     env = unit_env(unit, dest, codex_home, claude_home, fresh, extra_deny=deny)
     size = len(env.get("CCX_CLAUDE_SETTINGS", "")) if unit.get("agent") == "claude" else 0
     if size > SETTINGS_MAX_CHARS:
@@ -661,7 +715,8 @@ def run_unit(unit: dict, kind: str, dest: Path, budget: float, codex_home: Path 
         if started:
             try:
                 own = (*own, *own_sessions(hub, codex_home))      # its own Codex rollouts are not hits (#470)
-                row["path_audit"] = path_audit(iso, (claude_home, codex_home), out, own)
+                homes_env = {k: env.get(k) for k in HOME_VARS}
+                row["path_audit"] = path_audit(iso, (claude_home, codex_home), out, own, homes_env)
             except OSError as exc:
                 row["path_audit"] = {"clean": None, "error": type(exc).__name__}
         row["wall_s"] = round(time.monotonic() - t0, 4)
@@ -689,6 +744,11 @@ def execute(manifest: dict, out: Path, budget: float, unit_budget: float, codex_
     # What every unit must not open (#454): this checkout, its task data, the task file, the plan's --hide paths
     hidden = isolation_paths(manifest.get("tasks_file"), (manifest.get("isolation") or {}).get("hide") or ())
     check_out(out, hidden, (codex_home, claude_home))
+    if needs_claude_home(manifest["units"]):
+        size = last_unit_settings_chars(Path(out).absolute(), len(manifest["units"]), claude_home, hidden)
+        if size > SETTINGS_MAX_CHARS:
+            raise ValueError(f"the last unit's Claude settings would be {size} characters (> {SETTINGS_MAX_CHARS}): "
+                             "the command line would overflow; use a shorter --out or fewer --hide paths. Nothing run")
     # A fresh directory prevents accidental cost resets, repeated units and overwriting evidence.
     out.mkdir(parents=True, exist_ok=False)
     frozen_plan = {**manifest, "runtime_budget_usd": budget, "unit_budget_usd": unit_budget,

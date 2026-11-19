@@ -99,22 +99,30 @@ With a `kind`, the dry run's `isolation` field also lists each arm's answer-leve
 each unit is kept from in `--out` (`siblings`); check them before a run.
 
 **Shared logged-in homes (#470).** The homes every unit shares keep each unit's session records: a Codex home's
-`sessions/`, `archived_sessions/`, `history.jsonl`, `memories/` and its state/log databases (`*.sqlite`;
-`CODEX_SQLITE_HOME` is the same home), a Claude home's `projects/<cwd slug>/` (transcripts and tool results),
-`file-history/`, `todos/`, `shell-snapshots/`, `session-env/`, `history.jsonl` and the like. An on or mem arm's prompt
-and tool results hold its answer. Any part of these that is not the unit's own is now a path-audit hit for every unit,
-in every spelling of the home and also where the home is masked; a `cd` into the home or a search of it is a hit too.
-The unit's own parts are not: its Claude project folders (its repo's slug and its ccx worktrees' slugs) and its own
-Codex rollouts (found by the session ids in its run records). Claude units also get Read deny rules: every
+`sessions/`, `archived_sessions/`, `history.jsonl`, `session_index.jsonl` (titles made from first prompts),
+`memories/` and its state/log databases (`*.sqlite`; `CODEX_SQLITE_HOME` is the same home), a Claude home's
+`projects/<cwd slug>/` (transcripts and tool results), `file-history/`, `todos/`, `shell-snapshots/`, `session-env/`,
+`history.jsonl` and the like. An on or mem arm's prompt and tool results hold its answer. Once the unit's own parts
+are masked, any spelling left inside a shared home is a path-audit hit for every unit: a record, a glob (`sess*`,
+`*/...`), the home alone (`ls <home>`), a new folder, a Python `os.path.join` or `glob` on it, in every spelling of the
+home and also where the home is masked; only the files a CLI reads to start (`auth.json`, `config.toml`,
+`.credentials.json`) are not. The units' home variables are expanded first: `$CODEX_HOME`, `${CODEX_HOME}`,
+`$env:CODEX_HOME`, `%CODEX_HOME%` and `os.environ['CODEX_HOME']` (likewise `CODEX_SQLITE_HOME` and
+`CLAUDE_CONFIG_DIR`) name the home they point to, so a variable pointing inside the unit stays its own. A `cd` into the
+home or a search of it is a hit too. The unit's own parts are its Claude project folders (its repo's slug and its ccx
+worktrees' slugs; a slug over 200 characters, which Claude Code cuts and hashes, is matched by its first 200) and its
+own Codex rollouts (found by the session ids in its run records). Claude units also get Read deny rules: every
 `projects/*/*.jsonl` transcript (their own too: they never need it), sub-agent folders and memory, the other record
-folders, and the run's earlier units' project folders as a few globs; other runs' project folders are left to the
-audit. Read rules only, to keep the `--settings` command line short (the last A2 unit's settings are about 16,000
-characters). Codex units: audit only. Login and config files a CLI reads to start (`auth.json`, `config.toml`,
-`.credentials.json`) are not records. Codex memories (`features.memories`, stable and on by default in codex-cli
-0.164.0) are already off in every unit (`CCX_CODEX_ISOLATE`), so nothing is injected across units without a tool call.
-Separate session folders per unit were not chosen: they need the login file copied or linked into each unit's home,
-and not saving sessions (`codex exec --ephemeral`, `claude -p --no-session-persistence`) would break ccx's resume
-between attempts.
+folders (`plans/**` among them, so plan mode in a headless run may be affected), and the run's earlier units' project
+folders as a few globs; other runs' project folders are left to the audit. Read rules only, and the `--out` rules too
+(writing there reveals nothing), to keep the `--settings` command line short: with 8.3 names on a C: Temp `--out` the
+last A2 unit's settings are about 19,000 to 21,500 characters. `execute` computes the last unit's length from the real
+`--out` and `--claude-home` and refuses to start above 30,000; `execute --dry-run` with both prints it
+(`claude_settings_chars_last_unit`). Codex units: audit only. Codex memories (`features.memories`, stable and on by
+default in codex-cli 0.164.0) are already off in every unit (`CCX_CODEX_ISOLATE`), so nothing is injected across units
+without a tool call. Separate session folders per unit were not chosen: they need the login file copied or linked
+into each unit's home, and not saving sessions (`codex exec --ephemeral`, `claude -p --no-session-persistence`) would
+break ccx's resume between attempts.
 
 **How the layers fit.** The protection is the Claude deny rules plus running from an independent clone with every
 other local checkout passed as `--hide`; the audit is a best-effort backstop that finds what slipped through, mainly

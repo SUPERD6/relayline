@@ -146,3 +146,78 @@ def test_claude_settings_stay_under_the_limit_for_the_last_a2_unit(tmp_path, mon
     row = runner.run_unit({"task": "mem-errors", "arm": "nomem", **CLAUDE}, "memory", out / "unit-0191", .1, None,
                           claude_home=claude)
     assert "error" not in row, row
+
+
+# ------------------------------------------------------------------ review of #472
+
+
+def env_homes(codex, claude):
+    return {"CODEX_HOME": codex, "CODEX_SQLITE_HOME": codex, "CLAUDE_CONFIG_DIR": claude}
+
+
+@pytest.mark.parametrize("call", [
+    "cat $CODEX_HOME/sessions/2026/11/19/r.jsonl", "cat ${CODEX_HOME}/history.jsonl",
+    r"Get-Content $env:CODEX_HOME\history.jsonl", r"type %CODEX_HOME%\session_index.jsonl", "rg -n Agreed $CODEX_HOME",
+    "ls $CODEX_SQLITE_HOME", "cat $CLAUDE_CONFIG_DIR/projects/D--x-unit-0000-repo/1.jsonl",
+    "python -c \"import os; print(open(os.environ['CODEX_HOME'] + '/history.jsonl').read())\"",
+])
+def test_environment_variable_spellings_of_a_shared_home_are_hits(tmp_path, call):
+    codex, claude = homes(tmp_path)
+    _dest, u = unit(tmp_path)
+    assert runner.audit_hits([json.dumps(call)], u, (codex, claude), env_homes=env_homes(codex, claude)), call
+
+
+def test_environment_variable_pointing_inside_the_unit_is_not_a_hit(tmp_path):
+    """A Codex unit's CLAUDE_CONFIG_DIR is <unit>/claude-home: its own."""
+    codex, _ = homes(tmp_path)
+    dest, u = unit(tmp_path)
+    own = {"CODEX_HOME": codex, "CLAUDE_CONFIG_DIR": dest / "claude-home"}
+    assert runner.audit_hits([json.dumps("ls $CLAUDE_CONFIG_DIR")], u, (codex,), env_homes=own) == []
+
+
+@pytest.mark.parametrize("rel", ["sess*/2026", "*/2026/11/19/r.jsonl", "hist*", "", "session_index.jsonl",
+                                 "some-new-folder/x"])
+def test_any_other_spelling_inside_a_shared_home_is_a_hit(tmp_path, rel):
+    codex, claude = homes(tmp_path)
+    _dest, u = unit(tmp_path)
+    for h in (codex, claude):
+        target = f"{h.as_posix()}/{rel}" if rel else h.as_posix()
+        for call in (f"ls {target}", f"python -c \"import glob; print(glob.glob('{target}'))\""):
+            assert runner.audit_hits([json.dumps(call)], u, (codex, claude)), call
+
+
+def test_login_and_config_files_of_a_shared_home_are_not_hits(tmp_path):
+    codex, claude = homes(tmp_path)
+    _dest, u = unit(tmp_path)
+    fine = [{"file_path": str(codex / "config.toml")}, f"cat {(codex / 'auth.json').as_posix()}",
+            {"file_path": str(claude / ".credentials.json")}]
+    assert runner.audit_hits([json.dumps(x) for x in fine], u, (codex, claude)) == []
+
+
+def test_last_unit_settings_size_checked_before_the_run(tmp_path, monkeypatch):
+    """With 8.3 aliases on every path and a long --out, the last A2 unit's Claude settings stay under the limit; a
+    run whose last unit would not fit is refused before anything is written."""
+    def fake_short(p):
+        p = Path(p).resolve()
+        return Path(p.anchor) / Path(*[(x[:6].upper() + "~1") if len(x) > 8 else x for x in p.parts[1:]])
+    monkeypatch.setattr(runner, "short_path", fake_short)
+    _, claude = homes(tmp_path)
+    out = tmp_path / ("an-evaluation-folder-with-a-rather-long-descriptive-name-470-" + "x" * 30) / "r2-a2"
+    size = runner.last_unit_settings_chars(out, 192, claude, runner.isolation_paths())
+    assert 0 < size <= runner.SETTINGS_MAX_CHARS, size
+    path, sha = memory_file(tmp_path, n=1)
+    data = retest.plan("memory", 1, tasks=path, tasks_sha256=sha, agents=["claude"])
+    monkeypatch.setattr(runner, "SETTINGS_MAX_CHARS", size // 2)
+    with pytest.raises(ValueError, match="characters"):
+        runner.execute(data, out, 0.5, 0.1, None, claude)
+    assert not out.exists()
+
+
+def test_dry_run_reports_the_last_units_settings_length(tmp_path, capsys):
+    path, sha = memory_file(tmp_path, n=2)
+    _, claude = homes(tmp_path)
+    rc = retest.main(["execute", "memory", "--tasks", str(path), "--tasks-sha256", sha, "--reps", "1", "--agents",
+                      "claude", "--dry-run", "--claude-home", str(claude), "--out", str(tmp_path / "r2-a2")])
+    data = json.loads(capsys.readouterr().out)
+    assert 0 < data["claude_settings_chars_last_unit"] <= runner.SETTINGS_MAX_CHARS and data["within_settings_limit"]
+    assert rc == 0 and not (tmp_path / "r2-a2").exists()
