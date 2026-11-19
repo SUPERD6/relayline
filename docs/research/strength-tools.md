@@ -94,7 +94,7 @@ from the rest of `--out`: once its own folder is masked, any spelling of `--out`
 and its parents also count as parents of a forbidden path (a `cd` there, a recursive search). Claude units get Read/Edit
 deny rules on those run files and on the units before theirs as a few folder globs (`unit-00*`, `unit-010*`,
 `unit-0110`): units run one after another, so later ones do not exist yet, and one rule per unit would overflow the
-command line ccx passes `--settings` on. Reading the unit's own repo, `shared-context.md` or memory is never a hit.
+command line ccx passes `--settings` on (a unit whose settings exceed 30,000 characters is refused before its CLI starts). `--out` inside a logged-in home is refused (the audit masks that home as the unit's own), and do not put `--out` under the system TEMP folder: other programs' files sit beside it and the units' own temporary files go there too. Reading the unit's own repo, `shared-context.md` or memory is never a hit.
 With a `kind`, the dry run's `isolation` field also lists each arm's answer-level files (`answer_files`) and what
 each unit is kept from in `--out` (`siblings`); check them before a run. Not covered here: the shared logged-in homes'
 own session stores (a Codex home's `sessions/`, other Claude sessions under `<claude-home>/projects/`) hold earlier

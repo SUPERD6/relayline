@@ -73,6 +73,7 @@ NAV_KEYS = {"command", "cmd", "file_path", "path", "paths", "pattern", "glob", "
             "arguments"}
 # The run's own files next to the units in --out (#467): the frozen plan, every finished row, the final report
 RUN_FILES = ("manifest.json", "results.jsonl", "report.json")
+SETTINGS_MAX_CHARS = 30000    # a Claude unit's --settings JSON; the Windows command line ends at 32767 (#467)
 UNIT_NAME = re.compile(r"^unit-(\d+)$")       # execute() lays units out as <out>/unit-NNNN
 
 
@@ -308,7 +309,8 @@ def audit_hits(inputs: list[str], u: PF.Unit, homes=(), cwd=None, out=None, own=
     homes = [h for h in homes if h and not any(PF._inside(f, h) for f in forbidden)]   # likewise
     masks = (_masks([u.work, *own], home, "<unit>") + _masks(homes, home, "<home>") + _masks(py, home, "<python>"))
     others = _masks([out], home, "<out>") if out is not None else []
-    near = [*forbidden, *([Path(out) / "unit-x"] if out is not None else [])]   # unit-x: out itself is a parent
+    # unit-x: out itself is a parent; every spelling of out (a junction given and its target)
+    near = [*forbidden, *([a / "unit-x" for a in aliases(out)] if out is not None else [])]
     parents = _ancestors(near, home)
     parent_paths = frozenset(_ancestor_paths(near, home))
     no_flags = dataclasses.replace(u, flags=())
@@ -377,7 +379,9 @@ def isolation_plan(tasks_file=None, hide=(), out=None, kind=None, agents=()) -> 
                     "hit; Claude units also get Read/Edit deny rules on the run files and on the units before "
                     "theirs (a few unit-NN* globs). Claude units: <claude-home>/projects/"
                     f"{SYNTHETIC_LEAD_FOLDER} is denied and audited for every unit; an on unit's own transcript "
-                    "there is not a hit"}
+                    "there is not a hit. Not listed in answer_files: the shared logged-in homes' own session "
+                    "records (Claude <claude-home>/projects/<slug>/*.jsonl, Codex <codex-home>/sessions/) also "
+                    "hold the prompt and tool results; see #470"}
     return {"hide": [str(p) for p in hide or ()], "unit": "unit-0000",
             "forbidden_paths": [str(p) for p in PF.forbidden(u)],
             "claude_deny_rules": len(PF.claude_settings(u)["permissions"]["deny"]),
@@ -393,7 +397,8 @@ def isolation_plan(tasks_file=None, hide=(), out=None, kind=None, agents=()) -> 
 def check_out(out: Path, hidden, homes=()) -> None:
     """--out must not lie inside a folder the units are denied: preflight.forbidden drops a folder that holds a unit's
     own folder, so that folder would stay readable (this checkout, its worktrees, every hidden path, and the person's
-    own homes, hub and config). Neither --out nor a logged-in home may be named like a content pattern (#455)."""
+    own homes, hub and config), nor inside a logged-in home (#467). Neither --out nor a logged-in home may be named
+    like a content pattern (#455)."""
     for what, p in (("--out", out), *(("a logged-in home", h) for h in homes if h)):
         rx = content_hit(p)
         if rx:
@@ -405,6 +410,10 @@ def check_out(out: Path, hidden, homes=()) -> None:
     for p in [*hidden, PF.ROOT, *PF.other_worktrees(PF.ROOT), *own]:
         if PF._inside(out, p):
             raise ValueError(f"--out {out} is inside {p}, which the units must not read; put it outside")
+    for h in homes:
+        if h and any(PF._inside(o, a) for o in aliases(out) for a in aliases(h)):
+            raise ValueError(f"--out {out} is inside the logged-in home {h}: the audit masks that home as the "
+                             "unit's own, so the other units there would stay readable; put it outside")
 
 
 def needs_codex_home(units) -> bool:
@@ -488,6 +497,11 @@ def run_unit(unit: dict, kind: str, dest: Path, budget: float, codex_home: Path 
     deny = ([*PF.claude_settings(iso)["permissions"]["deny"], *sibling_deny(dest)]
             if unit.get("agent") == "claude" else ())
     env = unit_env(unit, dest, codex_home, claude_home, fresh, extra_deny=deny)
+    size = len(env.get("CCX_CLAUDE_SETTINGS", "")) if unit.get("agent") == "claude" else 0
+    if size > SETTINGS_MAX_CHARS:
+        # ccx passes them on the command line (--settings <json>); Windows stops at 32767 characters
+        raise ValueError(f"Claude settings are {size} characters (> {SETTINGS_MAX_CHARS}): the command line would "
+                         "overflow; fewer --hide paths or a shorter --out")
     repo = make_repo(task, dest / "repo")
     if unit.get("agent") == "codex":
         tmp = dest / "tmp"

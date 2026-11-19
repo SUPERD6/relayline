@@ -72,7 +72,7 @@ home 屏蔽规则放过，只有 on 单元读自己的那份不算命中。每�
 `manifest.json`、`results.jsonl`、`report.json`），绝对路径、相对路径、junction、8.3 短名的处理同其他禁读路径；
 `--out` 及其上级目录也算禁读路径的上级目录（`cd` 过去、递归搜索都算）。Claude 单元对这些运行文件和本单元之前的单元
 另有 Read/Edit 拒绝规则，写成少量目录通配（`unit-00*`、`unit-010*`、`unit-0110`）：单元按顺序跑，后面的还不存在；
-每个单元一条规则会撑爆 ccx 传 `--settings` 的命令行。读本单元自己的 repo、`shared-context.md` 或记忆都不算命中。
+每个单元一条规则会撑爆 ccx 传 `--settings` 的命令行（settings 超过 30000 字符的单元在 CLI 启动前就报错）。`--out` 放在登录 home 里面会被拒绝（审计把那个 home 当成单元自己的而屏蔽）；`--out` 也不要放在系统 TEMP 下，那里有别的程序的文件，单元自己的临时文件也会写到那里。读本单元自己的 repo、`shared-context.md` 或记忆都不算命中。
 dry-run 的 `isolation` 字段还列出每个臂的答案级文件（`answer_files`）和每个单元在 `--out` 里被挡住的内容
 （`siblings`），开跑前核对。这里没有处理：共用登录 home 自己的会话记录（Codex home 的 `sessions/`、
 `<claude-home>/projects/` 下其他 Claude 会话）里有之前单元的提示词，见 #470。

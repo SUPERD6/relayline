@@ -246,3 +246,49 @@ def test_memory_arms_hold_only_the_listed_answer_files(tmp_path, monkeypatch, ar
     found = holding(dest, tasks[0]["memory"])
     assert (found == []) is (arm == "nomem"), found
     assert declared(found, "memory", arm, "codex") == []
+
+
+# ------------------------------------------------------------------ review of #471
+
+
+def test_search_of_outs_parent_through_a_junction_is_a_hit(tmp_path):
+    """--out given through a junction: its parent folders in both spellings count as parents of a forbidden path."""
+    real = tmp_path / "box-467" / "out"
+    (real / "unit-0001" / "repo").mkdir(parents=True)
+    link = tmp_path / "link-467"
+    try:
+        if os.name == "nt":
+            import _winapi
+            _winapi.CreateJunction(str(real.parent), str(link))
+        else:
+            os.symlink(real.parent, link, target_is_directory=True)
+    except (OSError, AttributeError, ImportError) as e:
+        pytest.skip(f"no junction/symlink here: {e}")
+    out = link / "out"
+    dest = out / "unit-0001"
+    u = runner.isolation_unit(dest, dest / "hub", runner.isolation_paths())
+    for parent in (link, real.parent):
+        assert runner.audit_hits([json.dumps({"pattern": "Agreed", "path": str(parent)})], u, out=out), parent
+
+
+def test_out_inside_a_logged_in_home_refused(tmp_path):
+    home = tmp_path / "eval-codex-home"
+    home.mkdir()
+    with pytest.raises(ValueError, match="logged-in home"):
+        runner.check_out(home / "r2-a1", runner.isolation_paths(), homes=(home,))
+    runner.check_out(tmp_path / "r2-a1", runner.isolation_paths(), homes=(home,))       # beside it: fine
+
+
+def test_claude_settings_over_the_command_line_limit_refused(tmp_path, monkeypatch):
+    fake_env(monkeypatch, tmp_path)
+    monkeypatch.setattr(runner, "SETTINGS_MAX_CHARS", 100)
+    with pytest.raises(ValueError, match="command line"):        # before the CLI starts; _one records the row
+        runner.run_unit({"task": "mem-errors", "arm": "nomem", **CLAUDE}, "memory", tmp_path / "out" / "unit-0000",
+                        .1, None, claude_home=claude_home(tmp_path))
+    assert not (tmp_path / "calls.jsonl").exists()
+
+
+def test_dry_run_points_to_the_shared_home_sessions(tmp_path):
+    path, sha = context_file(tmp_path)
+    iso = retest.plan("context", 1, tasks=path, tasks_sha256=sha, agents=["claude"])["isolation"]
+    assert "#470" in iso["siblings"]["note"]
