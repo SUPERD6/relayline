@@ -223,7 +223,8 @@ def plan(kind: str, reps: int = 3, unit_usd: float | None = None, tasks: Path | 
     if fresh is not None or hidden:
         # Units are isolated either way (#454); the list is printed when it can matter, so old plans stay as they were
         from strength_runner import isolation_plan
-        data["isolation"] = isolation_plan(Path(tasks).resolve() if tasks is not None else None, hidden, out)
+        data["isolation"] = isolation_plan(Path(tasks).resolve() if tasks is not None else None, hidden, out,
+                                           kind, picked)
     return data
 
 

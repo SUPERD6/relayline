@@ -82,6 +82,24 @@ parent folder of a forbidden path. A hit makes the row invalid (`--on-invalid co
 default). The dry run prints an `isolation` field (with `--tasks` or `--hide`) with the `--hide` paths, every path the
 first unit is denied and the content patterns.
 
+**Answer files and other units (#467).** An arm that must not get the answer has no answer-level file in its unit:
+the context off arm gets no lead transcript (ccx never reads it with `--context off`; the session id and environment
+stay as in the on arm), and `nomem` gets only the distractors. Round 1 had written the transcript (the agreed answer)
+into every off unit's `claude-home/projects/lead/`. Claude units keep their transcripts in the shared logged-in
+home, `<claude-home>/projects/ccx-strength-synthetic/`; that folder is now a hidden path for every unit (deny rules
+and audit), so the home no longer masks it, and only an on unit's own transcript is not a hit. Every unit is also kept
+from the rest of `--out`: once its own folder is masked, any spelling of `--out` left in a tool call is a hit (another
+`unit-*` with an on arm's `shared-context.md` or a mem arm's notes, `manifest.json`, `results.jsonl`,
+`report.json`), absolute or relative, through a junction or an 8.3 name, as for the other forbidden paths; `--out`
+and its parents also count as parents of a forbidden path (a `cd` there, a recursive search). Claude units get Read/Edit
+deny rules on those run files and on the units before theirs as a few folder globs (`unit-00*`, `unit-010*`,
+`unit-0110`): units run one after another, so later ones do not exist yet, and one rule per unit would overflow the
+command line ccx passes `--settings` on (a unit whose settings exceed 30,000 characters is refused before its CLI starts). `--out` inside a logged-in home is refused (the audit masks that home as the unit's own), and do not put `--out` under the system TEMP folder: other programs' files sit beside it and the units' own temporary files go there too. Reading the unit's own repo, `shared-context.md` or memory is never a hit.
+With a `kind`, the dry run's `isolation` field also lists each arm's answer-level files (`answer_files`) and what
+each unit is kept from in `--out` (`siblings`); check them before a run. Not covered here: the shared logged-in homes'
+own session stores (a Codex home's `sessions/`, other Claude sessions under `<claude-home>/projects/`) hold earlier
+units' prompts (#470).
+
 **How the layers fit.** The protection is the Claude deny rules plus running from an independent clone with every
 other local checkout passed as `--hide`; the audit is a best-effort backstop that finds what slipped through, mainly
 for Codex units, whose reads nothing blocks. It cannot see every spelling, and further bypasses are listed here rather
