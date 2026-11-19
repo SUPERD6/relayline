@@ -430,6 +430,19 @@ class TestQuotaRouting(Env):
         shown = self.j("show", out["run_id"], "--wait", "5")
         self.assertEqual(shown["quota_fallback"], out["quota_fallback"])
 
+    def test_codex_cache_key_is_mtime_and_size_known_limit(self):
+        # KNOWN LIMIT, not desired behaviour (#464): the cache key is (path, mtime, size) and relies on Codex
+        # rollout files being append-only. A same-size rewrite with an identical mtime reads the old cache.
+        self.codex(0.16)
+        f = self.home_codex / "sessions" / "2026" / "11" / "01" / "rollout-quota.jsonl"
+        st = f.stat()
+        quota.codex_readings(p=self.p)
+        self.codex(0.4)
+        os.utime(f, ns=(st.st_atime_ns, st.st_mtime_ns))
+        self.assertEqual(f.stat().st_size, st.st_size)
+        used = [r["used"] for r in quota.codex_readings(p=self.p)]
+        self.assertEqual(used, [0.16])
+
     def test_at_start_never_creates_or_updates_the_codex_cache(self):
         self.codex()
         before = sorted(self.hub.rglob("*"))
