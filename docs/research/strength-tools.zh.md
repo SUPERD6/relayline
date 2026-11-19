@@ -74,8 +74,20 @@ home 屏蔽规则放过，只有 on 单元读自己的那份不算命中。每�
 另有 Read/Edit 拒绝规则，写成少量目录通配（`unit-00*`、`unit-010*`、`unit-0110`）：单元按顺序跑，后面的还不存在；
 每个单元一条规则会撑爆 ccx 传 `--settings` 的命令行（settings 超过 30000 字符的单元在 CLI 启动前就报错）。`--out` 放在登录 home 里面会被拒绝（审计把那个 home 当成单元自己的而屏蔽）；`--out` 也不要放在系统 TEMP 下，那里有别的程序的文件，单元自己的临时文件也会写到那里。读本单元自己的 repo、`shared-context.md` 或记忆都不算命中。
 dry-run 的 `isolation` 字段还列出每个臂的答案级文件（`answer_files`）和每个单元在 `--out` 里被挡住的内容
-（`siblings`），开跑前核对。这里没有处理：共用登录 home 自己的会话记录（Codex home 的 `sessions/`、
-`<claude-home>/projects/` 下其他 Claude 会话）里有之前单元的提示词，见 #470。
+（`siblings`），开跑前核对。
+
+**共用的登录 home（#470）。** 各单元共用的 home 里有每个单元的会话记录：Codex home 的 `sessions/`、`archived_sessions/`、
+`history.jsonl`、`memories/` 和状态/日志数据库（`*.sqlite`；`CODEX_SQLITE_HOME` 就是这个 home），Claude home 的 `projects/<cwd slug>/`（
+会话转写和工具结果）、`file-history/`、`todos/`、`shell-snapshots/`、`session-env/`、`history.jsonl` 等。on 臂和 mem
+ 类臂的提示词与工具结果里有答案。现在这些记录里不属于本单元的部分，对每个单元都算路径审计命中，home 的各种写法都算，
+home 被屏蔽时也算；`cd` 进 home 或搜索 home 也算命中。本单元自己的部分不算：它的 Claude 项目目录（repo 和各 ccx work
+tree 对应的 slug），以及它自己的 Codex rollout（按运行记录里的会话 id 找）。Claude 单元另有 Read 拒绝规则：所有 `projects/*/*.jsonl` 
+转写（包括自己的，它用不到）、子 agent 目录和 memory、其他记录目录，以及本次运行之前单元的项目目录（少量通配）；其他
+运行的项目目录交给审计。只加 Read 规则，是为了让 `--settings` 命令行够短（A2 最后一个单元的 settings 约 16000 字符）
+。Codex 单元只能审计。CLI 启动要读的登录和配置文件（`auth.json`、`config.toml`、`.credentials.json`）不算记录。Codex
+ memories（codex-cli 0.164.0 中 `features.memories` 为 stable、默认开启）在每个单元里已经关掉（`CCX_CODEX_ISOLATE`）
+，所以不会不经工具调用就跨单元注入。没有选择每个单元各用独立会话目录：那要把登录文件复制或链接进每个单元的 home；不保
+存会话（`codex exec --ephemeral`、`claude -p --no-session-persistence`）又会打断 ccx 在几次尝试之间的 resume。
 
 **几层保护的关系。**真正的保护是 Claude 的 deny 规则，加上正式运行用独立 clone、并把本机每份其他检出都传给 `--hide`；
 审计只是尽力而为的兜底，用来事后发现漏过去的读取，主要针对读取拦不住的 Codex 单元。审计看不全所有写法，之后发现的绕过
