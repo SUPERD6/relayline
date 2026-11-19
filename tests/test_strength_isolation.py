@@ -297,9 +297,11 @@ def test_climbs_judged_by_where_they_land(tmp_path, call, hit):
 
 def test_cd_to_a_parent_of_a_forbidden_folder_is_a_hit(tmp_path):
     """(third review 2) a cd outside the unit into a folder holding a forbidden one, then a relative read."""
+    box = (tmp_path / "box").resolve()
+    dev = dev_checkout(box)
     dest = tmp_path / "u"
-    u = runner.isolation_unit(dest, dest / "hub", runner.isolation_paths())
-    up = ROOT.parent.as_posix()
+    u = runner.isolation_unit(dest, dest / "hub", runner.isolation_paths(hide=[dev.resolve()]))
+    up = box.as_posix()
     for call in (f"cd {up} && cat README.md", f"Push-Location {up}; Get-Content x.txt", f"cd /d {up}",
                  f"pushd \"{up}\""):
         assert runner.audit_hits([json.dumps(call)], u), call
@@ -333,10 +335,24 @@ def test_written_script_naming_the_task_folder_is_a_hit(tmp_path):
 
 
 def test_absolute_path_with_dots_is_resolved(tmp_path):
+    dev = dev_checkout(tmp_path).resolve()
     dest = tmp_path / "u"
-    u = runner.isolation_unit(dest, dest / "hub", runner.isolation_paths())
-    sneaky = f"{ROOT.parent.as_posix()}/zzz/../{ROOT.name}/ccx/cli.py"
+    u = runner.isolation_unit(dest, dest / "hub", runner.isolation_paths(hide=[dev]))
+    sneaky = f"{dev.parent.as_posix()}/zzz/../{dev.name}/scripts/eval/common.py"
     assert runner.audit_hits([json.dumps(f"cat {sneaky}")], u)
+
+
+@pytest.mark.skipif(os.name != "nt", reason="a drive letter followed by a one-letter folder is a Windows path")
+def test_one_letter_folder_after_a_drive(tmp_path):
+    """CI checks out to D:/a/relayline/relayline: preflight.canon reads `D:/a` as Git Bash's /a drive (d:a:/...).
+    The audit undoes that, so every spelling of such a checkout is still seen."""
+    dev = Path("D:/a/x454-relayline")                   # need not exist: only its spelling matters here
+    dest = tmp_path / "u"
+    u = runner.isolation_unit(dest, dest / "hub", runner.isolation_paths(hide=[dev]))
+    assert runner.canon("D:/a/x454-relayline", Path.home()) == "d:/a/x454-relayline"
+    for call in ("cd D:/a && cat x454-relayline/README.md", "cat D:/a/zzz/../x454-relayline/ccx/cli.py",
+                 "cat /d/a/x454-relayline/README.md", "type D:\\a\\x454-relayline\\README.md"):
+        assert runner.audit_hits([json.dumps(call)], u), call
 
 
 def test_hide_brings_the_checkouts_other_worktrees(tmp_path):
