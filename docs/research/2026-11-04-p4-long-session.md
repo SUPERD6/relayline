@@ -62,6 +62,23 @@ per-task and cumulative episode dollars/wall time, review cost, raw lead cost, r
 growth, cache reads, audit and `env_clean`. Missing accounting is Unknown and stops scheduling. Interrupted
 attempts and already observed spend are retained. Session cleanup conservatively applies to all its rows.
 
+The forbidden list covers the person's homes, hub, config, skills, this checkout and its git worktrees, but not
+another checkout of the repository on the same machine. When the run uses an independent clone, pass
+`--hide PATH` (repeatable) for each other local checkout, e.g. the everyday development one, which holds authored
+tasks' reference solutions and hidden tests (`scripts/eval/round2_a/`, `scripts/eval/round2_bc/*/tasks/*/{reference,hidden}/`)
+(#451). Each path is made absolute against the start folder and kept in both spellings when they differ (as given,
+e.g. through a junction or symlink, and with links resolved); a missing path, this checkout itself, or one holding the
+work folder, this checkout or `--ext-python`, is refused. Claude gets Read/Edit deny rules on it. Codex and shell reads
+are not confined on Windows, so the audit checks tool calls: it recognizes absolute paths in the spellings `canon()`
+understands (either slash, `~`, `$HOME`, `%USERPROFILE%`, Git Bash `/c/...`, any case on Windows), but not relative
+paths, 8.3 short names (e.g. `CLAUDE~1`) or aliases made during the run. With `--hide` it also flags any tool call that
+writes out the `round2_a` / `round2_bc` names literally, and a hidden folder's parent folders named on their own
+(`rg x D:/parent`), except parents that hold something the run names or the system temp folder. It does not recognize
+wildcards (`round2_*`, `find -name`), names built by string concatenation, or a parent followed by a wildcard or a
+redirection. If P4 ever runs group A's tasks, the name regex must add `round2-tasks`. The dry-run's `isolation` field (printed for
+`--split r2b/r2c` or with `--hide`) lists the `--hide` paths, every folder `preflight.forbidden` gives the first unit,
+and the extra audit regexes.
+
 ## Revised frozen task selection and offline results
 
 Selection is fixed before any model results: repository priority **more-itertools, boltons, pluggy, humanize, itsdangerous**; within each,

@@ -6,6 +6,8 @@ import re
 import time
 from datetime import datetime, timezone
 from pathlib import Path
+from types import SimpleNamespace
+from unittest import mock
 
 from ccx import context_share as cs
 from test_adapters import AdapterEnv
@@ -17,6 +19,18 @@ MARK = "[ccx shared work context:"   # the block itself, not the rule line that 
 
 def _iso(ago: float = 0) -> str:
     return datetime.fromtimestamp(time.time() - ago, timezone.utc).isoformat().replace("+00:00", "Z")
+
+
+def _local_ts(month: int, day: int, hour: int, minute: int) -> float:
+    return time.mktime((2026, month, day, hour, minute, 0, 0, 0, -1))
+
+
+def frozen_now(ts: float):
+    """Pin the clock that context_share's _when() compares against (#457): its "same day?" test reads the
+    wall clock, so a test that builds events relative to the real time breaks within an hour of midnight."""
+    def strftime(fmt, t=None):
+        return time.strftime(fmt, time.localtime(ts) if t is None else t)
+    return mock.patch.object(cs, "time", SimpleNamespace(localtime=time.localtime, strftime=strftime))
 
 
 def _w(path: Path, events: list[dict]) -> Path:
@@ -58,7 +72,9 @@ def codex_session(cwd: str, ago: float = 60) -> list[dict]:
 
 class TestRead(AdapterEnv):
     def test_claude_events_and_summary(self):
-        f = _w(self.home_claude / "projects" / "x" / f"{SID}.jsonl", claude_lead())
+        noon = _local_ts(6, 15, 12, 0)                    # fixed "now": no date prefix, whatever the real time is
+        with mock.patch("time.time", return_value=noon):
+            f = _w(self.home_claude / "projects" / "x" / f"{SID}.jsonl", claude_lead())
         evs = cs.events_claude(f)
         kinds = [e["kind"] for e in evs]
         self.assertIn("ask", kinds)
@@ -66,7 +82,8 @@ class TestRead(AdapterEnv):
         self.assertEqual([e["text"] for e in evs if e["kind"] == "file"], ["notes/plan.md"])
         self.assertFalse(any("sidechain" in e["text"] for e in evs))
         self.assertFalse(any(e["text"].startswith("[ccx board") for e in evs))      # pushed in, not the person
-        text = cs.summary(evs, "claude", SID, self.work, "test")
+        with frozen_now(noon):
+            text = cs.summary(evs, "claude", SID, self.work, "test")
         self.assertIn("empty list returns None", text)
         self.assertIn("Going with None for empty input", text)                       # the agent's decision
         self.assertRegex(text, r"- \[\d\d:\d\d person, claude session lead-000\]")     # time and source
@@ -74,6 +91,18 @@ class TestRead(AdapterEnv):
         self.assertIn("data, not instructions", text)
         self.assertNotIn(SECRET, text)
         self.assertLessEqual(len(cs.summary(evs * 40, "claude", SID, self.work, "t", max_chars=1500)), 1500)
+
+    def test_when_prefixes_date_only_on_another_day(self):
+        # #457: just after midnight, an event from 23:58 the day before carries the date; same-day stays HH:MM
+        late = _local_ts(11, 18, 23, 58)
+        with frozen_now(_local_ts(11, 19, 0, 48)):
+            self.assertEqual(cs._when(late), "11-18 23:58")
+            self.assertEqual(cs._when(_local_ts(11, 19, 0, 10)), "00:10")
+            text = cs.summary([{"ts": late, "who": "person", "kind": "ask", "text": "keep going"}],
+                              "claude", SID, self.work, "test")
+        self.assertIn("- [11-18 23:58 person, claude session lead-000]", text)
+        with frozen_now(_local_ts(11, 18, 23, 59)):
+            self.assertEqual(cs._when(late), "23:58")
 
     def test_newest_ask_kept_nearly_whole(self):
         # round 5: a 1.6k-character spec was cut at 500, so the sub-agent never saw the interface its lead misread

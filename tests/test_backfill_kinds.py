@@ -1,0 +1,186 @@
+"""#440: `ccx doctor --backfill-kinds` rebuilds `kind_counts` of the routing state from old run records (adds only).
+Fake hub, no real CLIs."""
+import json
+
+from test_adapters import AdapterEnv
+
+R1, R2 = "claude:sonnet:medium", "codex:gpt-6.1-sol:high"
+T = 1.7e9                                            # before #437 shipped, so kind_since is the bound
+
+
+def att(rung, kind=None):
+    a, m, e = rung.split(":")
+    return {"agent": a, "model": m, "effort": e, "kind": kind}
+
+
+class BackfillEnv(AdapterEnv):
+    def run_rec(self, rid, attempts, route=None, mode=None, learned="lead", with_mode=True, ts=None, raw=None):
+        d = self.hub / "ccx" / "runs" / rid
+        d.mkdir(parents=True, exist_ok=True)
+        if raw is not None:
+            (d / "run.json").write_text(raw, encoding="utf-8")
+            return
+        rec = {"run_id": rid, "attempts": attempts, "route": route, "learned": learned}
+        if ts is not None:
+            rec["ts"] = ts
+        if with_mode:
+            rec["mode"] = mode
+        (d / "run.json").write_text(json.dumps(rec), encoding="utf-8")
+
+    def set_state(self, counts, **extra):
+        d = self.hub / "ccx"
+        d.mkdir(parents=True, exist_ok=True)
+        (d / "routing-state.json").write_text(json.dumps({"offsets": {}, "counts": counts, "outcomes": [], **extra}),
+                                              encoding="utf-8")
+
+    def state(self):
+        return json.loads((self.hub / "ccx" / "routing-state.json").read_text(encoding="utf-8"))
+
+    def backfill(self):
+        return self.ccx("doctor", "--backfill-kinds")
+
+
+class TestBackfill(BackfillEnv):
+    def test_rebuilds_kind_counts_from_route_kind_and_mode(self):
+        self.set_state({R1: 3, R2: 1})
+        self.run_rec("r1", [att(R1)], route={"b": 4, "kind": "read"})
+        self.run_rec("r2", [att(R1, "quota"), att(R2)], route={"b": 5, "kind": "code"})   # quota attempt not learned
+        self.run_rec("r3", [att(R1)], route={"b": 5}, mode="read")                      # no route.kind: mode -> read
+        self.run_rec("r4", [att(R1)], route={"b": 5}, mode="write")                     # mode write -> code
+        r = self.backfill()
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        st = self.state()
+        self.assertEqual(st["kind_counts"], {"read": {R1: 2}, "code": {R2: 1, R1: 1}})
+        self.assertEqual(st["counts"], {R1: 3, R2: 1})                                  # the skill's counts untouched
+
+    def test_missing_fields_stay_unknown(self):
+        self.set_state({R1: 4})
+        self.run_rec("a", [att(R1)], route={"b": 4})                                     # no kind, mode null
+        self.run_rec("b", [att(R1)], route={"b": 4}, with_mode=False)                    # no mode field at all
+        self.run_rec("c", [att(R1)], route={"kind": "read"})                             # no b: never learned from
+        self.run_rec("d", [att(R1)], route={"b": 4, "kind": "read"}, learned=None)       # not learned
+        self.run_rec("e", [{"agent": "claude"}], route={"b": 4, "kind": "read"})        # attempt without a rung
+        self.backfill()
+        st = self.state()
+        self.assertEqual(st.get("kind_counts", {}), {})
+        from ccx.learn import kind_history
+        self.assertEqual(kind_history(st, ["claude"], "read"), {"kind": 0, "other": 0, "unknown": 4})
+
+    def test_never_exceeds_what_the_skill_counted(self):
+        # a corrected verdict is learned twice into counts but only one record exists; and records of runs whose
+        # counts were reset must not invent history: kind_counts per rung stays <= counts
+        self.set_state({R1: 1})
+        self.run_rec("x", [att(R1)], route={"b": 4, "kind": "read"})
+        self.run_rec("y", [att(R1)], route={"b": 4, "kind": "code"})
+        self.backfill()
+        st = self.state()
+        self.assertEqual(sum(v.get(R1, 0) for v in st["kind_counts"].values()), 1)
+
+    def test_only_adds_next_to_existing_kind_counts(self):
+        self.set_state({R1: 3}, kind_counts={"read": {R1: 1}})
+        self.run_rec("x", [att(R1)], route={"b": 4, "kind": "code"}, ts=10.0)
+        self.run_rec("y", [att(R1)], route={"b": 4, "kind": "read"}, ts=11.0)
+        self.backfill()
+        st = self.state()
+        self.assertEqual(st["kind_counts"]["read"][R1], 1 + 1)
+        self.assertEqual(st["kind_counts"]["code"][R1], 1)
+
+    def test_repeat_is_idempotent_and_leaves_run_records_alone(self):
+        self.set_state({R1: 2})
+        self.run_rec("x", [att(R1)], route={"b": 4, "kind": "read"})
+        before = (self.hub / "ccx" / "runs" / "x" / "run.json").read_bytes()
+        self.backfill()
+        first = self.state()
+        out = self.backfill()
+        self.assertEqual(self.state(), first)
+        self.assertIn("already", out.stdout.lower())
+        self.assertEqual((self.hub / "ccx" / "runs" / "x" / "run.json").read_bytes(), before)
+
+    def test_no_state_or_no_runs_is_harmless(self):
+        r = self.backfill()
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+
+    def test_default_pick_unchanged_without_the_option(self):
+        self.set_state({R1: 3})
+        self.run_rec("x", [att(R1)], route={"b": 4, "kind": "read"})
+        self.ccx("doctor")                                                               # plain doctor does not backfill
+        self.assertNotIn("kind_counts", self.state())
+        a = self.j("run", "--from", "claude", "--b", "4", "--mode", "read", "--new", "--context", "off", "--no-ab",
+                   "--review", "off", "--dry-run", "x")
+        self.backfill()
+        b = self.j("run", "--from", "claude", "--b", "4", "--mode", "read", "--new", "--context", "off", "--no-ab",
+                   "--review", "off", "--dry-run", "x")
+        self.assertEqual(a["first_rung"], b["first_rung"])
+
+    def test_runs_learned_after_kinds_were_recorded_are_not_counted_twice(self):
+        # R1: 5 learned, 3 before kinds were recorded and 2 after (those 2 are already in kind_counts). The new runs'
+        # records sort first; they must be skipped, so the old ones get the remaining quota with their own kind
+        self.set_state({R1: 5}, kind_since=T, kind_counts={"code": {R1: 2}})
+        for i in range(2):
+            self.run_rec(f"a-new{i}", [att(R1)], route={"b": 4, "kind": "code"}, ts=T + 100 + i)
+        for i in range(3):
+            self.run_rec(f"b-old{i}", [att(R1)], route={"b": 4, "kind": "read"}, ts=T - 100000 + i)
+        self.backfill()
+        self.assertEqual(self.state()["kind_counts"], {"code": {R1: 2}, "read": {R1: 3}})
+
+    def test_state_with_kind_counts_but_no_kind_since_uses_the_ship_date(self):
+        self.set_state({R1: 2}, kind_counts={"code": {R1: 1}})
+        self.run_rec("new", [att(R1)], route={"b": 4, "kind": "code"}, ts=4102444800.0)     # year 2100
+        self.run_rec("old", [att(R1)], route={"b": 4, "kind": "read"}, ts=10.0)
+        self.backfill()
+        self.assertEqual(self.state()["kind_counts"], {"code": {R1: 1}, "read": {R1: 1}})
+
+    def test_odd_records_and_counts_are_skipped_not_fatal(self):
+        self.set_state({R1: "x", R2: 1}, kind_counts={"read": {R2: "y"}})
+        self.run_rec("l", None, raw="[1, 2]")
+        self.run_rec("r", None, raw=json.dumps({"route": "nope", "attempts": [], "learned": "lead"}))
+        self.run_rec("t", None, raw=json.dumps({"route": {"b": 1}, "attempts": "nope", "learned": "lead"}))
+        self.run_rec("j", None, raw="{broken")
+        self.run_rec("ok", [att(R2)], route={"b": 4, "kind": "code"}, ts=10.0)
+        r = self.backfill()
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertEqual(self.state()["kind_counts"]["code"], {R2: 1})
+
+    def test_new_records_set_kind_since(self):
+        from ccx.learn import note_kind
+        st = {"counts": {R1: 1}}
+        note_kind(st, R1, None)
+        self.assertNotIn("kind_since", st)
+        note_kind(st, R1, "read")
+        first = st["kind_since"]
+        note_kind(st, R1, "code")
+        self.assertEqual(st["kind_since"], first)
+
+    def test_marked_run_is_skipped_whatever_its_time(self):
+        self.set_state({R1: 2}, kind_since=T, kind_counts={"code": {R1: 1}})
+        self.run_rec("m", None, raw=json.dumps({"route": {"b": 4, "kind": "code"}, "attempts": [att(R1)],
+                                               "learned": "lead", "ts": 10.0, "kind_noted": True}))
+        self.run_rec("u", [att(R1)], route={"b": 4, "kind": "read"}, ts=T - 100000)
+        self.backfill()
+        self.assertEqual(self.state()["kind_counts"], {"code": {R1: 1}, "read": {R1: 1}})
+
+    def test_unmarked_run_next_to_kind_since_is_skipped(self):
+        # started just before kind_since, learned after verification and review: its time is under-estimated by
+        # start + attempt time, but the grace keeps it out; it is in kind_counts already
+        self.set_state({R1: 2}, kind_since=T, kind_counts={"code": {R1: 1}})
+        self.run_rec("edge", [dict(att(R1), seconds=1)], route={"b": 4, "kind": "code"}, ts=T - 5)
+        self.run_rec("old", [att(R1)], route={"b": 4, "kind": "read"}, ts=T - 100000)
+        self.backfill()
+        self.assertEqual(self.state()["kind_counts"], {"code": {R1: 1}, "read": {R1: 1}})
+
+    def test_run_without_a_usable_start_time_is_skipped_when_kinds_exist(self):
+        self.set_state({R1: 2}, kind_since=T, kind_counts={"code": {R1: 1}})
+        self.run_rec("none", [att(R1)], route={"b": 4, "kind": "read"})
+        self.run_rec("bad", None, raw=json.dumps({"route": {"b": 4, "kind": "read"}, "attempts": [att(R1)],
+                                                 "learned": "lead", "ts": "soon"}))
+        self.backfill()
+        self.assertEqual(self.state()["kind_counts"], {"code": {R1: 1}})
+
+    def test_a_learned_run_is_marked_kind_noted_and_backfill_leaves_it(self):
+        out = json.loads(self.ccx("run", "--from", "claude", "--b", "4", "--mode", "read", "--new", "--context", "off",
+                                  "--no-ab", "--review", "off", "Read the parser").stdout)
+        self.j("verify", out["run_id"], "--ok", "1")
+        self.assertTrue(self.rec(out["run_id"]).get("kind_noted"))
+        before = self.state()["kind_counts"]
+        self.backfill()
+        self.assertEqual(self.state()["kind_counts"], before)

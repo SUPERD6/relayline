@@ -42,6 +42,13 @@ class TestQuotaRouting(Env):
             "type": "event_msg", "payload": {"type": "token_count", "rate_limits": {"primary": {
                 "used_percent": used * 100, "window_minutes": 300, "resets_at": self.reset}}}}) + "\n",
             encoding="utf-8")
+        # "0.16" -> "0.4" is 16.0 -> 40.0 percent: the same size. On a coarse clock (Windows CI, #464) two quick
+        # rewrites can share one mtime, and the cache key is (mtime, size). A real Codex session only grows, so
+        # the key is enough there; the test gives each write its own mtime instead of racing the clock.
+        prev = getattr(self, "_codex_mtime", 0)
+        t = max(time.time(), prev + 5)
+        os.utime(f, (t, t))
+        self._codex_mtime = t
 
     def j(self, *args, env=None, code=0):
         r = self.ccx(*args, env=env)
@@ -422,6 +429,19 @@ class TestQuotaRouting(Env):
         self.assertIn("因 claude 限额改派 codex，重置", out["quota_fallback"]["message"])
         shown = self.j("show", out["run_id"], "--wait", "5")
         self.assertEqual(shown["quota_fallback"], out["quota_fallback"])
+
+    def test_codex_cache_key_is_mtime_and_size_known_limit(self):
+        # KNOWN LIMIT, not desired behaviour (#464): the cache key is (path, mtime, size) and relies on Codex
+        # rollout files being append-only. A same-size rewrite with an identical mtime reads the old cache.
+        self.codex(0.16)
+        f = self.home_codex / "sessions" / "2026" / "11" / "01" / "rollout-quota.jsonl"
+        st = f.stat()
+        quota.codex_readings(p=self.p)
+        self.codex(0.4)
+        os.utime(f, ns=(st.st_atime_ns, st.st_mtime_ns))
+        self.assertEqual(f.stat().st_size, st.st_size)
+        used = [r["used"] for r in quota.codex_readings(p=self.p)]
+        self.assertEqual(used, [0.16])
 
     def test_at_start_never_creates_or_updates_the_codex_cache(self):
         self.codex()
