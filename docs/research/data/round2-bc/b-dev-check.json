@@ -11,7 +11,7 @@
       },
       "start": {
         "rc": 1,
-        "summary": "8 failed, 9 passed in 0.14s",
+        "summary": "8 failed, 9 passed in 0.13s",
         "errors": [
           "E               cronlite.errors.CronError: hour: '9-12' is not a number",
           "E               cronlite.errors.CronError: minute: '*/20' is not a number",
@@ -29,9 +29,15 @@
       },
       "reference": {
         "rc": 0,
-        "summary": "17 passed in 0.04s",
+        "summary": "17 passed in 0.05s",
         "errors": []
       },
+      "reference_full": {
+        "rc": 0,
+        "summary": "73 passed in 0.15s",
+        "errors": []
+      },
+      "reference_failed": [],
       "assertions": 22,
       "literal_overlap": [
         {
@@ -102,6 +108,12 @@
         "summary": "9 passed in 0.05s",
         "errors": []
       },
+      "reference_full": {
+        "rc": 0,
+        "summary": "65 passed in 0.14s",
+        "errors": []
+      },
+      "reference_failed": [],
       "assertions": 21,
       "literal_overlap": [],
       "unmapped": [],
@@ -119,12 +131,12 @@
       "pythonutf8": true,
       "existing": {
         "rc": 0,
-        "summary": "93 passed in 0.14s",
+        "summary": "93 passed in 0.13s",
         "errors": []
       },
       "start": {
         "rc": 1,
-        "summary": "9 failed in 0.14s",
+        "summary": "9 failed in 0.13s",
         "errors": [
           "E       AttributeError: 'Table' object has no attribute 'lines'",
           "E       AssertionError: assert 3 == 5",
@@ -145,6 +157,12 @@
         "summary": "9 passed in 0.04s",
         "errors": []
       },
+      "reference_full": {
+        "rc": 0,
+        "summary": "102 passed in 0.13s",
+        "errors": []
+      },
+      "reference_failed": [],
       "assertions": 19,
       "literal_overlap": [],
       "unmapped": [],
@@ -175,9 +193,15 @@
       },
       "reference": {
         "rc": 0,
-        "summary": "15 passed in 0.05s",
+        "summary": "15 passed in 0.04s",
         "errors": []
       },
+      "reference_full": {
+        "rc": 0,
+        "summary": "105 passed in 0.13s",
+        "errors": []
+      },
+      "reference_failed": [],
       "assertions": 21,
       "literal_overlap": [],
       "unmapped": [],
