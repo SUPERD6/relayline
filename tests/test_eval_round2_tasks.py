@@ -281,6 +281,18 @@ def test_authored_reference_must_keep_existing_tests(tmp_path):
     assert any("test_add" in n for n in bad["reference_failed"])
 
 
+def test_authored_reports_every_failed_existing_test(tmp_path):
+    """#452: with several failures every test name is reported (tracebacks must not use up the kept lines)."""
+    root = _authored(tmp_path / "t", reference_add="a - b")
+    body = "from calc import add"+'\n'+'\n'+"".join(f"def test_extra{i}():"+'\n'+"    assert add(1, 2) == 3"+'\n'+'\n' for i in range(4))
+    for part in ("start", "reference"):
+        (root / part / "tests/test_extra.py").write_text(body, encoding="utf-8")
+    out = R.check_authored(root, sys.executable)
+    assert not out["valid"]
+    names = " ".join(out["reference_failed"])
+    assert all(f"test_extra{i}" in names for i in range(4)) and "test_add" in names and len(out["reference_failed"]) == 5
+
+
 def test_authored_hidden_version_replaces_same_named_existing_test(tmp_path):
     """The hidden copy of a same-named existing file wins, so an old assertion the task changes does not fail the reference."""
     root = _authored(tmp_path / "t", reference_add="a + b + 1")

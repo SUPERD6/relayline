@@ -315,8 +315,10 @@ def check_authored(task_dir: Path, python: str, run=None) -> dict:
                             python)
             # #452: the whole suite on the reference tree: existing tests, where a hidden file of the same name
             # replaces the existing one (_tree_with overwrites it), plus the hidden tests
+            # --tb=no -rfE: LE.hidden keeps only the first 12 `E   `/FAILED/ERROR lines and the `E   ` lines of the
+            # tracebacks would fill them, so no traceback: the lines left are the FAILED/ERROR summary (#452)
             full = run(_tree_with(task_dir / "reference", root / "reference-full", hidden),
-                       [".", *task["hidden_tests"]], python)
+                       [".", *task["hidden_tests"], "--tb=no", "-rfE"], python)
     finally:
         LE.UTF8_MODE = previous
     briefs = brief_checks(task["brief"], {k: v.decode("utf-8") for k, v in hidden.items()}, task.get("trace", []))
