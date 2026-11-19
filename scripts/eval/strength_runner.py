@@ -73,6 +73,7 @@ NAV_KEYS = {"command", "cmd", "file_path", "path", "paths", "pattern", "glob", "
             "arguments"}
 # The run's own files next to the units in --out (#467): the frozen plan, every finished row, the final report
 RUN_FILES = ("manifest.json", "results.jsonl", "report.json")
+EVIDENCE_FILES = ("manifest.json", "results.jsonl")    # Claude units also get Edit deny rules on these (#472)
 # A shared logged-in home's session records (#470): every unit's prompts and tool results, so an on or mem arm's answer.
 # Codex (codex-cli 0.164.0, a home's entries): rollouts, history, memories, and the state/log/goal databases
 # (CODEX_SQLITE_HOME is the same home). Claude (Claude Code 2.1.316): projects/<cwd slug>/ sessions and tool results,
@@ -164,8 +165,9 @@ def expand_home_vars(t: str, env_homes, home) -> str:
             continue
         v = re.escape(var.lower())
         c = PF.canon(Path(path).absolute().as_posix(), home)
-        t = re.sub(r"\$\{" + v + r"\}|\$env:" + v + r"(?![\w])|%" + v + r"%|\$" + v + r"(?![\w])", lambda _m: c, t,
-                   flags=re.I)
+        # ${X}, ${env:X}, ${X:-default}; $env:X; %X%; $X (never a longer name such as $X_OTHER)
+        t = re.sub(r"\$\{(?:env:)?" + v + r"(?:[^}\w][^}]*)?\}|\$env:" + v + r"(?![\w])|%" + v + r"%|\$" + v +
+                   r"(?![\w])", lambda _m: c, t, flags=re.I)
         t = re.sub(r"(?:environ(?:\.get)?\s*[\[(]|getenv\s*\()\s*['\"]" + v + r"['\"]\s*[\])]?", lambda _m: c, t,
                    flags=re.I)
     return t
@@ -230,8 +232,10 @@ def sibling_deny(dest: Path) -> list[str]:
     rules = set()
     for o in aliases(out):
         r = PF._rule_path(o)
-        # Read only (#472 review): writing there reveals nothing, and the settings travel on the command line
+        # Read only for the other units (#472 review: writing there reveals nothing, the settings travel on the
+        # command line; the audit catches it); Edit too on the evidence files, so they cannot be altered
         rules |= {f"Read({r}/{f})" for f in RUN_FILES} | {f"Read({r}/{g}/**)" for g in globs}
+        rules |= {f"Edit({r}/{f})" for f in EVIDENCE_FILES}
     return sorted(rules)
 
 
@@ -561,6 +565,20 @@ def claude_deny(dest: Path, claude_home, hidden) -> list[str]:
     return [*PF.claude_settings(iso)["permissions"]["deny"], *sibling_deny(dest), *record_deny(claude_home, dest)]
 
 
+def slug_problem(out: Path, n_units: int) -> str | None:
+    """Why the units' Claude project folder names would not work, or None: Claude Code cuts a name past
+    CLAUDE_SLUG_MAX characters, so the unit number must lie inside the first CLAUDE_SLUG_MAX of
+    <slug(--out)>-unit-NNNN (each of the absolute and resolved spellings); else a unit's own folder and its
+    neighbours' could not be told apart, by the audit or by the deny globs (#472 review)."""
+    name = f"unit-{max(n_units - 1, 0):04d}"
+    for o in {Path(out).absolute(), Path(out).resolve()}:
+        n = len(PF.slug(o / name))
+        if n > CLAUDE_SLUG_MAX:
+            return (f"--out {o} is too long for Claude units: the project folder name of {name} ends at character "
+                    f"{n}, past the {CLAUDE_SLUG_MAX} Claude Code keeps; use a shorter --out")
+    return None
+
+
 def last_unit_settings_chars(out: Path, n_units: int, claude_home, hidden) -> int:
     """The --settings length of the run's last unit (the most earlier units to deny), from the real --out and home
     spellings: checked before a run starts, so an overflow never stops it half-way (#472 review)."""
@@ -745,6 +763,9 @@ def execute(manifest: dict, out: Path, budget: float, unit_budget: float, codex_
     hidden = isolation_paths(manifest.get("tasks_file"), (manifest.get("isolation") or {}).get("hide") or ())
     check_out(out, hidden, (codex_home, claude_home))
     if needs_claude_home(manifest["units"]):
+        why = slug_problem(out, len(manifest["units"]))
+        if why:
+            raise ValueError(why + ". Nothing run")
         size = last_unit_settings_chars(Path(out).absolute(), len(manifest["units"]), claude_home, hidden)
         if size > SETTINGS_MAX_CHARS:
             raise ValueError(f"the last unit's Claude settings would be {size} characters (> {SETTINGS_MAX_CHARS}): "

@@ -85,18 +85,30 @@ dry-run 的 `isolation` 字段还列出每个臂的答案级文件（`answer_fil
 `os.path.join` 或 `glob`，home 的各种写法都算，home 被屏蔽时也算；只放过 CLI 启动要读的 `auth.json`、
 `config.toml`、`.credentials.json`。匹配前先展开单元的 home 变量：`$CODEX_HOME`、`${CODEX_HOME}`、
 `$env:CODEX_HOME`、`%CODEX_HOME%` 和 `os.environ['CODEX_HOME']`（`CODEX_SQLITE_HOME`、`CLAUDE_CONFIG_DIR`
-同理）都换成它指向的 home，所以指向单元内部的变量仍算自己的。`cd` 进 home 或搜索 home 也算命中。本单元自己的部分
+同理；还有 `${env:X}`、`${X:-默认值}`，但 `$CODEX_HOME_X` 这类更长的变量名不算）都换成它指向的 home，所以指向
+单元内部的变量仍算自己的；连 `echo $CODEX_HOME` 也算命中（单元本来就没理由关心共用 home）。`cd` 进 home 或搜索
+home 也算命中。本单元自己的部分
 是：它的 Claude 项目目录（repo 和各 ccx worktree 对应的 slug；超过 200 字符的 slug 会被 Claude Code 截断并加哈希，
 按前 200 个字符匹配），以及它自己的 Codex rollout（按运行记录里的会话 id 找）。Claude 单元另有 Read 拒绝规则：所有
 `projects/*/*.jsonl` 转写（包括自己的，它用不到）、子 agent 目录和 memory、其他记录目录（包括 `plans/**`，所以
 headless 运行里的 plan mode 可能受影响），以及本次运行之前单元的项目目录（少量通配）；其他运行的项目目录交给审计。
-这些规则和 `--out` 的规则都只加 Read（写进去不会泄题），为了让 `--settings` 命令行够短：`--out` 放在开着 8.3 短名
+这些规则和 `--out` 里其他单元的规则都只加 Read（写进去不会泄题，事后审计兜底），为了让 `--settings` 命令行够短；
+证据文件 `manifest.json`、`results.jsonl` 另外保留 Edit 规则，防止被篡改。`--out` 放在开着 8.3 短名
 的 C 盘 Temp 下时，A2 最后一个单元的 settings 约 19000 到 21500 字符。`execute` 开跑前按真实的 `--out` 和
-`--claude-home` 算出最后一个单元的长度，超过 30000 就拒绝开跑；`execute --dry-run` 同时给了这两个参数时会输出它
+`--claude-home` 算出最后一个单元的长度，超过 30000 就拒绝开跑；最后一个单元的编号落在 Claude Code 保留的项目
+目录名前 200 个字符之外时也拒绝开跑；`execute --dry-run` 同时给了这两个参数时会输出它
 （`claude_settings_chars_last_unit`）。Codex 单元只能审计。Codex memories（codex-cli 0.164.0 中
 `features.memories` 为 stable、默认开启）在每个单元里已经关掉（`CCX_CODEX_ISOLATE`），所以不会不经工具调用就
 跨单元注入。没有选择每个单元各用独立会话目录：那要把登录文件复制或链接进每个单元的 home；不保存会话
 （`codex exec --ephemeral`、`claude -p --no-session-persistence`）又会打断 ccx 在几次尝试之间的 resume。
+
+**隔离的已知缺口（#454-#472）。** 审计是检测手段，不是拦截，只看工具调用里写出来的东西。认不出来的有：间接读取
+环境变量（`Get-ChildItem Env:`、`[Environment]::GetEnvironmentVariable`、`printenv` 再传下去），运行时拼出来的路径
+（脚本里拼接字符串、单元 home 变量以外的变量、子 shell），8.3 短名和长名混写的路径，以及超出已解析格式的 DSH 日志。
+Codex 单元什么都禁不了，只能审计。Claude 的拒绝规则是尽力而为：通配依赖 Claude Code 按 gitignore 规则匹配 `*`，
+之前单元的项目目录规则只按 `--out` 的绝对路径和 resolve 写法生成，没有 8.3 短名写法；这两点都没有用真实 CLI 验证。
+`--out` 里其他单元的目录和其他运行的 Claude 项目目录只有 Read 规则或没有规则，靠审计兜底。命中会让该行无效，但拦不住
+那次读取。以后发现的绕过方式写进这里，不再逐个加规则。
 
 **几层保护的关系。**真正的保护是 Claude 的 deny 规则，加上正式运行用独立 clone、并把本机每份其他检出都传给 `--hide`；
 审计只是尽力而为的兜底，用来事后发现漏过去的读取，主要针对读取拦不住的 Codex 单元。审计看不全所有写法，之后发现的绕过

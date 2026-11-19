@@ -108,21 +108,34 @@ are masked, any spelling left inside a shared home is a path-audit hit for every
 home and also where the home is masked; only the files a CLI reads to start (`auth.json`, `config.toml`,
 `.credentials.json`) are not. The units' home variables are expanded first: `$CODEX_HOME`, `${CODEX_HOME}`,
 `$env:CODEX_HOME`, `%CODEX_HOME%` and `os.environ['CODEX_HOME']` (likewise `CODEX_SQLITE_HOME` and
-`CLAUDE_CONFIG_DIR`) name the home they point to, so a variable pointing inside the unit stays its own. A `cd` into the
-home or a search of it is a hit too. The unit's own parts are its Claude project folders (its repo's slug and its ccx
+`CLAUDE_CONFIG_DIR`; also `${env:X}` and `${X:-default}`, never a longer name such as `$CODEX_HOME_X`) name the home
+they point to, so a variable pointing inside the unit stays its own; even `echo $CODEX_HOME` is a hit (a unit has no
+reason to look at the shared home). A `cd` into the home or a search of it is a hit too. The unit's own parts are its Claude project folders (its repo's slug and its ccx
 worktrees' slugs; a slug over 200 characters, which Claude Code cuts and hashes, is matched by its first 200) and its
 own Codex rollouts (found by the session ids in its run records). Claude units also get Read deny rules: every
 `projects/*/*.jsonl` transcript (their own too: they never need it), sub-agent folders and memory, the other record
 folders (`plans/**` among them, so plan mode in a headless run may be affected), and the run's earlier units' project
-folders as a few globs; other runs' project folders are left to the audit. Read rules only, and the `--out` rules too
-(writing there reveals nothing), to keep the `--settings` command line short: with 8.3 names on a C: Temp `--out` the
+folders as a few globs; other runs' project folders are left to the audit. Read rules only, and on the other units in
+`--out` too (writing there reveals nothing; the audit catches it), to keep the `--settings` command line short; the
+evidence files `manifest.json` and `results.jsonl` keep their Edit rules as well, so they cannot be altered: with 8.3 names on a C: Temp `--out` the
 last A2 unit's settings are about 19,000 to 21,500 characters. `execute` computes the last unit's length from the real
-`--out` and `--claude-home` and refuses to start above 30,000; `execute --dry-run` with both prints it
+`--out` and `--claude-home` and refuses to start above 30,000, or when the last unit's number would fall past the 200
+characters of a project folder name Claude Code keeps; `execute --dry-run` with both prints it
 (`claude_settings_chars_last_unit`). Codex units: audit only. Codex memories (`features.memories`, stable and on by
 default in codex-cli 0.164.0) are already off in every unit (`CCX_CODEX_ISOLATE`), so nothing is injected across units
 without a tool call. Separate session folders per unit were not chosen: they need the login file copied or linked
 into each unit's home, and not saving sessions (`codex exec --ephemeral`, `claude -p --no-session-persistence`) would
 break ccx's resume between attempts.
+
+**Known gaps of the isolation (#454-#472).** The audit is detection, not prevention, and reads only what a tool call
+spells out. Not recognized: indirect reads of the environment (`Get-ChildItem Env:`, `[Environment]::GetEnvironmentVariable`,
+`printenv` piped on), paths built at run time (string pieces joined in a script, a variable other than the units' home
+variables, a subshell), a path mixing 8.3 and long parts, and DSH logs beyond the parsed format. Codex units cannot be
+denied anything (reads are audited only). Claude deny rules are best effort: their globs rely on Claude Code matching
+`*` as gitignore does, and the earlier units' project-folder rules are written with the absolute and resolved `--out`
+only, not its 8.3 name; neither was checked with the real CLI. Other units' folders in `--out` and other runs' Claude
+project folders have Read rules or none, with the audit as the backstop. A hit makes the row invalid; it does not stop
+the read. Further bypasses go here instead of into new rules.
 
 **How the layers fit.** The protection is the Claude deny rules plus running from an independent clone with every
 other local checkout passed as `--hide`; the audit is a best-effort backstop that finds what slipped through, mainly

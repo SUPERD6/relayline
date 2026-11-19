@@ -202,7 +202,8 @@ def test_last_unit_settings_size_checked_before_the_run(tmp_path, monkeypatch):
         return Path(p.anchor) / Path(*[(x[:6].upper() + "~1") if len(x) > 8 else x for x in p.parts[1:]])
     monkeypatch.setattr(runner, "short_path", fake_short)
     _, claude = homes(tmp_path)
-    out = tmp_path / ("an-evaluation-folder-with-a-rather-long-descriptive-name-470-" + "x" * 30) / "r2-a2"
+    out = tmp_path / "an-evaluation-folder-with-a-long-descriptive-name-470" / "r2-a2"
+    assert runner.slug_problem(out, 192) is None             # long, but its unit numbers still fit (#472)
     size = runner.last_unit_settings_chars(out, 192, claude, runner.isolation_paths())
     assert 0 < size <= runner.SETTINGS_MAX_CHARS, size
     path, sha = memory_file(tmp_path, n=1)
@@ -221,3 +222,48 @@ def test_dry_run_reports_the_last_units_settings_length(tmp_path, capsys):
     data = json.loads(capsys.readouterr().out)
     assert 0 < data["claude_settings_chars_last_unit"] <= runner.SETTINGS_MAX_CHARS and data["within_settings_limit"]
     assert rc == 0 and not (tmp_path / "r2-a2").exists()
+
+
+# ------------------------------------------------------------------ second review of #472
+
+
+@pytest.mark.parametrize("call", ["cat ${env:CODEX_HOME}/history.jsonl", "cat ${CODEX_HOME:-/tmp}/sessions/x.jsonl"])
+def test_braced_variable_forms_are_hits(tmp_path, call):
+    codex, claude = homes(tmp_path)
+    _dest, u = unit(tmp_path)
+    assert runner.audit_hits([json.dumps(call)], u, (codex, claude), env_homes=env_homes(codex, claude)), call
+
+
+@pytest.mark.parametrize("call", ["cat $CODEX_HOME_X/history.jsonl", "cat ${CODEX_HOME_X}/sessions/x.jsonl"])
+def test_a_longer_variable_name_is_not_the_home(tmp_path, call):
+    codex, claude = homes(tmp_path)
+    _dest, u = unit(tmp_path)
+    assert runner.audit_hits([json.dumps(call)], u, (codex, claude), env_homes=env_homes(codex, claude)) == [], call
+
+
+def test_evidence_files_keep_edit_rules(tmp_path, monkeypatch):
+    """manifest.json and results.jsonl: Read and Edit (no tampering with the evidence); other units: Read only."""
+    log = fake_env(monkeypatch, tmp_path)
+    _, claude = homes(tmp_path)
+    out = tmp_path / "out"
+    runner.run_unit({"task": "mem-errors", "arm": "nomem", **CLAUDE}, "memory", out / "unit-0003", .1, None,
+                    claude_home=claude)
+    argv = calls(log, "claude")[-1]["argv"]
+    deny = json.loads(argv[argv.index("--settings") + 1])["permissions"]["deny"]
+    r = PF._rule_path(out.resolve())
+    for f in ("manifest.json", "results.jsonl"):
+        assert f"Edit({r}/{f})" in deny and f"Read({r}/{f})" in deny
+    assert not any(d.startswith(f"Edit({r}/unit-") for d in deny)
+
+
+def test_out_whose_unit_number_falls_past_the_slug_limit_refused(tmp_path):
+    """Claude Code cuts a project folder name past 200 characters: the unit number must stay inside it, or the
+    unit's own folder and its neighbours' could not be told apart. Refused before --out is made."""
+    _, claude = homes(tmp_path)
+    path, sha = memory_file(tmp_path, n=1)
+    data = retest.plan("memory", 1, tasks=path, tasks_sha256=sha, agents=["claude"])
+    deep = tmp_path / ("d" * 60) / ("e" * 60) / ("f" * 60) / "r2-a2"
+    with pytest.raises(ValueError, match="200"):
+        runner.execute(data, deep, 0.5, 0.1, None, claude)
+    assert not deep.exists()
+    assert runner.slug_problem(tmp_path / "r2-a2", 192) is None
