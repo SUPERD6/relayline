@@ -164,7 +164,7 @@ def _launch(cwd, packet_id, target, budget, path, packet, current, prompt, argv,
                 child.wait(timeout=5)
             except subprocess.TimeoutExpired:
                 out["child_stop"] = "Unknown"
-        out.update(state="interrupted", reason="supervisor_interrupted")
+        out.update(state="interrupted", reason="supervisor_interrupted", ended_at=state.utc_now())
         state.atomic_json(run_path, out)
         if child is None:
             claim.unlink(missing_ok=True)
@@ -185,6 +185,7 @@ def _launch(cwd, packet_id, target, budget, path, packet, current, prompt, argv,
         out["state"] = "changes_unknown" if out["changes_observed"] == "Unknown" else "no_changes"
         if out["state"] == "changes_unknown":
             out["message"] = "Workspace change detection is Unknown; inspect git status and review the workspace manually."
+    out["ended_at"] = state.utc_now()      # same format as started_at; only final-state writes carry it
     state.atomic_json(run_path, out)
     out["record"] = str(run_path)
     return out

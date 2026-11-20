@@ -161,6 +161,20 @@ class TestQuotaEvents(test_daily.TestDaily):
         self.assertEqual(e["judged_by"]["human"], ["done"])
         self.assertIn("continue record", e["judged_by"]["machine"])
 
+    def test_continue_end_uses_ended_at_not_file_mtime_when_present(self):
+        self.packet(self.PID)
+        self.cont(self.PID, end=self.T0 + 30 * H, ended_at=iso(self.T0 + 2 * H))     # file was touched much later
+        self.notes({"kind": "done", "id": self.PID, "ts": self.T0 + 2 * H + 60})
+        e = self.ev(self.q(workspaces=[self.work]), self.PID)
+        self.assertEqual(e["verdict"], "success")
+
+    def test_continue_end_falls_back_to_mtime_without_ended_at(self):
+        self.packet(self.PID)
+        self.cont(self.PID, end=self.T0 + 30 * H)                                    # old record: mtime is the end
+        self.notes({"kind": "done", "id": self.PID, "ts": self.T0 + 2 * H + 60})
+        e = self.ev(self.q(now_h=40, workspaces=[self.work]), self.PID)
+        self.assertEqual(e["verdict"], "failure")
+
     def test_lead_without_done_note_is_unknown_then_failure_after_four_hours(self):
         self.packet(self.PID)
         self.cont(self.PID)
