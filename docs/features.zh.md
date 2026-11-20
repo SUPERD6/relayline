@@ -574,18 +574,18 @@ UI 数据原有 `quota` 数组补充 `freshness`、`projected_at_reset`，用量
 （"额度用完不断工"，维护者 2026-11-19 确认）用到真实使用上，只看 2026-11-19 起的事件，只读。JSON 多一个 `quota_events`，页面多一节：事件列表、
 每个事件的判定（`success` / `failure` / `not_attempted` / `unknown`，带原因，并标明每个字段是机器判的还是来自人工记录）、汇总（合并与按角色、按厂商组合、
 单侧 95% Clopper-Pearson 下界、是否至少 5 次计入事件且成功率 ≥ 80%、对外引用的两时段条件：`--quota-split 日期` 把事件分成这天之前和这天起两段）。
-计入事件 = 除 `not_attempted` 外的全部事件；不到 5 次或还有没判出的事件，结论是 Unknown；任何一次丢了未提交的改动，整个主张判 Fail。没有计入的主导事件时，页面写明主导一侧是 Unknown。
+计入事件 = 除 `not_attempted` 外的全部事件；不到 5 次或还有没判出的事件，结论是 Unknown；任何一次丢了未提交的改动，整个主张判 Fail。一个原始任务算一次：续跑链（或主导 packet 与它的接续撞限后写的新 packet、接续开始前同会话捕获的 packet）合成一个事件，按链的最终结果判；packet 只判第一条真接续。`done` 或 `intact` 窗口过了还没有，判失败并标 `failure_basis: "missing_human_record"`；汇总单列这类失败的数量，并给一行敏感性对照（“如果这些都算成功，比例是多少”，不可引用）；页面列出还在窗口内、等人工补记录的事件。另列出但不计入：`capacity_recovery` 的运行、评测 hub 里的撞限、被记录排除的事件、读不了的记录或 packet 文件。没有计入的主导事件时，页面写明主导一侧是 Unknown。
 
 - 子 agent 事件（机器）：`run.json` 有 `quota_stop`、`quota_fallback`，或某次尝试 `kind == "quota"`；只继承了前一次运行字段的续跑不算新事件。成功要求 4 小时内在
   别家或别的模型接着做（同一个运行经 `quota_fallback`，或 `resumed_from` 指向它的运行）、以 `ok` 结束、之后没被 `ccx verify` 判错，并且中间没有同标签从头另起的运行。
   只有 `quota_stop`、4 小时内既没改派也没接续是失败（4 小时没过完时先是 `unknown`）。
 - 主导事件（机器）：`<工作区>/.ccx/relay/` 里 `state = quota_stopped` 的 packet，按它的 `.continue-*.json` 判。工作区取账本里运行的目录，再加每个 `--quota-workspace DIR`。
   时间取 packet 的 `captured_at` 和接续记录的 `started_at`（缺字段才用文件修改时间）。`rate_limit_unconfirmed` 的 packet 只列出，有下面的 `confirm` 记录才计入。
-  Codex 当主导没有额度钩子，这类事件除非手工记录，否则是 Unknown。
-- 人工记录文件 `<hub>/ccx/daily/quota-notes.jsonl`，一行一个 JSON，手写；`ts` 是 epoch 秒或 ISO 8601，`id` 是运行 id 或 packet id：
+  Codex 当主导没有额度钩子，撞限不会被记下，这一侧是 Unknown。
+- 人工记录文件 `<hub>/ccx/daily/quota-notes.jsonl`，一行一个 JSON，手写；`ts` 是 epoch 秒或 ISO 8601（没写时区的 ISO 时间按页面的时区解释：`--tz`，没给就用本机时区），`id` 是运行 id 或 packet id：
   `{"kind":"wait"}`（用户选择等重置，写在事件后 4 小时内：未尝试，不计入）、`{"kind":"confirm","basis":"window_full"|"reset_ge_1h"}`（用量读数或重置时间，
   写在 packet 之后 1 小时内、接续开始之前）、`{"kind":"intact"}`（核对过没丢未提交的改动；`workspace_changed` 不是 false 或指纹 Unknown 时需要）、
-  `{"kind":"done"}`（接续的主导工作做完，写在接续结束后 4 小时内）、`{"kind":"lost"}`（丢了未提交的改动：主张 Fail）、`{"kind":"exclude"}`（模拟、回放或故意制造：不计入）。
+  `{"kind":"done"}`（接续的主导工作做完，写在接续结束后 4 小时内；只认这份记录，不认 `ccx verify`）、`{"kind":"lost"}`（丢了未提交的改动：主张 Fail）、`{"kind":"exclude"}`（模拟、回放或故意制造：不计入）。
 
 ## 安全边界
 

@@ -170,19 +170,44 @@ class TestQuotaEvents(test_daily.TestDaily):
     def test_workspace_changed_needs_a_human_check_before_it_can_succeed(self):
         self.packet(self.PID)
         self.cont(self.PID, workspace_changed=True)
-        self.notes({"kind": "done", "id": self.PID, "ts": self.T0 + 2 * H + 60})
-        e = self.ev(self.q(workspaces=[self.work]), self.PID)
+        done = {"kind": "done", "id": self.PID, "ts": self.T0 + 2 * H + 60}
+        self.notes(done)
+        e = self.ev(self.q(now_h=3, workspaces=[self.work]), self.PID)         # window still open: waiting for the person
         self.assertEqual(e["verdict"], "unknown")
-        self.assertIn("人工", e["reason"])
-        self.notes({"kind": "done", "id": self.PID, "ts": self.T0 + 2 * H + 60}, {"kind": "intact", "id": self.PID, "ts": self.T0 + 3 * H})
+        self.assertTrue(e["awaiting_human"])
+        self.assertIn("intact", e["awaiting"][0])
+        q = self.q(now_h=10, workspaces=[self.work])                            # window over: failure, labelled
+        e = self.ev(q, self.PID)
+        self.assertEqual((e["verdict"], e["failure_basis"]), ("failure", "missing_human_record"))
+        self.assertEqual(q["summary"]["combined"]["missing_human_record_failures"], 1)
+        self.notes(done, {"kind": "intact", "id": self.PID, "ts": self.T0 + 3 * H})
         e = self.ev(self.q(workspaces=[self.work]), self.PID)
         self.assertEqual(e["verdict"], "success")
         self.assertEqual(sorted(e["judged_by"]["human"]), ["done", "intact"])
 
-    def test_unknown_content_fingerprint_also_needs_a_human_check(self):
+    def test_unknown_content_fingerprint_needs_a_check_and_missing_done_is_the_same_failure(self):
         self.packet(self.PID, git={"head": "abc", "content_fingerprint": "Unknown"})
         self.cont(self.PID)
-        self.assertEqual(self.ev(self.q(workspaces=[self.work]), self.PID)["verdict"], "unknown")
+        e = self.ev(self.q(now_h=3, workspaces=[self.work]), self.PID)
+        self.assertEqual((e["verdict"], e["awaiting_human"]), ("unknown", True))
+        self.assertEqual(self.ev(self.q(workspaces=[self.work]), self.PID)["failure_basis"], "missing_human_record")
+        q = self.q(now_h=3, workspaces=[self.work])
+        self.assertEqual([w["id"] for w in q["awaiting_human_record"]], [self.PID])
+        md = daily.render(daily.build(self.p, DAY, UTC, now=self.T0 + 3 * H, quota_events=True, quota_workspaces=[self.work]))
+        self.assertIn("等人工补记录", md)
+
+    def test_sensitivity_line_counts_missing_record_failures_as_success_and_is_not_quotable(self):
+        for i in range(5):
+            pid = f"{i}" * 32
+            self.packet(pid, session=f"s{i}")
+            self.cont(pid, name=str(i))
+        self.notes(*[{"kind": "done", "id": f"{i}" * 32, "ts": self.T0 + 2 * H + 60} for i in range(3)])
+        c = self.q(workspaces=[self.work])["summary"]["combined"]
+        self.assertEqual((c["success"], c["missing_human_record_failures"]), (3, 2))
+        self.assertEqual(c["sensitivity_if_missing_were_success"]["rate"], 1.0)
+        self.assertFalse(c["sensitivity_if_missing_were_success"]["quotable"])
+        md = daily.render(daily.build(self.p, DAY, UTC, now=self.T0 + 10 * H, quota_events=True, quota_workspaces=[self.work]))
+        self.assertIn("不可引用", md)
 
     def test_lead_failures(self):
         a, b, c, d = "a" * 32, "b" * 32, "c" * 32, "d" * 32
@@ -239,6 +264,118 @@ class TestQuotaEvents(test_daily.TestDaily):
         self.put(run("x", day=DAY, hh=9, cwd=str(self.work)))
         self.packet(self.PID)
         self.assertEqual([e["id"] for e in self.q()["events"]], [self.PID])
+
+    # ---- review round 1 (#482)
+    def test_runs_without_a_label_are_never_a_redo(self):
+        self.put(run("a", day=DAY, hh=10, label=""), run("c", day=DAY, hh=11, label=""),
+                 runs={"a": {"quota_stop": {"agent": "codex"}}, "c": {}})
+        e = self.ev(self.q(), "a")
+        self.assertNotIn("重做", e["reason"])
+
+    def test_same_session_packet_outside_the_window_is_its_own_event(self):
+        a, b = "a" * 32, "b" * 32
+        self.packet(a, session="s9")
+        self.cont(a)
+        self.packet(b, session="s9", at=self.T0 + 6 * H)             # long after a's continuation started
+        self.notes({"kind": "done", "id": a, "ts": self.T0 + 2 * H + 60})
+        q = self.q(now_h=7, workspaces=[self.work])
+        self.assertEqual(sorted(e["id"] for e in q["events"]), [a, b])
+        self.assertEqual(self.ev(q, a)["verdict"], "success")
+
+    def test_same_session_packet_inside_the_window_merges_into_one_failed_event(self):
+        a, b = "a" * 32, "b" * 32
+        self.packet(a, session="s9")
+        self.packet(b, session="s9", at=self.T0 + 600)
+        self.cont(a)
+        q = self.q(workspaces=[self.work])
+        self.assertEqual([e["id"] for e in q["events"]], [a])
+        self.assertEqual(q["events"][0]["verdict"], "failure")
+
+    def test_naive_note_times_are_read_in_the_pages_time_zone(self):
+        self.put(run("a", day=DAY, hh=10, secs=60), runs={"a": {"quota_stop": {"agent": "codex"}}})
+        self.notes({"kind": "wait", "id": "a", "ts": "2026-11-19T18:10:00"})      # 18:10 at +08:00 is 10:10 UTC
+        e8 = daily.build(self.p, DAY, test_daily.E8, now=self.T0 + 9 * H, quota_events=True)["quota_events"]
+        self.assertEqual(self.ev(e8, "a")["verdict"], "not_attempted")
+        utc = daily.build(self.p, DAY, UTC, now=self.T0 + 9 * H, quota_events=True)["quota_events"]
+        self.assertEqual(self.ev(utc, "a")["verdict"], "failure")             # the same text read as UTC: 8 hours late
+        self.notes({"kind": "wait", "id": "a", "ts": "2026-11-19T10:10:00Z"})  # an explicit zone is kept as written
+        e8 = daily.build(self.p, DAY, test_daily.E8, now=self.T0 + 9 * H, quota_events=True)["quota_events"]
+        self.assertEqual(self.ev(e8, "a")["verdict"], "not_attempted")
+
+    def test_a_continuation_still_running_is_unknown_not_failure(self):
+        self.put(run("a", day=DAY, hh=10, secs=60), runs={"a": {"quota_stop": {"agent": "codex"}},
+                 "live": {"resumed_from": "a", "status": "running"}})            # no ledger row yet: it has not ended
+        e = self.ev(self.q(now_h=9), "a")
+        self.assertEqual((e["verdict"], e["continued_by"]), ("unknown", "live"))
+
+    def test_resume_chain_is_one_event_judged_by_the_last_result(self):
+        self.put(run("a", day=DAY, hh=10, secs=60),
+                 run("b", day=DAY, hh=11, to="claude", rungs=["claude:m:low"]),
+                 runs={"a": {"quota_stop": {"agent": "codex"}},
+                       "b": {"resumed_from": "a", "quota_stop": {"agent": "claude"}}})
+        q = self.q(now_h=3)
+        self.assertEqual([e["id"] for e in q["events"]], ["a"])
+        e = q["events"][0]
+        self.assertEqual((e["verdict"], e["chain"]), ("unknown", ["a", "b"]))   # b hit the limit again, nothing followed yet
+        self.put(run("a", day=DAY, hh=10, secs=60), run("b", day=DAY, hh=11, to="claude", rungs=["claude:m:low"]),
+                 run("c", day=DAY, hh=12, to="codex", rungs=["codex:n:low"]),
+                 runs={"a": {"quota_stop": {"agent": "codex"}},
+                       "b": {"resumed_from": "a", "quota_stop": {"agent": "claude"}}, "c": {"resumed_from": "b"}})
+        e = self.q()["events"][0]
+        self.assertEqual((e["verdict"], e["chain"], e["continued_by"]), ("success", ["a", "b"], "c"))
+
+    def test_lead_handoff_packet_joins_the_chain_and_the_last_result_decides(self):
+        a, b = "a" * 32, "b" * 32
+        self.packet(a, session="s1")
+        self.cont(a, state="quota_stopped", handoff_packet=b)
+        self.packet(b, session="Unknown", at=self.T0 + 2 * H, source="codex")
+        self.cont(b, start=self.T0 + 2 * H + 600, end=self.T0 + 3 * H)
+        self.notes({"kind": "done", "id": b, "ts": self.T0 + 3 * H + 60})
+        q = self.q(workspaces=[self.work])
+        self.assertEqual([e["id"] for e in q["events"]], [a])
+        self.assertEqual((q["events"][0]["verdict"], q["events"][0]["chain"]), ("success", [a, b]))
+
+    def test_subagent_four_hours_start_at_the_event_runs_ts(self):
+        self.put(run("a", day=DAY, hh=10, secs=3000), runs={"a": {"quota_stop": {"agent": "codex"}}})
+        self.assertEqual(self.ev(self.q(now_h=4.1), "a")["verdict"], "failure")      # 4h from ts, not from its end
+
+    def test_lost_note_on_the_continuation_run_counts(self):
+        self.put(run("a", day=DAY, hh=10, secs=60), run("b", day=DAY, hh=11, to="claude", rungs=["claude:m:low"]),
+                 runs={"a": {"quota_stop": {"agent": "codex"}}, "b": {"resumed_from": "a"}})
+        self.notes({"kind": "lost", "id": "b", "ts": self.T0 + 2 * H})
+        s = self.q()["summary"]["combined"]
+        self.assertTrue(s["claim_fail"])
+        self.assertEqual(s["verdict"], "Fail")
+
+    def test_excluded_event_with_a_lost_note_still_fails_the_claim(self):
+        self.put(run("a", day=DAY, hh=10), runs={"a": {"quota_stop": {"agent": "codex"}}})
+        self.notes({"kind": "exclude", "id": "a", "ts": self.T0}, {"kind": "lost", "id": "a", "ts": self.T0})
+        q = self.q()
+        self.assertEqual(q["events"], [])
+        self.assertEqual(q["summary"]["combined"]["verdict"], "Fail")
+
+    def test_capacity_recovery_and_eval_hub_events_are_listed_not_counted(self):
+        self.put(run("cap", day=DAY, hh=10), run("ev", day=DAY, hh=10, label="eval-x"),
+                 runs={"cap": {"capacity_recovery": [{"reason": "model_at_capacity"}]},
+                       "ev": {"quota_stop": {"agent": "codex"}}})
+        q = self.q()
+        self.assertEqual(q["events"], [])
+        self.assertEqual((q["not_counted"]["capacity_recovery_runs"], q["not_counted"]["eval_hub_events"]), (1, 1))
+
+    def test_notes_with_a_bom_are_read_and_bad_lines_are_counted(self):
+        f = daily_quota.notes_path(self.p)
+        f.parent.mkdir(parents=True, exist_ok=True)
+        f.write_bytes(b'\xef\xbb\xbf{"kind":"wait","id":"a","ts":%d}\nnot json\n' % int(self.T0 + 60))
+        self.put(run("a", day=DAY, hh=10, secs=60), runs={"a": {"quota_stop": {"agent": "codex"}}})
+        q = self.q(now_h=9)
+        self.assertEqual(self.ev(q, "a")["verdict"], "not_attempted")
+        self.assertEqual(q["not_counted"]["unreadable_note_or_packet_files"], 1)
+
+    def test_quota_split_must_be_a_date(self):
+        with self.assertRaises(ValueError):
+            self.q(quota_split="soon")
+        r = self.ccx("report", "--daily", DAY, "--tz", "UTC", "--quota-events", "--quota-split", "11/20")
+        self.assertNotEqual(r.returncode, 0)
 
     # ---- summary
     def test_summary_thresholds_roles_and_lower_bound(self):

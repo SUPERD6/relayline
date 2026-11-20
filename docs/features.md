@@ -847,7 +847,12 @@ judged by the machine or came from a person's note), and a summary (combined and
 one-sided 95% Clopper-Pearson lower bound, whether there are at least 5 counted events and a rate of at least 80%, and
 the two-period rule for quoting numbers: `--quota-split DAY` splits the events into a period before DAY and one from DAY).
 Counted events are all events except `not_attempted`; with fewer than 5, or events still undecided, the verdict is Unknown;
-one lost uncommitted change makes the whole claim Fail. When no lead event is counted the page says the lead side is Unknown.
+one lost uncommitted change makes the whole claim Fail. One original task counts once: a resume chain (or a lead packet and the packet its
+continuation wrote when it hit the limit too, or a same-session packet captured before the continuation started) is one event judged by the chain's last
+result. Only a packet's first real continuation is judged. A missing `done` or `intact` once its window is over is a failure labelled
+`failure_basis: "missing_human_record"`; the summary counts these apart and prints a sensitivity line ("if these were successes the rate would be ...",
+not quotable), and the page lists events still inside their window that wait for a note. Also listed, not counted: `capacity_recovery` runs, limit hits
+inside the evaluation hub, events excluded by a note, unreadable note or packet files. When no lead event is counted the page says the lead side is Unknown.
 
 - Sub-agent events (machine): a run whose `run.json` has `quota_stop`, `quota_fallback` or an attempt of `kind == "quota"`; a
   continuation that only inherited the earlier run's fields is not a new event. Success needs a continuation within 4 hours
@@ -857,12 +862,12 @@ one lost uncommitted change makes the whole claim Fail. When no lead event is co
 - Lead events (machine): a relay packet in `<workspace>/.ccx/relay/` with `state = quota_stopped`, judged from its
   `.continue-*.json` records. Workspaces are those of the ledger's runs plus each `--quota-workspace DIR`. Times come from the packet's
   `captured_at` and the record's `started_at` (the file modification time when a field is missing). A `rate_limit_unconfirmed` packet is
-  listed but counted only with a `confirm` note (below). Codex as lead has no quota hook, so those events are Unknown unless noted by hand.
-- Notes file `<hub>/ccx/daily/quota-notes.jsonl`, one JSON object per line, written by hand; `ts` is epoch seconds or ISO 8601,
+  listed but counted only with a `confirm` note (below). Codex as lead has no quota hook, so its limit hits are not recorded and that side is Unknown.
+- Notes file `<hub>/ccx/daily/quota-notes.jsonl`, one JSON object per line, written by hand; `ts` is epoch seconds or ISO 8601 (an ISO time without a zone is read in the page's time zone: `--tz`, this machine's local time when not given),
   `id` a run id or a packet id: `{"kind":"wait"}` (the person chose to wait for the reset, within 4 hours of the event: not attempted,
   not counted), `{"kind":"confirm","basis":"window_full"|"reset_ge_1h"}` (a usage reading or reset time, written within an hour of the packet and
   before the continuation started), `{"kind":"intact"}` (checked that no uncommitted change was lost, needed when `workspace_changed` is not
-  false or the fingerprint is Unknown), `{"kind":"done"}` (marked the continued lead work finished, within 4 hours of its end),
+  false or the fingerprint is Unknown), `{"kind":"done"}` (marked the continued lead work finished, within 4 hours of its end; only this file counts, `ccx verify` does not),
   `{"kind":"lost"}` (uncommitted work was lost: the claim is Fail), `{"kind":"exclude"}` (simulated, replayed or deliberate: not counted).
 
 ## Safety
