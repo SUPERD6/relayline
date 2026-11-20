@@ -6,5 +6,5 @@
   estimates following each job's overlap policy. The starting tree is unchanged and the development task SHAs stay
   as frozen. Checks in `docs/research/data/round2-bc/b-formal-cronlite-{build,check,native,leak}.json`: two builds
   give the same SHAs; `build.py check` 8/8 valid (hidden tests fail on start, pass on the reference, the whole suite
-  passes on the reference); P4-native validation 8/8; leak/similarity clean (highest ratio 0.32). The tasks are not
+  passes on the reference); P4-native validation 8/8; leak/similarity clean (highest ratio 0.30). The tasks are not
   merged into a final task file yet. No model was called.

@@ -121,7 +121,7 @@
       },
       "reference_full": {
         "rc": 0,
-        "summary": "68 passed in 0.15s",
+        "summary": "68 passed in 0.14s",
         "errors": []
       },
       "reference_failed": [],
@@ -192,7 +192,7 @@
       },
       "reference_full": {
         "rc": 0,
-        "summary": "62 passed in 0.14s",
+        "summary": "62 passed in 0.15s",
         "errors": []
       },
       "reference_failed": [],
@@ -263,16 +263,16 @@
       },
       "reference": {
         "rc": 0,
-        "summary": "7 passed in 0.04s",
+        "summary": "8 passed in 0.04s",
         "errors": []
       },
       "reference_full": {
         "rc": 0,
-        "summary": "63 passed in 0.14s",
+        "summary": "64 passed in 0.14s",
         "errors": []
       },
       "reference_failed": [],
-      "assertions": 22,
+      "assertions": 26,
       "literal_overlap": [
         {
           "assertion": "tests/test_flapping_and_calendars.py::test_transitions#4",
@@ -307,11 +307,11 @@
           "literal": "missed"
         },
         {
-          "assertion": "tests/test_flapping_and_calendars.py:35 (outside an assert)",
+          "assertion": "tests/test_flapping_and_calendars.py:37 (outside an assert)",
           "literal": "window"
         },
         {
-          "assertion": "tests/test_flapping_and_calendars.py:35 (outside an assert)",
+          "assertion": "tests/test_flapping_and_calendars.py:37 (outside an assert)",
           "literal": "threshold"
         }
       ],
@@ -330,8 +330,8 @@
         "literal 'failing' of tests/test_flapping_and_calendars.py::test_check_orders_flapping_after_failing#3 appears in the brief",
         "literal 'missed' of tests/test_flapping_and_calendars.py::test_check_uses_job_calendars#1 appears in the brief",
         "literal 'missed' of tests/test_flapping_and_calendars.py::test_check_uses_job_calendars#4 appears in the brief",
-        "literal 'window' of tests/test_flapping_and_calendars.py:35 (outside an assert) appears in the brief",
-        "literal 'threshold' of tests/test_flapping_and_calendars.py:35 (outside an assert) appears in the brief"
+        "literal 'window' of tests/test_flapping_and_calendars.py:37 (outside an assert) appears in the brief",
+        "literal 'threshold' of tests/test_flapping_and_calendars.py:37 (outside an assert) appears in the brief"
       ],
       "lib": "cronlite",
       "dev": false
@@ -346,7 +346,7 @@
       },
       "start": {
         "rc": 1,
-        "summary": "8 failed in 0.37s",
+        "summary": "8 failed in 0.38s",
         "errors": [
           "E       TypeError: calendar() got an unexpected keyword argument 'tz'",
           "E       TypeError: calendar() got an unexpected keyword argument 'tz'",
@@ -364,12 +364,12 @@
       },
       "reference": {
         "rc": 0,
-        "summary": "8 passed in 0.05s",
+        "summary": "8 passed in 0.06s",
         "errors": []
       },
       "reference_full": {
         "rc": 0,
-        "summary": "64 passed in 0.16s",
+        "summary": "64 passed in 0.15s",
         "errors": []
       },
       "reference_failed": [],
@@ -457,7 +457,7 @@
       },
       "start": {
         "rc": 2,
-        "summary": "1 error in 0.15s",
+        "summary": "1 error in 0.14s",
         "errors": [
           "E   ImportError: cannot import name 'lint_registry' from 'cronlite' (<tree>\\cronlite\\__init__.py)",
           "ERROR tests/test_registry_check.py"
@@ -759,7 +759,7 @@
       },
       "start": {
         "rc": 2,
-        "summary": "1 error in 0.15s",
+        "summary": "1 error in 0.14s",
         "errors": [
           "E   ImportError: cannot import name 'dropped_runs' from 'cronlite' (<tree>\\cronlite\\__init__.py)",
           "ERROR tests/test_load_policies.py"
@@ -776,11 +776,15 @@
         "errors": []
       },
       "reference_failed": [],
-      "assertions": 21,
+      "assertions": 25,
       "literal_overlap": [
         {
           "assertion": "tests/test_load_policies.py::test_policy_options_are_checked#1",
           "literal": "allow"
+        },
+        {
+          "assertion": "tests/test_load_policies.py::test_policy_options_are_checked#5",
+          "literal": "queue"
         },
         {
           "assertion": "tests/test_load_policies.py::test_queue_limit_and_dropped_count#1",
@@ -807,7 +811,7 @@
           "literal": "dropped"
         },
         {
-          "assertion": "tests/test_load_policies.py:27 (outside an assert)",
+          "assertion": "tests/test_load_policies.py:19 (outside an assert)",
           "literal": "skip"
         }
       ],
@@ -819,13 +823,14 @@
       "valid": true,
       "review": [
         "literal 'allow' of tests/test_load_policies.py::test_policy_options_are_checked#1 appears in the brief",
+        "literal 'queue' of tests/test_load_policies.py::test_policy_options_are_checked#5 appears in the brief",
         "literal 'queue' of tests/test_load_policies.py::test_queue_limit_and_dropped_count#1 appears in the brief",
         "literal 'queue' of tests/test_load_policies.py::test_queue_limit_and_dropped_count#2 appears in the brief",
         "literal 'queue' of tests/test_load_policies.py::test_queue_limit_and_dropped_count#3 appears in the brief",
         "literal 'dropped' of tests/test_load_policies.py::test_policy_report#1 appears in the brief",
         "literal 'delayed' of tests/test_load_policies.py::test_policy_report#1 appears in the brief",
         "literal 'dropped' of tests/test_load_policies.py::test_policy_report#2 appears in the brief",
-        "literal 'skip' of tests/test_load_policies.py:27 (outside an assert) appears in the brief"
+        "literal 'skip' of tests/test_load_policies.py:19 (outside an assert) appears in the brief"
       ],
       "lib": "cronlite",
       "dev": false

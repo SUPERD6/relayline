@@ -74,14 +74,17 @@ class RunLog:
             count += 1
         return count if latest else -count
 
-    def transitions(self, job: str, last: int | None = None) -> int:
-        """How many times the outcome changed between consecutive runs of the job (success to failure or back),
-        looking only at its latest `last` runs when given."""
+    def recent(self, job: str, last: int | None = None, since: datetime | None = None) -> list[Run]:
+        """The job's runs that started at or after `since` (all when None), of those only the latest `last`."""
         if last is not None and last < 1:
             raise CronError("last must be at least 1")
-        runs = self.for_job(job)
-        if last is not None:
-            runs = runs[-last:]
+        runs = [r for r in self.for_job(job) if since is None or r.started >= since]
+        return runs[-last:] if last is not None else runs
+
+    def transitions(self, job: str, last: int | None = None, since: datetime | None = None) -> int:
+        """How many times the outcome changed between consecutive runs of the job (success to failure or back),
+        looking only at the runs `recent` gives."""
+        runs = self.recent(job, last, since)
         return sum(1 for a, b in zip(runs, runs[1:]) if a.ok != b.ok)
 
     def stats(self, job: str) -> dict:

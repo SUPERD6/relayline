@@ -29,6 +29,8 @@ class JobLoad:
             raise CronError(f"job {self.name!r}: policy must be one of {', '.join(POLICIES)}")
         if self.max_queue < 0:
             raise CronError(f"job {self.name!r}: max_queue must be >= 0")
+        if self.max_queue != 1 and self.policy != "queue":
+            raise CronError(f"job {self.name!r}: max_queue only applies to the queue policy")
 
 
 def _planned(job: JobLoad, start: datetime, end: datetime) -> list[Planned]:
@@ -66,6 +68,8 @@ def occupancy(jobs: list[JobLoad], start: datetime, end: datetime) -> dict[datet
 
 
 def _due_in(job: JobLoad, start: datetime, end: datetime) -> list[Planned]:
+    if end <= start:
+        raise CronError("the window must end after it starts")
     return [p for p in _planned(job, start, end) if start < p.due <= end]
 
 

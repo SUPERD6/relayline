@@ -15,6 +15,9 @@ def test_policy_options_are_checked():
         JobLoad("a", TWICE, 5, policy="sometimes")
     with pytest.raises(CronError):
         JobLoad("a", TWICE, 5, policy="queue", max_queue=-1)
+    with pytest.raises(CronError):
+        JobLoad("a", TWICE, 5, policy="skip", max_queue=3)
+    assert JobLoad("a", TWICE, 5, policy="queue", max_queue=0).max_queue == 0
 
 
 def test_allow_keeps_todays_numbers():
@@ -65,6 +68,10 @@ def test_policy_report():
     assert report["q"] == {"due": 2, "started": 2, "dropped": 0, "max_delay_seconds": 600, "delayed": 1}
     assert report["s"]["due"] == 2 and report["s"]["dropped"] == 1
     assert policy_report([queue], START, datetime(2026, 1, 1, 0, 7))["q"]["max_delay_seconds"] == 600
+    with pytest.raises(CronError):
+        policy_report([queue], START, START)
+    with pytest.raises(CronError):
+        dropped_runs([queue], END, START)
 
 
 def test_run_still_going_when_the_window_opens():

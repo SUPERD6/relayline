@@ -29,13 +29,15 @@ def failing(log: RunLog, job: str, threshold: int = 3) -> Alert | None:
     return None
 
 
-def flapping(log: RunLog, job: str, window: int = 6, threshold: int = 3) -> Alert | None:
-    """An alert when the outcome changed at least `threshold` times within the job's latest `window` runs."""
+def flapping(log: RunLog, job: str, window: int = 6, threshold: int = 3,
+             since: datetime | None = None) -> Alert | None:
+    """An alert when the outcome changed at least `threshold` times within the job's latest `window` runs (of those
+    that started at or after `since`, when given)."""
     if window < 2 or threshold < 1:
         raise CronError("window must be at least 2 and threshold at least 1")
-    changes = log.transitions(job, window)
+    changes = log.transitions(job, window, since)
     if changes >= threshold:
-        seen = min(window, len(log.for_job(job)))
+        seen = len(log.recent(job, window, since))
         return Alert(job, "flapping", f"{changes} changes in the last {seen} runs")
     return None
 
@@ -80,7 +82,7 @@ def check(log: RunLog, schedules: dict[str, CronExpr], start: datetime, end: dat
         if a:
             alerts.append(a)
         if flap_threshold is not None:
-            a = flapping(log, job, flap_window, flap_threshold)
+            a = flapping(log, job, flap_window, flap_threshold, since=start)   # runs of the checked period only
             if a:
                 alerts.append(a)
         gone = missed(log, job, schedules[job], start, end, calendar=calendars.get(job, calendars.get("*")))

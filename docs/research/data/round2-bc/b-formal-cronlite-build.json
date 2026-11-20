@@ -1,6 +1,6 @@
 {
   "about": "scripts/eval/round2_bc/build.py build run twice into two empty caches; the task entries (commit SHAs included) are identical, and the development tasks still equal b-dev.json",
-  "identical": false,
+  "identical": true,
   "dev_unchanged": true,
   "tasks": [
     {
@@ -36,8 +36,8 @@
     },
     {
       "id": "r2b-cronlite-4",
-      "commit": "95b62b0abb606535eb0e53df1b4f97da13bc4a39",
-      "code_lines": 61,
+      "commit": "82a57f872d89eef5e93c21e832e49fee8fbb6822",
+      "code_lines": 66,
       "code": [
         "cronlite/__init__.py",
         "cronlite/alerts.py",
@@ -77,8 +77,8 @@
     },
     {
       "id": "r2b-cronlite-8",
-      "commit": "aa27d42f1c41265f8a2c2fd11cbe2a352051f951",
-      "code_lines": 62,
+      "commit": "2149f8ec2d57fb1037cd0862d9922d188e4c0c26",
+      "code_lines": 66,
       "code": [
         "cronlite/__init__.py",
         "cronlite/load.py"

@@ -3,8 +3,8 @@
     "id": "r2b-cronlite-1",
     "commit": "199af5be3b7f0d0b4f684bcfc03972a91eda125e",
     "valid": true,
-    "baseline": "56 passed in 0.14s",
-    "parent": "13 failed, 5 passed in 0.15s",
+    "baseline": "56 passed in 0.13s",
+    "parent": "13 failed, 5 passed in 0.13s",
     "reference": "18 passed in 0.04s"
   },
   {
@@ -12,7 +12,7 @@
     "commit": "eec0c6187a068706e35b7f8139d835e23d45dc06",
     "valid": true,
     "baseline": "56 passed in 0.13s",
-    "parent": "8 failed, 4 passed in 0.14s",
+    "parent": "8 failed, 4 passed in 0.13s",
     "reference": "12 passed in 0.04s"
   },
   {
@@ -20,22 +20,22 @@
     "commit": "d9771008dcc4f98a4790c143045065a5773018cc",
     "valid": true,
     "baseline": "56 passed in 0.13s",
-    "parent": "1 error in 0.14s",
+    "parent": "1 error in 0.13s",
     "reference": "6 passed in 0.04s"
   },
   {
     "id": "r2b-cronlite-4",
-    "commit": "95b62b0abb606535eb0e53df1b4f97da13bc4a39",
+    "commit": "82a57f872d89eef5e93c21e832e49fee8fbb6822",
     "valid": true,
     "baseline": "56 passed in 0.13s",
-    "parent": "1 error in 0.15s",
-    "reference": "7 passed in 0.04s"
+    "parent": "1 error in 0.14s",
+    "reference": "8 passed in 0.04s"
   },
   {
     "id": "r2b-cronlite-5",
     "commit": "952be39598a134ef6eb19b7112bf449fa2d8413a",
     "valid": true,
-    "baseline": "56 passed in 0.13s",
+    "baseline": "56 passed in 0.14s",
     "parent": "8 failed in 0.37s",
     "reference": "8 passed in 0.05s"
   },
@@ -57,10 +57,10 @@
   },
   {
     "id": "r2b-cronlite-8",
-    "commit": "aa27d42f1c41265f8a2c2fd11cbe2a352051f951",
+    "commit": "2149f8ec2d57fb1037cd0862d9922d188e4c0c26",
     "valid": true,
     "baseline": "56 passed in 0.13s",
-    "parent": "1 error in 0.13s",
-    "reference": "8 passed in 0.06s"
+    "parent": "1 error in 0.14s",
+    "reference": "8 passed in 0.05s"
   }
 ]

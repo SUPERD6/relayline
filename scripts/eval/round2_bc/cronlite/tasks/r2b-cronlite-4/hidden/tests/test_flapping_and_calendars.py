@@ -21,6 +21,7 @@ def test_transitions():
     assert log.transitions("j", last=3) == 1
     assert log.transitions("j", last=1) == 0 and log.transitions("nobody") == 0
     assert log.stats("j")["transitions"] == 3
+    assert log.transitions("j", since=D + 2 * H) == 1
     with pytest.raises(CronError):
         log.transitions("j", last=0)
 
@@ -32,6 +33,7 @@ def test_flapping():
     assert flapping(log, "j", window=5, threshold=4) is None
     assert flapping(log, "j", window=9, threshold=3).detail == "3 changes in the last 5 runs"
     assert flapping(log, "j", window=3, threshold=1).detail.startswith("1 ")
+    assert "last 3 runs" in flapping(log, "j", window=5, threshold=1, since=D + 2 * H).detail
     for bad in ({"window": 1}, {"threshold": 0}):
         with pytest.raises(CronError):
             flapping(log, "j", **bad)
@@ -70,6 +72,13 @@ def test_check_orders_flapping_after_failing():
     assert [a.kind for a in check(log, {"j": hourly}, D - M, D + 4 * H, fail_threshold=2)] == ["failing"]
     short = check(log, {"j": hourly}, D - M, D + 4 * H, fail_threshold=2, flap_threshold=3, flap_window=2)
     assert [a.kind for a in short] == ["failing"]
+
+
+def test_check_judges_flapping_on_the_checked_period():
+    log = _log([True, False, True, False, True, True, True])
+    hourly = CronExpr.parse("0 * * * *")
+    assert check(log, {"j": hourly}, D + 4 * H - M, D + 6 * H, flap_threshold=2) == []
+    assert flapping(log, "j", threshold=2) is not None
 
 
 def test_check_uses_job_calendars():
