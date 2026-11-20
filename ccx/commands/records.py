@@ -18,10 +18,13 @@ def cmd_report(a) -> int:
         if a.publish:
             raise ValueError("--publish publishes the dashboard and cannot be combined with --daily")
         _out(daily.write(p, a.daily or None, Path(a.out) if a.out else None, daily.parse_tz(a.tz),
-                         include_evals=a.include_evals))
+                         include_evals=a.include_evals, quota_events=a.quota_events,
+                         quota_workspaces=a.quota_workspace or (), quota_split=a.quota_split))
         return 0
     if a.tz:
         raise ValueError("--tz only goes with --daily")
+    if a.quota_events or a.quota_workspace or a.quota_split:
+        raise ValueError("--quota-events, --quota-workspace and --quota-split only go with --daily")
     res = report.write(p, days=a.days, out=Path(a.out) if a.out else None, include_lead=not a.no_lead,
                        include_evals=a.include_evals)
     if a.publish:
@@ -549,6 +552,12 @@ def register(sub) -> None:
                     "for a day of real use (YYYY-MM-DD, today or yesterday; default today) at <hub>/ccx/daily/DAY.md, "
                     "or at --out; read-only; --days, --no-lead and --publish do not apply (--publish is refused); --include-evals also counts evaluation runs")
     rp.add_argument("--tz", help="with --daily: the time zone that decides the day (local, UTC or +08:00; default local)")
+    rp.add_argument("--quota-events", action="store_true", help="with --daily: add the quota-event section (decision 3: "
+                    "events since 2026-11-19, each judged success / failure / not_attempted / unknown, machine or human source)")
+    rp.add_argument("--quota-workspace", action="append", metavar="DIR", help="with --quota-events: also read relay "
+                    "packets in DIR/.ccx/relay (repeatable; workspaces of ledger runs are read already)")
+    rp.add_argument("--quota-split", metavar="DAY", help="with --quota-events: split the events at DAY (first period "
+                    "before it, second from it) to check the two-period rule for quoting numbers")
     rp.set_defaults(fn=cmd_report)
     cf = sub.add_parser("config", help="settings, e.g. the save/fast knob: ccx config set defaults.tradeoff 0.3")
     cfs = cf.add_subparsers(dest="config_cmd", required=True)

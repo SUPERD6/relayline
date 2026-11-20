@@ -102,7 +102,7 @@ def _quota_events(p: Paths, row: dict) -> tuple[bool, bool, bool]:
 
 
 def build(p: Paths, day: str | None = None, tz: timezone | None = None, include_evals: bool = False,
-          now: float | None = None) -> dict:
+          now: float | None = None, quota_events: bool = False, quota_workspaces=(), quota_split: str | None = None) -> dict:
     day = resolve_day(day, tz, now)
     all_rows = ledger.rows(p)
     by_id = ledger.runs_by_id(all_rows)
@@ -174,6 +174,10 @@ def build(p: Paths, day: str | None = None, tz: timezone | None = None, include_
         elif r.get("type") == "dismiss" and r["run_id"] in gone:   # judged again later: no longer "counts neither way"
             flagged.append({**base, "what": "dismissed", "why": r.get("note") or ""})
     out["flagged"] = flagged
+    if quota_events:            # opt-in: decision 3 of the eval-rule decisions (#411); the default page is unchanged
+        from . import daily_quota
+        out["quota_events"] = daily_quota.build(p, day, tz, time.time() if now is None else now,
+                                                quota_workspaces, quota_split, include_evals)
     return out
 
 
@@ -224,6 +228,9 @@ def render(d: dict) -> str:
         L += [f"| {f['run_id']} | {f['project']} | {f['to'] or '?'} | {f['what']} | {(f['why'] or '-').replace('|', '/')} |"
               for f in d["flagged"]]
         L.append("")
+    if "quota_events" in d:
+        from . import daily_quota
+        L += daily_quota.render(d["quota_events"])
     L += ["## 口径", "",
           "- 一天按所选时区的日历日，用运行的时间戳；判定晚于当天才落下的，仍记在运行当天，所以过去日期的页面会随后续判定变化。",
           "- 做对/失败只认人或组长的判定（`ccx verify`）；没有判定的，运行没做完算失败，做完算未验证。",
@@ -232,13 +239,17 @@ def render(d: dict) -> str:
 
 
 def write(p: Paths, day: str | None = None, out: Path | None = None, tz: timezone | None = None,
-          include_evals: bool = False, now: float | None = None) -> dict:
-    d = build(p, day, tz, include_evals, now)
+          include_evals: bool = False, now: float | None = None, quota_events: bool = False,
+          quota_workspaces=(), quota_split: str | None = None) -> dict:
+    d = build(p, day, tz, include_evals, now, quota_events, quota_workspaces, quota_split)
     md = render(d)
     path = out or p.state / "daily" / f"{d['day']}.md"
     path.parent.mkdir(parents=True, exist_ok=True)
     with open(path, "w", encoding="utf-8", newline="\n") as f:
         f.write(md)
     t = d["total"]
-    return {"daily": str(path), "day": d["day"], "runs": t["runs"], "right": t["right"], "failed": t["failed"],
-            "unverified": t["unverified"], "markdown": md}
+    res = {"daily": str(path), "day": d["day"], "runs": t["runs"], "right": t["right"], "failed": t["failed"],
+           "unverified": t["unverified"], "markdown": md}
+    if "quota_events" in d:
+        res["quota_events"] = d["quota_events"]
+    return res
