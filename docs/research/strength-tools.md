@@ -26,7 +26,8 @@ python scripts/eval/strength_retest.py execute memory --run --budget 3 --out FRE
 ```
 
 `execute` defaults to an offline estimate. Paid execution requires both `--run`
-and an explicit finite `--budget`, capped at $4 for context and $3 for memory,
+and an explicit finite `--budget`, capped at $4 for context and $3 for memory (with `--tasks`: at most
+min($10, units x $0.15), see the frozen new-task files),
 plus a fresh output directory. Dry-run reports the chosen budget separately from
 the task ceiling and exits 2 when its estimate exceeds that budget. The frozen
 manifest records both the runtime cap and per-call reservation before execution.

@@ -320,7 +320,8 @@ def main(argv=None):
     mode = run.add_mutually_exclusive_group()
     mode.add_argument("--run", action="store_true", help="explicitly allow model calls")
     mode.add_argument("--dry-run", action="store_true")
-    run.add_argument("--budget", type=float, help="required with --run; context <=4, memory <=3")
+    run.add_argument("--budget", type=float, help="required with --run. With --tasks at most min($10, units x $0.15); "
+                         "without it the built-in cap, context $4 and memory $3")
     run.add_argument("--unit-budget", type=float, default=0.05, help="maximum reserved USD per invocation")
     run.add_argument("--reps", type=int, default=3)
     run.add_argument("--out", type=Path, help="fresh output directory required with --run")
