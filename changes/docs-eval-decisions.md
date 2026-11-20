@@ -1,5 +1,4 @@
-- Docs: three evaluation-rule decisions, pending the maintainer's confirmation (the wording is updated to the
-  maintainer's answers before merging): lead-vendor spend as the primary cost metric of quota-scenario claims (total
+- Docs: three evaluation-rule decisions, confirmed by the maintainer on 2026-11-19: lead-vendor spend as the primary cost metric of quota-scenario claims (total
   spend a guardrail; from the next quota-scenario preregistration, round 2 unchanged); the ordinary `ok` receipt
   false-positive bar as point ≤ 2% and one-sided 95% Clopper-Pearson upper bound ≤ 5%; "work does not stop when quota
   runs out" judged on at least 5 naturally occurring limit events with ≥ 80% success

@@ -1,15 +1,15 @@
-# Three evaluation-rule decisions (draft, awaiting the maintainer)
+# Three evaluation-rule decisions (confirmed by the maintainer, 2026-11-19)
 
 English · [中文](2026-11-17-eval-rule-decisions.zh.md)
 
-**Status: draft until the PR that adds this page is merged; merging it is the maintainer's approval.** Before
-merging, the text is updated to match the maintainer's answers. The rows to be folded into
+**Status: decided. The maintainer confirmed all three decisions on 2026-11-19, taking every default and suggested
+value on this page as written.** The rows to be folded into
 [DECISIONS](../DECISIONS.md) are in `changes/eval-lead-vendor-spend.decision.md`,
 `changes/eval-receipt-fp-bar.decision.md` and `changes/eval-relay-evidence.decision.md`; this page gives the full
 reasoning, numbers and sources behind them. No code, default, preregistration or report changes here, and nothing was
 run. Evidence level of every number below: taken from earlier reports (measured) or computed with the merged
-`scripts/eval/receipt_fp.py` (arithmetic only). Thresholds marked "proposed" are proposals made on this page; they
-take effect only when written into a preregistration.
+`scripts/eval/receipt_fp.py` (arithmetic only). The thresholds of decision 1 are fixed numbers now, but they are written into a
+claim's own preregistration before that claim runs and are not changed afterwards.
 
 All three change how a claim is judged, so [engineering standards](../engineering-standards.md) section 2 asks for a
 decision first. None of them changes a running or already registered evaluation: each applies from a named point
@@ -37,7 +37,7 @@ forward, and none re-judges an old result.
   only for the lead / sub-agent combination that was measured.
 - Total spend (all vendors, API-equivalent) stays in the verdict as a **guardrail**: the claim fails if it is much
   dearer overall. Correctness and wall time keep their guardrails.
-- Proposed numbers (fixed only in the claim's own preregistration): per-task geometric-mean ratio of lead-vendor
+- Numbers (confirmed 2026-11-19; each preregistration copies them in before the run): per-task geometric-mean ratio of lead-vendor
   spend, one-sided 95% upper bound ≤ 0.6; guardrails: total spend ≤ 1.2×, correctness difference lower bound
   > −0.15, median wall ≤ 3×. Reasons for these values: 0.6 asks for a clear saving (G4's point value was 0.24, so the
   bar leaves room for a smaller effect on new tasks while still meaning "about half or less"); 1.2× is the cost
@@ -147,7 +147,7 @@ so this bar is not applied to it.
 |---|---|
 | Upper bound ≤ 2% | Needs 149+ receipts; never judgeable at this project's scale |
 | Point estimate ≤ 2% only | Passes 0/6 or 0/19, where the true rate could be 15–39% |
-| Fail only when the lower bound is above 2% | More lenient to the product; kept as a question for the maintainer, not the default (standards section 9: do not pick the reading that favours the result) |
+| Fail only when the lower bound is above 2% | More lenient to the product; considered and not chosen by the maintainer (2026-11-19); standards section 9: do not pick the reading that favours the result |
 | Two-sided interval or Wilson | One-sided matches the question ("at most how high") and the merged script; exact is safe for small counts |
 
 ### What it affects
@@ -172,7 +172,7 @@ A later decision row reverts it; verdicts already written keep the rule they wer
 This claim cannot be a preregistered controlled experiment: nobody burns quota on purpose. It is judged on a log of
 **naturally occurring** limit events. Evidence level: measured, not controlled; reports say so. Each condition below
 is marked **machine** (checkable from ccx's own records) or **manual** (needs the person's note, written at the time).
-`N` is the continuation window, proposed **4 hours** (a question for the maintainer).
+`N` is the continuation window, **4 hours** (confirmed by the maintainer, 2026-11-19).
 
 **What counts as an event.** One event per original task; review fix rounds and resumes that inherit a field from the
 run they continue are not new events.
@@ -218,8 +218,7 @@ continuation ending `no_changes`, `changes_unknown` or with an error after which
 task. **Any event that loses uncommitted work fails the whole claim**, whatever the ratio.
 
 **Not attempted**: the person chose to wait for the reset and wrote so in the daily log at the time. Listed with
-counts and excluded from the ratio. *Pending the maintainer's answer; this sentence is replaced with the answer
-before merging.*
+counts and excluded from the ratio (confirmed by the maintainer, 2026-11-19).
 
 **When to conclude**: at least **5 counted events**, success ≥ **80%** (so 4 of 5, 8 of 10). Fewer than 5 is Unknown.
 The report gives successes / counted events, the one-sided 95% Clopper-Pearson lower bound (4/5 gives about 34%, so
@@ -267,3 +266,12 @@ with.
   page's hit rule and a `quota_stop` with no continuation is a failure; a fixed manual path for unconfirmed lead
   limits, and lead events may stay 0; success conditions made machine-checkable where possible, with an N-hour window;
   8/209 marked not comparable; round-2 timing stated; no reliance on the local roadmap; source of the 2% bar.
+- 2026-11-19: the maintainer confirmed all nine questions with the defaults: (1) lead-vendor spend is the primary
+  metric of quota-scenario claims, effective from the next quota-scenario preregistration, round 2 unchanged; (2) the
+  numbers 0.6 / total spend 1.2× / correctness lower bound > −0.15 / wall 3×; (3) the receipt bar is point estimate
+  ≤ 2% and upper bound ≤ 5%, Fail = point estimate > 2%; (4) waiting for the reset by the user's choice counts as
+  not attempted; (5) at least 5 events and ≥ 80%, two windows of ≥ 5 for public use, lead and sub-agent events
+  pooled and also reported by role; (6) a `quota_stop` with no fallback is counted, and no fallback or continuation
+  within N hours is a failure; (7) the fixed manual confirmation path for `rate_limit_unconfirmed` is allowed;
+  (8) N = 4 hours; (9) this note stays in `docs/research/` and moves into `docs/DESIGN.md` after implementation.
+  Wording above changed from draft to decided; no number changed.
