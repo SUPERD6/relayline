@@ -1,0 +1,88 @@
+{
+  "about": "scripts/eval/round2_bc/build.py build run twice into two empty caches; the task entries (commit SHAs included) are identical, and the development tasks still equal b-dev.json",
+  "identical": false,
+  "dev_unchanged": true,
+  "tasks": [
+    {
+      "id": "r2b-cronlite-1",
+      "commit": "199af5be3b7f0d0b4f684bcfc03972a91eda125e",
+      "code_lines": 89,
+      "code": [
+        "cronlite/jobs.py",
+        "cronlite/store.py"
+      ]
+    },
+    {
+      "id": "r2b-cronlite-2",
+      "commit": "eec0c6187a068706e35b7f8139d835e23d45dc06",
+      "code_lines": 56,
+      "code": [
+        "cronlite/canonical.py",
+        "cronlite/describe.py",
+        "cronlite/expr.py",
+        "cronlite/fields.py",
+        "cronlite/lint.py"
+      ]
+    },
+    {
+      "id": "r2b-cronlite-3",
+      "commit": "d9771008dcc4f98a4790c143045065a5773018cc",
+      "code_lines": 75,
+      "code": [
+        "cronlite/__init__.py",
+        "cronlite/blackout.py",
+        "cronlite/windows.py"
+      ]
+    },
+    {
+      "id": "r2b-cronlite-4",
+      "commit": "95b62b0abb606535eb0e53df1b4f97da13bc4a39",
+      "code_lines": 61,
+      "code": [
+        "cronlite/__init__.py",
+        "cronlite/alerts.py",
+        "cronlite/history.py"
+      ]
+    },
+    {
+      "id": "r2b-cronlite-5",
+      "commit": "952be39598a134ef6eb19b7112bf449fa2d8413a",
+      "code_lines": 88,
+      "code": [
+        "cronlite/cli.py",
+        "cronlite/ical.py",
+        "cronlite/zones.py"
+      ]
+    },
+    {
+      "id": "r2b-cronlite-6",
+      "commit": "83ff74258b647b57c3c7136d9957be3a0511a3a7",
+      "code_lines": 98,
+      "code": [
+        "cronlite/__init__.py",
+        "cronlite/cli.py",
+        "cronlite/lint.py"
+      ]
+    },
+    {
+      "id": "r2b-cronlite-7",
+      "commit": "2138405886be2dd74d6fdace76451f6d8145fc37",
+      "code_lines": 73,
+      "code": [
+        "cronlite/canonical.py",
+        "cronlite/describe.py",
+        "cronlite/expr.py",
+        "cronlite/lint.py"
+      ]
+    },
+    {
+      "id": "r2b-cronlite-8",
+      "commit": "aa27d42f1c41265f8a2c2fd11cbe2a352051f951",
+      "code_lines": 62,
+      "code": [
+        "cronlite/__init__.py",
+        "cronlite/load.py"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,41 @@
+{
+ "id": "r2b-cronlite-4",
+ "subject": "Flapping alerts; missed runs counted one run per firing and calendar-aware",
+ "author_model": "claude-opus-5-5",
+ "brief": "Improve cronlite's run-log alerts: detect jobs that keep switching between success and failure, and make missed-run detection stricter and aware of blackout calendars.\n\n1. Add `RunLog.transitions(job, last=None)`: how many times the outcome changed between consecutive runs of the job (a success followed by a failure or the other way round), counting only its latest `last` runs when `last` is given; a job without runs has none. A `last` below 1 raises CronError. `RunLog.stats(job)` also reports this count for all the job's runs, under the key `transitions`.\n2. Add `flapping(log, job, window=6, threshold=3)` to the alerts module and export it from the package: an Alert of kind `flapping` when the outcome changed at least `threshold` times within the job's latest `window` runs, otherwise None. Its detail reads \"<changes> changes in the last <runs> runs\", where <runs> is the number of runs actually looked at (fewer than `window` when the job has fewer runs). A window below 2 or a threshold below 1 raises CronError.\n3. `missed` gets stricter: one run accounts for one firing only. Firings are matched in time order, and each run serves the earliest firing it can (it must start at the firing time or up to `tolerance` after it); a run already used cannot serve a later firing, so with firings close together a single run no longer hides the ones after it. A run starting before a firing still does not count for it. A negative `tolerance` raises CronError.\n4. `missed` takes a new optional `calendar` (a BlackoutCalendar): firings on closed days are never reported as missed.\n5. `check` takes three new optional arguments: `flap_threshold` (None by default, which means flapping is not checked at all), `flap_window` (default 6), and `calendars`, a dict from job name to that job's calendar for the missed-run check. Alerts stay ordered by job name and then by kind, now failing, flapping, missed, slow; a job can get both a failing and a flapping alert. A calendar stored under the key \"*\" applies to every job that has no entry of its own (a job's own entry wins, even when it closes nothing); without either, a job has no closed days.\n\nAll behavior that the existing tests check must keep working.",
+ "hidden_tests": [
+  "tests/test_flapping_and_calendars.py"
+ ],
+ "trace_by_test": {
+  "test_transitions": [
+   "Add `RunLog.transitions(job, last=None)`: how many times the outcome changed between consecutive runs of the job (a success followed by a failure or the other way round), counting only its latest `last` runs when `last` is given; a job without runs has none. A `last` below 1 raises CronError.",
+   "Add `RunLog.transitions(job, last=None)`: how many times the outcome changed between consecutive runs of the job (a success followed by a failure or the other way round), counting only its latest `last` runs when `last` is given; a job without runs has none. A `last` below 1 raises CronError.",
+   "Add `RunLog.transitions(job, last=None)`: how many times the outcome changed between consecutive runs of the job (a success followed by a failure or the other way round), counting only its latest `last` runs when `last` is given; a job without runs has none. A `last` below 1 raises CronError.",
+   "`RunLog.stats(job)` also reports this count for all the job's runs, under the key `transitions`.",
+   "Add `RunLog.transitions(job, last=None)`: how many times the outcome changed between consecutive runs of the job (a success followed by a failure or the other way round), counting only its latest `last` runs when `last` is given; a job without runs has none. A `last` below 1 raises CronError."
+  ],
+  "test_flapping": [
+   "Add `flapping(log, job, window=6, threshold=3)` to the alerts module and export it from the package: an Alert of kind `flapping` when the outcome changed at least `threshold` times within the job's latest `window` runs, otherwise None.",
+   "Add `flapping(log, job, window=6, threshold=3)` to the alerts module and export it from the package: an Alert of kind `flapping` when the outcome changed at least `threshold` times within the job's latest `window` runs, otherwise None.",
+   "Its detail reads \"<changes> changes in the last <runs> runs\", where <runs> is the number of runs actually looked at (fewer than `window` when the job has fewer runs).",
+   "Its detail reads \"<changes> changes in the last <runs> runs\", where <runs> is the number of runs actually looked at (fewer than `window` when the job has fewer runs).",
+   "A window below 2 or a threshold below 1 raises CronError."
+  ],
+  "test_one_run_covers_one_firing": [
+   "`missed` gets stricter: one run accounts for one firing only. Firings are matched in time order, and each run serves the earliest firing it can (it must start at the firing time or up to `tolerance` after it); a run already used cannot serve a later firing, so with firings close together a single run no longer hides the ones after it.",
+   "A negative `tolerance` raises CronError."
+  ],
+  "test_run_before_firing_does_not_count": "A run starting before a firing still does not count for it.",
+  "test_missed_skips_closed_days": [
+   "`missed` gets stricter: one run accounts for one firing only. Firings are matched in time order, and each run serves the earliest firing it can (it must start at the firing time or up to `tolerance` after it); a run already used cannot serve a later firing, so with firings close together a single run no longer hides the ones after it.",
+   "`missed` takes a new optional `calendar` (a BlackoutCalendar): firings on closed days are never reported as missed."
+  ],
+  "test_check_orders_flapping_after_failing": "`check` takes three new optional arguments: `flap_threshold` (None by default, which means flapping is not checked at all), `flap_window` (default 6), and `calendars`, a dict from job name to that job's calendar for the missed-run check. Alerts stay ordered by job name and then by kind, now failing, flapping, missed, slow; a job can get both a failing and a flapping alert.",
+  "test_check_uses_job_calendars": [
+   "A calendar stored under the key \"*\" applies to every job that has no entry of its own (a job's own entry wins, even when it closes nothing); without either, a job has no closed days.",
+   "`check` takes three new optional arguments: `flap_threshold` (None by default, which means flapping is not checked at all), `flap_window` (default 6), and `calendars`, a dict from job name to that job's calendar for the missed-run check. Alerts stay ordered by job name and then by kind, now failing, flapping, missed, slow; a job can get both a failing and a flapping alert.",
+   "A calendar stored under the key \"*\" applies to every job that has no entry of its own (a job's own entry wins, even when it closes nothing); without either, a job has no closed days.",
+   "A calendar stored under the key \"*\" applies to every job that has no entry of its own (a job's own entry wins, even when it closes nothing); without either, a job has no closed days."
+  ]
+ }
+}

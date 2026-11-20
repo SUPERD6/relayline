@@ -1,0 +1,95 @@
+{
+  "rule": "same id, same repository, same commit (or earlier short SHA prefix), or normalized brief SequenceMatcher ratio >= 0.6; candidates above 0.4 listed",
+  "corpus": {
+    "files": 119,
+    "briefs": 710,
+    "ids": 366,
+    "repos": [
+      "boltons",
+      "exercism-python",
+      "humanize",
+      "itsdangerous",
+      "more-itertools",
+      "pluggy",
+      "polyglot",
+      "polyglot-benchmark",
+      "python"
+    ],
+    "errors": []
+  },
+  "tasks": [
+    {
+      "id": "r2b-cronlite-1",
+      "findings": [],
+      "listed_above_0.4": [],
+      "clean": true
+    },
+    {
+      "id": "r2b-cronlite-2",
+      "findings": [],
+      "listed_above_0.4": [],
+      "clean": true
+    },
+    {
+      "id": "r2b-cronlite-3",
+      "findings": [],
+      "listed_above_0.4": [],
+      "clean": true
+    },
+    {
+      "id": "r2b-cronlite-4",
+      "findings": [],
+      "listed_above_0.4": [],
+      "clean": true
+    },
+    {
+      "id": "r2b-cronlite-5",
+      "findings": [],
+      "listed_above_0.4": [],
+      "clean": true
+    },
+    {
+      "id": "r2b-cronlite-6",
+      "findings": [],
+      "listed_above_0.4": [],
+      "clean": true
+    },
+    {
+      "id": "r2b-cronlite-7",
+      "findings": [],
+      "listed_above_0.4": [],
+      "clean": true
+    },
+    {
+      "id": "r2b-cronlite-8",
+      "findings": [],
+      "listed_above_0.4": [],
+      "clean": true
+    },
+    {
+      "id": "r2bd-cronlite-1",
+      "findings": [],
+      "listed_above_0.4": [],
+      "clean": true
+    },
+    {
+      "id": "r2bd-cronlite-2",
+      "findings": [],
+      "listed_above_0.4": [],
+      "clean": true
+    },
+    {
+      "id": "r2bd-tabula-1",
+      "findings": [],
+      "listed_above_0.4": [],
+      "clean": true
+    },
+    {
+      "id": "r2bd-tabula-2",
+      "findings": [],
+      "listed_above_0.4": [],
+      "clean": true
+    }
+  ],
+  "clean": true
+}

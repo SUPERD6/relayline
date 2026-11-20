@@ -1,0 +1,27 @@
+{
+ "id": "r2b-cronlite-2",
+ "subject": "L for the last day of the month in the day field",
+ "author_model": "claude-opus-5-5",
+ "brief": "Let the day-of-month field of a cronlite expression say \"the last day of the month\" with the letter L, and make every part of the package that reads fields understand it.\n\n1. In the day-of-month field only, an item may be `L` (either letter case) instead of a number, alone or in a comma list next to numbers. The parsed `FieldSpec` gets a new boolean attribute `last` (False unless the field contains L); L adds no number to `values`, and a field containing L is not a wildcard. L in any other field raises CronError whose message starts with that field's name.\n2. The expression matches on a day when the day-of-month field holds that day's number or holds L and the day is the last of its month, which depends on the month and, for February, on leap years. Finding the next firing time follows from that. L counts as a restriction of the day of month: when the weekday is also restricted, the classic rule applies and either one matching is enough.\n3. `canonical` writes L in upper case after the numbers of the field, so equivalent spellings compare equal and a field with L never equals one without it.\n4. `describe` reads the day part as the ordinals of the field's numbers followed by the words \"last day\", joined like any other list of words, then \"of the month\" (for example a field of 3 and L reads \"on the 3rd and last day of the month\"); the either-rule wording with a weekday stays as it is.\n5. In `lint`, L exists in every month: it never causes the `never` or `leap-only` warning, and an expression whose day field is only L gets no day warning at all. The numbers next to it are still checked as before, so a number that some chosen month lacks still gives `missing-days`.\n6. `duplicates` (and so `lint_all`) must not treat a field with L as the same as the field without it.\n\nAll behavior that the existing tests check must keep working.",
+ "hidden_tests": [
+  "tests/test_last_day.py"
+ ],
+ "trace_by_test": {
+  "test_parse_last_day": [
+   "In the day-of-month field only, an item may be `L` (either letter case) instead of a number, alone or in a comma list next to numbers. The parsed `FieldSpec` gets a new boolean attribute `last` (False unless the field contains L); L adds no number to `values`, and a field containing L is not a wildcard.",
+   "In the day-of-month field only, an item may be `L` (either letter case) instead of a number, alone or in a comma list next to numbers. The parsed `FieldSpec` gets a new boolean attribute `last` (False unless the field contains L); L adds no number to `values`, and a field containing L is not a wildcard.",
+   "In the day-of-month field only, an item may be `L` (either letter case) instead of a number, alone or in a comma list next to numbers. The parsed `FieldSpec` gets a new boolean attribute `last` (False unless the field contains L); L adds no number to `values`, and a field containing L is not a wildcard."
+  ],
+  "test_last_only_in_day_field": [
+   "L in any other field raises CronError whose message starts with that field's name.",
+   "L in any other field raises CronError whose message starts with that field's name."
+  ],
+  "test_matches_the_last_day_of_each_month": "The expression matches on a day when the day-of-month field holds that day's number or holds L and the day is the last of its month, which depends on the month and, for February, on leap years. Finding the next firing time follows from that.",
+  "test_next_after_with_last_day": "The expression matches on a day when the day-of-month field holds that day's number or holds L and the day is the last of its month, which depends on the month and, for February, on leap years. Finding the next firing time follows from that.",
+  "test_last_day_is_a_restriction_for_the_either_rule": "L counts as a restriction of the day of month: when the weekday is also restricted, the classic rule applies and either one matching is enough.",
+  "test_canonical_text": "`canonical` writes L in upper case after the numbers of the field, so equivalent spellings compare equal and a field with L never equals one without it.",
+  "test_describe_last_day": "`describe` reads the day part as the ordinals of the field's numbers followed by the words \"last day\", joined like any other list of words, then \"of the month\" (for example a field of 3 and L reads \"on the 3rd and last day of the month\"); the either-rule wording with a weekday stays as it is.",
+  "test_lint_last_day_exists_in_every_month": "In `lint`, L exists in every month: it never causes the `never` or `leap-only` warning, and an expression whose day field is only L gets no day warning at all. The numbers next to it are still checked as before, so a number that some chosen month lacks still gives `missing-days`.",
+  "test_duplicates_tell_last_day_apart": "`duplicates` (and so `lint_all`) must not treat a field with L as the same as the field without it."
+ }
+}
