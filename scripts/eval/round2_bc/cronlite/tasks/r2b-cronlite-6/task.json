@@ -1,0 +1,45 @@
+{
+ "id": "r2b-cronlite-6",
+ "subject": "Registry check command, retry-overlap warning, ignorable warning codes",
+ "author_model": "claude-opus-5-5",
+ "brief": "Add a command to cronlite that checks a whole saved job registry, with a new warning for retries that can collide with the next regular run, and let warnings be silenced.\n\n1. `lint_all(schedules, ignore=())`: warning codes listed in `ignore` are removed from the result, and a job left with no codes disappears from it. A code in `ignore` that is not one of the package's warning codes (the five `lint` codes, `duplicate`, and the new one below) raises CronError.\n2. Add `lint_registry(registry, start, ignore=())` to the lint module and export it from the package. It returns what `lint_all` returns for the registry's jobs and schedules, plus the code `retry-overlap` for a job with at least one retry whose retries together (retries times retry_delay minutes) last at least as long as the shortest gap between two consecutive firings of its schedule during the eight days after `start`. Reaching the gap exactly already counts. A job with no retries never gets it, and neither does a schedule with fewer than two firings in those eight days, including one that never fires (it keeps its other warnings). `retry-overlap` comes after the job's other codes, and `ignore` applies to it as well.\n3. Add a command `check FILE` to `python -m cronlite` (the `run` function in the cli module). FILE is a registry saved by `dumps` (UTF-8 JSON); its saved run state is not used. `--from ISO` sets the start for the retry check (default: now) and `--ignore CODE` may be repeated. Output is one line per job that has warnings, in name order, formatted as the name, a colon and a space, then its codes joined by a comma and a space; nothing at all when no job has warnings. Unlike `lint`, the exit code says whether anything was found: 1 when at least one job has warnings, 0 when none. With `--json` the output is instead a single line holding one JSON object from job name to its list of codes (an empty object when clean), with the same exit codes. A file that is missing, is not valid JSON or is not a valid registry, and an unknown code given to `--ignore`, print an error to stderr and give exit code 2.\n4. The existing `lint EXPR` command also accepts repeated `--ignore CODE` and leaves those codes out; it keeps exit code 0 when warnings are printed, and an unknown code gives exit code 2.\n\nAll behavior that the existing tests check must keep working.",
+ "hidden_tests": [
+  "tests/test_registry_check.py"
+ ],
+ "trace_by_test": {
+  "test_lint_all_ignore": [
+   "`lint_all(schedules, ignore=())`: warning codes listed in `ignore` are removed from the result, and a job left with no codes disappears from it.",
+   "`lint_all(schedules, ignore=())`: warning codes listed in `ignore` are removed from the result, and a job left with no codes disappears from it.",
+   "A code in `ignore` that is not one of the package's warning codes (the five `lint` codes, `duplicate`, and the new one below) raises CronError."
+  ],
+  "test_retry_overlap_boundary": "Add `lint_registry(registry, start, ignore=())` to the lint module and export it from the package. It returns what `lint_all` returns for the registry's jobs and schedules, plus the code `retry-overlap` for a job with at least one retry whose retries together (retries times retry_delay minutes) last at least as long as the shortest gap between two consecutive firings of its schedule during the eight days after `start`. Reaching the gap exactly already counts.",
+  "test_retry_overlap_uses_firings_after_start": "A job with no retries never gets it, and neither does a schedule with fewer than two firings in those eight days, including one that never fires (it keeps its other warnings).",
+  "test_retry_overlap_comes_last_and_can_be_ignored": [
+   "`retry-overlap` comes after the job's other codes, and `ignore` applies to it as well.",
+   "`retry-overlap` comes after the job's other codes, and `ignore` applies to it as well.",
+   "A code in `ignore` that is not one of the package's warning codes (the five `lint` codes, `duplicate`, and the new one below) raises CronError."
+  ],
+  "test_cli_check_text": [
+   "Unlike `lint`, the exit code says whether anything was found: 1 when at least one job has warnings, 0 when none.",
+   "Output is one line per job that has warnings, in name order, formatted as the name, a colon and a space, then its codes joined by a comma and a space; nothing at all when no job has warnings.",
+   "Add a command `check FILE` to `python -m cronlite` (the `run` function in the cli module). FILE is a registry saved by `dumps` (UTF-8 JSON); its saved run state is not used. `--from ISO` sets the start for the retry check (default: now) and `--ignore CODE` may be repeated.",
+   "Output is one line per job that has warnings, in name order, formatted as the name, a colon and a space, then its codes joined by a comma and a space; nothing at all when no job has warnings.",
+   "Unlike `lint`, the exit code says whether anything was found: 1 when at least one job has warnings, 0 when none."
+  ],
+  "test_cli_check_json": [
+   "With `--json` the output is instead a single line holding one JSON object from job name to its list of codes (an empty object when clean), with the same exit codes.",
+   "With `--json` the output is instead a single line holding one JSON object from job name to its list of codes (an empty object when clean), with the same exit codes.",
+   "With `--json` the output is instead a single line holding one JSON object from job name to its list of codes (an empty object when clean), with the same exit codes.",
+   "With `--json` the output is instead a single line holding one JSON object from job name to its list of codes (an empty object when clean), with the same exit codes."
+  ],
+  "test_cli_check_errors": [
+   "A file that is missing, is not valid JSON or is not a valid registry, and an unknown code given to `--ignore`, print an error to stderr and give exit code 2.",
+   "A file that is missing, is not valid JSON or is not a valid registry, and an unknown code given to `--ignore`, print an error to stderr and give exit code 2.",
+   "A file that is missing, is not valid JSON or is not a valid registry, and an unknown code given to `--ignore`, print an error to stderr and give exit code 2."
+  ],
+  "test_cli_lint_ignore": [
+   "The existing `lint EXPR` command also accepts repeated `--ignore CODE` and leaves those codes out; it keeps exit code 0 when warnings are printed, and an unknown code gives exit code 2.",
+   "The existing `lint EXPR` command also accepts repeated `--ignore CODE` and leaves those codes out; it keeps exit code 0 when warnings are printed, and an unknown code gives exit code 2."
+  ]
+ }
+}

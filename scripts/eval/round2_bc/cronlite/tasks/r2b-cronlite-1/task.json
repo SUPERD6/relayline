@@ -1,0 +1,44 @@
+{
+ "id": "r2b-cronlite-1",
+ "subject": "Job tags and pausing, kept by the JSON store",
+ "author_model": "claude-opus-5-5",
+ "brief": "Add tags and pausing to the cronlite job registry, and keep both when a registry is saved and loaded.\n\n1. Every job can now carry labels and a paused flag, both passed to `Registry.add` (that is, to `Job`) as keyword arguments. `tags` is a collection of short labels: each one is stripped of surrounding spaces and lower-cased, repeats collapse into one, and the job keeps them as a sorted tuple (empty by default). A plain string given as `tags` is a single tag, not a sequence of letters. After cleaning, a tag may contain only lowercase letters, digits and hyphens; anything else (an empty tag, a space or underscore inside it, a value that is not a string) raises CronError. `paused` is a flag, False by default; a value that is not a real bool raises CronError.\n2. Add `Registry.tagged(tag)`: the names of the jobs carrying that tag, in name order, paused jobs included; the tag asked for is cleaned the same way before matching.\n3. A paused job never appears in `Registry.due`, neither for its schedule nor for a pending retry. Add `Registry.pause(name)` and `Registry.resume(name)`. Pausing throws away a pending retry and resets the attempt count, so resuming does not bring the old retry back.\n4. `Registry.record_failure` on a paused job schedules nothing: it returns None and the attempt count stays at zero.\n5. In the saved form (`dumps`, `registry_to_dict`), a job gets a `tags` list only when it has tags and a `paused` entry only when it is paused, so a job without either is saved with exactly the keys it had before; the format number does not change. Loading reads both back and validates them: `paused` must be a JSON boolean (not a string or a number), `tags` must be a list, and each tag follows the rules above.\n6. Paused is part of a job's definition, not of its run state: `with_state=False` still loads a job as paused. When a paused job is loaded, any saved attempt count or pending retry in its state is ignored, as if it had been paused after them.\n7. `merge` keeps the tags and the paused flag of the jobs from both registries.\n\nAll behavior that the existing tests check must keep working.",
+ "hidden_tests": [
+  "tests/test_pause_and_tags.py"
+ ],
+ "trace_by_test": {
+  "test_tags_are_cleaned_and_sorted": [
+   "Every job can now carry labels and a paused flag, both passed to `Registry.add` (that is, to `Job`) as keyword arguments. `tags` is a collection of short labels: each one is stripped of surrounding spaces and lower-cased, repeats collapse into one, and the job keeps them as a sorted tuple (empty by default).",
+   "A plain string given as `tags` is a single tag, not a sequence of letters.",
+   "Every job can now carry labels and a paused flag, both passed to `Registry.add` (that is, to `Job`) as keyword arguments. `tags` is a collection of short labels: each one is stripped of surrounding spaces and lower-cased, repeats collapse into one, and the job keeps them as a sorted tuple (empty by default)."
+  ],
+  "test_bad_tags": "After cleaning, a tag may contain only lowercase letters, digits and hyphens; anything else (an empty tag, a space or underscore inside it, a value that is not a string) raises CronError.",
+  "test_tagged_lookup": [
+   "Add `Registry.tagged(tag)`: the names of the jobs carrying that tag, in name order, paused jobs included; the tag asked for is cleaned the same way before matching.",
+   "Add `Registry.tagged(tag)`: the names of the jobs carrying that tag, in name order, paused jobs included; the tag asked for is cleaned the same way before matching."
+  ],
+  "test_paused_jobs_do_not_run": [
+   "A paused job never appears in `Registry.due`, neither for its schedule nor for a pending retry.",
+   "Add `Registry.pause(name)` and `Registry.resume(name)`.",
+   "Add `Registry.pause(name)` and `Registry.resume(name)`."
+  ],
+  "test_pause_drops_pending_retry": [
+   "Pausing throws away a pending retry and resets the attempt count, so resuming does not bring the old retry back.",
+   "Pausing throws away a pending retry and resets the attempt count, so resuming does not bring the old retry back."
+  ],
+  "test_failure_of_paused_job_schedules_nothing": [
+   "`Registry.record_failure` on a paused job schedules nothing: it returns None and the attempt count stays at zero.",
+   "`Registry.record_failure` on a paused job schedules nothing: it returns None and the attempt count stays at zero."
+  ],
+  "test_paused_must_be_a_bool": "`paused` is a flag, False by default; a value that is not a real bool raises CronError.",
+  "test_default_jobs_save_exactly_as_before": "In the saved form (`dumps`, `registry_to_dict`), a job gets a `tags` list only when it has tags and a `paused` entry only when it is paused, so a job without either is saved with exactly the keys it had before; the format number does not change.",
+  "test_round_trip_keeps_tags_and_pause": [
+   "Loading reads both back and validates them: `paused` must be a JSON boolean (not a string or a number), `tags` must be a list, and each tag follows the rules above.",
+   "Loading reads both back and validates them: `paused` must be a JSON boolean (not a string or a number), `tags` must be a list, and each tag follows the rules above.",
+   "Paused is part of a job's definition, not of its run state: `with_state=False` still loads a job as paused."
+  ],
+  "test_loading_a_paused_job_ignores_saved_retry": "When a paused job is loaded, any saved attempt count or pending retry in its state is ignored, as if it had been paused after them.",
+  "test_bad_saved_flags": "Loading reads both back and validates them: `paused` must be a JSON boolean (not a string or a number), `tags` must be a list, and each tag follows the rules above.",
+  "test_merge_keeps_tags_and_pause": "`merge` keeps the tags and the paused flag of the jobs from both registries."
+ }
+}

@@ -223,7 +223,8 @@ def plan(kind: str, reps: int = 3, unit_usd: float | None = None, tasks: Path | 
     if fresh is not None or hidden:
         # Units are isolated either way (#454); the list is printed when it can matter, so old plans stay as they were
         from strength_runner import isolation_plan
-        data["isolation"] = isolation_plan(Path(tasks).resolve() if tasks is not None else None, hidden, out)
+        data["isolation"] = isolation_plan(Path(tasks).resolve() if tasks is not None else None, hidden, out,
+                                           kind, picked)
     return data
 
 
@@ -365,6 +366,14 @@ def main(argv=None):
             data.update(budget_usd=a.budget if a.budget is not None else data["cap_usd"],
                         unit_budget_usd=a.unit_budget)
             data["within_budget"] = data["estimated_usd"] <= data["budget_usd"]
+            from strength_runner import needs_claude_home as _claude
+            if a.out is not None and a.claude_home and _claude(data["units"]):
+                # #472 review: the last unit's --settings length from the real --out and home, before any run
+                from strength_runner import SETTINGS_MAX_CHARS, isolation_paths, last_unit_settings_chars
+                hidden = isolation_paths(a.tasks.resolve() if a.tasks is not None else None, resolve_hide(a.hide))
+                size = last_unit_settings_chars(a.out.absolute(), data["n"], Path(a.claude_home).expanduser(), hidden)
+                data["claude_settings_chars_last_unit"] = size
+                data["within_settings_limit"] = size <= SETTINGS_MAX_CHARS
             if a.tasks is not None or a.on_invalid:      # absent by default: the old output stays as it was
                 data["on_invalid"] = a.on_invalid or ("continue" if a.tasks is not None else "stop")
             if a.run:
@@ -387,7 +396,8 @@ def main(argv=None):
     else:
         print(text, end="")
     if a.cmd == "execute":
-        return 2 if data.get("budget_stopped") or (data.get("dry_run") and not data["within_budget"]) else 0
+        return 2 if data.get("budget_stopped") or (data.get("dry_run") and (
+            not data["within_budget"] or data.get("within_settings_limit") is False)) else 0
     return (0 if data["within_estimated_cap"] else 2) if a.cmd == "plan" else data["exit_code"]
 
 

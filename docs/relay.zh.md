@@ -37,7 +37,8 @@ ccx relay continue PACKET_ID --to codex --budget-seconds 300 --old-stopped --lau
 force 不绕过工作区锁、已知写进程检查、Git 核对或预算。旧 StopFailure 和 rate_limit_event 包
 缺少 `usage_confirmed=true` 时也要求 force。
 
-第一条只准备 prompt 和 argv，不调用模型。`--launch` 才显式启动受监督的 `codex exec --json --sandbox workspace-write` 或 `claude -p --output-format stream-json --verbose --permission-mode acceptEdits --permission-prompts none`。Claude 的原生文件编辑权限不等于 Codex 的操作系统沙箱，其他工具仍可能被拒绝；不启用权限绕过。退出码零但没有观察到工作区改动时返回 `no_changes`，不报成功；验证仍为 `not-run`。每个 `<包>.continue-*.json` 启动记录带 `started_at`（格式同上；晚于抢工作区锁、早于子进程启动；旧记录没有）。
+第一条只准备 prompt 和 argv，不调用模型。`--launch` 才显式启动受监督的 `codex exec --json --sandbox workspace-write` 或 `claude -p --output-format stream-json --verbose --permission-mode acceptEdits --permission-prompts none`。Claude 的原生文件编辑权限不等于 Codex 的操作系统沙箱，其他工具仍可能被拒绝；不启用权限绕过。退出码零但没有观察到工作区改动时返回 `no_changes`，不报成功；验证仍为 `not-run`。每个 `<包>.continue-*.json` 启动记录带 `started_at`（格式同上；晚于抢工作区锁、早于子进程启动；旧记录没有），记录进入最终状态时（含监督进程被中断、超过时间预算）再写 `ended_at`（格式同上；接续还在运行时没有，#483 之前写的旧记录也没有，读取方退回文件修改时间）。
+子进程退出后 relay 自己的后处理（额度信号解析、交接 capture、工作区快照）抛异常时，记录会写成 `state=postprocess_error`，附简短 `error` 和 `ended_at`（保留子进程的 `exit_code`），并重新抛出异常，记录不再停在 `running`；此时工作是否完成为 Unknown，每日额度页判 `unknown` 而不是失败（#487）。
 子进程退出码零但改动检测为 Unknown 时，单独返回 `changes_unknown`，提示人工查看 `git status`，
 ccx 命令退出码为 2。记录中的 `exit_code` 仍指子进程，所以可以保持零。
 2026-11-05 重新核对 **Claude Code 2.1.316 --help**：即使使用 `acceptEdits`，

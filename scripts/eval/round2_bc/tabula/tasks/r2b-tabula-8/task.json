@@ -1,0 +1,37 @@
+{
+ "id": "r2b-tabula-8",
+ "subject": "Records: flatten nested dicts into path columns and nest them back",
+ "author_model": "claude-opus-5-5",
+ "brief": "Let the tabula records module handle nested records (dicts inside dicts), as JSON data often has them.\n\n1. `from_records` and `from_jsonl` take `flatten=False` and `sep='.'`. With flatten, a value that is a non-empty dict is replaced by one entry per key, named by the path of keys joined with sep (to any depth), so an inner key b of an outer key a becomes the column a.b with the default separator. Columns keep first-seen order, nested keys appearing where their parent stood, depth first. Lists and other values are kept as single values, never spread into columns. Edge case: an empty dict has nothing to spread, so it stays the value of its own column. An explicit `columns` list names flattened columns. If two different paths in one record produce the same column name (for example a top-level key that already contains the separator), raise ValueError.\n2. `to_records` and `to_jsonl` take `nest=False` and `sep='.'`, the inverse: a column whose name contains sep becomes nested dicts along the parts of its name; columns without sep stay top-level. A nested value that is None (for example one that a record lacked when the table was flattened) is written as None at its nested place. Nesting is refused with ValueError when one column name is a proper path prefix of another (a column a next to a column a.b), since a would have to hold a value and a dict at once; names that merely start with the same letters are fine. Without nest, such tables convert as before. With `drop_none` as well, None values are dropped before nesting and a nested dict is only created when it receives at least one value, so no empty dicts appear.\n3. As a result, a nested JSON Lines text read with flatten and written back with nest gives the same objects, and a flattened table survives that round trip unchanged.\n4. sep must be a non-empty string; otherwise raise ValueError.\n\nAll behavior that the existing tests check must keep working.",
+ "hidden_tests": [
+  "tests/test_nested_records.py"
+ ],
+ "trace_by_test": {
+  "test_flatten_nested_dicts_into_path_columns": [
+   "With flatten, a value that is a non-empty dict is replaced by one entry per key, named by the path of keys joined with sep (to any depth), so an inner key b of an outer key a becomes the column a.b with the default separator. Columns keep first-seen order, nested keys appearing where their parent stood, depth first.",
+   "Lists and other values are kept as single values, never spread into columns.",
+   "`from_records` and `from_jsonl` take `flatten=False` and `sep='.'`."
+  ],
+  "test_flatten_with_another_separator_and_explicit_columns": [
+   "named by the path of keys joined with sep (to any depth)",
+   "An explicit `columns` list names flattened columns."
+  ],
+  "test_empty_nested_dict_is_a_plain_value": "Edge case: an empty dict has nothing to spread, so it stays the value of its own column.",
+  "test_two_paths_with_one_name_collide": "If two different paths in one record produce the same column name (for example a top-level key that already contains the separator), raise ValueError.",
+  "test_nest_is_the_inverse": [
+   "`to_records` and `to_jsonl` take `nest=False` and `sep='.'`, the inverse: a column whose name contains sep becomes nested dicts along the parts of its name; columns without sep stay top-level.",
+   "A nested value that is None (for example one that a record lacked when the table was flattened) is written as None at its nested place."
+  ],
+  "test_nest_with_drop_none_leaves_no_empty_dicts": "With `drop_none` as well, None values are dropped before nesting and a nested dict is only created when it receives at least one value, so no empty dicts appear.",
+  "test_value_column_cannot_also_be_a_parent": [
+   "Nesting is refused with ValueError when one column name is a proper path prefix of another (a column a next to a column a.b), since a would have to hold a value and a dict at once",
+   "Without nest, such tables convert as before.",
+   "names that merely start with the same letters are fine."
+  ],
+  "test_jsonl_round_trip_through_nesting": [
+   "As a result, a nested JSON Lines text read with flatten and written back with nest gives the same objects",
+   "and a flattened table survives that round trip unchanged."
+  ],
+  "test_separator_must_not_be_empty": "sep must be a non-empty string; otherwise raise ValueError."
+ }
+}

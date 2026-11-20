@@ -1,0 +1,40 @@
+{
+ "id": "r2b-cronlite-3",
+ "subject": "Time windows that honor blackout calendars, a deferral limit and a planner",
+ "author_model": "claude-opus-5-5",
+ "brief": "Make cronlite's allowed time windows respect blackout calendars, put a limit on how late a deferred run may start, and add a one-call planner over a schedule.\n\n1. Add `BlackoutCalendar.next_open_day(day)`: the given day itself when it is open, otherwise the first open day after it (a date or a datetime is accepted, a date is returned); a calendar on which no day is ever open raises CronError.\n2. `WindowSet.next_allowed(when, calendar=None)`: with a calendar, only minutes on open days count, so a closed day is skipped as a whole, including any part of a window that falls on it; seconds are dropped as before.\n3. `WindowSet.place(due, mode, calendar=None, max_defer=None)`: with a calendar, a run due on a closed day is dropped (start None) in both modes, even when its time is inside a window; it is suppressed, not postponed. A run that is deferred starts at the next window opening that lies on an open day. With `max_defer` (a timedelta), a deferred run whose start would come more than that long after its due time is dropped instead; a delay of exactly `max_defer` still starts. A negative `max_defer` raises CronError. Without the new arguments nothing changes.\n4. Add `plan_runs(expr, start, end, windows, calendar=None, mode=\"defer\", max_defer=None)` to the windows module and export it from the package: the placement of every firing time of the expression after `start` up to `end` inclusive, as `place` returns it; `windows` is a WindowSet or anything WindowSet accepts. Add `placement_counts(placed)`, also exported: a dict with the keys `on_time`, `deferred` and `dropped` counting the pairs whose start equals the due time, is later, or is None (all three keys present, zero when nothing is placed).\n\nAll behavior that the existing tests check must keep working.",
+ "hidden_tests": [
+  "tests/test_windows_closed_days.py"
+ ],
+ "trace_by_test": {
+  "test_next_open_day": [
+   "Add `BlackoutCalendar.next_open_day(day)`: the given day itself when it is open, otherwise the first open day after it (a date or a datetime is accepted, a date is returned); a calendar on which no day is ever open raises CronError.",
+   "Add `BlackoutCalendar.next_open_day(day)`: the given day itself when it is open, otherwise the first open day after it (a date or a datetime is accepted, a date is returned); a calendar on which no day is ever open raises CronError.",
+   "Add `BlackoutCalendar.next_open_day(day)`: the given day itself when it is open, otherwise the first open day after it (a date or a datetime is accepted, a date is returned); a calendar on which no day is ever open raises CronError."
+  ],
+  "test_run_due_on_a_closed_day_is_dropped": [
+   "`WindowSet.place(due, mode, calendar=None, max_defer=None)`: with a calendar, a run due on a closed day is dropped (start None) in both modes, even when its time is inside a window; it is suppressed, not postponed.",
+   "`WindowSet.place(due, mode, calendar=None, max_defer=None)`: with a calendar, a run due on a closed day is dropped (start None) in both modes, even when its time is inside a window; it is suppressed, not postponed."
+  ],
+  "test_deferral_skips_closed_days": [
+   "A run that is deferred starts at the next window opening that lies on an open day.",
+   "With `max_defer` (a timedelta), a deferred run whose start would come more than that long after its due time is dropped instead; a delay of exactly `max_defer` still starts. A negative `max_defer` raises CronError. Without the new arguments nothing changes."
+  ],
+  "test_next_allowed_with_calendar": [
+   "`WindowSet.next_allowed(when, calendar=None)`: with a calendar, only minutes on open days count, so a closed day is skipped as a whole, including any part of a window that falls on it; seconds are dropped as before.",
+   "`WindowSet.next_allowed(when, calendar=None)`: with a calendar, only minutes on open days count, so a closed day is skipped as a whole, including any part of a window that falls on it; seconds are dropped as before."
+  ],
+  "test_max_defer": [
+   "With `max_defer` (a timedelta), a deferred run whose start would come more than that long after its due time is dropped instead; a delay of exactly `max_defer` still starts. A negative `max_defer` raises CronError. Without the new arguments nothing changes.",
+   "With `max_defer` (a timedelta), a deferred run whose start would come more than that long after its due time is dropped instead; a delay of exactly `max_defer` still starts. A negative `max_defer` raises CronError. Without the new arguments nothing changes.",
+   "With `max_defer` (a timedelta), a deferred run whose start would come more than that long after its due time is dropped instead; a delay of exactly `max_defer` still starts. A negative `max_defer` raises CronError. Without the new arguments nothing changes.",
+   "With `max_defer` (a timedelta), a deferred run whose start would come more than that long after its due time is dropped instead; a delay of exactly `max_defer` still starts. A negative `max_defer` raises CronError. Without the new arguments nothing changes."
+  ],
+  "test_plan_runs_and_counts": [
+   "Add `plan_runs(expr, start, end, windows, calendar=None, mode=\"defer\", max_defer=None)` to the windows module and export it from the package: the placement of every firing time of the expression after `start` up to `end` inclusive, as `place` returns it; `windows` is a WindowSet or anything WindowSet accepts.",
+   "Add `plan_runs(expr, start, end, windows, calendar=None, mode=\"defer\", max_defer=None)` to the windows module and export it from the package: the placement of every firing time of the expression after `start` up to `end` inclusive, as `place` returns it; `windows` is a WindowSet or anything WindowSet accepts.",
+   "Add `placement_counts(placed)`, also exported: a dict with the keys `on_time`, `deferred` and `dropped` counting the pairs whose start equals the due time, is later, or is None (all three keys present, zero when nothing is placed).",
+   "Add `placement_counts(placed)`, also exported: a dict with the keys `on_time`, `deferred` and `dropped` counting the pairs whose start equals the due time, is later, or is None (all three keys present, zero when nothing is placed)."
+  ]
+ }
+}

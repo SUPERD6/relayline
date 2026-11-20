@@ -234,6 +234,92 @@ class TestRelay(Env):
         self.assertLessEqual(captured_at, saved["started_at"])
         self.assertLessEqual(saved["started_at"], after)
 
+    def test_final_records_carry_ended_at_in_started_at_format(self):
+        import re
+        from ccx import relay_state
+        fixed = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$")
+        self.enable()
+        packet_id = self.capture()
+        packet = json.loads((self.work / ".ccx" / "relay" / (packet_id + ".json")).read_text(encoding="utf-8"))
+        rec = {}
+        orig = relay_state.atomic_json
+        running = []
+
+        def spy(path, data):
+            rec["p"] = str(path)
+            if data.get("state") == "running":
+                running.append("ended_at" in data)
+            orig(path, data)
+
+        class Child:
+            pid = 12345
+            returncode = 0
+
+            def communicate(self, data=None, timeout=None):
+                pass
+
+        class Boom(Child):
+            def communicate(self, data=None, timeout=None):
+                raise KeyboardInterrupt
+
+            def wait(self, timeout=None):
+                return 0
+
+        for child in (Child(), Boom()):
+            (self.work / ".ccx" / "relay" / (packet_id + ".launch-lock")).unlink(missing_ok=True)
+            before = relay_state.utc_now()
+            with patch("ccx.relay.state.snapshot", return_value=packet["git"]),                     patch("ccx.relay.state.atomic_json", side_effect=spy),                     patch("ccx.relay.subprocess.Popen", return_value=child),                     patch("ccx.relay.kill_tree", return_value=True):
+                if isinstance(child, Boom):
+                    with self.assertRaises(KeyboardInterrupt):
+                        continue_packet(self.work.resolve(), packet_id, "codex", 30, True, True)
+                else:
+                    continue_packet(self.work.resolve(), packet_id, "codex", 30, True, True)
+            saved = json.loads(Path(rec["p"]).read_text(encoding="utf-8"))
+            self.assertRegex(saved["ended_at"], fixed)
+            self.assertRegex(saved["started_at"], fixed)
+            self.assertLessEqual(before, saved["started_at"])
+            self.assertLessEqual(saved["started_at"], saved["ended_at"])
+        self.assertEqual(running, [False, False])       # a running record has no ended_at
+
+    def test_postprocess_exception_writes_final_state_and_ended_at_487(self):
+        import re
+        self.enable()
+        packet_id = self.capture()
+        packet = json.loads((self.work / ".ccx" / "relay" / (packet_id + ".json")).read_text(encoding="utf-8"))
+        rec = {}
+        from ccx import relay_state
+        orig = relay_state.atomic_json
+
+        def spy(path, data):
+            rec["p"] = str(path)
+            orig(path, data)
+
+        class Child:
+            pid = 12345
+            returncode = 0
+
+            def communicate(self, data=None, timeout=None):
+                pass
+
+        # each post-processing step in turn raises; the record must not stay "running"
+        for target in ("ccx.relay.quota_signals.identify", "ccx.relay.state.snapshot"):
+            (self.work / ".ccx" / "relay" / (packet_id + ".launch-lock")).unlink(missing_ok=True)
+            snap = patch("ccx.relay.state.snapshot", return_value=packet["git"]) if "snapshot" not in target else None
+            with patch(target, side_effect=RuntimeError("boom-487")), patch("ccx.relay.state.atomic_json", side_effect=spy),                     patch("ccx.relay.subprocess.Popen", return_value=Child()), patch("ccx.relay.kill_tree", return_value=True):
+                if snap:
+                    snap.start()
+                try:
+                    with self.assertRaises(RuntimeError):          # the original exception is still raised
+                        continue_packet(self.work.resolve(), packet_id, "codex", 30, True, True)
+                finally:
+                    if snap:
+                        snap.stop()
+            saved = json.loads(Path(rec["p"]).read_text(encoding="utf-8"))
+            self.assertEqual(saved["state"], "postprocess_error", target)
+            self.assertIn("boom-487", saved["error"])
+            self.assertRegex(saved["ended_at"], r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$")
+            self.assertEqual(saved["exit_code"], 0)
+
     def test_midprocess_death_preserves_partial_work_and_can_recapture(self):
         self.enable()
         packet = self.capture(source="codex")
