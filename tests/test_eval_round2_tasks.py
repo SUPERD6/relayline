@@ -323,6 +323,36 @@ def test_brief_literal_overlap_and_trace_coverage():
     assert res["sentence_not_in_brief"] == ["Not in brief."] and res["unknown_in_trace"] == ["t.py::nope#1"]
 
 
+def _count_checks(src: str) -> int:
+    return len(R.assertions("t.py", src))
+
+
+@pytest.mark.parametrize("body, expected", [
+    ("assert x == 1\n    assert y", 2),                                    # plain assert: unchanged
+    ("eq_(f(), 1)\n    ne_(f(), 2)\n    ok_(f())", 3),                    # nose-style helpers (#491)
+    ("testing.eq_(f(), 1)", 1),                                           # ... also as an attribute
+    ("with expect_warnings('x'):\n        f()", 1),                        # SQLAlchemy/alembic context manager
+    ("with pytest.deprecated_call():\n        f()", 1),
+    ("with pytest.raises(ValueError):\n        f()\n    with pytest.warns(UserWarning):\n        f()", 2),
+    ("context.assert_('x')", 1),                                          # alembic's x.assert_(...)
+    ("self.assertEqual(f(), 1)\n    self.assertRaises(E, f)", 2),
+    ("assert_raises(E, f)\n    assert_not_equal(f(), 1)", 2),             # assert_* prefix
+    ("with self.assertRaises(E):\n        f()", 1),
+    ("q = col.in_([1, 2])\n    r = col.is_(None)", 0),                    # column operators are not checks
+    ("in_(1, [1])\n    is_(a, b)", 2),                                    # but the bare helpers are
+    ("print(f())\n    helper(1)", 0),
+])
+def test_assertions_recognise_common_check_helpers(body, expected):
+    assert _count_checks(f"def test_a():\n    {body}\n") == expected
+
+
+def test_assertions_ids_stay_in_source_order_with_helpers():
+    src = "def test_a():\n    assert a\n    eq_(b, 1)\n    with expect_warnings('w'):\n        ok_(c)\n"
+    got = R.assertions("t.py", src)
+    assert [a["id"] for a in got] == [f"t.py::test_a#{i}" for i in (1, 2, 3, 4)]
+    assert 1 in got[1]["literals"] and "w" in got[2]["literals"]
+
+
 def _fake_root(tmp_path):
     (tmp_path / "scripts/eval").mkdir(parents=True)
     (tmp_path / "docs/research/data").mkdir(parents=True)
