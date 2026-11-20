@@ -213,7 +213,7 @@ def test_claude_unit_denied_the_runs_files_and_earlier_units(tmp_path, monkeypat
     deny = json.loads(argv[argv.index("--settings") + 1])["permissions"]["deny"]
     r = PF._rule_path(out.resolve())
     for f in ("manifest.json", "results.jsonl"):
-        assert f"Read({r}/{f})" in deny and f"Edit({r}/{f})" in deny
+        assert f"Read({r}/{f})" in deny          # Read only since #472: writing there reveals nothing
     sib = [d[len(f"Read({r}/"):-len("/**)")] for d in deny if d.startswith(f"Read({r}/unit-")]
     assert any(fnmatch.fnmatchcase("unit-0011", g) for g in sib)
     assert not any(fnmatch.fnmatchcase("unit-0012", g) for g in sib)

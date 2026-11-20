@@ -228,7 +228,8 @@ def test_unit_folder_named_like_a_pattern_is_masked(tmp_path):
     own = [json.dumps({"file_path": str(dest / "repo" / "calc.py")}),
            json.dumps({"pattern": "def", "path": str(dest / "repo")}),
            json.dumps(f"cat {(dest / 'repo' / 'calc.py').as_posix()}"),
-           json.dumps({"file_path": str(home / "projects" / "x.jsonl")})]
+           # the unit's own Claude project folder (#470: other units' are a hit)
+           json.dumps({"file_path": str(home / "projects" / PF.slug(dest / "repo") / "x.jsonl")})]
     assert runner.audit_hits(own, u, homes=(home,)) == []
     assert runner.audit_hits([json.dumps("cat ../../relayline/scripts/eval/round2_a/spec.py")], u, homes=(home,))
 
