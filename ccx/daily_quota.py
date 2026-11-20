@@ -406,6 +406,8 @@ def _lead_verdict(path: Path, pk: dict, ctx: dict, via: str, depth: int = 0) -> 
         v["from"] = frm
         v["vendors"] = _vend(frm, *v["vendors"])
         return v
+    if c.get("state") == "postprocess_error":        # the child ended; relay's own post-processing crashed (#487)
+        return mk("unknown", "接续进程已结束但 relay 后处理出错（postprocess_error），改动是否完成没法判，需人工检查")
     if c.get("state") != "exited" or c.get("exit_code") != 0:
         return mk("failure", f"接续以 {c.get('state')} 结束（退出码 {c.get('exit_code')}），活没做完")
     if c.get("changes_observed") is not True:
