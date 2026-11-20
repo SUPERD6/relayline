@@ -447,7 +447,17 @@ class TestQuotaEvents(test_daily.TestDaily):
         self.notes({"kind": "exclude", "id": a, "ts": self.T0}, {"kind": "exclude", "id": b, "ts": self.T0})
         q = self.q(workspaces=[self.work])
         self.assertEqual(q["events"], [])
-        self.assertEqual(q["not_counted"]["chains_without_countable_member"], 1)
+        self.assertEqual(q["not_counted"]["excluded_by_note"], 1)
+
+    def test_a_chain_whose_members_are_all_excluded_is_counted_as_excluded(self):
+        a, b = "a" * 32, "b" * 32
+        self.packet(a, session="s1")
+        self.cont(a, state="quota_stopped", handoff_packet=b)
+        self.packet(b, session="Unknown", at=self.T0 + 2 * H)
+        self.notes({"kind": "exclude", "id": a, "ts": self.T0}, {"kind": "exclude", "id": b, "ts": self.T0})
+        q = self.q(workspaces=[self.work])
+        self.assertEqual(q["events"], [])
+        self.assertEqual((q["not_counted"]["excluded_by_note"], q["not_counted"]["chains_without_countable_member"]), (1, 0))
 
     def test_subagent_pair_reports_the_vendor_that_finished_and_the_ones_passed_through(self):
         self.put(run("a", day=DAY, hh=10, secs=60),

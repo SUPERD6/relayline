@@ -320,10 +320,12 @@ _CHAIN_STATES = ("quota_stopped", "rate_limit_unconfirmed")
 def _chains(pks: list[tuple[Path, dict]], convs: dict) -> list[list[str]]:
     """One original task is one event. Packets are grouped into chains (head first, then by time):
     - the packet a continuation wrote when it hit a limit itself (`handoff_packet`; unconfirmed ones too);
-    - a same-session `quota_stopped` packet that was itself continued, captured between the earlier packet and its
-      continuation's start (the earlier one then counts as having switched to it: a failure);
-    - a same-session `quota_stopped` packet that was never continued (a duplicate), captured within 4 hours before that
-      continuation's start, joins the earliest-continued packet."""
+    - a same-session `quota_stopped` packet that was itself continued, captured after the continued packet's
+      `captured_at` and no later than its continuation's start (the earlier one then counts as having switched to it:
+      a failure);
+    - a same-session `quota_stopped` packet that was never continued (a duplicate), captured from 4 hours before the
+      continued packet's `captured_at` up to its continuation's start, joins the earliest-continued packet.
+    The window is anchored at the continued packet's `captured_at`; its continuation's start only closes it."""
     by_id = {pk["id"]: pk for _, pk in pks}
     caps = {pk["id"]: _cap(path, pk) for path, pk in pks}
     parent: dict[str, str] = {}
@@ -577,7 +579,10 @@ def build(p: Paths, day: str, tz, now: float, workspaces=(), split: str | None =
                     lost_excluded = True
             ok = [i for i in chain if sts[i] in ("sure", "confirmed")]
             if not ok:                                    # the first countable member would be promoted; none is
-                if len(chain) > 1 and any(v != "out" for v in sts.values()):
+                seen = [v for v in sts.values() if v != "out"]
+                if seen and all(v == "excluded" for v in seen):
+                    excluded += 1                         # every member was excluded by a note: that is the exclusion
+                elif len(chain) > 1 and seen:
                     chain_gone += 1
                 elif sts[chain[0]] == "unconfirmed":
                     unconfirmed += 1

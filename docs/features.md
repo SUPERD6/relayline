@@ -848,13 +848,13 @@ one-sided 95% Clopper-Pearson lower bound, whether there are at least 5 counted 
 the two-period rule for quoting numbers: `--quota-split DAY` splits the events into a period before DAY and one from DAY).
 Counted events are all events except `not_attempted`; with fewer than 5, or events still undecided, the verdict is Unknown;
 one lost uncommitted change makes the whole claim Fail. One original task counts once: a resume chain (or a lead packet and the packet its
-continuation wrote when it hit the limit too, or a same-session packet captured before the continuation started) is one event judged by the chain's last
+continuation wrote when it hit the limit too, or a same-session packet captured after the continued packet's `captured_at` and before its continuation started) is one event judged by the chain's last
 result. Only a packet's first real continuation is judged. A missing `done` or `intact` once its window is over is a failure labelled
 `failure_basis: "missing_human_record"`; the summary counts these apart and prints a sensitivity line ("if these were successes the rate would be ...",
 not quotable), and the page lists events still inside their window that wait for a note. Same-session `quota_stopped` packets that were never continued join the earliest-continued one; if two were both continued, the earlier one counts as having
 switched (a failure). A chain whose head cannot be counted (unconfirmed with no `confirm`, before 2026-11-19, excluded) starts at its first countable member;
 a chain with none is listed. A `wait` note on any member makes the whole chain not attempted; an `exclude` note on any run of a sub-agent chain excludes
-the chain. Limits, not tracked further: for a sub-agent also only the first continuation run is judged; each leg's 4 hours run from its own hit; chains that
+the chain. Limits, not tracked further: for a sub-agent also only the first continuation run is judged; each leg's 4 hours run from its own hit; a same-session sibling packet that was excluded still takes part in the "switched to another packet" judgement; chains that
 span several workspaces, sessions that restart under a new id, and sub-agent chains whose head is before 2026-11-19 are not merged. Also listed, not counted: `capacity_recovery` runs, limit hits
 inside the evaluation hub, events excluded by a note, unreadable note or packet files. When no lead event is counted the page says the lead side is Unknown.
 
