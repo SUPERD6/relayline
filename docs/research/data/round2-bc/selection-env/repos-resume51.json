@@ -1,0 +1,365 @@
+{
+  "snapshot_last_update": "2026-11-01 06:41:05",
+  "rule": "rank order; GitHub source; MIT/BSD/Apache-2.0/ISC/PSF; not used before; each repository once, at its best rank; pure Python and offline suite are checked by select",
+  "kept": [
+    {
+      "rank": 239,
+      "project": "azure-identity",
+      "repo": "azure/azure-sdk-for-python",
+      "url": "https://github.com/Azure/azure-sdk-for-python",
+      "license": "mit"
+    },
+    {
+      "rank": 240,
+      "project": "asyncpg",
+      "repo": "magicstack/asyncpg",
+      "url": "https://github.com/MagicStack/asyncpg",
+      "license": "apache"
+    },
+    {
+      "rank": 241,
+      "project": "aiofiles",
+      "repo": "tinche/aiofiles",
+      "url": "https://github.com/Tinche/aiofiles",
+      "license": "apache"
+    },
+    {
+      "rank": 243,
+      "project": "pexpect",
+      "repo": "pexpect/pexpect",
+      "url": "https://github.com/pexpect/pexpect",
+      "license": "isc"
+    },
+    {
+      "rank": 244,
+      "project": "rapidfuzz",
+      "repo": "rapidfuzz/rapidfuzz",
+      "url": "https://github.com/rapidfuzz/RapidFuzz",
+      "license": "mit"
+    },
+    {
+      "rank": 245,
+      "project": "httplib2",
+      "repo": "httplib2/httplib2",
+      "url": "https://github.com/httplib2/httplib2",
+      "license": "mit"
+    },
+    {
+      "rank": 248,
+      "project": "authlib",
+      "repo": "authlib/authlib",
+      "url": "https://github.com/authlib/authlib",
+      "license": "bsd"
+    },
+    {
+      "rank": 249,
+      "project": "pytest-json-ctrf",
+      "repo": "infopulse/pytest-common-test-report-json",
+      "url": "https://github.com/infopulse/pytest-common-test-report-json",
+      "license": "mit"
+    },
+    {
+      "rank": 250,
+      "project": "fastjsonschema",
+      "repo": "horejsek/python-fastjsonschema",
+      "url": "https://github.com/horejsek/python-fastjsonschema",
+      "license": "bsd"
+    },
+    {
+      "rank": 251,
+      "project": "jsonpatch",
+      "repo": "stefankoegl/python-json-patch",
+      "url": "https://github.com/stefankoegl/python-json-patch",
+      "license": "bsd"
+    },
+    {
+      "rank": 252,
+      "project": "black",
+      "repo": "psf/black",
+      "url": "https://github.com/psf/black",
+      "license": "mit"
+    },
+    {
+      "rank": 253,
+      "project": "playwright",
+      "repo": "microsoft/playwright-python",
+      "url": "https://github.com/Microsoft/playwright-python",
+      "license": "apache"
+    },
+    {
+      "rank": 254,
+      "project": "executing",
+      "repo": "alexmojaki/executing",
+      "url": "https://github.com/alexmojaki/executing",
+      "license": "mit"
+    },
+    {
+      "rank": 257,
+      "project": "sqlparse",
+      "repo": "andialbrecht/sqlparse",
+      "url": "https://github.com/andialbrecht/sqlparse",
+      "license": "bsd"
+    },
+    {
+      "rank": 258,
+      "project": "python-docx",
+      "repo": "python-openxml/python-docx",
+      "url": "https://github.com/python-openxml/python-docx",
+      "license": "mit"
+    },
+    {
+      "rank": 259,
+      "project": "babel",
+      "repo": "python-babel/babel",
+      "url": "https://github.com/python-babel/babel",
+      "license": "bsd"
+    },
+    {
+      "rank": 260,
+      "project": "pyee",
+      "repo": "jfhbrook/pyee",
+      "url": "https://github.com/jfhbrook/pyee",
+      "license": "mit"
+    },
+    {
+      "rank": 261,
+      "project": "async-timeout",
+      "repo": "aio-libs/async-timeout",
+      "url": "https://github.com/aio-libs/async-timeout",
+      "license": "apache"
+    },
+    {
+      "rank": 263,
+      "project": "gunicorn",
+      "repo": "benoitc/gunicorn",
+      "url": "https://github.com/benoitc/gunicorn",
+      "license": "mit"
+    },
+    {
+      "rank": 264,
+      "project": "tornado",
+      "repo": "tornadoweb/tornado",
+      "url": "https://github.com/tornadoweb/tornado",
+      "license": "apache"
+    },
+    {
+      "rank": 265,
+      "project": "markdown",
+      "repo": "python-markdown/markdown",
+      "url": "https://github.com/Python-Markdown/markdown",
+      "license": "bsd"
+    },
+    {
+      "rank": 267,
+      "project": "joserfc",
+      "repo": "authlib/joserfc",
+      "url": "https://github.com/authlib/joserfc",
+      "license": "bsd"
+    },
+    {
+      "rank": 268,
+      "project": "python-pptx",
+      "repo": "scanny/python-pptx",
+      "url": "https://github.com/scanny/python-pptx",
+      "license": "mit"
+    },
+    {
+      "rank": 269,
+      "project": "transformers",
+      "repo": "huggingface/transformers",
+      "url": "https://github.com/huggingface/transformers",
+      "license": "apache"
+    },
+    {
+      "rank": 270,
+      "project": "tinycss2",
+      "repo": "kozea/tinycss2",
+      "url": "https://github.com/Kozea/tinycss2",
+      "license": "bsd"
+    },
+    {
+      "rank": 272,
+      "project": "jedi",
+      "repo": "davidhalter/jedi",
+      "url": "https://github.com/davidhalter/jedi",
+      "license": "mit"
+    },
+    {
+      "rank": 273,
+      "project": "structlog",
+      "repo": "hynek/structlog",
+      "url": "https://github.com/hynek/structlog",
+      "license": "mit"
+    },
+    {
+      "rank": 274,
+      "project": "parso",
+      "repo": "davidhalter/parso",
+      "url": "https://github.com/davidhalter/parso",
+      "license": "mit"
+    },
+    {
+      "rank": 275,
+      "project": "snowflake-connector-python",
+      "repo": "snowflakedb/drivers",
+      "url": "https://github.com/snowflakedb/drivers",
+      "license": "apache"
+    },
+    {
+      "rank": 276,
+      "project": "flatbuffers",
+      "repo": "google/flatbuffers",
+      "url": "https://github.com/google/flatbuffers",
+      "license": "apache"
+    },
+    {
+      "rank": 277,
+      "project": "ipython",
+      "repo": "ipython/ipython",
+      "url": "https://github.com/ipython/ipython",
+      "license": "bsd"
+    },
+    {
+      "rank": 278,
+      "project": "asttokens",
+      "repo": "gristlabs/asttokens",
+      "url": "https://github.com/gristlabs/asttokens",
+      "license": "apache"
+    },
+    {
+      "rank": 279,
+      "project": "xmltodict",
+      "repo": "martinblech/xmltodict",
+      "url": "https://github.com/martinblech/xmltodict",
+      "license": "mit"
+    },
+    {
+      "rank": 281,
+      "project": "pyzmq",
+      "repo": "zeromq/pyzmq",
+      "url": "https://github.com/zeromq/pyzmq",
+      "license": "bsd"
+    },
+    {
+      "rank": 282,
+      "project": "pytest-timeout",
+      "repo": "pytest-dev/pytest-timeout",
+      "url": "https://github.com/pytest-dev/pytest-timeout",
+      "license": "mit"
+    },
+    {
+      "rank": 283,
+      "project": "brotli",
+      "repo": "google/brotli",
+      "url": "https://github.com/google/brotli",
+      "license": "mit"
+    },
+    {
+      "rank": 284,
+      "project": "pyproject-hooks",
+      "repo": "pypa/pyproject-hooks",
+      "url": "https://github.com/pypa/pyproject-hooks",
+      "license": "mit"
+    },
+    {
+      "rank": 286,
+      "project": "matplotlib-inline",
+      "repo": "ipython/matplotlib-inline",
+      "url": "https://github.com/ipython/matplotlib-inline",
+      "license": "bsd"
+    },
+    {
+      "rank": 287,
+      "project": "pure-eval",
+      "repo": "alexmojaki/pure_eval",
+      "url": "https://github.com/alexmojaki/pure_eval",
+      "license": "mit"
+    },
+    {
+      "rank": 289,
+      "project": "watchdog",
+      "repo": "gorakhargosh/watchdog",
+      "url": "https://github.com/gorakhargosh/watchdog",
+      "license": "apache"
+    },
+    {
+      "rank": 290,
+      "project": "build",
+      "repo": "pypa/build",
+      "url": "https://github.com/pypa/build",
+      "license": "mit"
+    },
+    {
+      "rank": 291,
+      "project": "ast-serialize",
+      "repo": "mypyc/ast_serialize",
+      "url": "https://github.com/mypyc/ast_serialize",
+      "license": "mit"
+    },
+    {
+      "rank": 292,
+      "project": "stack-data",
+      "repo": "alexmojaki/stack_data",
+      "url": "https://github.com/alexmojaki/stack_data",
+      "license": "mit"
+    },
+    {
+      "rank": 293,
+      "project": "python-json-logger",
+      "repo": "nhairs/python-json-logger",
+      "url": "https://github.com/nhairs/python-json-logger",
+      "license": "bsd"
+    },
+    {
+      "rank": 294,
+      "project": "aioitertools",
+      "repo": "omnilib/aioitertools",
+      "url": "https://github.com/omnilib/aioitertools",
+      "license": "mit"
+    },
+    {
+      "rank": 295,
+      "project": "litellm",
+      "repo": "berriai/litellm",
+      "url": "https://github.com/BerriAI/litellm",
+      "license": "mit"
+    },
+    {
+      "rank": 296,
+      "project": "isort",
+      "repo": "pycqa/isort",
+      "url": "https://github.com/PyCQA/isort",
+      "license": "mit"
+    },
+    {
+      "rank": 297,
+      "project": "cachecontrol",
+      "repo": "psf/cachecontrol",
+      "url": "https://github.com/psf/cachecontrol",
+      "license": "apache"
+    },
+    {
+      "rank": 298,
+      "project": "griffelib",
+      "repo": "mkdocstrings/griffe",
+      "url": "https://github.com/mkdocstrings/griffe",
+      "license": "isc"
+    },
+    {
+      "rank": 299,
+      "project": "google-cloud-aiplatform",
+      "repo": "googleapis/python-aiplatform",
+      "url": "https://github.com/googleapis/python-aiplatform",
+      "license": "apache"
+    },
+    {
+      "rank": 300,
+      "project": "jupyter-core",
+      "repo": "jupyter/jupyter_core",
+      "url": "https://github.com/jupyter/jupyter_core",
+      "license": "bsd"
+    }
+  ],
+  "excluded": [],
+  "resume_note": "the kept repositories the full select of 2026-11-18 could not walk (git log failed transiently)"
+}

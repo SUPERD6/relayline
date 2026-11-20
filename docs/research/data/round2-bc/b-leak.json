@@ -1,0 +1,434 @@
+{
+  "rule": "same id, same repository, same commit (or earlier short SHA prefix), or normalized brief SequenceMatcher ratio >= 0.6; candidates above 0.4 listed",
+  "corpus": {
+    "files": 119,
+    "briefs": 710,
+    "ids": 366,
+    "repos": [
+      "boltons",
+      "exercism-python",
+      "humanize",
+      "itsdangerous",
+      "more-itertools",
+      "pluggy",
+      "polyglot",
+      "polyglot-benchmark",
+      "python"
+    ],
+    "errors": []
+  },
+  "tasks": [
+    {
+      "id": "r2-jpadilla__pyjwt-384c945065ad",
+      "findings": [],
+      "listed_above_0.4": [],
+      "clean": true
+    },
+    {
+      "id": "r2-jpadilla__pyjwt-ba4853a75fb9",
+      "findings": [],
+      "listed_above_0.4": [],
+      "clean": true
+    },
+    {
+      "id": "r2-python-jsonschema__jsonschema-0a845d0db397",
+      "findings": [],
+      "listed_above_0.4": [],
+      "clean": true
+    },
+    {
+      "id": "r2-jd__tenacity-389aab8b2688",
+      "findings": [],
+      "listed_above_0.4": [],
+      "clean": true
+    },
+    {
+      "id": "r2-jd__tenacity-a09999688c8d",
+      "findings": [],
+      "listed_above_0.4": [],
+      "clean": true
+    },
+    {
+      "id": "r2-pypa__wheel-0ca6f24ed0f7",
+      "findings": [],
+      "listed_above_0.4": [],
+      "clean": true
+    },
+    {
+      "id": "r2-facelessuser__soupsieve-e26b979621aa",
+      "findings": [],
+      "listed_above_0.4": [],
+      "clean": true
+    },
+    {
+      "id": "r2-facelessuser__soupsieve-eae8fabba0df",
+      "findings": [],
+      "listed_above_0.4": [],
+      "clean": true
+    },
+    {
+      "id": "r2-facelessuser__soupsieve-7570dd60cec6",
+      "findings": [],
+      "listed_above_0.4": [],
+      "clean": true
+    },
+    {
+      "id": "r2-facelessuser__soupsieve-7b0f637cf6ee",
+      "findings": [],
+      "listed_above_0.4": [],
+      "clean": true
+    },
+    {
+      "id": "r2-facelessuser__soupsieve-e7af79d052e6",
+      "findings": [],
+      "listed_above_0.4": [],
+      "clean": true
+    },
+    {
+      "id": "r2-facelessuser__soupsieve-29af965ca723",
+      "findings": [],
+      "listed_above_0.4": [],
+      "clean": true
+    },
+    {
+      "id": "r2-tkem__cachetools-73883976431e",
+      "findings": [],
+      "listed_above_0.4": [],
+      "clean": true
+    },
+    {
+      "id": "r2-rr-__docstring_parser-2d3b4f2416de",
+      "findings": [],
+      "listed_above_0.4": [],
+      "clean": true
+    },
+    {
+      "id": "r2-rr-__docstring_parser-c83f34567f87",
+      "findings": [],
+      "listed_above_0.4": [],
+      "clean": true
+    },
+    {
+      "id": "r2-rr-__docstring_parser-61a6228b7f03",
+      "findings": [],
+      "listed_above_0.4": [],
+      "clean": true
+    },
+    {
+      "id": "r2-rr-__docstring_parser-1c7a902cbf51",
+      "findings": [],
+      "listed_above_0.4": [],
+      "clean": true
+    },
+    {
+      "id": "r2-rr-__docstring_parser-c9356af76a00",
+      "findings": [],
+      "listed_above_0.4": [],
+      "clean": true
+    },
+    {
+      "id": "r2-rr-__docstring_parser-42cc00238382",
+      "findings": [],
+      "listed_above_0.4": [],
+      "clean": true
+    },
+    {
+      "id": "r2-oauthlib__oauthlib-2388af80a399",
+      "findings": [],
+      "listed_above_0.4": [],
+      "clean": true
+    },
+    {
+      "id": "r2-oauthlib__oauthlib-c951a1d09f99",
+      "findings": [],
+      "listed_above_0.4": [],
+      "clean": true
+    },
+    {
+      "id": "r2-networkx__networkx-416c3e26da05",
+      "findings": [],
+      "listed_above_0.4": [],
+      "clean": true
+    },
+    {
+      "id": "r2-networkx__networkx-db84a87dff15",
+      "findings": [],
+      "listed_above_0.4": [],
+      "clean": true
+    },
+    {
+      "id": "r2-networkx__networkx-d8081795e134",
+      "findings": [],
+      "listed_above_0.4": [],
+      "clean": true
+    },
+    {
+      "id": "r2-sqlalchemy__mako-a162c9c38b12",
+      "findings": [],
+      "listed_above_0.4": [],
+      "clean": true
+    },
+    {
+      "id": "r2-sqlalchemy__alembic-326e8fb37aa6",
+      "findings": [],
+      "listed_above_0.4": [],
+      "clean": true
+    },
+    {
+      "id": "r2-sqlalchemy__alembic-04619984e6d4",
+      "findings": [],
+      "listed_above_0.4": [],
+      "clean": true
+    },
+    {
+      "id": "r2-sqlalchemy__alembic-252bf0ae69db",
+      "findings": [],
+      "listed_above_0.4": [],
+      "clean": true
+    },
+    {
+      "id": "r2-sqlalchemy__alembic-674a4480b87d",
+      "findings": [],
+      "listed_above_0.4": [],
+      "clean": true
+    },
+    {
+      "id": "r2-pyca__pyopenssl-07c8f27cab7d",
+      "findings": [],
+      "listed_above_0.4": [],
+      "clean": true
+    },
+    {
+      "id": "r2-regebro__tzlocal-b5349f69d085",
+      "findings": [],
+      "listed_above_0.4": [],
+      "clean": true
+    },
+    {
+      "id": "r2-jmcnamara__xlsxwriter-5167156db1cc",
+      "findings": [],
+      "listed_above_0.4": [],
+      "clean": true
+    },
+    {
+      "id": "r2-django__asgiref-deda0d4fd8d3",
+      "findings": [],
+      "listed_above_0.4": [],
+      "clean": true
+    },
+    {
+      "id": "r2-ipython__traitlets-5b398bea0380",
+      "findings": [],
+      "listed_above_0.4": [],
+      "clean": true
+    },
+    {
+      "id": "r2-ipython__traitlets-58f4301d52d3",
+      "findings": [],
+      "listed_above_0.4": [],
+      "clean": true
+    },
+    {
+      "id": "r2-andialbrecht__sqlparse-be3b7a68d07a",
+      "findings": [],
+      "listed_above_0.4": [],
+      "clean": true
+    },
+    {
+      "id": "r2-andialbrecht__sqlparse-3512a9d86912",
+      "findings": [],
+      "listed_above_0.4": [],
+      "clean": true
+    },
+    {
+      "id": "r2-andialbrecht__sqlparse-519e41698a17",
+      "findings": [],
+      "listed_above_0.4": [],
+      "clean": true
+    },
+    {
+      "id": "r2-jfhbrook__pyee-10df5b1ce02c",
+      "findings": [],
+      "listed_above_0.4": [],
+      "clean": true
+    },
+    {
+      "id": "r2-nhairs__python-json-logger-125a0e957c59",
+      "findings": [],
+      "listed_above_0.4": [],
+      "clean": true
+    },
+    {
+      "id": "r2-nhairs__python-json-logger-e76fa4092852",
+      "findings": [],
+      "listed_above_0.4": [],
+      "clean": true
+    },
+    {
+      "id": "r2-nhairs__python-json-logger-cebb72f3f022",
+      "findings": [],
+      "listed_above_0.4": [],
+      "clean": true
+    },
+    {
+      "id": "r2b-cronlite-1",
+      "findings": [],
+      "listed_above_0.4": [],
+      "clean": true
+    },
+    {
+      "id": "r2b-cronlite-2",
+      "findings": [],
+      "listed_above_0.4": [],
+      "clean": true
+    },
+    {
+      "id": "r2b-cronlite-3",
+      "findings": [],
+      "listed_above_0.4": [],
+      "clean": true
+    },
+    {
+      "id": "r2b-cronlite-4",
+      "findings": [],
+      "listed_above_0.4": [],
+      "clean": true
+    },
+    {
+      "id": "r2b-cronlite-5",
+      "findings": [],
+      "listed_above_0.4": [],
+      "clean": true
+    },
+    {
+      "id": "r2b-cronlite-6",
+      "findings": [],
+      "listed_above_0.4": [],
+      "clean": true
+    },
+    {
+      "id": "r2b-cronlite-7",
+      "findings": [],
+      "listed_above_0.4": [],
+      "clean": true
+    },
+    {
+      "id": "r2b-cronlite-8",
+      "findings": [],
+      "listed_above_0.4": [],
+      "clean": true
+    },
+    {
+      "id": "r2b-tabula-1",
+      "findings": [],
+      "listed_above_0.4": [],
+      "clean": true
+    },
+    {
+      "id": "r2b-tabula-10",
+      "findings": [],
+      "listed_above_0.4": [],
+      "clean": true
+    },
+    {
+      "id": "r2b-tabula-2",
+      "findings": [],
+      "listed_above_0.4": [],
+      "clean": true
+    },
+    {
+      "id": "r2b-tabula-3",
+      "findings": [],
+      "listed_above_0.4": [],
+      "clean": true
+    },
+    {
+      "id": "r2b-tabula-4",
+      "findings": [],
+      "listed_above_0.4": [],
+      "clean": true
+    },
+    {
+      "id": "r2b-tabula-5",
+      "findings": [],
+      "listed_above_0.4": [],
+      "clean": true
+    },
+    {
+      "id": "r2b-tabula-6",
+      "findings": [],
+      "listed_above_0.4": [],
+      "clean": true
+    },
+    {
+      "id": "r2b-tabula-7",
+      "findings": [],
+      "listed_above_0.4": [],
+      "clean": true
+    },
+    {
+      "id": "r2b-tabula-8",
+      "findings": [],
+      "listed_above_0.4": [],
+      "clean": true
+    },
+    {
+      "id": "r2b-tabula-9",
+      "findings": [],
+      "listed_above_0.4": [],
+      "clean": true
+    },
+    {
+      "id": "r2bd-cronlite-1",
+      "findings": [],
+      "listed_above_0.4": [],
+      "clean": true
+    },
+    {
+      "id": "r2bd-cronlite-2",
+      "findings": [],
+      "listed_above_0.4": [],
+      "clean": true
+    },
+    {
+      "id": "r2bd-tabula-1",
+      "findings": [],
+      "listed_above_0.4": [],
+      "clean": true
+    },
+    {
+      "id": "r2bd-tabula-2",
+      "findings": [],
+      "listed_above_0.4": [],
+      "clean": true
+    }
+  ],
+  "clean": true,
+  "excluded_from_corpus": [
+    "b-leak-input.json",
+    "docs/research/data/round2-bc/b-leak.json",
+    "docs/research/data/round2-bc/b.json",
+    "docs/research/data/round2-bc/b-dev-check.json",
+    "docs/research/data/round2-bc/b-dev-leak.json",
+    "docs/research/data/round2-bc/b-dev-native.json",
+    "docs/research/data/round2-bc/b-dev.json",
+    "docs/research/data/round2-bc/b-formal-cronlite-build.json",
+    "docs/research/data/round2-bc/b-formal-cronlite-check.json",
+    "docs/research/data/round2-bc/b-formal-cronlite-leak.json",
+    "docs/research/data/round2-bc/b-formal-cronlite-native.json",
+    "docs/research/data/round2-bc/b-formal-tabula-build.json",
+    "docs/research/data/round2-bc/b-formal-tabula-check.json",
+    "docs/research/data/round2-bc/b-formal-tabula-leak.json",
+    "docs/research/data/round2-bc/b-formal-tabula-native.json",
+    "docs/research/data/round2-bc/b-upstream-briefs.json",
+    "docs/research/data/round2-bc/selection-b.json",
+    "docs/research/data/round2-bc/b-trace.json",
+    "docs/research/data/round2-bc/b-check.json",
+    "docs/research/data/round2-bc/b-env.json",
+    "docs/research/data/round2-bc/selection-env/pip-list-v3.json",
+    "docs/research/data/round2-bc/selection-env/prepare-v4.json",
+    "docs/research/data/round2-bc/selection-env/repos-resume51.json",
+    "docs/research/data/round2-bc/selection-env/repos-v3.json",
+    "docs/research/data/round2-bc/selection-env/top-pypi-packages-30-days.min.json"
+  ]
+}

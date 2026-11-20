@@ -228,6 +228,11 @@ def test_cli_select_reports_dev_and_downstream_includes_dev(tmp_path, monkeypatc
     monkeypatch.setattr(R, "leak_check", lambda tasks, corp: leaked.extend(tasks) or {"clean": True})
     assert R.main(["leak", "--tasks", str(out), "--out", str(tmp_path / "leak.json")]) == 0
     assert sorted(t["commit"][0] for t in leaked) == ["a", "c", "d"]
+    # the output names the files left out of the corpus: the task file, the output and any --exclude
+    extra = tmp_path / "briefs.json"
+    assert R.main(["leak", "--tasks", str(out), "--exclude", str(extra), "--out", str(tmp_path / "leak.json")]) == 0
+    assert json.loads((tmp_path / "leak.json").read_text(encoding="utf-8"))["excluded_from_corpus"] == [
+        out.as_posix(), (tmp_path / "leak.json").as_posix(), extra.as_posix()]
     # a final-task shortfall still fails the command
     monkeypatch.setattr(R, "C_TAKE", 5)
     assert R.main(["select", "--repos-json", str(tmp_path / "repos.json"), "--ext-cache", str(tmp_path / "cache"),

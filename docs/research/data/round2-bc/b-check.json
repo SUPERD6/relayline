@@ -1,0 +1,1736 @@
+{
+  "models_called": false,
+  "tasks": [
+    {
+      "id": "r2bd-cronlite-1",
+      "pythonutf8": true,
+      "existing": {
+        "rc": 0,
+        "summary": "56 passed in 0.13s",
+        "errors": []
+      },
+      "start": {
+        "rc": 1,
+        "summary": "8 failed, 9 passed in 0.13s",
+        "errors": [
+          "E               cronlite.errors.CronError: hour: '9-12' is not a number",
+          "E               cronlite.errors.CronError: minute: '*/20' is not a number",
+          "E               cronlite.errors.CronError: day: '1-9/4' is not a number",
+          "E               cronlite.errors.CronError: month: '10/1' is not a number",
+          "E               cronlite.errors.CronError: weekday: 7 is outside 0-6",
+          "E               cronlite.errors.CronError: month: 'Jan' is not a number",
+          "E               cronlite.errors.CronError: day: '*/10' is not a number",
+          "E               cronlite.errors.CronError: minute: '*/15' is not a number",
+          "FAILED tests/test_ranges_steps.py::test_range - cronlite.errors.CronError: ho...",
+          "FAILED tests/test_ranges_steps.py::test_star_step - cronlite.errors.CronError...",
+          "FAILED tests/test_ranges_steps.py::test_range_step_and_list - cronlite.errors...",
+          "FAILED tests/test_ranges_steps.py::test_number_step_runs_to_the_top - cronlit..."
+        ]
+      },
+      "reference": {
+        "rc": 0,
+        "summary": "17 passed in 0.04s",
+        "errors": []
+      },
+      "reference_full": {
+        "rc": 0,
+        "summary": "73 passed in 0.14s",
+        "errors": []
+      },
+      "reference_failed": [],
+      "assertions": 22,
+      "literal_overlap": [
+        {
+          "assertion": "tests/test_ranges_steps.py::test_number_step_runs_to_the_top#1",
+          "literal": "month"
+        },
+        {
+          "assertion": "tests/test_ranges_steps.py::test_weekday_seven_is_sunday#1",
+          "literal": "weekday"
+        },
+        {
+          "assertion": "tests/test_ranges_steps.py::test_weekday_seven_is_sunday#2",
+          "literal": "weekday"
+        },
+        {
+          "assertion": "tests/test_ranges_steps.py::test_weekday_seven_is_sunday#3",
+          "literal": "weekday"
+        },
+        {
+          "assertion": "tests/test_ranges_steps.py::test_month_and_weekday_names#1",
+          "literal": "month"
+        },
+        {
+          "assertion": "tests/test_ranges_steps.py::test_month_and_weekday_names#2",
+          "literal": "weekday"
+        },
+        {
+          "assertion": "tests/test_ranges_steps.py::test_month_and_weekday_names#3",
+          "literal": "weekday"
+        }
+      ],
+      "unmapped": [],
+      "unknown_in_trace": [],
+      "sentence_not_in_brief": [],
+      "trace_complete": true,
+      "problems": [],
+      "valid": true,
+      "review": [
+        "literal 'month' of tests/test_ranges_steps.py::test_number_step_runs_to_the_top#1 appears in the brief",
+        "literal 'weekday' of tests/test_ranges_steps.py::test_weekday_seven_is_sunday#1 appears in the brief",
+        "literal 'weekday' of tests/test_ranges_steps.py::test_weekday_seven_is_sunday#2 appears in the brief",
+        "literal 'weekday' of tests/test_ranges_steps.py::test_weekday_seven_is_sunday#3 appears in the brief",
+        "literal 'month' of tests/test_ranges_steps.py::test_month_and_weekday_names#1 appears in the brief",
+        "literal 'weekday' of tests/test_ranges_steps.py::test_month_and_weekday_names#2 appears in the brief",
+        "literal 'weekday' of tests/test_ranges_steps.py::test_month_and_weekday_names#3 appears in the brief"
+      ],
+      "lib": "cronlite",
+      "dev": true
+    },
+    {
+      "id": "r2bd-cronlite-2",
+      "pythonutf8": true,
+      "existing": {
+        "rc": 0,
+        "summary": "56 passed in 0.13s",
+        "errors": []
+      },
+      "start": {
+        "rc": 2,
+        "summary": "1 error in 0.14s",
+        "errors": [
+          "E   ImportError: cannot import name 'next_run' from 'cronlite' (<tree>\\cronlite\\__init__.py)",
+          "ERROR tests/test_backoff.py"
+        ]
+      },
+      "reference": {
+        "rc": 0,
+        "summary": "9 passed in 0.04s",
+        "errors": []
+      },
+      "reference_full": {
+        "rc": 0,
+        "summary": "65 passed in 0.14s",
+        "errors": []
+      },
+      "reference_failed": [],
+      "assertions": 21,
+      "literal_overlap": [],
+      "unmapped": [],
+      "unknown_in_trace": [],
+      "sentence_not_in_brief": [],
+      "trace_complete": true,
+      "problems": [],
+      "valid": true,
+      "review": [],
+      "lib": "cronlite",
+      "dev": true
+    },
+    {
+      "id": "r2b-cronlite-1",
+      "pythonutf8": true,
+      "existing": {
+        "rc": 0,
+        "summary": "56 passed in 0.13s",
+        "errors": []
+      },
+      "start": {
+        "rc": 1,
+        "summary": "13 failed, 5 passed in 0.15s",
+        "errors": [
+          "E       TypeError: Job.__init__() got an unexpected keyword argument 'tags'",
+          "E       TypeError: Job.__init__() got an unexpected keyword argument 'tags'",
+          "E       TypeError: Job.__init__() got an unexpected keyword argument 'tags'",
+          "E       TypeError: Job.__init__() got an unexpected keyword argument 'tags'",
+          "E       TypeError: Job.__init__() got an unexpected keyword argument 'tags'",
+          "E       TypeError: Job.__init__() got an unexpected keyword argument 'tags'",
+          "E       TypeError: Job.__init__() got an unexpected keyword argument 'paused'",
+          "E       AttributeError: 'Registry' object has no attribute 'pause'",
+          "E       TypeError: Job.__init__() got an unexpected keyword argument 'paused'",
+          "E       TypeError: Job.__init__() got an unexpected keyword argument 'paused'",
+          "E       TypeError: Job.__init__() got an unexpected keyword argument 'tags'",
+          "E               cronlite.errors.CronError: job 'a': unknown key(s) paused"
+        ]
+      },
+      "reference": {
+        "rc": 0,
+        "summary": "18 passed in 0.04s",
+        "errors": []
+      },
+      "reference_full": {
+        "rc": 0,
+        "summary": "74 passed in 0.15s",
+        "errors": []
+      },
+      "reference_failed": [],
+      "assertions": 22,
+      "literal_overlap": [
+        {
+          "assertion": "tests/test_pause_and_tags.py:94 (outside an assert)",
+          "literal": "name"
+        },
+        {
+          "assertion": "tests/test_pause_and_tags.py:94 (outside an assert)",
+          "literal": "schedule"
+        },
+        {
+          "assertion": "tests/test_pause_and_tags.py:71 (outside an assert)",
+          "literal": "jobs"
+        },
+        {
+          "assertion": "tests/test_pause_and_tags.py:86 (outside an assert)",
+          "literal": "format"
+        },
+        {
+          "assertion": "tests/test_pause_and_tags.py:92 (outside an assert)",
+          "literal": "paused"
+        },
+        {
+          "assertion": "tests/test_pause_and_tags.py:92 (outside an assert)",
+          "literal": "tags"
+        },
+        {
+          "assertion": "tests/test_pause_and_tags.py:87 (outside an assert)",
+          "literal": "state"
+        }
+      ],
+      "unmapped": [],
+      "unknown_in_trace": [],
+      "sentence_not_in_brief": [],
+      "trace_complete": true,
+      "problems": [],
+      "valid": true,
+      "review": [
+        "literal 'name' of tests/test_pause_and_tags.py:94 (outside an assert) appears in the brief",
+        "literal 'schedule' of tests/test_pause_and_tags.py:94 (outside an assert) appears in the brief",
+        "literal 'jobs' of tests/test_pause_and_tags.py:71 (outside an assert) appears in the brief",
+        "literal 'format' of tests/test_pause_and_tags.py:86 (outside an assert) appears in the brief",
+        "literal 'paused' of tests/test_pause_and_tags.py:92 (outside an assert) appears in the brief",
+        "literal 'tags' of tests/test_pause_and_tags.py:92 (outside an assert) appears in the brief",
+        "literal 'state' of tests/test_pause_and_tags.py:87 (outside an assert) appears in the brief"
+      ],
+      "lib": "cronlite",
+      "dev": false
+    },
+    {
+      "id": "r2b-cronlite-2",
+      "pythonutf8": true,
+      "existing": {
+        "rc": 0,
+        "summary": "56 passed in 0.13s",
+        "errors": []
+      },
+      "start": {
+        "rc": 1,
+        "summary": "8 failed, 4 passed in 0.14s",
+        "errors": [
+          "E               cronlite.errors.CronError: day: 'L' is not a number",
+          "E               cronlite.errors.CronError: day: 'L' is not a number",
+          "E               cronlite.errors.CronError: day: 'L' is not a number",
+          "E               cronlite.errors.CronError: day: 'L' is not a number",
+          "E               cronlite.errors.CronError: day: 'L' is not a number",
+          "E               cronlite.errors.CronError: day: 'L' is not a number",
+          "E               cronlite.errors.CronError: day: 'L' is not a number",
+          "E               cronlite.errors.CronError: day: 'L' is not a number",
+          "FAILED tests/test_last_day.py::test_parse_last_day - cronlite.errors.CronErro...",
+          "FAILED tests/test_last_day.py::test_matches_the_last_day_of_each_month - cron...",
+          "FAILED tests/test_last_day.py::test_next_after_with_last_day - cronlite.error...",
+          "FAILED tests/test_last_day.py::test_last_day_is_a_restriction_for_the_either_rule"
+        ]
+      },
+      "reference": {
+        "rc": 0,
+        "summary": "12 passed in 0.05s",
+        "errors": []
+      },
+      "reference_full": {
+        "rc": 0,
+        "summary": "68 passed in 0.15s",
+        "errors": []
+      },
+      "reference_failed": [],
+      "assertions": 27,
+      "literal_overlap": [
+        {
+          "assertion": "tests/test_last_day.py::test_lint_last_day_exists_in_every_month#4",
+          "literal": "missing-days"
+        },
+        {
+          "assertion": "tests/test_last_day.py::test_duplicates_tell_last_day_apart#2",
+          "literal": "duplicate"
+        },
+        {
+          "assertion": "tests/test_last_day.py::test_duplicates_tell_last_day_apart#2",
+          "literal": "duplicate"
+        },
+        {
+          "assertion": "tests/test_last_day.py:16 (outside an assert)",
+          "literal": "name"
+        },
+        {
+          "assertion": "tests/test_last_day.py:16 (outside an assert)",
+          "literal": "month"
+        },
+        {
+          "assertion": "tests/test_last_day.py:16 (outside an assert)",
+          "literal": "weekday"
+        }
+      ],
+      "unmapped": [],
+      "unknown_in_trace": [],
+      "sentence_not_in_brief": [],
+      "trace_complete": true,
+      "problems": [],
+      "valid": true,
+      "review": [
+        "literal 'missing-days' of tests/test_last_day.py::test_lint_last_day_exists_in_every_month#4 appears in the brief",
+        "literal 'duplicate' of tests/test_last_day.py::test_duplicates_tell_last_day_apart#2 appears in the brief",
+        "literal 'duplicate' of tests/test_last_day.py::test_duplicates_tell_last_day_apart#2 appears in the brief",
+        "literal 'name' of tests/test_last_day.py:16 (outside an assert) appears in the brief",
+        "literal 'month' of tests/test_last_day.py:16 (outside an assert) appears in the brief",
+        "literal 'weekday' of tests/test_last_day.py:16 (outside an assert) appears in the brief"
+      ],
+      "lib": "cronlite",
+      "dev": false
+    },
+    {
+      "id": "r2b-cronlite-3",
+      "pythonutf8": true,
+      "existing": {
+        "rc": 0,
+        "summary": "56 passed in 0.13s",
+        "errors": []
+      },
+      "start": {
+        "rc": 2,
+        "summary": "1 error in 0.14s",
+        "errors": [
+          "E   ImportError: cannot import name 'placement_counts' from 'cronlite' (<tree>\\cronlite\\__init__.py)",
+          "ERROR tests/test_windows_closed_days.py"
+        ]
+      },
+      "reference": {
+        "rc": 0,
+        "summary": "6 passed in 0.04s",
+        "errors": []
+      },
+      "reference_full": {
+        "rc": 0,
+        "summary": "62 passed in 0.14s",
+        "errors": []
+      },
+      "reference_failed": [],
+      "assertions": 17,
+      "literal_overlap": [
+        {
+          "assertion": "tests/test_windows_closed_days.py::test_run_due_on_a_closed_day_is_dropped#2",
+          "literal": "drop"
+        },
+        {
+          "assertion": "tests/test_windows_closed_days.py::test_plan_runs_and_counts#3",
+          "literal": "on_time"
+        },
+        {
+          "assertion": "tests/test_windows_closed_days.py::test_plan_runs_and_counts#3",
+          "literal": "deferred"
+        },
+        {
+          "assertion": "tests/test_windows_closed_days.py::test_plan_runs_and_counts#3",
+          "literal": "dropped"
+        },
+        {
+          "assertion": "tests/test_windows_closed_days.py::test_plan_runs_and_counts#4",
+          "literal": "on_time"
+        },
+        {
+          "assertion": "tests/test_windows_closed_days.py::test_plan_runs_and_counts#4",
+          "literal": "deferred"
+        },
+        {
+          "assertion": "tests/test_windows_closed_days.py::test_plan_runs_and_counts#4",
+          "literal": "dropped"
+        }
+      ],
+      "unmapped": [],
+      "unknown_in_trace": [],
+      "sentence_not_in_brief": [],
+      "trace_complete": true,
+      "problems": [],
+      "valid": true,
+      "review": [
+        "literal 'drop' of tests/test_windows_closed_days.py::test_run_due_on_a_closed_day_is_dropped#2 appears in the brief",
+        "literal 'on_time' of tests/test_windows_closed_days.py::test_plan_runs_and_counts#3 appears in the brief",
+        "literal 'deferred' of tests/test_windows_closed_days.py::test_plan_runs_and_counts#3 appears in the brief",
+        "literal 'dropped' of tests/test_windows_closed_days.py::test_plan_runs_and_counts#3 appears in the brief",
+        "literal 'on_time' of tests/test_windows_closed_days.py::test_plan_runs_and_counts#4 appears in the brief",
+        "literal 'deferred' of tests/test_windows_closed_days.py::test_plan_runs_and_counts#4 appears in the brief",
+        "literal 'dropped' of tests/test_windows_closed_days.py::test_plan_runs_and_counts#4 appears in the brief"
+      ],
+      "lib": "cronlite",
+      "dev": false
+    },
+    {
+      "id": "r2b-cronlite-4",
+      "pythonutf8": true,
+      "existing": {
+        "rc": 0,
+        "summary": "56 passed in 0.13s",
+        "errors": []
+      },
+      "start": {
+        "rc": 2,
+        "summary": "1 error in 0.14s",
+        "errors": [
+          "E   ImportError: cannot import name 'flapping' from 'cronlite' (<tree>\\cronlite\\__init__.py)",
+          "ERROR tests/test_flapping_and_calendars.py"
+        ]
+      },
+      "reference": {
+        "rc": 0,
+        "summary": "8 passed in 0.04s",
+        "errors": []
+      },
+      "reference_full": {
+        "rc": 0,
+        "summary": "64 passed in 0.14s",
+        "errors": []
+      },
+      "reference_failed": [],
+      "assertions": 26,
+      "literal_overlap": [
+        {
+          "assertion": "tests/test_flapping_and_calendars.py::test_transitions#4",
+          "literal": "transitions"
+        },
+        {
+          "assertion": "tests/test_flapping_and_calendars.py::test_flapping#1",
+          "literal": "flapping"
+        },
+        {
+          "assertion": "tests/test_flapping_and_calendars.py::test_check_orders_flapping_after_failing#1",
+          "literal": "failing"
+        },
+        {
+          "assertion": "tests/test_flapping_and_calendars.py::test_check_orders_flapping_after_failing#1",
+          "literal": "flapping"
+        },
+        {
+          "assertion": "tests/test_flapping_and_calendars.py::test_check_orders_flapping_after_failing#2",
+          "literal": "failing"
+        },
+        {
+          "assertion": "tests/test_flapping_and_calendars.py::test_check_orders_flapping_after_failing#3",
+          "literal": "failing"
+        },
+        {
+          "assertion": "tests/test_flapping_and_calendars.py::test_check_uses_job_calendars#1",
+          "literal": "missed"
+        },
+        {
+          "assertion": "tests/test_flapping_and_calendars.py::test_check_uses_job_calendars#4",
+          "literal": "missed"
+        },
+        {
+          "assertion": "tests/test_flapping_and_calendars.py:37 (outside an assert)",
+          "literal": "window"
+        },
+        {
+          "assertion": "tests/test_flapping_and_calendars.py:37 (outside an assert)",
+          "literal": "threshold"
+        }
+      ],
+      "unmapped": [],
+      "unknown_in_trace": [],
+      "sentence_not_in_brief": [],
+      "trace_complete": true,
+      "problems": [],
+      "valid": true,
+      "review": [
+        "literal 'transitions' of tests/test_flapping_and_calendars.py::test_transitions#4 appears in the brief",
+        "literal 'flapping' of tests/test_flapping_and_calendars.py::test_flapping#1 appears in the brief",
+        "literal 'failing' of tests/test_flapping_and_calendars.py::test_check_orders_flapping_after_failing#1 appears in the brief",
+        "literal 'flapping' of tests/test_flapping_and_calendars.py::test_check_orders_flapping_after_failing#1 appears in the brief",
+        "literal 'failing' of tests/test_flapping_and_calendars.py::test_check_orders_flapping_after_failing#2 appears in the brief",
+        "literal 'failing' of tests/test_flapping_and_calendars.py::test_check_orders_flapping_after_failing#3 appears in the brief",
+        "literal 'missed' of tests/test_flapping_and_calendars.py::test_check_uses_job_calendars#1 appears in the brief",
+        "literal 'missed' of tests/test_flapping_and_calendars.py::test_check_uses_job_calendars#4 appears in the brief",
+        "literal 'window' of tests/test_flapping_and_calendars.py:37 (outside an assert) appears in the brief",
+        "literal 'threshold' of tests/test_flapping_and_calendars.py:37 (outside an assert) appears in the brief"
+      ],
+      "lib": "cronlite",
+      "dev": false
+    },
+    {
+      "id": "r2b-cronlite-5",
+      "pythonutf8": true,
+      "existing": {
+        "rc": 0,
+        "summary": "56 passed in 0.13s",
+        "errors": []
+      },
+      "start": {
+        "rc": 1,
+        "summary": "8 failed in 0.37s",
+        "errors": [
+          "E       TypeError: calendar() got an unexpected keyword argument 'tz'",
+          "E       TypeError: calendar() got an unexpected keyword argument 'tz'",
+          "E       TypeError: calendar() got an unexpected keyword argument 'closed'",
+          "E       TypeError: next_after_in() takes 3 positional arguments but 4 were given",
+          "E           argparse.ArgumentError: argument command: invalid choice: 'ical' (choose from 'next', 'describe', 'phrase', 'lint')",
+          "E       SystemExit: 2",
+          "E           argparse.ArgumentError: argument command: invalid choice: 'ical' (choose from 'next', 'describe', 'phrase', 'lint')",
+          "E       SystemExit: 2",
+          "E           argparse.ArgumentError: argument command: invalid choice: 'ical' (choose from 'next', 'describe', 'phrase', 'lint')",
+          "E       SystemExit: 2",
+          "E           argparse.ArgumentError: argument command: invalid choice: 'ical' (choose from 'next', 'describe', 'phrase', 'lint')",
+          "E       SystemExit: 2"
+        ]
+      },
+      "reference": {
+        "rc": 0,
+        "summary": "8 passed in 0.05s",
+        "errors": []
+      },
+      "reference_full": {
+        "rc": 0,
+        "summary": "64 passed in 0.15s",
+        "errors": []
+      },
+      "reference_failed": [],
+      "assertions": 19,
+      "literal_overlap": [
+        {
+          "assertion": "tests/test_ical_utc.py::test_utc_events_with_offset#1",
+          "literal": "DTSTART"
+        },
+        {
+          "assertion": "tests/test_ical_utc.py::test_cli_ical_closed_file#1",
+          "literal": "ical"
+        },
+        {
+          "assertion": "tests/test_ical_utc.py::test_cli_ical_closed_file#1",
+          "literal": "--from"
+        },
+        {
+          "assertion": "tests/test_ical_utc.py::test_cli_ical_closed_file#1",
+          "literal": "--count"
+        },
+        {
+          "assertion": "tests/test_ical_utc.py::test_cli_ical_closed_file#1",
+          "literal": "--closed"
+        },
+        {
+          "assertion": "tests/test_ical_utc.py::test_cli_ical_default_count_is_ten#1",
+          "literal": "ical"
+        },
+        {
+          "assertion": "tests/test_ical_utc.py::test_cli_ical_default_count_is_ten#1",
+          "literal": "--from"
+        },
+        {
+          "assertion": "tests/test_ical_utc.py::test_cli_ical_errors#1",
+          "literal": "--offset"
+        },
+        {
+          "assertion": "tests/test_ical_utc.py::test_cli_ical_errors#2",
+          "literal": "--count"
+        },
+        {
+          "assertion": "tests/test_ical_utc.py::test_cli_ical_errors#3",
+          "literal": "--closed"
+        },
+        {
+          "assertion": "tests/test_ical_utc.py::test_cli_ical_errors#4",
+          "literal": "--closed"
+        },
+        {
+          "assertion": "tests/test_ical_utc.py:57 (outside an assert)",
+          "literal": "utf-8"
+        }
+      ],
+      "unmapped": [],
+      "unknown_in_trace": [],
+      "sentence_not_in_brief": [],
+      "trace_complete": true,
+      "problems": [],
+      "valid": true,
+      "review": [
+        "literal 'DTSTART' of tests/test_ical_utc.py::test_utc_events_with_offset#1 appears in the brief",
+        "literal 'ical' of tests/test_ical_utc.py::test_cli_ical_closed_file#1 appears in the brief",
+        "literal '--from' of tests/test_ical_utc.py::test_cli_ical_closed_file#1 appears in the brief",
+        "literal '--count' of tests/test_ical_utc.py::test_cli_ical_closed_file#1 appears in the brief",
+        "literal '--closed' of tests/test_ical_utc.py::test_cli_ical_closed_file#1 appears in the brief",
+        "literal 'ical' of tests/test_ical_utc.py::test_cli_ical_default_count_is_ten#1 appears in the brief",
+        "literal '--from' of tests/test_ical_utc.py::test_cli_ical_default_count_is_ten#1 appears in the brief",
+        "literal '--offset' of tests/test_ical_utc.py::test_cli_ical_errors#1 appears in the brief",
+        "literal '--count' of tests/test_ical_utc.py::test_cli_ical_errors#2 appears in the brief",
+        "literal '--closed' of tests/test_ical_utc.py::test_cli_ical_errors#3 appears in the brief",
+        "literal '--closed' of tests/test_ical_utc.py::test_cli_ical_errors#4 appears in the brief",
+        "literal 'utf-8' of tests/test_ical_utc.py:57 (outside an assert) appears in the brief"
+      ],
+      "lib": "cronlite",
+      "dev": false
+    },
+    {
+      "id": "r2b-cronlite-6",
+      "pythonutf8": true,
+      "existing": {
+        "rc": 0,
+        "summary": "56 passed in 0.13s",
+        "errors": []
+      },
+      "start": {
+        "rc": 2,
+        "summary": "1 error in 0.14s",
+        "errors": [
+          "E   ImportError: cannot import name 'lint_registry' from 'cronlite' (<tree>\\cronlite\\__init__.py)",
+          "ERROR tests/test_registry_check.py"
+        ]
+      },
+      "reference": {
+        "rc": 0,
+        "summary": "8 passed in 0.12s",
+        "errors": []
+      },
+      "reference_full": {
+        "rc": 0,
+        "summary": "64 passed in 0.22s",
+        "errors": []
+      },
+      "reference_failed": [],
+      "assertions": 22,
+      "literal_overlap": [
+        {
+          "assertion": "tests/test_registry_check.py::test_lint_all_ignore#1",
+          "literal": "duplicate"
+        },
+        {
+          "assertion": "tests/test_registry_check.py::test_lint_all_ignore#2",
+          "literal": "duplicate"
+        },
+        {
+          "assertion": "tests/test_registry_check.py::test_retry_overlap_boundary#1",
+          "literal": "retry-overlap"
+        },
+        {
+          "assertion": "tests/test_registry_check.py::test_retry_overlap_uses_firings_after_start#1",
+          "literal": "never"
+        },
+        {
+          "assertion": "tests/test_registry_check.py::test_retry_overlap_uses_firings_after_start#1",
+          "literal": "retry-overlap"
+        },
+        {
+          "assertion": "tests/test_registry_check.py::test_retry_overlap_comes_last_and_can_be_ignored#1",
+          "literal": "duplicate"
+        },
+        {
+          "assertion": "tests/test_registry_check.py::test_retry_overlap_comes_last_and_can_be_ignored#1",
+          "literal": "duplicate"
+        },
+        {
+          "assertion": "tests/test_registry_check.py::test_retry_overlap_comes_last_and_can_be_ignored#1",
+          "literal": "retry-overlap"
+        },
+        {
+          "assertion": "tests/test_registry_check.py::test_retry_overlap_comes_last_and_can_be_ignored#2",
+          "literal": "duplicate"
+        },
+        {
+          "assertion": "tests/test_registry_check.py::test_retry_overlap_comes_last_and_can_be_ignored#2",
+          "literal": "duplicate"
+        },
+        {
+          "assertion": "tests/test_registry_check.py::test_retry_overlap_comes_last_and_can_be_ignored#2",
+          "literal": "retry-overlap"
+        },
+        {
+          "assertion": "tests/test_registry_check.py::test_cli_check_text#1",
+          "literal": "check"
+        },
+        {
+          "assertion": "tests/test_registry_check.py::test_cli_check_text#1",
+          "literal": "--from"
+        },
+        {
+          "assertion": "tests/test_registry_check.py::test_cli_check_text#3",
+          "literal": "check"
+        },
+        {
+          "assertion": "tests/test_registry_check.py::test_cli_check_text#3",
+          "literal": "--from"
+        },
+        {
+          "assertion": "tests/test_registry_check.py::test_cli_check_text#3",
+          "literal": "--ignore"
+        },
+        {
+          "assertion": "tests/test_registry_check.py::test_cli_check_text#3",
+          "literal": "duplicate"
+        },
+        {
+          "assertion": "tests/test_registry_check.py::test_cli_check_json#1",
+          "literal": "check"
+        },
+        {
+          "assertion": "tests/test_registry_check.py::test_cli_check_json#1",
+          "literal": "--from"
+        },
+        {
+          "assertion": "tests/test_registry_check.py::test_cli_check_json#1",
+          "literal": "--json"
+        },
+        {
+          "assertion": "tests/test_registry_check.py::test_cli_check_json#2",
+          "literal": "duplicate"
+        },
+        {
+          "assertion": "tests/test_registry_check.py::test_cli_check_json#2",
+          "literal": "duplicate"
+        },
+        {
+          "assertion": "tests/test_registry_check.py::test_cli_check_json#2",
+          "literal": "retry-overlap"
+        },
+        {
+          "assertion": "tests/test_registry_check.py::test_cli_check_errors#1",
+          "literal": "check"
+        },
+        {
+          "assertion": "tests/test_registry_check.py::test_cli_check_errors#2",
+          "literal": "check"
+        },
+        {
+          "assertion": "tests/test_registry_check.py::test_cli_check_errors#3",
+          "literal": "check"
+        },
+        {
+          "assertion": "tests/test_registry_check.py::test_cli_check_errors#3",
+          "literal": "--ignore"
+        },
+        {
+          "assertion": "tests/test_registry_check.py::test_cli_lint_ignore#1",
+          "literal": "lint"
+        },
+        {
+          "assertion": "tests/test_registry_check.py::test_cli_lint_ignore#1",
+          "literal": "--ignore"
+        },
+        {
+          "assertion": "tests/test_registry_check.py::test_cli_lint_ignore#2",
+          "literal": "lint"
+        },
+        {
+          "assertion": "tests/test_registry_check.py::test_cli_lint_ignore#2",
+          "literal": "--ignore"
+        },
+        {
+          "assertion": "tests/test_registry_check.py:53 (outside an assert)",
+          "literal": "utf-8"
+        }
+      ],
+      "unmapped": [],
+      "unknown_in_trace": [],
+      "sentence_not_in_brief": [],
+      "trace_complete": true,
+      "problems": [],
+      "valid": true,
+      "review": [
+        "literal 'duplicate' of tests/test_registry_check.py::test_lint_all_ignore#1 appears in the brief",
+        "literal 'duplicate' of tests/test_registry_check.py::test_lint_all_ignore#2 appears in the brief",
+        "literal 'retry-overlap' of tests/test_registry_check.py::test_retry_overlap_boundary#1 appears in the brief",
+        "literal 'never' of tests/test_registry_check.py::test_retry_overlap_uses_firings_after_start#1 appears in the brief",
+        "literal 'retry-overlap' of tests/test_registry_check.py::test_retry_overlap_uses_firings_after_start#1 appears in the brief",
+        "literal 'duplicate' of tests/test_registry_check.py::test_retry_overlap_comes_last_and_can_be_ignored#1 appears in the brief",
+        "literal 'duplicate' of tests/test_registry_check.py::test_retry_overlap_comes_last_and_can_be_ignored#1 appears in the brief",
+        "literal 'retry-overlap' of tests/test_registry_check.py::test_retry_overlap_comes_last_and_can_be_ignored#1 appears in the brief",
+        "literal 'duplicate' of tests/test_registry_check.py::test_retry_overlap_comes_last_and_can_be_ignored#2 appears in the brief",
+        "literal 'duplicate' of tests/test_registry_check.py::test_retry_overlap_comes_last_and_can_be_ignored#2 appears in the brief",
+        "literal 'retry-overlap' of tests/test_registry_check.py::test_retry_overlap_comes_last_and_can_be_ignored#2 appears in the brief",
+        "literal 'check' of tests/test_registry_check.py::test_cli_check_text#1 appears in the brief",
+        "literal '--from' of tests/test_registry_check.py::test_cli_check_text#1 appears in the brief",
+        "literal 'check' of tests/test_registry_check.py::test_cli_check_text#3 appears in the brief",
+        "literal '--from' of tests/test_registry_check.py::test_cli_check_text#3 appears in the brief",
+        "literal '--ignore' of tests/test_registry_check.py::test_cli_check_text#3 appears in the brief",
+        "literal 'duplicate' of tests/test_registry_check.py::test_cli_check_text#3 appears in the brief",
+        "literal 'check' of tests/test_registry_check.py::test_cli_check_json#1 appears in the brief",
+        "literal '--from' of tests/test_registry_check.py::test_cli_check_json#1 appears in the brief",
+        "literal '--json' of tests/test_registry_check.py::test_cli_check_json#1 appears in the brief",
+        "literal 'duplicate' of tests/test_registry_check.py::test_cli_check_json#2 appears in the brief",
+        "literal 'duplicate' of tests/test_registry_check.py::test_cli_check_json#2 appears in the brief",
+        "literal 'retry-overlap' of tests/test_registry_check.py::test_cli_check_json#2 appears in the brief",
+        "literal 'check' of tests/test_registry_check.py::test_cli_check_errors#1 appears in the brief",
+        "literal 'check' of tests/test_registry_check.py::test_cli_check_errors#2 appears in the brief",
+        "literal 'check' of tests/test_registry_check.py::test_cli_check_errors#3 appears in the brief",
+        "literal '--ignore' of tests/test_registry_check.py::test_cli_check_errors#3 appears in the brief",
+        "literal 'lint' of tests/test_registry_check.py::test_cli_lint_ignore#1 appears in the brief",
+        "literal '--ignore' of tests/test_registry_check.py::test_cli_lint_ignore#1 appears in the brief",
+        "literal 'lint' of tests/test_registry_check.py::test_cli_lint_ignore#2 appears in the brief",
+        "literal '--ignore' of tests/test_registry_check.py::test_cli_lint_ignore#2 appears in the brief",
+        "literal 'utf-8' of tests/test_registry_check.py:53 (outside an assert) appears in the brief"
+      ],
+      "lib": "cronlite",
+      "dev": false
+    },
+    {
+      "id": "r2b-cronlite-7",
+      "pythonutf8": true,
+      "existing": {
+        "rc": 0,
+        "summary": "56 passed in 0.13s",
+        "errors": []
+      },
+      "start": {
+        "rc": 1,
+        "summary": "6 failed, 1 passed in 0.11s",
+        "errors": [
+          "E       AttributeError: 'CronExpr' object has no attribute 'day_restrictions'",
+          "E       AssertionError: assert '0 0 13 * *' == '0 0 * * *'",
+          "E         ",
+          "E         - 0 0 * * *",
+          "E         + 0 0 13 * *",
+          "E       AssertionError: assert not True",
+          "E        +  where True = equivalent('0 0 1 * 0,1,2,3,4,5,6', '0 0 1 * *')",
+          "E       AssertionError: assert 'at 06:00 on ... of the month' == 'at 06:00'",
+          "E         ",
+          "E         - at 06:00",
+          "E         + at 06:00 on the 13th of the month",
+          "E       AssertionError: assert [] == ['every-day']"
+        ]
+      },
+      "reference": {
+        "rc": 0,
+        "summary": "7 passed in 0.04s",
+        "errors": []
+      },
+      "reference_full": {
+        "rc": 0,
+        "summary": "63 passed in 0.14s",
+        "errors": []
+      },
+      "reference_failed": [],
+      "assertions": 25,
+      "literal_overlap": [
+        {
+          "assertion": "tests/test_full_day_lists.py::test_lint_every_day#1",
+          "literal": "every-day"
+        },
+        {
+          "assertion": "tests/test_full_day_lists.py::test_lint_every_day#2",
+          "literal": "every-day"
+        },
+        {
+          "assertion": "tests/test_full_day_lists.py::test_lint_every_day#4",
+          "literal": "every-day"
+        },
+        {
+          "assertion": "tests/test_full_day_lists.py::test_lint_every_day#4",
+          "literal": "every-minute"
+        },
+        {
+          "assertion": "tests/test_full_day_lists.py::test_lint_every_day#5",
+          "literal": "every-minute"
+        },
+        {
+          "assertion": "tests/test_full_day_lists.py::test_duplicates_by_what_fires#1",
+          "literal": "duplicate"
+        },
+        {
+          "assertion": "tests/test_full_day_lists.py::test_duplicates_by_what_fires#1",
+          "literal": "duplicate"
+        },
+        {
+          "assertion": "tests/test_full_day_lists.py::test_duplicates_by_what_fires#1",
+          "literal": "every-day"
+        },
+        {
+          "assertion": "tests/test_full_day_lists.py::test_duplicates_by_what_fires#1",
+          "literal": "duplicate"
+        },
+        {
+          "assertion": "tests/test_full_day_lists.py::test_duplicates_by_what_fires#2",
+          "literal": "every-day"
+        }
+      ],
+      "unmapped": [],
+      "unknown_in_trace": [],
+      "sentence_not_in_brief": [],
+      "trace_complete": true,
+      "problems": [],
+      "valid": true,
+      "review": [
+        "literal 'every-day' of tests/test_full_day_lists.py::test_lint_every_day#1 appears in the brief",
+        "literal 'every-day' of tests/test_full_day_lists.py::test_lint_every_day#2 appears in the brief",
+        "literal 'every-day' of tests/test_full_day_lists.py::test_lint_every_day#4 appears in the brief",
+        "literal 'every-minute' of tests/test_full_day_lists.py::test_lint_every_day#4 appears in the brief",
+        "literal 'every-minute' of tests/test_full_day_lists.py::test_lint_every_day#5 appears in the brief",
+        "literal 'duplicate' of tests/test_full_day_lists.py::test_duplicates_by_what_fires#1 appears in the brief",
+        "literal 'duplicate' of tests/test_full_day_lists.py::test_duplicates_by_what_fires#1 appears in the brief",
+        "literal 'every-day' of tests/test_full_day_lists.py::test_duplicates_by_what_fires#1 appears in the brief",
+        "literal 'duplicate' of tests/test_full_day_lists.py::test_duplicates_by_what_fires#1 appears in the brief",
+        "literal 'every-day' of tests/test_full_day_lists.py::test_duplicates_by_what_fires#2 appears in the brief"
+      ],
+      "lib": "cronlite",
+      "dev": false
+    },
+    {
+      "id": "r2b-cronlite-8",
+      "pythonutf8": true,
+      "existing": {
+        "rc": 0,
+        "summary": "56 passed in 0.13s",
+        "errors": []
+      },
+      "start": {
+        "rc": 2,
+        "summary": "1 error in 0.15s",
+        "errors": [
+          "E   ImportError: cannot import name 'dropped_runs' from 'cronlite' (<tree>\\cronlite\\__init__.py)",
+          "ERROR tests/test_load_policies.py"
+        ]
+      },
+      "reference": {
+        "rc": 0,
+        "summary": "9 passed in 0.06s",
+        "errors": []
+      },
+      "reference_full": {
+        "rc": 0,
+        "summary": "65 passed in 0.17s",
+        "errors": []
+      },
+      "reference_failed": [],
+      "assertions": 27,
+      "literal_overlap": [
+        {
+          "assertion": "tests/test_load_policies.py::test_policy_options_are_checked#1",
+          "literal": "allow"
+        },
+        {
+          "assertion": "tests/test_load_policies.py::test_policy_options_are_checked#5",
+          "literal": "queue"
+        },
+        {
+          "assertion": "tests/test_load_policies.py::test_queue_limit_and_dropped_count#1",
+          "literal": "queue"
+        },
+        {
+          "assertion": "tests/test_load_policies.py::test_queue_limit_and_dropped_count#2",
+          "literal": "queue"
+        },
+        {
+          "assertion": "tests/test_load_policies.py::test_queue_limit_and_dropped_count#3",
+          "literal": "queue"
+        },
+        {
+          "assertion": "tests/test_load_policies.py::test_policy_report#1",
+          "literal": "dropped"
+        },
+        {
+          "assertion": "tests/test_load_policies.py::test_policy_report#1",
+          "literal": "delayed"
+        },
+        {
+          "assertion": "tests/test_load_policies.py::test_policy_report#2",
+          "literal": "dropped"
+        },
+        {
+          "assertion": "tests/test_load_policies.py:19 (outside an assert)",
+          "literal": "skip"
+        }
+      ],
+      "unmapped": [],
+      "unknown_in_trace": [],
+      "sentence_not_in_brief": [],
+      "trace_complete": true,
+      "problems": [],
+      "valid": true,
+      "review": [
+        "literal 'allow' of tests/test_load_policies.py::test_policy_options_are_checked#1 appears in the brief",
+        "literal 'queue' of tests/test_load_policies.py::test_policy_options_are_checked#5 appears in the brief",
+        "literal 'queue' of tests/test_load_policies.py::test_queue_limit_and_dropped_count#1 appears in the brief",
+        "literal 'queue' of tests/test_load_policies.py::test_queue_limit_and_dropped_count#2 appears in the brief",
+        "literal 'queue' of tests/test_load_policies.py::test_queue_limit_and_dropped_count#3 appears in the brief",
+        "literal 'dropped' of tests/test_load_policies.py::test_policy_report#1 appears in the brief",
+        "literal 'delayed' of tests/test_load_policies.py::test_policy_report#1 appears in the brief",
+        "literal 'dropped' of tests/test_load_policies.py::test_policy_report#2 appears in the brief",
+        "literal 'skip' of tests/test_load_policies.py:19 (outside an assert) appears in the brief"
+      ],
+      "lib": "cronlite",
+      "dev": false
+    },
+    {
+      "id": "r2bd-tabula-1",
+      "pythonutf8": true,
+      "existing": {
+        "rc": 0,
+        "summary": "93 passed in 0.13s",
+        "errors": []
+      },
+      "start": {
+        "rc": 1,
+        "summary": "9 failed in 0.12s",
+        "errors": [
+          "E       AttributeError: 'Table' object has no attribute 'lines'",
+          "E       AssertionError: assert 3 == 5",
+          "E        +  where 3 = ParseError('line 3: expected 2 fields, found 1').line",
+          "E        +    where ParseError('line 3: expected 2 fields, found 1') = <ExceptionInfo ParseError('line 3: expected 2 fields, found 1') tblen=2>.value",
+          "E       AttributeError: 'Table' object has no attribute 'lines'",
+          "E       AttributeError: 'CoercionError' object has no attribute 'line'",
+          "E       AttributeError: 'Table' object has no attribute 'lines'",
+          "E       TypeError: Schema.__init__() got an unexpected keyword argument 'nulls'",
+          "E           TypeError: Schema.__init__() got an unexpected keyword argument 'nulls'",
+          "E       AttributeError: 'Table' object has no attribute 'lines'",
+          "E           TypeError: Table.__init__() got an unexpected keyword argument 'lines'",
+          "FAILED tests/test_lines_and_nulls.py::test_rows_record_their_start_line - Att..."
+        ]
+      },
+      "reference": {
+        "rc": 0,
+        "summary": "9 passed in 0.04s",
+        "errors": []
+      },
+      "reference_full": {
+        "rc": 0,
+        "summary": "102 passed in 0.13s",
+        "errors": []
+      },
+      "reference_failed": [],
+      "assertions": 19,
+      "literal_overlap": [],
+      "unmapped": [],
+      "unknown_in_trace": [],
+      "sentence_not_in_brief": [],
+      "trace_complete": true,
+      "problems": [],
+      "valid": true,
+      "review": [],
+      "lib": "tabula",
+      "dev": true
+    },
+    {
+      "id": "r2bd-tabula-2",
+      "pythonutf8": true,
+      "existing": {
+        "rc": 0,
+        "summary": "93 passed in 0.12s",
+        "errors": []
+      },
+      "start": {
+        "rc": 2,
+        "summary": "1 error in 0.14s",
+        "errors": [
+          "E   ImportError: cannot import name 'numeric_columns' from 'tabula' (<tree>\\tabula\\__init__.py)",
+          "ERROR tests/test_render.py"
+        ]
+      },
+      "reference": {
+        "rc": 0,
+        "summary": "15 passed in 0.05s",
+        "errors": []
+      },
+      "reference_full": {
+        "rc": 0,
+        "summary": "105 passed in 0.14s",
+        "errors": []
+      },
+      "reference_failed": [],
+      "assertions": 21,
+      "literal_overlap": [],
+      "unmapped": [],
+      "unknown_in_trace": [],
+      "sentence_not_in_brief": [],
+      "trace_complete": true,
+      "problems": [],
+      "valid": true,
+      "review": [],
+      "lib": "tabula",
+      "dev": true
+    },
+    {
+      "id": "r2b-tabula-1",
+      "pythonutf8": true,
+      "existing": {
+        "rc": 0,
+        "summary": "93 passed in 0.12s",
+        "errors": []
+      },
+      "start": {
+        "rc": 1,
+        "summary": "7 failed, 5 passed in 0.14s",
+        "errors": [
+          "E           tabula.query.QueryError: at 12: unexpected character ','",
+          "E           tabula.query.QueryError: at 12: unexpected character ','",
+          "E           tabula.query.QueryError: at 4: unexpected 'not'",
+          "E           tabula.query.QueryError: at 4: unexpected 'between'",
+          "E           tabula.query.QueryError: at 5: unexpected 'between'",
+          "E           tabula.query.QueryError: at 4: unexpected 'IN'",
+          "E       assert 4 == 7",
+          "E        +  where 4 = QueryError(\"at 4: unexpected 'in'\").position",
+          "E        +    where QueryError(\"at 4: unexpected 'in'\") = <ExceptionInfo QueryError(\"at 4: unexpected 'in'\") tblen=3>.value",
+          "FAILED tests/test_query_lists.py::test_in_matches_any_listed_value - tabula.q...",
+          "FAILED tests/test_query_lists.py::test_listed_null_matches_missing_values - t...",
+          "FAILED tests/test_query_lists.py::test_not_in_is_never_true_for_a_missing_value"
+        ]
+      },
+      "reference": {
+        "rc": 0,
+        "summary": "12 passed in 0.04s",
+        "errors": []
+      },
+      "reference_full": {
+        "rc": 0,
+        "summary": "105 passed in 0.14s",
+        "errors": []
+      },
+      "reference_failed": [],
+      "assertions": 17,
+      "literal_overlap": [],
+      "unmapped": [],
+      "unknown_in_trace": [],
+      "sentence_not_in_brief": [],
+      "trace_complete": true,
+      "problems": [],
+      "valid": true,
+      "review": [],
+      "lib": "tabula",
+      "dev": false
+    },
+    {
+      "id": "r2b-tabula-10",
+      "pythonutf8": true,
+      "existing": {
+        "rc": 0,
+        "summary": "93 passed in 0.13s",
+        "errors": []
+      },
+      "start": {
+        "rc": 1,
+        "summary": "15 failed in 0.13s",
+        "errors": [
+          "E       TypeError: read_rows() got an unexpected keyword argument 'quoting'",
+          "E       TypeError: read_rows() got an unexpected keyword argument 'quoting'",
+          "E       TypeError: read_rows() got an unexpected keyword argument 'quoting'",
+          "E           TypeError: read_rows() got an unexpected keyword argument 'quoting'",
+          "E           TypeError: read_rows() got an unexpected keyword argument 'quoting'",
+          "E           TypeError: read_rows() got an unexpected keyword argument 'quoting'",
+          "E           TypeError: read_rows() got an unexpected keyword argument 'quoting'",
+          "E           TypeError: read_rows() got an unexpected keyword argument 'quoting'",
+          "E           TypeError: read_rows() got an unexpected keyword argument 'quoting'",
+          "E           TypeError: read_rows() got an unexpected keyword argument 'quoting'",
+          "E           TypeError: read_rows() got an unexpected keyword argument 'quoting'",
+          "E           TypeError: read_rows() got an unexpected keyword argument 'quoting'"
+        ]
+      },
+      "reference": {
+        "rc": 0,
+        "summary": "15 passed in 0.04s",
+        "errors": []
+      },
+      "reference_full": {
+        "rc": 0,
+        "summary": "108 passed in 0.14s",
+        "errors": []
+      },
+      "reference_failed": [],
+      "assertions": 15,
+      "literal_overlap": [
+        {
+          "assertion": "tests/test_typed_fields.py::test_quoting_decides_the_type#1",
+          "literal": "nonnumeric"
+        },
+        {
+          "assertion": "tests/test_typed_fields.py::test_quoted_empty_text_is_not_missing#1",
+          "literal": "nonnumeric"
+        },
+        {
+          "assertion": "tests/test_typed_fields.py::test_boolean_words#1",
+          "literal": "nonnumeric"
+        },
+        {
+          "assertion": "tests/test_typed_fields.py::test_boolean_words#1",
+          "literal": "true"
+        },
+        {
+          "assertion": "tests/test_typed_fields.py::test_boolean_words#2",
+          "literal": "nonnumeric"
+        },
+        {
+          "assertion": "tests/test_typed_fields.py::test_writer_round_trip#2",
+          "literal": "nonnumeric"
+        },
+        {
+          "assertion": "tests/test_typed_fields.py::test_writer_round_trip#3",
+          "literal": "nonnumeric"
+        },
+        {
+          "assertion": "tests/test_typed_fields.py:26 (outside an assert)",
+          "literal": "True"
+        }
+      ],
+      "unmapped": [],
+      "unknown_in_trace": [],
+      "sentence_not_in_brief": [],
+      "trace_complete": true,
+      "problems": [],
+      "valid": true,
+      "review": [
+        "literal 'nonnumeric' of tests/test_typed_fields.py::test_quoting_decides_the_type#1 appears in the brief",
+        "literal 'nonnumeric' of tests/test_typed_fields.py::test_quoted_empty_text_is_not_missing#1 appears in the brief",
+        "literal 'nonnumeric' of tests/test_typed_fields.py::test_boolean_words#1 appears in the brief",
+        "literal 'true' of tests/test_typed_fields.py::test_boolean_words#1 appears in the brief",
+        "literal 'nonnumeric' of tests/test_typed_fields.py::test_boolean_words#2 appears in the brief",
+        "literal 'nonnumeric' of tests/test_typed_fields.py::test_writer_round_trip#2 appears in the brief",
+        "literal 'nonnumeric' of tests/test_typed_fields.py::test_writer_round_trip#3 appears in the brief",
+        "literal 'True' of tests/test_typed_fields.py:26 (outside an assert) appears in the brief"
+      ],
+      "lib": "tabula",
+      "dev": false
+    },
+    {
+      "id": "r2b-tabula-2",
+      "pythonutf8": true,
+      "existing": {
+        "rc": 0,
+        "summary": "93 passed in 0.13s",
+        "errors": []
+      },
+      "start": {
+        "rc": 2,
+        "summary": "1 error in 0.13s",
+        "errors": [
+          "E   ImportError: cannot import name 'JoinError' from 'tabula' (<tree>\\tabula\\__init__.py)",
+          "ERROR tests/test_join_checks.py"
+        ]
+      },
+      "reference": {
+        "rc": 0,
+        "summary": "10 passed in 0.04s",
+        "errors": []
+      },
+      "reference_full": {
+        "rc": 0,
+        "summary": "103 passed in 0.13s",
+        "errors": []
+      },
+      "reference_failed": [],
+      "assertions": 21,
+      "literal_overlap": [
+        {
+          "assertion": "tests/test_join_checks.py::test_indicator_column#2",
+          "literal": "both"
+        },
+        {
+          "assertion": "tests/test_join_checks.py::test_indicator_column#2",
+          "literal": "left"
+        },
+        {
+          "assertion": "tests/test_join_checks.py::test_indicator_column#2",
+          "literal": "both"
+        },
+        {
+          "assertion": "tests/test_join_checks.py::test_indicator_column#2",
+          "literal": "left"
+        },
+        {
+          "assertion": "tests/test_join_checks.py::test_indicator_column#2",
+          "literal": "right"
+        },
+        {
+          "assertion": "tests/test_join_checks.py::test_indicator_column#2",
+          "literal": "right"
+        },
+        {
+          "assertion": "tests/test_join_checks.py::test_indicator_column#3",
+          "literal": "both"
+        },
+        {
+          "assertion": "tests/test_join_checks.py::test_indicator_column#3",
+          "literal": "both"
+        },
+        {
+          "assertion": "tests/test_join_checks.py::test_validate_reports_side_and_key#3",
+          "literal": "left"
+        },
+        {
+          "assertion": "tests/test_join_checks.py::test_one_to_one_checks_left_first_and_unmatched_keys_too#2",
+          "literal": "left"
+        },
+        {
+          "assertion": "tests/test_join_checks.py::test_one_to_one_checks_left_first_and_unmatched_keys_too#4",
+          "literal": "right"
+        },
+        {
+          "assertion": "tests/test_join_checks.py:33 (outside an assert)",
+          "literal": "outer"
+        }
+      ],
+      "unmapped": [],
+      "unknown_in_trace": [],
+      "sentence_not_in_brief": [],
+      "trace_complete": true,
+      "problems": [],
+      "valid": true,
+      "review": [
+        "literal 'both' of tests/test_join_checks.py::test_indicator_column#2 appears in the brief",
+        "literal 'left' of tests/test_join_checks.py::test_indicator_column#2 appears in the brief",
+        "literal 'both' of tests/test_join_checks.py::test_indicator_column#2 appears in the brief",
+        "literal 'left' of tests/test_join_checks.py::test_indicator_column#2 appears in the brief",
+        "literal 'right' of tests/test_join_checks.py::test_indicator_column#2 appears in the brief",
+        "literal 'right' of tests/test_join_checks.py::test_indicator_column#2 appears in the brief",
+        "literal 'both' of tests/test_join_checks.py::test_indicator_column#3 appears in the brief",
+        "literal 'both' of tests/test_join_checks.py::test_indicator_column#3 appears in the brief",
+        "literal 'left' of tests/test_join_checks.py::test_validate_reports_side_and_key#3 appears in the brief",
+        "literal 'left' of tests/test_join_checks.py::test_one_to_one_checks_left_first_and_unmatched_keys_too#2 appears in the brief",
+        "literal 'right' of tests/test_join_checks.py::test_one_to_one_checks_left_first_and_unmatched_keys_too#4 appears in the brief",
+        "literal 'outer' of tests/test_join_checks.py:33 (outside an assert) appears in the brief"
+      ],
+      "lib": "tabula",
+      "dev": false
+    },
+    {
+      "id": "r2b-tabula-3",
+      "pythonutf8": true,
+      "existing": {
+        "rc": 0,
+        "summary": "93 passed in 0.13s",
+        "errors": []
+      },
+      "start": {
+        "rc": 1,
+        "summary": "12 failed, 1 passed in 0.13s",
+        "errors": [
+          "E       TypeError: read_rows() got an unexpected keyword argument 'comment'",
+          "E       TypeError: read_rows() got an unexpected keyword argument 'comment'",
+          "E       TypeError: read_rows() got an unexpected keyword argument 'comment'",
+          "E           TypeError: read_table() got an unexpected keyword argument 'comment'",
+          "E           TypeError: read_rows() got an unexpected keyword argument 'comment'",
+          "E           TypeError: read_rows() got an unexpected keyword argument 'comment'",
+          "E           TypeError: read_rows() got an unexpected keyword argument 'comment'",
+          "E           TypeError: read_rows() got an unexpected keyword argument 'comment'",
+          "E       TypeError: write_table() got an unexpected keyword argument 'comment'",
+          "E           TypeError: write_table() got an unexpected keyword argument 'preamble'",
+          "E       TypeError: write_table() got an unexpected keyword argument 'comment'",
+          "E           TypeError: write_rows() got an unexpected keyword argument 'comment'"
+        ]
+      },
+      "reference": {
+        "rc": 0,
+        "summary": "13 passed in 0.04s",
+        "errors": []
+      },
+      "reference_full": {
+        "rc": 0,
+        "summary": "106 passed in 0.13s",
+        "errors": []
+      },
+      "reference_failed": [],
+      "assertions": 20,
+      "literal_overlap": [
+        {
+          "assertion": "tests/test_comment_lines.py:63 (outside an assert)",
+          "literal": "none"
+        }
+      ],
+      "unmapped": [],
+      "unknown_in_trace": [],
+      "sentence_not_in_brief": [],
+      "trace_complete": true,
+      "problems": [],
+      "valid": true,
+      "review": [
+        "literal 'none' of tests/test_comment_lines.py:63 (outside an assert) appears in the brief"
+      ],
+      "lib": "tabula",
+      "dev": false
+    },
+    {
+      "id": "r2b-tabula-4",
+      "pythonutf8": true,
+      "existing": {
+        "rc": 0,
+        "summary": "93 passed in 0.13s",
+        "errors": []
+      },
+      "start": {
+        "rc": 2,
+        "summary": "1 error in 0.13s",
+        "errors": [
+          "E   ImportError: cannot import name 'top_n' from 'tabula.aggregate' (<tree>\\tabula\\aggregate.py)",
+          "ERROR tests/test_group_extras.py"
+        ]
+      },
+      "reference": {
+        "rc": 0,
+        "summary": "16 passed in 0.04s",
+        "errors": []
+      },
+      "reference_full": {
+        "rc": 0,
+        "summary": "109 passed in 0.14s",
+        "errors": []
+      },
+      "reference_failed": [],
+      "assertions": 20,
+      "literal_overlap": [
+        {
+          "assertion": "tests/test_group_extras.py::test_common_value_tie_goes_to_first_seen#1",
+          "literal": "common"
+        },
+        {
+          "assertion": "tests/test_group_extras.py::test_common_value_tie_goes_to_first_seen#2",
+          "literal": "common"
+        },
+        {
+          "assertion": "tests/test_group_extras.py::test_pivot_takes_new_names#3",
+          "literal": "common"
+        }
+      ],
+      "unmapped": [],
+      "unknown_in_trace": [],
+      "sentence_not_in_brief": [],
+      "trace_complete": true,
+      "problems": [],
+      "valid": true,
+      "review": [
+        "literal 'common' of tests/test_group_extras.py::test_common_value_tie_goes_to_first_seen#1 appears in the brief",
+        "literal 'common' of tests/test_group_extras.py::test_common_value_tie_goes_to_first_seen#2 appears in the brief",
+        "literal 'common' of tests/test_group_extras.py::test_pivot_takes_new_names#3 appears in the brief"
+      ],
+      "lib": "tabula",
+      "dev": false
+    },
+    {
+      "id": "r2b-tabula-5",
+      "pythonutf8": true,
+      "existing": {
+        "rc": 0,
+        "summary": "93 passed in 0.13s",
+        "errors": []
+      },
+      "start": {
+        "rc": 1,
+        "summary": "8 failed in 0.12s",
+        "errors": [
+          "E       AssertionError: assert [{'qty': (1.5...': (0, None)}] == [{'ok': (True...': (0, None)}]",
+          "E         ",
+          "E         At index 0 diff: {'qty': (1.5, 1.52), 'note': ('b', 'B')} != {'ok': (True, 1)}",
+          "E         Right contains one more item: {'qty': (0, None)}",
+          "E         Use -v to get more diff",
+          "E       TypeError: diff() got an unexpected keyword argument 'tolerance'",
+          "E       TypeError: diff() got an unexpected keyword argument 'tolerance'",
+          "E       TypeError: diff() got an unexpected keyword argument 'ignore'",
+          "E           TypeError: diff() got an unexpected keyword argument 'ignore'",
+          "E       AttributeError: 'TableDiff' object has no attribute 'column_counts'",
+          "E       TypeError: render_diff() got an unexpected keyword argument 'limit'",
+          "E       TypeError: diff() got an unexpected keyword argument 'ignore'"
+        ]
+      },
+      "reference": {
+        "rc": 0,
+        "summary": "8 passed in 0.04s",
+        "errors": []
+      },
+      "reference_full": {
+        "rc": 0,
+        "summary": "101 passed in 0.14s",
+        "errors": []
+      },
+      "reference_failed": [],
+      "assertions": 21,
+      "literal_overlap": [],
+      "unmapped": [],
+      "unknown_in_trace": [],
+      "sentence_not_in_brief": [],
+      "trace_complete": true,
+      "problems": [],
+      "valid": true,
+      "review": [],
+      "lib": "tabula",
+      "dev": false
+    },
+    {
+      "id": "r2b-tabula-6",
+      "pythonutf8": true,
+      "existing": {
+        "rc": 0,
+        "summary": "93 passed in 0.13s",
+        "errors": []
+      },
+      "start": {
+        "rc": 2,
+        "summary": "1 error in 0.13s",
+        "errors": [
+          "E   ImportError: cannot import name 'apportion' from 'tabula.stats' (<tree>\\tabula\\stats.py)",
+          "ERROR tests/test_apportioned_shares.py"
+        ]
+      },
+      "reference": {
+        "rc": 0,
+        "summary": "9 passed in 0.04s",
+        "errors": []
+      },
+      "reference_full": {
+        "rc": 0,
+        "summary": "102 passed in 0.14s",
+        "errors": []
+      },
+      "reference_failed": [],
+      "assertions": 24,
+      "literal_overlap": [
+        {
+          "assertion": "tests/test_apportioned_shares.py::test_pivot_row_shares#3",
+          "literal": "rows"
+        }
+      ],
+      "unmapped": [],
+      "unknown_in_trace": [],
+      "sentence_not_in_brief": [],
+      "trace_complete": true,
+      "problems": [],
+      "valid": true,
+      "review": [
+        "literal 'rows' of tests/test_apportioned_shares.py::test_pivot_row_shares#3 appears in the brief"
+      ],
+      "lib": "tabula",
+      "dev": false
+    },
+    {
+      "id": "r2b-tabula-7",
+      "pythonutf8": true,
+      "existing": {
+        "rc": 0,
+        "summary": "93 passed in 0.13s",
+        "errors": []
+      },
+      "start": {
+        "rc": 1,
+        "summary": "7 failed in 0.12s",
+        "errors": [
+          "E           ValueError: unknown kind(s): date",
+          "E           ValueError: unknown kind(s): date",
+          "E       TypeError: infer_kind() got an unexpected keyword argument 'dates'",
+          "E       TypeError: infer_schema() got an unexpected keyword argument 'dates'",
+          "E       TypeError: Object of type date is not JSON serializable",
+          "E       TypeError: from_jsonl() got an unexpected keyword argument 'dates'",
+          "E           TypeError: from_jsonl() got an unexpected keyword argument 'dates'",
+          "FAILED tests/test_date_kind.py::test_schema_reads_dates_and_datetimes - Value...",
+          "FAILED tests/test_date_kind.py::test_impossible_day_is_a_coercion_error - Val...",
+          "FAILED tests/test_date_kind.py::test_inference_finds_dates_only_when_asked - ...",
+          "FAILED tests/test_date_kind.py::test_infer_schema_with_dates - TypeError: inf...",
+          "FAILED tests/test_date_kind.py::test_jsonl_writes_iso_text - TypeError: Objec..."
+        ]
+      },
+      "reference": {
+        "rc": 0,
+        "summary": "7 passed in 0.03s",
+        "errors": []
+      },
+      "reference_full": {
+        "rc": 0,
+        "summary": "100 passed in 0.13s",
+        "errors": []
+      },
+      "reference_failed": [],
+      "assertions": 19,
+      "literal_overlap": [
+        {
+          "assertion": "tests/test_date_kind.py::test_impossible_day_is_a_coercion_error#2",
+          "literal": "date"
+        },
+        {
+          "assertion": "tests/test_date_kind.py::test_inference_finds_dates_only_when_asked#2",
+          "literal": "date"
+        },
+        {
+          "assertion": "tests/test_date_kind.py::test_inference_finds_dates_only_when_asked#5",
+          "literal": "date"
+        },
+        {
+          "assertion": "tests/test_date_kind.py::test_infer_schema_with_dates#1",
+          "literal": "date"
+        },
+        {
+          "assertion": "tests/test_date_kind.py::test_infer_schema_with_dates#3",
+          "literal": "float"
+        },
+        {
+          "assertion": "tests/test_date_kind.py::test_jsonl_date_errors#2",
+          "literal": "date"
+        }
+      ],
+      "unmapped": [],
+      "unknown_in_trace": [],
+      "sentence_not_in_brief": [],
+      "trace_complete": true,
+      "problems": [],
+      "valid": true,
+      "review": [
+        "literal 'date' of tests/test_date_kind.py::test_impossible_day_is_a_coercion_error#2 appears in the brief",
+        "literal 'date' of tests/test_date_kind.py::test_inference_finds_dates_only_when_asked#2 appears in the brief",
+        "literal 'date' of tests/test_date_kind.py::test_inference_finds_dates_only_when_asked#5 appears in the brief",
+        "literal 'date' of tests/test_date_kind.py::test_infer_schema_with_dates#1 appears in the brief",
+        "literal 'float' of tests/test_date_kind.py::test_infer_schema_with_dates#3 appears in the brief",
+        "literal 'date' of tests/test_date_kind.py::test_jsonl_date_errors#2 appears in the brief"
+      ],
+      "lib": "tabula",
+      "dev": false
+    },
+    {
+      "id": "r2b-tabula-8",
+      "pythonutf8": true,
+      "existing": {
+        "rc": 0,
+        "summary": "93 passed in 0.13s",
+        "errors": []
+      },
+      "start": {
+        "rc": 1,
+        "summary": "9 failed in 0.12s",
+        "errors": [
+          "E       TypeError: from_records() got an unexpected keyword argument 'flatten'",
+          "E       TypeError: from_records() got an unexpected keyword argument 'flatten'",
+          "E       TypeError: from_records() got an unexpected keyword argument 'flatten'",
+          "E           TypeError: from_records() got an unexpected keyword argument 'flatten'",
+          "E       TypeError: from_records() got an unexpected keyword argument 'flatten'",
+          "E       TypeError: from_records() got an unexpected keyword argument 'flatten'",
+          "E           TypeError: to_records() got an unexpected keyword argument 'nest'",
+          "E       TypeError: from_records() got an unexpected keyword argument 'flatten'",
+          "E           TypeError: from_records() got an unexpected keyword argument 'flatten'",
+          "FAILED tests/test_nested_records.py::test_flatten_nested_dicts_into_path_columns",
+          "FAILED tests/test_nested_records.py::test_flatten_with_another_separator_and_explicit_columns",
+          "FAILED tests/test_nested_records.py::test_empty_nested_dict_is_a_plain_value"
+        ]
+      },
+      "reference": {
+        "rc": 0,
+        "summary": "9 passed in 0.04s",
+        "errors": []
+      },
+      "reference_full": {
+        "rc": 0,
+        "summary": "102 passed in 0.13s",
+        "errors": []
+      },
+      "reference_failed": [],
+      "assertions": 18,
+      "literal_overlap": [],
+      "unmapped": [],
+      "unknown_in_trace": [],
+      "sentence_not_in_brief": [],
+      "trace_complete": true,
+      "problems": [],
+      "valid": true,
+      "review": [],
+      "lib": "tabula",
+      "dev": false
+    },
+    {
+      "id": "r2b-tabula-9",
+      "pythonutf8": true,
+      "existing": {
+        "rc": 0,
+        "summary": "93 passed in 0.12s",
+        "errors": []
+      },
+      "start": {
+        "rc": 1,
+        "summary": "7 failed in 0.12s",
+        "errors": [
+          "E           ValueError: method must be 'value' or 'forward'",
+          "E           ValueError: method must be 'value' or 'forward'",
+          "E       TypeError: fill_missing() got an unexpected keyword argument 'limit'",
+          "E       TypeError: fill_missing() got an unexpected keyword argument 'limit'",
+          "E           ValueError: method must be 'value' or 'forward'",
+          "E           ValueError: method must be 'value' or 'forward'",
+          "E       TypeError: fill_missing() got an unexpected keyword argument 'limit'",
+          "FAILED tests/test_fill_methods.py::test_backward_takes_the_next_value - Value...",
+          "FAILED tests/test_fill_methods.py::test_interpolate_between_numbers - ValueEr...",
+          "FAILED tests/test_fill_methods.py::test_limit_per_run - TypeError: fill_missi...",
+          "FAILED tests/test_fill_methods.py::test_interpolate_leaves_long_runs_whole - ...",
+          "FAILED tests/test_fill_methods.py::test_interpolate_needs_numbers_on_both_sides"
+        ]
+      },
+      "reference": {
+        "rc": 0,
+        "summary": "7 passed in 0.03s",
+        "errors": []
+      },
+      "reference_full": {
+        "rc": 0,
+        "summary": "100 passed in 0.13s",
+        "errors": []
+      },
+      "reference_failed": [],
+      "assertions": 16,
+      "literal_overlap": [
+        {
+          "assertion": "tests/test_fill_methods.py::test_backward_takes_the_next_value#1",
+          "literal": "backward"
+        },
+        {
+          "assertion": "tests/test_fill_methods.py::test_interpolate_between_numbers#1",
+          "literal": "interpolate"
+        },
+        {
+          "assertion": "tests/test_fill_methods.py::test_limit_per_run#1",
+          "literal": "forward"
+        },
+        {
+          "assertion": "tests/test_fill_methods.py::test_limit_per_run#2",
+          "literal": "backward"
+        },
+        {
+          "assertion": "tests/test_fill_methods.py::test_limit_per_run#3",
+          "literal": "backward"
+        },
+        {
+          "assertion": "tests/test_fill_methods.py::test_limit_per_run#4",
+          "literal": "value"
+        },
+        {
+          "assertion": "tests/test_fill_methods.py::test_interpolate_leaves_long_runs_whole#1",
+          "literal": "interpolate"
+        },
+        {
+          "assertion": "tests/test_fill_methods.py::test_interpolate_leaves_long_runs_whole#2",
+          "literal": "interpolate"
+        },
+        {
+          "assertion": "tests/test_fill_methods.py::test_interpolate_needs_numbers_on_both_sides#3",
+          "literal": "interpolate"
+        },
+        {
+          "assertion": "tests/test_fill_methods.py::test_open_ended_runs_ignore_their_neighbour#1",
+          "literal": "interpolate"
+        },
+        {
+          "assertion": "tests/test_fill_methods.py::test_open_ended_runs_ignore_their_neighbour#2",
+          "literal": "interpolate"
+        }
+      ],
+      "unmapped": [],
+      "unknown_in_trace": [],
+      "sentence_not_in_brief": [],
+      "trace_complete": true,
+      "problems": [],
+      "valid": true,
+      "review": [
+        "literal 'backward' of tests/test_fill_methods.py::test_backward_takes_the_next_value#1 appears in the brief",
+        "literal 'interpolate' of tests/test_fill_methods.py::test_interpolate_between_numbers#1 appears in the brief",
+        "literal 'forward' of tests/test_fill_methods.py::test_limit_per_run#1 appears in the brief",
+        "literal 'backward' of tests/test_fill_methods.py::test_limit_per_run#2 appears in the brief",
+        "literal 'backward' of tests/test_fill_methods.py::test_limit_per_run#3 appears in the brief",
+        "literal 'value' of tests/test_fill_methods.py::test_limit_per_run#4 appears in the brief",
+        "literal 'interpolate' of tests/test_fill_methods.py::test_interpolate_leaves_long_runs_whole#1 appears in the brief",
+        "literal 'interpolate' of tests/test_fill_methods.py::test_interpolate_leaves_long_runs_whole#2 appears in the brief",
+        "literal 'interpolate' of tests/test_fill_methods.py::test_interpolate_needs_numbers_on_both_sides#3 appears in the brief",
+        "literal 'interpolate' of tests/test_fill_methods.py::test_open_ended_runs_ignore_their_neighbour#1 appears in the brief",
+        "literal 'interpolate' of tests/test_fill_methods.py::test_open_ended_runs_ignore_their_neighbour#2 appears in the brief"
+      ],
+      "lib": "tabula",
+      "dev": false
+    }
+  ],
+  "valid": true
+}
