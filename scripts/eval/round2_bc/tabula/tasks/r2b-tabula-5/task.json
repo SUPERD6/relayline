@@ -1,0 +1,44 @@
+{
+ "id": "r2b-tabula-5",
+ "subject": "Table diff: strict value types, numeric tolerances, ignored columns, per-column counts, render limit",
+ "author_model": "claude-opus-5-5",
+ "brief": "Make table comparison in the tabula diff module stricter and more configurable.\n\n1. Types matter. `diff` now treats two values as unchanged only when they are of the same type and equal, with one exception: ints and floats are both numbers, so an int and a float of equal value are unchanged. Booleans are not numbers here: True against 1 (or False against 0) is a change, even though Python considers them equal. Edge case: a missing value (None) against anything else, 0 included, is always a change.\n2. `diff(..., tolerance=t)`: two numbers whose absolute difference is at most t (inclusive) count as unchanged. The default is 0. It applies to numbers only, never to booleans or None. The tolerance may also be a dict that maps column names to their own tolerance; columns not in the dict use 0. A dict entry for a column that is not compared (a key column, an ignored column, or a column missing from either table) raises KeyError. A negative tolerance, given alone or in the dict, raises ValueError.\n3. `diff(..., ignore=names)` (one column name or a list): those columns are not compared, and they are not reported as added or removed columns either. Ignoring a key column raises ValueError; a name that is in neither table raises KeyError. Applying such a diff with `apply_diff` leaves the ignored columns at their old values.\n4. `TableDiff.column_counts()` returns a dict: for each column, how many changed rows changed it, with the columns in the order in which they first appear in the changed rows. A diff without changed rows gives an empty dict.\n5. `render_diff(d, limit=None)`: with a limit, at most that many row lines (the lines for added, removed and changed rows, in their usual order) are written, followed by one line `... and N more` where N is the number of row lines left out; the column lines are always written in full and do not count. Nothing extra is written when no line had to be dropped. A limit of 0 is allowed; a negative limit raises ValueError.\n\nAll behavior that the existing tests check must keep working.",
+ "hidden_tests": [
+  "tests/test_diff_options.py"
+ ],
+ "trace_by_test": {
+  "test_types_matter_but_int_and_float_are_numbers": "Types matter. `diff` now treats two values as unchanged only when they are of the same type and equal, with one exception: ints and floats are both numbers, so an int and a float of equal value are unchanged. Booleans are not numbers here: True against 1 (or False against 0) is a change, even though Python considers them equal. Edge case: a missing value (None) against anything else, 0 included, is always a change.",
+  "test_tolerance_for_numbers_only": [
+   "`diff(..., tolerance=t)`: two numbers whose absolute difference is at most t (inclusive) count as unchanged.",
+   "`diff(..., tolerance=t)`: two numbers whose absolute difference is at most t (inclusive) count as unchanged.",
+   "`diff(..., tolerance=t)`: two numbers whose absolute difference is at most t (inclusive) count as unchanged.",
+   "It applies to numbers only, never to booleans or None."
+  ],
+  "test_tolerance_per_column": [
+   "The tolerance may also be a dict that maps column names to their own tolerance; columns not in the dict use 0.",
+   "The tolerance may also be a dict that maps column names to their own tolerance; columns not in the dict use 0.",
+   "A dict entry for a column that is not compared (a key column, an ignored column, or a column missing from either table) raises KeyError.",
+   "A negative tolerance, given alone or in the dict, raises ValueError."
+  ],
+  "test_ignored_columns_are_not_compared_or_listed": [
+   "`diff(..., ignore=names)` (one column name or a list): those columns are not compared",
+   "and they are not reported as added or removed columns either."
+  ],
+  "test_bad_options": [
+   "Ignoring a key column raises ValueError; a name that is in neither table raises KeyError.",
+   "Ignoring a key column raises ValueError; a name that is in neither table raises KeyError.",
+   "A negative tolerance, given alone or in the dict, raises ValueError."
+  ],
+  "test_column_counts": [
+   "`TableDiff.column_counts()` returns a dict: for each column, how many changed rows changed it, with the columns in the order in which they first appear in the changed rows.",
+   "A diff without changed rows gives an empty dict."
+  ],
+  "test_render_limit": [
+   "`render_diff(d, limit=None)`: with a limit, at most that many row lines (the lines for added, removed and changed rows, in their usual order) are written, followed by one line `... and N more` where N is the number of row lines left out",
+   "Nothing extra is written when no line had to be dropped.",
+   "the column lines are always written in full and do not count.",
+   "A limit of 0 is allowed; a negative limit raises ValueError."
+  ],
+  "test_apply_keeps_ignored_values": "Applying such a diff with `apply_diff` leaves the ignored columns at their old values."
+ }
+}

@@ -1,0 +1,252 @@
+{
+  "rule": "same id, same repository, same commit (or earlier short SHA prefix), or normalized brief SequenceMatcher ratio >= 0.6; candidates above 0.4 listed",
+  "corpus": {
+    "files": 119,
+    "briefs": 753,
+    "ids": 366,
+    "repos": [
+      "boltons",
+      "exercism-python",
+      "humanize",
+      "itsdangerous",
+      "more-itertools",
+      "pluggy",
+      "polyglot",
+      "polyglot-benchmark",
+      "python"
+    ],
+    "errors": []
+  },
+  "tasks": [
+    {
+      "id": "r2b-tabula-1",
+      "findings": [],
+      "listed_above_0.4": [],
+      "clean": true
+    },
+    {
+      "id": "r2b-tabula-10",
+      "findings": [],
+      "listed_above_0.4": [],
+      "clean": true
+    },
+    {
+      "id": "r2b-tabula-2",
+      "findings": [],
+      "listed_above_0.4": [],
+      "clean": true
+    },
+    {
+      "id": "r2b-tabula-3",
+      "findings": [],
+      "listed_above_0.4": [],
+      "clean": true
+    },
+    {
+      "id": "r2b-tabula-4",
+      "findings": [],
+      "listed_above_0.4": [],
+      "clean": true
+    },
+    {
+      "id": "r2b-tabula-5",
+      "findings": [],
+      "listed_above_0.4": [],
+      "clean": true
+    },
+    {
+      "id": "r2b-tabula-6",
+      "findings": [],
+      "listed_above_0.4": [],
+      "clean": true
+    },
+    {
+      "id": "r2b-tabula-7",
+      "findings": [],
+      "listed_above_0.4": [],
+      "clean": true
+    },
+    {
+      "id": "r2b-tabula-8",
+      "findings": [],
+      "listed_above_0.4": [],
+      "clean": true
+    },
+    {
+      "id": "r2b-tabula-9",
+      "findings": [],
+      "listed_above_0.4": [],
+      "clean": true
+    },
+    {
+      "id": "r2bd-cronlite-1",
+      "findings": [],
+      "listed_above_0.4": [],
+      "clean": true
+    },
+    {
+      "id": "r2bd-cronlite-2",
+      "findings": [],
+      "listed_above_0.4": [],
+      "clean": true
+    },
+    {
+      "id": "r2bd-tabula-1",
+      "findings": [],
+      "listed_above_0.4": [],
+      "clean": true
+    },
+    {
+      "id": "r2bd-tabula-2",
+      "findings": [],
+      "listed_above_0.4": [],
+      "clean": true
+    }
+  ],
+  "clean": true,
+  "upstream_briefs_added": 43,
+  "about": "round2_tasks.leak_check on the 10 tabula final tasks followed by the 4 development tasks (every pair compared), against main's corpus plus the 43 upstream B briefs of docs/research/data/round2-bc/b-upstream-briefs.json on origin/tasks/round2-bc (7befbc3). Excluded from the corpus: b-dev*.json (they hold the development tasks themselves: same ids, same repositories by design) and this PR's b-formal-tabula-*.json. The plain CLI run (round2_tasks.py leak, main's corpus only, same exclusions) was clean too.",
+  "cli_main_corpus_clean": true,
+  "highest_ratios": {
+    "r2b-tabula-1": {
+      "max_new_or_dev": [
+        0.3051,
+        "r2b-tabula-3"
+      ],
+      "max_earlier": [
+        0.2536,
+        "scripts/eval/tasks_holdout.py:doctor-codex-sandbox"
+      ],
+      "max_upstream_b": [
+        0.2858,
+        "r2-rr-__docstring_parser-61a6228b7f03"
+      ]
+    },
+    "r2b-tabula-10": {
+      "max_new_or_dev": [
+        0.2723,
+        "r2b-tabula-3"
+      ],
+      "max_earlier": [
+        0.2061,
+        "scripts/eval/tasks_r2.py:cart"
+      ],
+      "max_upstream_b": [
+        0.2515,
+        "r2-andialbrecht__sqlparse-be3b7a68d07a"
+      ]
+    },
+    "r2b-tabula-2": {
+      "max_new_or_dev": [
+        0.3351,
+        "r2b-tabula-3"
+      ],
+      "max_earlier": [
+        0.2334,
+        "scripts/eval/tasks_r2.py:par10"
+      ],
+      "max_upstream_b": [
+        0.2474,
+        "r2-ipython__traitlets-5b398bea0380"
+      ]
+    },
+    "r2b-tabula-3": {
+      "max_new_or_dev": [
+        0.286,
+        "r2bd-tabula-2"
+      ],
+      "max_earlier": [
+        0.2142,
+        "scripts/eval/tasks_r5.py:q-resume-session"
+      ],
+      "max_upstream_b": [
+        0.2717,
+        "r2-sqlalchemy__alembic-326e8fb37aa6"
+      ]
+    },
+    "r2b-tabula-4": {
+      "max_new_or_dev": [
+        0.2907,
+        "r2b-tabula-7"
+      ],
+      "max_earlier": [
+        0.2138,
+        "scripts/eval/tasks_holdout.py:discuss-auto-tier"
+      ],
+      "max_upstream_b": [
+        0.2552,
+        "r2-pypa__wheel-0ca6f24ed0f7"
+      ]
+    },
+    "r2b-tabula-5": {
+      "max_new_or_dev": [
+        0.2997,
+        "r2b-tabula-8"
+      ],
+      "max_earlier": [
+        0.2286,
+        "scripts/eval/tasks_r5.py:q-resume-session"
+      ],
+      "max_upstream_b": [
+        0.26,
+        "r2-facelessuser__soupsieve-7570dd60cec6"
+      ]
+    },
+    "r2b-tabula-6": {
+      "max_new_or_dev": [
+        0.2616,
+        "r2b-tabula-5"
+      ],
+      "max_earlier": [
+        0.2178,
+        "scripts/eval/tasks_r2.py:par10"
+      ],
+      "max_upstream_b": [
+        0.2588,
+        "r2-facelessuser__soupsieve-7b0f637cf6ee"
+      ]
+    },
+    "r2b-tabula-7": {
+      "max_new_or_dev": [
+        0.2703,
+        "r2b-tabula-4"
+      ],
+      "max_earlier": [
+        0.2202,
+        "scripts/eval/tasks_r5.py:brief-words"
+      ],
+      "max_upstream_b": [
+        0.2797,
+        "r2-rr-__docstring_parser-c83f34567f87"
+      ]
+    },
+    "r2b-tabula-8": {
+      "max_new_or_dev": [
+        0.2981,
+        "r2b-tabula-5"
+      ],
+      "max_earlier": [
+        0.2292,
+        "scripts/eval/tasks_long.py:long-boltons-mapping-updates"
+      ],
+      "max_upstream_b": [
+        0.2621,
+        "r2-regebro__tzlocal-b5349f69d085"
+      ]
+    },
+    "r2b-tabula-9": {
+      "max_new_or_dev": [
+        0.2684,
+        "r2bd-tabula-2"
+      ],
+      "max_earlier": [
+        0.2375,
+        "scripts/eval/tasks_holdout.py:its-timed-fallback-signers"
+      ],
+      "max_upstream_b": [
+        0.2736,
+        "r2-python-jsonschema__jsonschema-0a845d0db397"
+      ]
+    }
+  }
+}

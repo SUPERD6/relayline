@@ -1,0 +1,40 @@
+{
+ "id": "r2b-tabula-7",
+ "subject": "A date column kind across schemas, kind inference and JSON Lines",
+ "author_model": "claude-opus-5-5",
+ "brief": "Give tabula a date column kind that works across schemas, kind inference and JSON Lines.\n\n1. `Schema` accepts the kind `date`. A value of such a column is read with `dates.parse_date`: an ISO date gives a date, an ISO date with a time gives a naive datetime (surrounding spaces are allowed, as parse_date allows them), and a value with no text at all is None as for every kind. Edge case: a well-formed but impossible day, such as the thirtieth of February, is not a date; like any value that cannot be read, it raises CoercionError with kind `date` and the offending text.\n2. Kind inference only looks for dates when asked: `infer_kind` and `infer_schema` take a keyword `dates` (default False). Without it nothing changes, so a column of ISO dates is still inferred as text. With it, the date kind is tried after float and before str, so text that fits a narrower kind keeps that kind (digits only, even when they look like a compact date, stay int). A column may mix dates and datetimes. The threshold works as for the other kinds, and an impossible day does not fit the date kind. `kind_report` keeps exactly its current keys and counts.\n3. `to_jsonl` writes date values as ISO text (year-month-day) and datetime values as ISO text with a T between date and time and whole seconds; any fraction of a second is dropped, so that `parse_date` can read the text back.\n4. `from_jsonl` takes a keyword `dates`: column names whose text values are read back with `parse_date`. A missing key or JSON null stays None, and so does a blank string. A value of such a column that is not text (for example a number), or that parse_date rejects, raises CoercionError with that column and kind `date`. A name that is not a column of the result raises KeyError. Without the keyword the values stay text as before, so writing a table with dates and reading it back with its date columns named gives an equal table.\n\nAll behavior that the existing tests check must keep working.",
+ "hidden_tests": [
+  "tests/test_date_kind.py"
+ ],
+ "trace_by_test": {
+  "test_schema_reads_dates_and_datetimes": "A value of such a column is read with `dates.parse_date`: an ISO date gives a date, an ISO date with a time gives a naive datetime (surrounding spaces are allowed, as parse_date allows them), and a value with no text at all is None as for every kind.",
+  "test_impossible_day_is_a_coercion_error": [
+   "Edge case: a well-formed but impossible day, such as the thirtieth of February, is not a date; like any value that cannot be read, it raises CoercionError with kind `date` and the offending text.",
+   "Edge case: a well-formed but impossible day, such as the thirtieth of February, is not a date; like any value that cannot be read, it raises CoercionError with kind `date` and the offending text."
+  ],
+  "test_inference_finds_dates_only_when_asked": [
+   "Without it nothing changes, so a column of ISO dates is still inferred as text.",
+   "With it, the date kind is tried after float and before str",
+   "so text that fits a narrower kind keeps that kind (digits only, even when they look like a compact date, stay int).",
+   "an impossible day does not fit the date kind.",
+   "The threshold works as for the other kinds"
+  ],
+  "test_infer_schema_with_dates": [
+   "Kind inference only looks for dates when asked: `infer_kind` and `infer_schema` take a keyword `dates` (default False).",
+   "Without it nothing changes, so a column of ISO dates is still inferred as text.",
+   "`kind_report` keeps exactly its current keys and counts."
+  ],
+  "test_jsonl_writes_iso_text": "`to_jsonl` writes date values as ISO text (year-month-day) and datetime values as ISO text with a T between date and time and whole seconds; any fraction of a second is dropped, so that `parse_date` can read the text back.",
+  "test_jsonl_reads_dates_back": [
+   "`from_jsonl` takes a keyword `dates`: column names whose text values are read back with `parse_date`. A missing key or JSON null stays None, and so does a blank string.",
+   "Without the keyword the values stay text as before",
+   "so writing a table with dates and reading it back with its date columns named gives an equal table."
+  ],
+  "test_jsonl_date_errors": [
+   "A value of such a column that is not text (for example a number), or that parse_date rejects, raises CoercionError with that column and kind `date`.",
+   "A value of such a column that is not text (for example a number), or that parse_date rejects, raises CoercionError with that column and kind `date`.",
+   "A value of such a column that is not text (for example a number), or that parse_date rejects, raises CoercionError with that column and kind `date`.",
+   "A name that is not a column of the result raises KeyError."
+  ]
+ }
+}
