@@ -11,7 +11,8 @@
   "test_largest_remainder_gets_the_unit_and_ties_go_first": [
    "the units of the last decimal place still missing to reach 1 are then given out one each to the shares that lost the most in that cut",
    "when two shares lost the same amount, the one at the earlier position gets the unit. Compute this exactly, so that floating-point error never decides a tie, and return each share as a float rounded to `digits`. None stays None in its place and counts as 0.",
-   "when two shares lost the same amount, the one at the earlier position gets the unit."
+   "when two shares lost the same amount, the one at the earlier position gets the unit.",
+   "Compute this exactly, so that floating-point error never decides a tie"
   ],
   "test_zero_total_and_bad_values": [
    "Edge case: when the total is 0, every position is None.",

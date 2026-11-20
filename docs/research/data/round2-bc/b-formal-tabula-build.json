@@ -15,7 +15,7 @@
     {
       "id": "r2b-tabula-10",
       "repo": "round2-authored/tabula",
-      "commit": "cd4d91ef2e18d4bc7a85c3f0d2b570b9d97e2157",
+      "commit": "bf4dd411d3a7de644f51230473a544f6812e06c5",
       "code_lines": 91,
       "code": [
         "tabula/reader.py",
@@ -64,7 +64,7 @@
     {
       "id": "r2b-tabula-6",
       "repo": "round2-authored/tabula",
-      "commit": "7a2f82f96ae301174485a9c9783dd5cb41dbf2b8",
+      "commit": "4359a2085e5f2577d5794f1082fd2ae2694a5a8b",
       "code_lines": 90,
       "code": [
         "tabula/aggregate.py",

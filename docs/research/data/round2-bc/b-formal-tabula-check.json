@@ -13,7 +13,7 @@
       },
       "start": {
         "rc": 1,
-        "summary": "7 failed, 5 passed in 0.14s",
+        "summary": "7 failed, 5 passed in 0.13s",
         "errors": [
           "E           tabula.query.QueryError: at 12: unexpected character ','",
           "E           tabula.query.QueryError: at 12: unexpected character ','",
@@ -148,12 +148,12 @@
       "pythonutf8": true,
       "existing": {
         "rc": 0,
-        "summary": "93 passed in 0.14s",
+        "summary": "93 passed in 0.12s",
         "errors": []
       },
       "start": {
         "rc": 2,
-        "summary": "1 error in 0.14s",
+        "summary": "1 error in 0.13s",
         "errors": [
           "E   ImportError: cannot import name 'JoinError' from 'tabula' (<tree>\\tabula\\__init__.py)",
           "ERROR tests/test_join_checks.py"
@@ -249,12 +249,12 @@
       "pythonutf8": true,
       "existing": {
         "rc": 0,
-        "summary": "93 passed in 0.12s",
+        "summary": "93 passed in 0.13s",
         "errors": []
       },
       "start": {
         "rc": 1,
-        "summary": "12 failed, 1 passed in 0.12s",
+        "summary": "12 failed, 1 passed in 0.13s",
         "errors": [
           "E       TypeError: read_rows() got an unexpected keyword argument 'comment'",
           "E       TypeError: read_rows() got an unexpected keyword argument 'comment'",
@@ -310,7 +310,7 @@
       },
       "start": {
         "rc": 2,
-        "summary": "1 error in 0.14s",
+        "summary": "1 error in 0.13s",
         "errors": [
           "E   ImportError: cannot import name 'top_n' from 'tabula.aggregate' (<tree>\\tabula\\aggregate.py)",
           "ERROR tests/test_group_extras.py"
@@ -323,7 +323,7 @@
       },
       "reference_full": {
         "rc": 0,
-        "summary": "109 passed in 0.13s",
+        "summary": "109 passed in 0.14s",
         "errors": []
       },
       "reference_failed": [],
@@ -415,7 +415,7 @@
       },
       "start": {
         "rc": 2,
-        "summary": "1 error in 0.13s",
+        "summary": "1 error in 0.14s",
         "errors": [
           "E   ImportError: cannot import name 'apportion' from 'tabula.stats' (<tree>\\tabula\\stats.py)",
           "ERROR tests/test_apportioned_shares.py"
@@ -432,7 +432,7 @@
         "errors": []
       },
       "reference_failed": [],
-      "assertions": 22,
+      "assertions": 24,
       "literal_overlap": [
         {
           "assertion": "tests/test_apportioned_shares.py::test_pivot_row_shares#3",
@@ -456,7 +456,7 @@
       "pythonutf8": true,
       "existing": {
         "rc": 0,
-        "summary": "93 passed in 0.13s",
+        "summary": "93 passed in 0.12s",
         "errors": []
       },
       "start": {
@@ -479,7 +479,7 @@
       },
       "reference": {
         "rc": 0,
-        "summary": "7 passed in 0.04s",
+        "summary": "7 passed in 0.03s",
         "errors": []
       },
       "reference_full": {
@@ -560,7 +560,7 @@
       },
       "reference": {
         "rc": 0,
-        "summary": "9 passed in 0.03s",
+        "summary": "9 passed in 0.04s",
         "errors": []
       },
       "reference_full": {

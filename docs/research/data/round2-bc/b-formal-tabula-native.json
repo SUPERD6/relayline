@@ -9,10 +9,10 @@
   },
   {
     "id": "r2b-tabula-10",
-    "commit": "cd4d91ef2e18d4bc7a85c3f0d2b570b9d97e2157",
+    "commit": "bf4dd411d3a7de644f51230473a544f6812e06c5",
     "valid": true,
     "baseline": "93 passed in 0.13s",
-    "parent": "15 failed in 0.12s",
+    "parent": "15 failed in 0.11s",
     "reference": "15 passed in 0.04s"
   },
   {
@@ -27,7 +27,7 @@
     "id": "r2b-tabula-3",
     "commit": "99b475917cb12b2b534a8d629dfe2b9d1b482a49",
     "valid": true,
-    "baseline": "93 passed in 0.13s",
+    "baseline": "93 passed in 0.12s",
     "parent": "12 failed, 1 passed in 0.11s",
     "reference": "13 passed in 0.04s"
   },
@@ -35,8 +35,8 @@
     "id": "r2b-tabula-4",
     "commit": "58dd82e93202833f03bca3d5ee05d5b92504efc2",
     "valid": true,
-    "baseline": "93 passed in 0.13s",
-    "parent": "1 error in 0.14s",
+    "baseline": "93 passed in 0.14s",
+    "parent": "1 error in 0.13s",
     "reference": "16 passed in 0.04s"
   },
   {
@@ -44,12 +44,12 @@
     "commit": "5c3f16147496046c9cf95e1bd16aa935b0c4ac8a",
     "valid": true,
     "baseline": "93 passed in 0.13s",
-    "parent": "8 failed in 0.12s",
+    "parent": "8 failed in 0.11s",
     "reference": "8 passed in 0.04s"
   },
   {
     "id": "r2b-tabula-6",
-    "commit": "7a2f82f96ae301174485a9c9783dd5cb41dbf2b8",
+    "commit": "4359a2085e5f2577d5794f1082fd2ae2694a5a8b",
     "valid": true,
     "baseline": "93 passed in 0.13s",
     "parent": "1 error in 0.13s",
@@ -61,14 +61,14 @@
     "valid": true,
     "baseline": "93 passed in 0.13s",
     "parent": "7 failed in 0.12s",
-    "reference": "7 passed in 0.03s"
+    "reference": "7 passed in 0.04s"
   },
   {
     "id": "r2b-tabula-8",
     "commit": "b3beeffdf5acc7960c012b44bb0581ddb16dd88f",
     "valid": true,
     "baseline": "93 passed in 0.13s",
-    "parent": "9 failed in 0.10s",
+    "parent": "9 failed in 0.11s",
     "reference": "9 passed in 0.03s"
   },
   {

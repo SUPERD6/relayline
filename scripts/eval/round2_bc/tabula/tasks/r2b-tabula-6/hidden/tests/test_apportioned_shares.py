@@ -14,6 +14,7 @@ def test_largest_remainder_gets_the_unit_and_ties_go_first():
     assert apportion([1, 2], 1) == [0.3, 0.7]
     assert apportion([1, None, 3], 1) == [0.3, None, 0.7]
     assert apportion([1, 1], 0) == [1.0, 0.0]
+    assert apportion([1, 4, 1], 1) == [0.2, 0.7, 0.1]
 
 
 def test_zero_total_and_bad_values():
@@ -61,6 +62,8 @@ def test_pivot_row_shares():
 def test_pivot_table_shares_in_row_major_order():
     t = Table(["r", "c", "q"], [("x", "a", 1), ("y", "a", 1), ("y", "b", 1)])
     assert pivot(t, "r", "c", "q", normalize="all", digits=1).rows == [("x", 0.4, None), ("y", 0.3, 0.3)]
+    square = Table(["r", "c", "q"], [("x", "a", 1), ("x", "b", 1), ("y", "a", 1), ("y", "b", 1)])
+    assert pivot(square, "r", "c", "q", normalize="all", digits=1).rows == [("x", 0.3, 0.3), ("y", 0.2, 0.2)]
 
 
 def test_pivot_arguments():

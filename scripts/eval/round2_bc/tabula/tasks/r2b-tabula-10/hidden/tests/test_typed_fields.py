@@ -19,8 +19,8 @@ def test_boolean_words():
 
 def test_unquoted_text_is_an_error_on_its_line():
     with pytest.raises(ParseError) as err:
-        read_rows("1,2\n3,abc\n", quoting="nonnumeric")
-    assert err.value.line == 2
+        read_rows('"a\nb",1\n3,abc\n', quoting="nonnumeric")
+    assert err.value.line == 3
 
 
 @pytest.mark.parametrize("bad", ["nan", " 3", "1_000", "+3", "True", "inf", "1.2.3"])

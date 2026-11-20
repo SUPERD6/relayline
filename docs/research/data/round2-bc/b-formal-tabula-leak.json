@@ -124,15 +124,15 @@
     },
     "r2b-tabula-10": {
       "max_new_or_dev": [
-        0.2967,
-        "r2bd-tabula-1"
+        0.2723,
+        "r2b-tabula-3"
       ],
       "max_earlier": [
-        0.2163,
-        "scripts/eval/tasks_holdout.py:its-timed-fallback-signers"
+        0.2061,
+        "scripts/eval/tasks_r2.py:cart"
       ],
       "max_upstream_b": [
-        0.2614,
+        0.2515,
         "r2-andialbrecht__sqlparse-be3b7a68d07a"
       ]
     },
