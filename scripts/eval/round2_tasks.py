@@ -76,6 +76,14 @@ def read_json(path: Path):
 
 # ---------------------------------------------------------------- earlier tasks (corpus)
 
+def _display_path(path: Path) -> str:
+    """A path relative to the repository root when it is inside it, else as given (POSIX separators)."""
+    try:
+        return Path(path).resolve().relative_to(ROOT.resolve()).as_posix()
+    except ValueError:
+        return Path(path).as_posix()
+
+
 def corpus_files(root: Path = ROOT, exclude=()) -> list[Path]:
     skip = {Path(p).resolve() for p in exclude}
     files = sorted((root / "scripts/eval").glob("*.py")) + sorted((root / "scripts/eval").glob("*.json"))
@@ -1499,7 +1507,10 @@ def main(argv=None) -> int:
     if a.cmd == "leak":
         source = read_json(a.tasks)
         tasks = (source.get("tasks") or selection_tasks(source)) if isinstance(source, dict) else source
-        data = leak_check(tasks, corpus(exclude=[a.tasks, a.out, *a.exclude]))
+        excluded = [a.tasks, a.out, *a.exclude]
+        data = leak_check(tasks, corpus(exclude=excluded))
+        # the files left out of the corpus, as given (relative to the repository root when inside it)
+        data["excluded_from_corpus"] = [_display_path(p) for p in excluded]
         write_json(a.out, data)
         return 0 if data["clean"] else 1
     if a.cmd == "env-check":

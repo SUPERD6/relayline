@@ -1,0 +1,770 @@
+{
+  "normalization": "text files hashed with CRLF -> LF; binary (NUL byte) as is",
+  "files": [
+    {
+      "path": "docs/research/data/round2-bc/b-check.json",
+      "sha256": "023a1e7c8d6e03dd44c7b61b4c8f77134d5eecc604aee2753843c133fdc5a62c"
+    },
+    {
+      "path": "docs/research/data/round2-bc/b-dev-check.json",
+      "sha256": "fc35f4631c3ea4204cb8f076586ff3a129916a2a3fdd5607f1fea88273f87e2e"
+    },
+    {
+      "path": "docs/research/data/round2-bc/b-dev-leak.json",
+      "sha256": "4de7ac6fd23f82a6135c3edf616f4dd5528732b914580db8a711e83312e922a4"
+    },
+    {
+      "path": "docs/research/data/round2-bc/b-dev-native.json",
+      "sha256": "88828954dbf3073ba77c6aa443ca46216b6a39c45130e2d25d03cfb871c2adc4"
+    },
+    {
+      "path": "docs/research/data/round2-bc/b-dev.json",
+      "sha256": "c7878d4f1ce08decfd64e8569cd0637b4a0b4e95ed48629f0e4a00981874ec1d"
+    },
+    {
+      "path": "docs/research/data/round2-bc/b-env.json",
+      "sha256": "d52d407089671a478eef09c0648a18dd92d976241a2c27175afd08131d583fbb"
+    },
+    {
+      "path": "docs/research/data/round2-bc/b-formal-cronlite-build.json",
+      "sha256": "c5a7a079ec9912ab8c897b90a0f5ffd3dd1019696c8c10f243b819e623283d87"
+    },
+    {
+      "path": "docs/research/data/round2-bc/b-formal-cronlite-check.json",
+      "sha256": "7d732fa0a83380edb86fb0d386ec4f12e1230d73e26a0ce095f1cf3ed762cb40"
+    },
+    {
+      "path": "docs/research/data/round2-bc/b-formal-cronlite-leak.json",
+      "sha256": "0fe91064470d2516091c5f94c1f2096b127ac0585fe7c0f5a8d2ffc881e9c944"
+    },
+    {
+      "path": "docs/research/data/round2-bc/b-formal-cronlite-native.json",
+      "sha256": "29146de2e8a1a180151e87c55d9470fb4121d730557a5ea582be568b196b3b61"
+    },
+    {
+      "path": "docs/research/data/round2-bc/b-formal-tabula-build.json",
+      "sha256": "c074da85363dc107a88d9afa5550fe0e3cd01b72aa4012d48ede9f052bb40018"
+    },
+    {
+      "path": "docs/research/data/round2-bc/b-formal-tabula-check.json",
+      "sha256": "0c61b26a9b926d570d247d9f741ddf590b7748038cc7558e77ce97a7541c0d67"
+    },
+    {
+      "path": "docs/research/data/round2-bc/b-formal-tabula-leak.json",
+      "sha256": "ea776e2093a8de9a9c14a10844357f1eed8b735728a6a801c6fd7a62d4249294"
+    },
+    {
+      "path": "docs/research/data/round2-bc/b-formal-tabula-native.json",
+      "sha256": "6191b9299baac6916ec4c2399fc8f25a684a0e3db88c568a6b8ef4b91a48492d"
+    },
+    {
+      "path": "docs/research/data/round2-bc/b-leak.json",
+      "sha256": "027563d1d3e24f9537be46a77b08b626a5cce3f62f0eee4440f4e02dbe7259c1"
+    },
+    {
+      "path": "docs/research/data/round2-bc/b-trace.json",
+      "sha256": "8e14b3839d8e1f33dc53faa55fb14e3004d1da69a57d6148c41c4503cb40f22c"
+    },
+    {
+      "path": "docs/research/data/round2-bc/b-upstream-briefs.json",
+      "sha256": "9f2fc740343306dce0fd82f54fe91dca216fdaaf64a89a67849fcd54f43ea605"
+    },
+    {
+      "path": "docs/research/data/round2-bc/b.json",
+      "sha256": "dacb47067b1075b74009f3669489517bc160bd88d66e370fefbca2c6154de60c"
+    },
+    {
+      "path": "docs/research/data/round2-bc/selection-b.json",
+      "sha256": "53e4c8e4b254b67b20a6068277723dec94e128863dd79920f89505f965651c4d"
+    },
+    {
+      "path": "docs/research/data/round2-bc/selection-env/pip-list-v3.json",
+      "sha256": "3052e4c9c1db6e7756d2cd2b241d991b2ffb91ae6d38ce559bb0652a9481c95a"
+    },
+    {
+      "path": "docs/research/data/round2-bc/selection-env/prepare-v4.json",
+      "sha256": "1d1cf8e1b7138b25480a8bd7275f2803e2909c4f1386a48bcbd684ccde552c2f"
+    },
+    {
+      "path": "docs/research/data/round2-bc/selection-env/repos-resume51.json",
+      "sha256": "deb70de38d43b5c19fb9a3ca9b0775ec175de22e81db6a62376910d65783a9af"
+    },
+    {
+      "path": "docs/research/data/round2-bc/selection-env/repos-v3.json",
+      "sha256": "644518c43ec56bb9470c487825de10f24262630fdeeb53947217b39b6df1f626"
+    },
+    {
+      "path": "docs/research/data/round2-bc/selection-env/top-pypi-packages-30-days.min.json",
+      "sha256": "3e958a64ebe1de0b6a4ab4c6b465d481f350fd1dfa926c639add36eb34dabc1e"
+    },
+    {
+      "path": "scripts/eval/round2_bc/build.py",
+      "sha256": "922ffa0c9bce3ecbef4fe1509037ce19880ddb98dd568f85d660aceee1bd8603"
+    },
+    {
+      "path": "scripts/eval/round2_bc/conftest.py",
+      "sha256": "3a1e8bd46f36abbe629dfb717493ffc4606b108076f1ee93ecf629e40e8d41e1"
+    },
+    {
+      "path": "scripts/eval/round2_bc/cronlite/base/cronlite/__init__.py",
+      "sha256": "429d61898f510e5aff148c933cb6657cf3e9e10b24141e95971957edf95e0def"
+    },
+    {
+      "path": "scripts/eval/round2_bc/cronlite/base/cronlite/__main__.py",
+      "sha256": "6d8b7d7846a845059d7a3107143f11131f63c5511d669b44085b15ec5e3d2279"
+    },
+    {
+      "path": "scripts/eval/round2_bc/cronlite/base/cronlite/alerts.py",
+      "sha256": "49984f758d0190ed92c574289e15907c56d79687df63b78d1460693576d7dbe6"
+    },
+    {
+      "path": "scripts/eval/round2_bc/cronlite/base/cronlite/analysis.py",
+      "sha256": "eb1fdbb41ba2d03408aec25713ee52aab78e0f198930c96ed2d802d56cbb456a"
+    },
+    {
+      "path": "scripts/eval/round2_bc/cronlite/base/cronlite/blackout.py",
+      "sha256": "7705bba63cefb08c2b4889c927d30f2345941000f21f63b61be254d8a747973c"
+    },
+    {
+      "path": "scripts/eval/round2_bc/cronlite/base/cronlite/canonical.py",
+      "sha256": "5bd80c40f0067370af4cc607e356d800a0fd9b446e6ba5c820f9b7248078841b"
+    },
+    {
+      "path": "scripts/eval/round2_bc/cronlite/base/cronlite/cli.py",
+      "sha256": "34ab5930534b6badb39dc5af956d5ad4e9a96943cf4d850d2b491a5efe43d4e0"
+    },
+    {
+      "path": "scripts/eval/round2_bc/cronlite/base/cronlite/describe.py",
+      "sha256": "96a9c2b23bb21e12ae53f87c733f18654ab4db8e4c80164a8bb1f46c371f9c76"
+    },
+    {
+      "path": "scripts/eval/round2_bc/cronlite/base/cronlite/errors.py",
+      "sha256": "9a9dde2ae2d4e252b72664bd0d2bdee0655d237629d837ac5bc2bf9ef0bf11ce"
+    },
+    {
+      "path": "scripts/eval/round2_bc/cronlite/base/cronlite/expr.py",
+      "sha256": "248f458841f0929975fbac3720d44ee6b4d78ae81fd0b81ee768a2e8df191f67"
+    },
+    {
+      "path": "scripts/eval/round2_bc/cronlite/base/cronlite/fields.py",
+      "sha256": "3245a3d6783cfbd89c1bbb95a91ed6fa503a13b759440c6e39ba3c4aaafd0015"
+    },
+    {
+      "path": "scripts/eval/round2_bc/cronlite/base/cronlite/history.py",
+      "sha256": "56532f8ceead9aa805d8777c12b5b3ebbfc6f2893fcccf9fc7dcf49c392e4392"
+    },
+    {
+      "path": "scripts/eval/round2_bc/cronlite/base/cronlite/human.py",
+      "sha256": "0ec269b1df1239ed25ab119dc3fc282dccfd006749c3677503df08261a4d824a"
+    },
+    {
+      "path": "scripts/eval/round2_bc/cronlite/base/cronlite/ical.py",
+      "sha256": "ff413a5fbcd7a7743ba70f02f740164982be562ed890b064cb3ae78f9678535d"
+    },
+    {
+      "path": "scripts/eval/round2_bc/cronlite/base/cronlite/jobs.py",
+      "sha256": "11588542a416267119451c5f51d915c8c7535e5a09e8c5df6f365198bf9e3ee1"
+    },
+    {
+      "path": "scripts/eval/round2_bc/cronlite/base/cronlite/lint.py",
+      "sha256": "0e4aff66b941b70da51c5f07a275c542d863abc8bf159791245c250e57b58cfe"
+    },
+    {
+      "path": "scripts/eval/round2_bc/cronlite/base/cronlite/load.py",
+      "sha256": "28cf1eef7509a0135d30d32ee08452ccbd60aa9f12eb9b7c1b66d2ad99ed478c"
+    },
+    {
+      "path": "scripts/eval/round2_bc/cronlite/base/cronlite/overlap.py",
+      "sha256": "72d41d6efc7bb2ef0c63c8849d46ce9f89e50283eb9238f7c509028b47bc01ec"
+    },
+    {
+      "path": "scripts/eval/round2_bc/cronlite/base/cronlite/schedule.py",
+      "sha256": "70acd476311147cc1529cec1f80b848ba25c67d4856ce9064210d65182e237b5"
+    },
+    {
+      "path": "scripts/eval/round2_bc/cronlite/base/cronlite/store.py",
+      "sha256": "33d18a7ba863317f0578e1ede93e47cc372fe70574abe291c1b58ab493108591"
+    },
+    {
+      "path": "scripts/eval/round2_bc/cronlite/base/cronlite/windows.py",
+      "sha256": "a1708110416d8aefd010373598d7d0155e05ee4e599ae54e8e9d79a7cfc0860f"
+    },
+    {
+      "path": "scripts/eval/round2_bc/cronlite/base/cronlite/zones.py",
+      "sha256": "262f5a3615f62262b4a30318a3c3db7c4713b9c1f8a1697f26c80d4da4c6f62c"
+    },
+    {
+      "path": "scripts/eval/round2_bc/cronlite/base/tests/test_blackout_windows.py",
+      "sha256": "4f91e771afd7ea491193bddbe5350244896dc25935a0fb01d233ab8e2b1a04cc"
+    },
+    {
+      "path": "scripts/eval/round2_bc/cronlite/base/tests/test_describe_human.py",
+      "sha256": "3ca02b7a27d8bcebd58832544a665c83a9f9e5f495425993dba37b735a05da1c"
+    },
+    {
+      "path": "scripts/eval/round2_bc/cronlite/base/tests/test_expr.py",
+      "sha256": "45150fb42c3d0f67091984af643eb1927d58678076777909cca41dd9834ecbbd"
+    },
+    {
+      "path": "scripts/eval/round2_bc/cronlite/base/tests/test_fields.py",
+      "sha256": "133a2fdcb24752c76d5c710c715464fd498a111e32abff21754974002f647b0c"
+    },
+    {
+      "path": "scripts/eval/round2_bc/cronlite/base/tests/test_history_alerts.py",
+      "sha256": "4f6b918d7724534835318e538c94b7251b9bc4654ddc57cee0ed92dc8c3e4fba"
+    },
+    {
+      "path": "scripts/eval/round2_bc/cronlite/base/tests/test_jobs.py",
+      "sha256": "9b4fe2ae08748522569ffb36beafead2fe9326070ac0d38f6d69b280becac034"
+    },
+    {
+      "path": "scripts/eval/round2_bc/cronlite/base/tests/test_overlap_load.py",
+      "sha256": "8a3e167385286d0562c65263839412e073223547e88d43dd261f40117c3255cd"
+    },
+    {
+      "path": "scripts/eval/round2_bc/cronlite/base/tests/test_store_zones_misc.py",
+      "sha256": "af45274ad1ec08a4453abf28867d892ce351af0814e0694a50a98e5c6142cdd8"
+    },
+    {
+      "path": "scripts/eval/round2_bc/cronlite/tasks/r2b-cronlite-1/hidden/tests/test_pause_and_tags.py",
+      "sha256": "58032f5ae66aebbf61f614e994f0c4b358995ebf8e5843b387b74d5f31be0b88"
+    },
+    {
+      "path": "scripts/eval/round2_bc/cronlite/tasks/r2b-cronlite-1/reference/cronlite/jobs.py",
+      "sha256": "24bedf7e6e692e6a4efd2073928b178912dca15ab63dffb56d7cc992d8549d62"
+    },
+    {
+      "path": "scripts/eval/round2_bc/cronlite/tasks/r2b-cronlite-1/reference/cronlite/store.py",
+      "sha256": "ae099746acd0a5164f5e5c980dca013678ac1f6d1605a57e88e06724f0ebe6f4"
+    },
+    {
+      "path": "scripts/eval/round2_bc/cronlite/tasks/r2b-cronlite-1/task.json",
+      "sha256": "960bce7b69e15926a0d4937a3df5453593af74c2f0c9e21d24eebd44ca2b2b93"
+    },
+    {
+      "path": "scripts/eval/round2_bc/cronlite/tasks/r2b-cronlite-2/hidden/tests/test_last_day.py",
+      "sha256": "4a8dfa0430d1ae1ca985c5cc342f6710253ab3b340e3d861fd01fcd5143c34b4"
+    },
+    {
+      "path": "scripts/eval/round2_bc/cronlite/tasks/r2b-cronlite-2/reference/cronlite/canonical.py",
+      "sha256": "d0a29b6303aa5bffeecf07c0fb502a02a1284d2b89f7cf6954a8e2edd23580d4"
+    },
+    {
+      "path": "scripts/eval/round2_bc/cronlite/tasks/r2b-cronlite-2/reference/cronlite/describe.py",
+      "sha256": "0d1fa62657c04ed5372a1304ee3fbd39e57ad115f371f6dcc986f9ee28753318"
+    },
+    {
+      "path": "scripts/eval/round2_bc/cronlite/tasks/r2b-cronlite-2/reference/cronlite/expr.py",
+      "sha256": "6e177f6d693d4690af8723c64f61c3d8cd54eade71e1f74d4158b95a1283d95c"
+    },
+    {
+      "path": "scripts/eval/round2_bc/cronlite/tasks/r2b-cronlite-2/reference/cronlite/fields.py",
+      "sha256": "cc31bb1754479fafe5e6e7003a568136b7efb5611a447165849e3eea8562a5e7"
+    },
+    {
+      "path": "scripts/eval/round2_bc/cronlite/tasks/r2b-cronlite-2/reference/cronlite/lint.py",
+      "sha256": "6ba9451a0dca294f3bea6891b62da4fb6939e365d6da30e0a602e499045c8f2c"
+    },
+    {
+      "path": "scripts/eval/round2_bc/cronlite/tasks/r2b-cronlite-2/task.json",
+      "sha256": "4a42c840bb1a1a9973dc05a4db4fc0d42bc34638ffdd80f53f94e743b9e6d00c"
+    },
+    {
+      "path": "scripts/eval/round2_bc/cronlite/tasks/r2b-cronlite-3/hidden/tests/test_windows_closed_days.py",
+      "sha256": "be9dbed6aee9e7bf9c750600cc6083bce1d6f32e9996bf538201e0473b0bd291"
+    },
+    {
+      "path": "scripts/eval/round2_bc/cronlite/tasks/r2b-cronlite-3/reference/cronlite/__init__.py",
+      "sha256": "b9a59133151f395196f52c76f36446f6f0cd650842b2ef122e21f2ae498d4598"
+    },
+    {
+      "path": "scripts/eval/round2_bc/cronlite/tasks/r2b-cronlite-3/reference/cronlite/blackout.py",
+      "sha256": "cb21f4a4b3d3d282556f4bcf3e85f1bdf8c6692ef3e86f1f53747794f6b326b0"
+    },
+    {
+      "path": "scripts/eval/round2_bc/cronlite/tasks/r2b-cronlite-3/reference/cronlite/windows.py",
+      "sha256": "24b5ad7401f59a0cb4d7b143766ce6ded4b87d1e6458be490bf4cc95bfd7ca90"
+    },
+    {
+      "path": "scripts/eval/round2_bc/cronlite/tasks/r2b-cronlite-3/task.json",
+      "sha256": "b8229fd1a58df633cc71a04c9ea36c8f6df6ccf8d5e0ef83a0ed8d52cfb13625"
+    },
+    {
+      "path": "scripts/eval/round2_bc/cronlite/tasks/r2b-cronlite-4/hidden/tests/test_flapping_and_calendars.py",
+      "sha256": "56f17e1684b763d097db14e053b785d187ec04719d54e9283c6fae72e8687b89"
+    },
+    {
+      "path": "scripts/eval/round2_bc/cronlite/tasks/r2b-cronlite-4/reference/cronlite/__init__.py",
+      "sha256": "d407fec5e17291c35161cb9bdb21ee3949673788edd479f376890f66abda4bd0"
+    },
+    {
+      "path": "scripts/eval/round2_bc/cronlite/tasks/r2b-cronlite-4/reference/cronlite/alerts.py",
+      "sha256": "e1a92552aba96cb09270371e7e05b49cc0228d275c1e91aefd7da2340e7fd717"
+    },
+    {
+      "path": "scripts/eval/round2_bc/cronlite/tasks/r2b-cronlite-4/reference/cronlite/history.py",
+      "sha256": "880786bbe9b912f13fe0c4dd7ffa8bb47b794a7e74349c9448bae6b7a85b0070"
+    },
+    {
+      "path": "scripts/eval/round2_bc/cronlite/tasks/r2b-cronlite-4/task.json",
+      "sha256": "c803781a744c22fc1f22e6b042ff59611f5e9b5d1e781651bc966488c7ee2be1"
+    },
+    {
+      "path": "scripts/eval/round2_bc/cronlite/tasks/r2b-cronlite-5/hidden/tests/test_ical_utc.py",
+      "sha256": "fbbd34856eac4b00f28277434380a37ac2d3a67f4c2aa57de07fab943b899b8e"
+    },
+    {
+      "path": "scripts/eval/round2_bc/cronlite/tasks/r2b-cronlite-5/reference/cronlite/cli.py",
+      "sha256": "684ce7c1309c8b656598c18c7e4658e545bd98bb281c24cb9a46a1881606b141"
+    },
+    {
+      "path": "scripts/eval/round2_bc/cronlite/tasks/r2b-cronlite-5/reference/cronlite/ical.py",
+      "sha256": "fbcf043bd925c97e29483e974acb673a38cb45f49575f5900b14a9b01690a537"
+    },
+    {
+      "path": "scripts/eval/round2_bc/cronlite/tasks/r2b-cronlite-5/reference/cronlite/zones.py",
+      "sha256": "234d3c9459c02b3b3d2be1c4fb3f1a92d96d9431099b36e5327c68cbe1dfed23"
+    },
+    {
+      "path": "scripts/eval/round2_bc/cronlite/tasks/r2b-cronlite-5/task.json",
+      "sha256": "a023c9d0317562fe173258f78b35ed562c87a22c3b753bbc5aa6f32b475f2621"
+    },
+    {
+      "path": "scripts/eval/round2_bc/cronlite/tasks/r2b-cronlite-6/hidden/tests/test_registry_check.py",
+      "sha256": "62bc542f6b20ce5b30391cf9a36b7aedb6d9e9ad0a73cfbbdbd72101d08f74f3"
+    },
+    {
+      "path": "scripts/eval/round2_bc/cronlite/tasks/r2b-cronlite-6/reference/cronlite/__init__.py",
+      "sha256": "aa390a1c2981125c3709e1af00c145330a3a6e014616bd89e86fcfefdf1e6b02"
+    },
+    {
+      "path": "scripts/eval/round2_bc/cronlite/tasks/r2b-cronlite-6/reference/cronlite/cli.py",
+      "sha256": "6ae76ccc342f718e5ad483e2f36764be2ab4d1898dc60cb3a8568b0d27a05b3e"
+    },
+    {
+      "path": "scripts/eval/round2_bc/cronlite/tasks/r2b-cronlite-6/reference/cronlite/lint.py",
+      "sha256": "aa88b8422523a66f2dd452453174a283c92418eec1122fea55ffe5651274afff"
+    },
+    {
+      "path": "scripts/eval/round2_bc/cronlite/tasks/r2b-cronlite-6/task.json",
+      "sha256": "80ee0f44cf48bb99153bd2b14dbb6b082000104a0f688b7e9dc681a46037ca72"
+    },
+    {
+      "path": "scripts/eval/round2_bc/cronlite/tasks/r2b-cronlite-7/hidden/tests/test_full_day_lists.py",
+      "sha256": "e15222533197c96cfa521e33a998b2c2ad3561c9cc16c0e6c2b33487d8de91a9"
+    },
+    {
+      "path": "scripts/eval/round2_bc/cronlite/tasks/r2b-cronlite-7/reference/cronlite/canonical.py",
+      "sha256": "ae8146021c2bf6bbca97f1054530c13638e43351ff7313ed8a90fa64a4534029"
+    },
+    {
+      "path": "scripts/eval/round2_bc/cronlite/tasks/r2b-cronlite-7/reference/cronlite/describe.py",
+      "sha256": "2a4f314947bdbf10d899aaa5179585fb71a2cea100093829f19a52c1ba30897a"
+    },
+    {
+      "path": "scripts/eval/round2_bc/cronlite/tasks/r2b-cronlite-7/reference/cronlite/expr.py",
+      "sha256": "f739d35f741b740ecb6d6058c1cba03a50d5988b8de4dbd9a31547619e57334f"
+    },
+    {
+      "path": "scripts/eval/round2_bc/cronlite/tasks/r2b-cronlite-7/reference/cronlite/lint.py",
+      "sha256": "825f7db1b483f8d248a3ed3cfdff3e7bf885bff2a7e653e3235a52c940cfa8d0"
+    },
+    {
+      "path": "scripts/eval/round2_bc/cronlite/tasks/r2b-cronlite-7/task.json",
+      "sha256": "bc2c1c5d04be05cac289ddd444e93536d0140897ef2b65b34f8e4c06b6c4e61c"
+    },
+    {
+      "path": "scripts/eval/round2_bc/cronlite/tasks/r2b-cronlite-8/hidden/tests/test_load_policies.py",
+      "sha256": "cc95ca556066a9f14b8eb9e3375bf6688f420f5df60427aaf5f22ff48fcf5e92"
+    },
+    {
+      "path": "scripts/eval/round2_bc/cronlite/tasks/r2b-cronlite-8/reference/cronlite/__init__.py",
+      "sha256": "87e069f6eb38e8f6dc0c971e75dc355f2db3c15392e9948d5b82608ce50a1748"
+    },
+    {
+      "path": "scripts/eval/round2_bc/cronlite/tasks/r2b-cronlite-8/reference/cronlite/load.py",
+      "sha256": "10982fa2236102311b592d7029261ae21b529322bf8f266f629fb3de71516010"
+    },
+    {
+      "path": "scripts/eval/round2_bc/cronlite/tasks/r2b-cronlite-8/task.json",
+      "sha256": "09b8bfabf6d708186cbac07c48563dc985bbb541388a4e22f7dc51d7e59250d2"
+    },
+    {
+      "path": "scripts/eval/round2_bc/cronlite/tasks/r2bd-cronlite-1/hidden/tests/test_ranges_steps.py",
+      "sha256": "8cb23128e057262f50da00417d7595dd3a75306fe8a7c0a92f6670fb38f1efc8"
+    },
+    {
+      "path": "scripts/eval/round2_bc/cronlite/tasks/r2bd-cronlite-1/reference/cronlite/fields.py",
+      "sha256": "aace9b9e5f7ef11c42d782822376052bae72cd9b759fe86b8fa58f0249cfa1cf"
+    },
+    {
+      "path": "scripts/eval/round2_bc/cronlite/tasks/r2bd-cronlite-1/reference/cronlite/names.py",
+      "sha256": "b01963a4b79a694b2397c79d5e3698398cbbf6d5194a252937c9d4d8648455e4"
+    },
+    {
+      "path": "scripts/eval/round2_bc/cronlite/tasks/r2bd-cronlite-1/task.json",
+      "sha256": "37414d0d3f423d308f82d3cab0d59564684e34408b83eb1f98eae239c7b01a8f"
+    },
+    {
+      "path": "scripts/eval/round2_bc/cronlite/tasks/r2bd-cronlite-2/hidden/tests/test_backoff.py",
+      "sha256": "de6eef89fb6946ae710d4914995fecd14c771219cc244ed679d72f963ea42ef7"
+    },
+    {
+      "path": "scripts/eval/round2_bc/cronlite/tasks/r2bd-cronlite-2/reference/cronlite/__init__.py",
+      "sha256": "8ef5ba63de7b51f5c3924292bb9df3dcb119134b2ab2191df67700c11d1fc207"
+    },
+    {
+      "path": "scripts/eval/round2_bc/cronlite/tasks/r2bd-cronlite-2/reference/cronlite/jobs.py",
+      "sha256": "3ca703fca565c1c9f9dd33b1146d1281d1e5f6d2875f0bfde4d80b83f28c8ebb"
+    },
+    {
+      "path": "scripts/eval/round2_bc/cronlite/tasks/r2bd-cronlite-2/reference/cronlite/schedule.py",
+      "sha256": "09fbb7ca2dff4e416ddcf2bebbfb7b1f36eadf99d2c2c4b3d5867effca0d20eb"
+    },
+    {
+      "path": "scripts/eval/round2_bc/cronlite/tasks/r2bd-cronlite-2/task.json",
+      "sha256": "8ce0fee3b460a6a26a67f66ead3d7cd9e6ec7f1d3cf631f4eda89e904c43933d"
+    },
+    {
+      "path": "scripts/eval/round2_bc/freeze.py",
+      "sha256": "8a60d071ed43dc6c259d26cae7d32e4c0434387be4f6b58b550999a799d5e156"
+    },
+    {
+      "path": "scripts/eval/round2_bc/tabula/base/tabula/__init__.py",
+      "sha256": "fcc93f628165b041bfc23e46081d428aea160926b89328c573a2570a085262c0"
+    },
+    {
+      "path": "scripts/eval/round2_bc/tabula/base/tabula/aggregate.py",
+      "sha256": "802e043aa548428c31b248f4a308098e0f9e306d035fc06fff3b12bcbde74f88"
+    },
+    {
+      "path": "scripts/eval/round2_bc/tabula/base/tabula/clean.py",
+      "sha256": "97c395b2cd211bd167a3122e982840adbf62de8fbb5b08ae53da343ae1d69f49"
+    },
+    {
+      "path": "scripts/eval/round2_bc/tabula/base/tabula/dates.py",
+      "sha256": "797b4541555ebfc722603285983a807425ac9761382950b768f2b13623cb2547"
+    },
+    {
+      "path": "scripts/eval/round2_bc/tabula/base/tabula/diff.py",
+      "sha256": "db84e91a96eb7f8d6b0f3587ea0de2d015c65cee2289da987bd374e01e50149b"
+    },
+    {
+      "path": "scripts/eval/round2_bc/tabula/base/tabula/errors.py",
+      "sha256": "5f447fe1f82276776788fcec9f07a9527176083b43d877a5995b7f94ddc7d60e"
+    },
+    {
+      "path": "scripts/eval/round2_bc/tabula/base/tabula/infer.py",
+      "sha256": "3409f4d497a68df201a777ff0f538aebdb38985cd7833da06504300fea8b7044"
+    },
+    {
+      "path": "scripts/eval/round2_bc/tabula/base/tabula/join.py",
+      "sha256": "6e493e03ca529fafab2657895b81e2bc7c3ac86ba44425be2a41570c3046b52f"
+    },
+    {
+      "path": "scripts/eval/round2_bc/tabula/base/tabula/query.py",
+      "sha256": "cc595c3aa7dd4e4c93aafde7358418e867c7dd20b02ede1d15b4667dbbc84d04"
+    },
+    {
+      "path": "scripts/eval/round2_bc/tabula/base/tabula/reader.py",
+      "sha256": "507a8f2336879b467312a86a92542bb57f423d6882112ea24cdd42a5b1fc67a8"
+    },
+    {
+      "path": "scripts/eval/round2_bc/tabula/base/tabula/records.py",
+      "sha256": "5e5af49c9468fb6040a9ff0e6d1eb0f072297e4e578a224007936f01c6958866"
+    },
+    {
+      "path": "scripts/eval/round2_bc/tabula/base/tabula/render.py",
+      "sha256": "57aa8978a87e7e5dee0ee6d194d0d45b3579a2fd52c6dada434f18bb7a421dd5"
+    },
+    {
+      "path": "scripts/eval/round2_bc/tabula/base/tabula/schema.py",
+      "sha256": "aaa7a114e5b4f253e73a5527a379c579ef4bdf8279c36a1829e047597b7b1f34"
+    },
+    {
+      "path": "scripts/eval/round2_bc/tabula/base/tabula/stats.py",
+      "sha256": "63a27f9be5abfc3c21a4a948c69b72c0dc5ae746fdf3d70f242664d03ef76e7c"
+    },
+    {
+      "path": "scripts/eval/round2_bc/tabula/base/tabula/table.py",
+      "sha256": "54187d610af1866f95e6a19c58ee70e71f371503daea6080cc82ae44d83f120a"
+    },
+    {
+      "path": "scripts/eval/round2_bc/tabula/base/tabula/validate.py",
+      "sha256": "63edc3b9e3b987a34aa53533116258b9230f5db5e24d1c049f7739554d716946"
+    },
+    {
+      "path": "scripts/eval/round2_bc/tabula/base/tabula/window.py",
+      "sha256": "b2b08c6a726b58732ab054f592bd6635dc96939706dff28edced725ba5f7968b"
+    },
+    {
+      "path": "scripts/eval/round2_bc/tabula/base/tabula/writer.py",
+      "sha256": "49891cb904babc211959950b69353c18d786c41daf9c2d4609511dd87371e43b"
+    },
+    {
+      "path": "scripts/eval/round2_bc/tabula/base/tests/test_aggregate.py",
+      "sha256": "bddaf962ab3d393f1bf3dd4e585aa6c765938d000f894a06e9bc796e20f7e62b"
+    },
+    {
+      "path": "scripts/eval/round2_bc/tabula/base/tests/test_clean.py",
+      "sha256": "b257a82bd097e5e020e832c7d9a61be4180a2eb82c02271a4a6e8b720783998c"
+    },
+    {
+      "path": "scripts/eval/round2_bc/tabula/base/tests/test_dates.py",
+      "sha256": "ebcb1bfc1e537cb6f236af89649050b912ec7e2c92bf8bd2eb5a2bb3fbaffa78"
+    },
+    {
+      "path": "scripts/eval/round2_bc/tabula/base/tests/test_diff.py",
+      "sha256": "8e96996e5b6a6dcb976e966fce55ce54f2b2e7c6199c97feefc5697d430dc2d5"
+    },
+    {
+      "path": "scripts/eval/round2_bc/tabula/base/tests/test_infer.py",
+      "sha256": "1914b9e6d5b58c419363a688528fe67b41d045b4cea1f99c967a1a71fc91301c"
+    },
+    {
+      "path": "scripts/eval/round2_bc/tabula/base/tests/test_join.py",
+      "sha256": "c738b813fc326aec86507caf434661aa8e2e89f3bb589c6615783333cf3ce25f"
+    },
+    {
+      "path": "scripts/eval/round2_bc/tabula/base/tests/test_query.py",
+      "sha256": "43b29770c2b7f68c1b09532f9f405de17bcab4f0d3ced77bcbd52da9b9065d75"
+    },
+    {
+      "path": "scripts/eval/round2_bc/tabula/base/tests/test_reader.py",
+      "sha256": "9c99a4eff4226df7f67b353e530752ccc59204c98ad88f3b89ba2e3fb3b981ea"
+    },
+    {
+      "path": "scripts/eval/round2_bc/tabula/base/tests/test_records.py",
+      "sha256": "df813516123e69f92f5630a0c29c783a02b31fca403d8e88333e063a226ec365"
+    },
+    {
+      "path": "scripts/eval/round2_bc/tabula/base/tests/test_render.py",
+      "sha256": "4c6255f82ac3cf39c787a9a075bafc7685566afe4429dd51e44740713055ba6f"
+    },
+    {
+      "path": "scripts/eval/round2_bc/tabula/base/tests/test_schema.py",
+      "sha256": "dc6ea7bdf32a86e7a00655c924c3337825df8897b85c1745f6763b59440a227d"
+    },
+    {
+      "path": "scripts/eval/round2_bc/tabula/base/tests/test_stats.py",
+      "sha256": "2cda0a1c2fecedb668895a85a6481b34c37da012c80c34cd0faea401cf856e40"
+    },
+    {
+      "path": "scripts/eval/round2_bc/tabula/base/tests/test_table.py",
+      "sha256": "8b85d077139fa4c12fe0537e8acba9af04b7b37becdc26fb5f5eec81956a891a"
+    },
+    {
+      "path": "scripts/eval/round2_bc/tabula/base/tests/test_validate.py",
+      "sha256": "72de0135d3ab050527ecf3291ffb2be23de5c42f2a6ee0c8d89c0aafa653a095"
+    },
+    {
+      "path": "scripts/eval/round2_bc/tabula/base/tests/test_window.py",
+      "sha256": "e0f4507a05605d8420018eef111c66da9f513f2f3167ffe034c2a4ff6b9d90bf"
+    },
+    {
+      "path": "scripts/eval/round2_bc/tabula/base/tests/test_writer.py",
+      "sha256": "8e32f88426e7273012102ec97e56b514d2bf2443ffed94953cdcd314b30b7cf8"
+    },
+    {
+      "path": "scripts/eval/round2_bc/tabula/tasks/r2b-tabula-1/hidden/tests/test_query_lists.py",
+      "sha256": "42349c0b0c2d3fb55c180d414a219bb3fe57d266ed3909e1e09c4f48b9d4c498"
+    },
+    {
+      "path": "scripts/eval/round2_bc/tabula/tasks/r2b-tabula-1/reference/tabula/query.py",
+      "sha256": "7bb7565e19d9c28019abed863fb58cbed6f741ff8369aeadd3499d8d33feb6d4"
+    },
+    {
+      "path": "scripts/eval/round2_bc/tabula/tasks/r2b-tabula-1/task.json",
+      "sha256": "fee748325acc3419a525a50dc5fc31d45dc7a4d1f132de1a0f33fd9eb271d805"
+    },
+    {
+      "path": "scripts/eval/round2_bc/tabula/tasks/r2b-tabula-10/hidden/tests/test_typed_fields.py",
+      "sha256": "1e9a31cfe84ff75b3d7a5c636bd2730bb7d7a0fbfccdd21a9f483afdb43050bb"
+    },
+    {
+      "path": "scripts/eval/round2_bc/tabula/tasks/r2b-tabula-10/reference/tabula/reader.py",
+      "sha256": "832d9b17bb0664132dc003a55306990cb4814e15e5a2c54ad72f7b178d08da30"
+    },
+    {
+      "path": "scripts/eval/round2_bc/tabula/tasks/r2b-tabula-10/reference/tabula/writer.py",
+      "sha256": "d8361871b6527766688b89a516ead7a27e23ed5202d8a36c2d109b975b7b1966"
+    },
+    {
+      "path": "scripts/eval/round2_bc/tabula/tasks/r2b-tabula-10/task.json",
+      "sha256": "3e0afb61e52c0f4fc9cff1356eaf2b7002d26b287df803b88eca114d8d431cb3"
+    },
+    {
+      "path": "scripts/eval/round2_bc/tabula/tasks/r2b-tabula-2/hidden/tests/test_join_checks.py",
+      "sha256": "0f5b6ca4de086f998d9175334cb1e83d0a00a4e0b46d950746f7df646de5c549"
+    },
+    {
+      "path": "scripts/eval/round2_bc/tabula/tasks/r2b-tabula-2/reference/tabula/__init__.py",
+      "sha256": "09250fab7ae62182b66a0402d0efdd9126db78103e3a550d0289397173e2caaf"
+    },
+    {
+      "path": "scripts/eval/round2_bc/tabula/tasks/r2b-tabula-2/reference/tabula/errors.py",
+      "sha256": "f1ab27e78dc3e3e819e10b7d763062d20b26218bc21625b8e0568ccf7bbf4848"
+    },
+    {
+      "path": "scripts/eval/round2_bc/tabula/tasks/r2b-tabula-2/reference/tabula/join.py",
+      "sha256": "d9eda13ff1b66eedba47b1f573e55c091efdd5b80286f89407534af0639206c4"
+    },
+    {
+      "path": "scripts/eval/round2_bc/tabula/tasks/r2b-tabula-2/task.json",
+      "sha256": "2cb5ef920076b02cbce1b6a57c4dec5a6ec13e96c2fe8bdb201575d324d0ac25"
+    },
+    {
+      "path": "scripts/eval/round2_bc/tabula/tasks/r2b-tabula-3/hidden/tests/test_comment_lines.py",
+      "sha256": "8e255bb02cb6b86507cc3a43eed749de5141bb1ad778965618e9afc21b1d1024"
+    },
+    {
+      "path": "scripts/eval/round2_bc/tabula/tasks/r2b-tabula-3/reference/tabula/reader.py",
+      "sha256": "49f26941555e32c8b7795ff9f6259e82a469f1e57a4f52fb04cd2d76f719c8d9"
+    },
+    {
+      "path": "scripts/eval/round2_bc/tabula/tasks/r2b-tabula-3/reference/tabula/writer.py",
+      "sha256": "f97696c67be3d248ec91ed7116e072ff6213da91eabfb6b4c88b37d96bc649a1"
+    },
+    {
+      "path": "scripts/eval/round2_bc/tabula/tasks/r2b-tabula-3/task.json",
+      "sha256": "9e8b819fb80cbf62a392925bb9de6bb0fc209030ad71b3cbbe73964cf92e5e13"
+    },
+    {
+      "path": "scripts/eval/round2_bc/tabula/tasks/r2b-tabula-4/hidden/tests/test_group_extras.py",
+      "sha256": "bd7fe9e3f6db08fa318246d5d2ca2f86c421330b635e57cf0478132e7abe4051"
+    },
+    {
+      "path": "scripts/eval/round2_bc/tabula/tasks/r2b-tabula-4/reference/tabula/aggregate.py",
+      "sha256": "8cc0338fbf8860033389d51dccecc15e3cddb79cb9a6d1ccd82ffebdaff5c9e0"
+    },
+    {
+      "path": "scripts/eval/round2_bc/tabula/tasks/r2b-tabula-4/task.json",
+      "sha256": "b8dd1fa092858bc890e0d5148bd9c72d392551cb670454407326a23ec66bc090"
+    },
+    {
+      "path": "scripts/eval/round2_bc/tabula/tasks/r2b-tabula-5/hidden/tests/test_diff_options.py",
+      "sha256": "3333548f54ed4d1e249bf577b14cca3e2ddb1fee14e9f41c406dd5431fbb3ce9"
+    },
+    {
+      "path": "scripts/eval/round2_bc/tabula/tasks/r2b-tabula-5/reference/tabula/diff.py",
+      "sha256": "c7f87ce7b87122467a912b6ce1ae5e6d1b278c722aef5c548421d29c7e9e747a"
+    },
+    {
+      "path": "scripts/eval/round2_bc/tabula/tasks/r2b-tabula-5/task.json",
+      "sha256": "30323a7dfd5caf3dec0b5e58555a8827fcd8ea0a18ad2494d496f015868dbf22"
+    },
+    {
+      "path": "scripts/eval/round2_bc/tabula/tasks/r2b-tabula-6/hidden/tests/test_apportioned_shares.py",
+      "sha256": "9c4963bed3e043b0ac83b002bbf40db5ee435c838b93f77344e540ee7a3e73d7"
+    },
+    {
+      "path": "scripts/eval/round2_bc/tabula/tasks/r2b-tabula-6/reference/tabula/aggregate.py",
+      "sha256": "429a70f44e3f6c6a1431287756bd9d94b797790b9f7c5f9246785e9dcec97c67"
+    },
+    {
+      "path": "scripts/eval/round2_bc/tabula/tasks/r2b-tabula-6/reference/tabula/stats.py",
+      "sha256": "ff40556474fbb278bd5ab73616e71f6dd3828eacef848eaf949df0e032585201"
+    },
+    {
+      "path": "scripts/eval/round2_bc/tabula/tasks/r2b-tabula-6/reference/tabula/window.py",
+      "sha256": "786ffab44af352046514c1c53426267ecb3876767672ab42eaf45b53c8fda3fe"
+    },
+    {
+      "path": "scripts/eval/round2_bc/tabula/tasks/r2b-tabula-6/task.json",
+      "sha256": "62b48f823ed9c058189698678175a0f0d8b2528b4af8b3dfb5badb18a4c5051d"
+    },
+    {
+      "path": "scripts/eval/round2_bc/tabula/tasks/r2b-tabula-7/hidden/tests/test_date_kind.py",
+      "sha256": "ed944cfbf4175fbad3b49a5f48274b8bc03c925e95d4b9a0faf4a2b70d8732ad"
+    },
+    {
+      "path": "scripts/eval/round2_bc/tabula/tasks/r2b-tabula-7/reference/tabula/infer.py",
+      "sha256": "3fd4e09c6a8d9c5cd0f847b0f08561e2438fff0cbc4e85ccfae02bad77ee2992"
+    },
+    {
+      "path": "scripts/eval/round2_bc/tabula/tasks/r2b-tabula-7/reference/tabula/records.py",
+      "sha256": "20924626dec9ee845185955b7d97fc65dcaa03745eab115c599d798ce619b4b1"
+    },
+    {
+      "path": "scripts/eval/round2_bc/tabula/tasks/r2b-tabula-7/reference/tabula/schema.py",
+      "sha256": "d4ae0a1caaf9e4f3d71c3c6e68e918b0e8c5b7ad205685c00ef8fd601aac2d88"
+    },
+    {
+      "path": "scripts/eval/round2_bc/tabula/tasks/r2b-tabula-7/task.json",
+      "sha256": "0a09ee1829e12115cc4598e610b55a89355c895cb341a4035330fe55dc6ace64"
+    },
+    {
+      "path": "scripts/eval/round2_bc/tabula/tasks/r2b-tabula-8/hidden/tests/test_nested_records.py",
+      "sha256": "0c72164f6de93c1ad68042cd9352d4eb5de98a889cd8c821e38b97e25fc5eb0e"
+    },
+    {
+      "path": "scripts/eval/round2_bc/tabula/tasks/r2b-tabula-8/reference/tabula/records.py",
+      "sha256": "afed1b4d636e96d4807c475234279b894344b46e89db8d2c9aa908d0f87de61a"
+    },
+    {
+      "path": "scripts/eval/round2_bc/tabula/tasks/r2b-tabula-8/task.json",
+      "sha256": "a089507674453922d29d3c3a49bd0f7f7deda1ecbdccf6d4badab5dd873d8915"
+    },
+    {
+      "path": "scripts/eval/round2_bc/tabula/tasks/r2b-tabula-9/hidden/tests/test_fill_methods.py",
+      "sha256": "3cd2815910f06bc3ca9e2f56f58bed81627add30ca5f13fe2dd5f7c5366f20ea"
+    },
+    {
+      "path": "scripts/eval/round2_bc/tabula/tasks/r2b-tabula-9/reference/tabula/clean.py",
+      "sha256": "24e61ccb2f26130b439d6c8b3a5c8dcb255f8bf1872bf46a7afa4fdf21526d1b"
+    },
+    {
+      "path": "scripts/eval/round2_bc/tabula/tasks/r2b-tabula-9/task.json",
+      "sha256": "5876da6847745bcc80146438ce7226109bc28029ca15e1436084cb4ab7459dc9"
+    },
+    {
+      "path": "scripts/eval/round2_bc/tabula/tasks/r2bd-tabula-1/hidden/tests/test_lines_and_nulls.py",
+      "sha256": "828bdd5a3290df605f4f8eff1c7850d751d07035c841ddcc483f632279718aeb"
+    },
+    {
+      "path": "scripts/eval/round2_bc/tabula/tasks/r2bd-tabula-1/reference/tabula/errors.py",
+      "sha256": "dac9be8de26a10ed79ca3ca3ac6395e56b18d62456f8070aa38a9ed0b6da72c1"
+    },
+    {
+      "path": "scripts/eval/round2_bc/tabula/tasks/r2bd-tabula-1/reference/tabula/reader.py",
+      "sha256": "6866f18423e8c670651cbcb82366506aa72724fa68165faabbb951c10951529f"
+    },
+    {
+      "path": "scripts/eval/round2_bc/tabula/tasks/r2bd-tabula-1/reference/tabula/schema.py",
+      "sha256": "92ee3020910d8e3f0fcd6ab6083298af9cfb065a2334d965898bbf08206d331b"
+    },
+    {
+      "path": "scripts/eval/round2_bc/tabula/tasks/r2bd-tabula-1/reference/tabula/table.py",
+      "sha256": "b7520dcee26f95f7f73a5d1e58b97cbc3b9efc75021ef351ef4672161b7065c4"
+    },
+    {
+      "path": "scripts/eval/round2_bc/tabula/tasks/r2bd-tabula-1/task.json",
+      "sha256": "f7a4c3ca842089b04597493fa84be569161daed73dd80ce9f093acd52dec5805"
+    },
+    {
+      "path": "scripts/eval/round2_bc/tabula/tasks/r2bd-tabula-2/hidden/tests/test_render.py",
+      "sha256": "3caad007f4986d77fccdc31b41d31fc33b1921e395ca4e80c785fb1bb8c29b17"
+    },
+    {
+      "path": "scripts/eval/round2_bc/tabula/tasks/r2bd-tabula-2/hidden/tests/test_sort_keys.py",
+      "sha256": "7de938cc77ae0a0a47bff2743d18323c21e297c6a3bec83be65c1ceb33d15c42"
+    },
+    {
+      "path": "scripts/eval/round2_bc/tabula/tasks/r2bd-tabula-2/reference/tabula/__init__.py",
+      "sha256": "c9cc8e0959827ec003eec136f203cbbdbba143a001148cd40206ff5f4d1a2176"
+    },
+    {
+      "path": "scripts/eval/round2_bc/tabula/tasks/r2bd-tabula-2/reference/tabula/render.py",
+      "sha256": "cda6ea9fe90a868bd56841a34fa22b84f2f8871d748e08bfef719b8454a229d7"
+    },
+    {
+      "path": "scripts/eval/round2_bc/tabula/tasks/r2bd-tabula-2/reference/tabula/table.py",
+      "sha256": "c039292aa7c979de6c7665d0c254688676a748f3e4bd35430fc1c062ffa5c178"
+    },
+    {
+      "path": "scripts/eval/round2_bc/tabula/tasks/r2bd-tabula-2/task.json",
+      "sha256": "916e30deb494b9fed4dd4da12ffa2e279f2b7a445df2c728d7ef1d65a05e5a07"
+    }
+  ],
+  "sha256": "a522a2cf61c161d19f6afdc5ca0b311045f0d8b3678a7cf1624fd74b03f9a0de"
+}

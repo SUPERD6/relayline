@@ -1,0 +1,523 @@
+{
+  "rule": "the task's own distribution is absent from --ext-python, or its installed release predates the commit; the scan for vendored copies ran and read everything (vendored_scan ok). Vendored copies of the task's package (#417; vendored copies: every folder named _vendor/vendor/_vendored/vendored under --ext-python's site-packages, user site (when enabled) and ensurepip's bundled wheels, and in every .whl there (e.g. virtualenv's embedded pip/setuptools wheels), is read without changing it; each top-level package or module in such a folder is one copy, and so is each top-level package of a .whl; a copy is named by its folder or module and by the distributions *.dist-info top_level.txt maps to it; its version comes from vendor.txt (matched by name), *.dist-info METADATA, else __version__; a copy belongs to a task when one of its names equals the task's project or a top-level package of the parent's tree (root or src/ only, tests/docs/setup excluded); a file or wheel that cannot be read is a scan error) are listed with their release date (after_commit null and release_unknown when a version has no date) and do not change ok: select compares their files with each commit (rule.installed_overlap)",
+  "vendored_scan": "ok",
+  "tasks": [
+    {
+      "id": "r2-jpadilla__pyjwt-384c945065ad",
+      "project": "pyjwt",
+      "installed": "2.13.0",
+      "released": 1779393275,
+      "ok": true,
+      "vendored": []
+    },
+    {
+      "id": "r2-jpadilla__pyjwt-ba4853a75fb9",
+      "project": "pyjwt",
+      "installed": "2.13.0",
+      "released": 1779393275,
+      "ok": true,
+      "vendored": []
+    },
+    {
+      "id": "r2-python-jsonschema__jsonschema-0a845d0db397",
+      "project": "jsonschema",
+      "installed": "4.26.0",
+      "released": 1767793265,
+      "ok": true,
+      "vendored": []
+    },
+    {
+      "id": "r2-jd__tenacity-389aab8b2688",
+      "project": "tenacity",
+      "installed": "9.1.4",
+      "released": 1770461132,
+      "ok": true,
+      "vendored": [
+        {
+          "where": "ensurepip/_bundled/pip-24.0-py3-none-any.whl!pip/_vendor/tenacity",
+          "version": "8.2.2",
+          "released": 1677594126,
+          "after_commit": false
+        }
+      ]
+    },
+    {
+      "id": "r2-jd__tenacity-a09999688c8d",
+      "project": "tenacity",
+      "installed": "9.1.4",
+      "released": 1770461132,
+      "ok": true,
+      "vendored": [
+        {
+          "where": "ensurepip/_bundled/pip-24.0-py3-none-any.whl!pip/_vendor/tenacity",
+          "version": "8.2.2",
+          "released": 1677594126,
+          "after_commit": false
+        }
+      ]
+    },
+    {
+      "id": "r2-pypa__wheel-0ca6f24ed0f7",
+      "project": "wheel",
+      "installed": "0.47.0",
+      "released": 1776873086,
+      "ok": true,
+      "vendored": [
+        {
+          "where": "setuptools/_vendor/wheel",
+          "version": "0.46.3",
+          "released": 1769085588,
+          "after_commit": false
+        },
+        {
+          "where": "virtualenv/seed/wheels/embed/setuptools-82.0.1-py3-none-any.whl!setuptools/_vendor/wheel",
+          "version": "0.46.3",
+          "released": 1769085588,
+          "after_commit": false
+        }
+      ]
+    },
+    {
+      "id": "r2-facelessuser__soupsieve-e26b979621aa",
+      "project": "soupsieve",
+      "installed": "2.8.4",
+      "released": 1779630955,
+      "ok": true,
+      "vendored": []
+    },
+    {
+      "id": "r2-facelessuser__soupsieve-eae8fabba0df",
+      "project": "soupsieve",
+      "installed": "2.8.4",
+      "released": 1779630955,
+      "ok": true,
+      "vendored": []
+    },
+    {
+      "id": "r2-facelessuser__soupsieve-7570dd60cec6",
+      "project": "soupsieve",
+      "installed": "2.8.4",
+      "released": 1779630955,
+      "ok": true,
+      "vendored": []
+    },
+    {
+      "id": "r2-facelessuser__soupsieve-7b0f637cf6ee",
+      "project": "soupsieve",
+      "installed": "2.8.4",
+      "released": 1779630955,
+      "ok": true,
+      "vendored": []
+    },
+    {
+      "id": "r2-facelessuser__soupsieve-e7af79d052e6",
+      "project": "soupsieve",
+      "installed": "2.8.4",
+      "released": 1779630955,
+      "ok": true,
+      "vendored": []
+    },
+    {
+      "id": "r2-facelessuser__soupsieve-29af965ca723",
+      "project": "soupsieve",
+      "installed": "2.8.4",
+      "released": 1779630955,
+      "ok": true,
+      "vendored": []
+    },
+    {
+      "id": "r2-tkem__cachetools-73883976431e",
+      "project": "cachetools",
+      "installed": "7.1.4",
+      "released": 1779403241,
+      "ok": true,
+      "vendored": []
+    },
+    {
+      "id": "r2-rr-__docstring_parser-2d3b4f2416de",
+      "project": "docstring-parser",
+      "installed": "0.18.0",
+      "released": 1776139758,
+      "ok": true,
+      "vendored": []
+    },
+    {
+      "id": "r2-rr-__docstring_parser-c83f34567f87",
+      "project": "docstring-parser",
+      "installed": "0.18.0",
+      "released": 1776139758,
+      "ok": true,
+      "vendored": []
+    },
+    {
+      "id": "r2-rr-__docstring_parser-61a6228b7f03",
+      "project": "docstring-parser",
+      "installed": "0.18.0",
+      "released": 1776139758,
+      "ok": true,
+      "vendored": []
+    },
+    {
+      "id": "r2-rr-__docstring_parser-1c7a902cbf51",
+      "project": "docstring-parser",
+      "installed": "0.18.0",
+      "released": 1776139758,
+      "ok": true,
+      "vendored": []
+    },
+    {
+      "id": "r2-rr-__docstring_parser-c9356af76a00",
+      "project": "docstring-parser",
+      "installed": "0.18.0",
+      "released": 1776139758,
+      "ok": true,
+      "vendored": []
+    },
+    {
+      "id": "r2-rr-__docstring_parser-42cc00238382",
+      "project": "docstring-parser",
+      "installed": "0.18.0",
+      "released": 1776139758,
+      "ok": true,
+      "vendored": []
+    },
+    {
+      "id": "r2-oauthlib__oauthlib-2388af80a399",
+      "project": "oauthlib",
+      "installed": "3.3.1",
+      "released": 1750373286,
+      "ok": true,
+      "vendored": []
+    },
+    {
+      "id": "r2-oauthlib__oauthlib-c951a1d09f99",
+      "project": "oauthlib",
+      "installed": "3.3.1",
+      "released": 1750373286,
+      "ok": true,
+      "vendored": []
+    },
+    {
+      "id": "r2-networkx__networkx-416c3e26da05",
+      "project": "networkx",
+      "installed": "3.6.1",
+      "released": 1765213358,
+      "ok": true,
+      "vendored": []
+    },
+    {
+      "id": "r2-networkx__networkx-db84a87dff15",
+      "project": "networkx",
+      "installed": "3.6.1",
+      "released": 1765213358,
+      "ok": true,
+      "vendored": []
+    },
+    {
+      "id": "r2-networkx__networkx-d8081795e134",
+      "project": "networkx",
+      "installed": "3.6.1",
+      "released": 1765213358,
+      "ok": true,
+      "vendored": []
+    },
+    {
+      "id": "r2-sqlalchemy__mako-a162c9c38b12",
+      "project": "mako",
+      "installed": "1.3.12",
+      "released": 1777402868,
+      "ok": true,
+      "vendored": []
+    },
+    {
+      "id": "r2-sqlalchemy__alembic-326e8fb37aa6",
+      "project": "alembic",
+      "installed": "1.18.5",
+      "released": 1782400854,
+      "ok": true,
+      "vendored": []
+    },
+    {
+      "id": "r2-sqlalchemy__alembic-04619984e6d4",
+      "project": "alembic",
+      "installed": "1.18.5",
+      "released": 1782400854,
+      "ok": true,
+      "vendored": []
+    },
+    {
+      "id": "r2-sqlalchemy__alembic-252bf0ae69db",
+      "project": "alembic",
+      "installed": "1.18.5",
+      "released": 1782400854,
+      "ok": true,
+      "vendored": []
+    },
+    {
+      "id": "r2-sqlalchemy__alembic-674a4480b87d",
+      "project": "alembic",
+      "installed": "1.18.5",
+      "released": 1782400854,
+      "ok": true,
+      "vendored": []
+    },
+    {
+      "id": "r2-pyca__pyopenssl-07c8f27cab7d",
+      "project": "pyopenssl",
+      "installed": "26.3.0",
+      "released": 1781296085,
+      "ok": true,
+      "vendored": []
+    },
+    {
+      "id": "r2-regebro__tzlocal-b5349f69d085",
+      "project": "tzlocal",
+      "installed": null,
+      "ok": true,
+      "vendored": []
+    },
+    {
+      "id": "r2-jmcnamara__xlsxwriter-5167156db1cc",
+      "project": "xlsxwriter",
+      "installed": "3.2.9",
+      "released": 1757981780,
+      "ok": true,
+      "vendored": []
+    },
+    {
+      "id": "r2-django__asgiref-deda0d4fd8d3",
+      "project": "asgiref",
+      "installed": "3.11.1",
+      "released": 1770125413,
+      "ok": true,
+      "vendored": []
+    },
+    {
+      "id": "r2-ipython__traitlets-5b398bea0380",
+      "project": "traitlets",
+      "installed": "5.15.1",
+      "released": 1780489564,
+      "ok": true,
+      "vendored": []
+    },
+    {
+      "id": "r2-ipython__traitlets-58f4301d52d3",
+      "project": "traitlets",
+      "installed": "5.15.1",
+      "released": 1780489564,
+      "ok": true,
+      "vendored": []
+    },
+    {
+      "id": "r2-andialbrecht__sqlparse-be3b7a68d07a",
+      "project": "sqlparse",
+      "installed": "0.5.5",
+      "released": 1766128665,
+      "ok": true,
+      "vendored": []
+    },
+    {
+      "id": "r2-andialbrecht__sqlparse-3512a9d86912",
+      "project": "sqlparse",
+      "installed": "0.5.5",
+      "released": 1766128665,
+      "ok": true,
+      "vendored": []
+    },
+    {
+      "id": "r2-andialbrecht__sqlparse-519e41698a17",
+      "project": "sqlparse",
+      "installed": "0.5.5",
+      "released": 1766128665,
+      "ok": true,
+      "vendored": []
+    },
+    {
+      "id": "r2-jfhbrook__pyee-10df5b1ce02c",
+      "project": "pyee",
+      "installed": "13.0.1",
+      "released": 1771103546,
+      "ok": true,
+      "vendored": []
+    },
+    {
+      "id": "r2-nhairs__python-json-logger-125a0e957c59",
+      "project": "python-json-logger",
+      "installed": "4.1.0",
+      "released": 1774759195,
+      "ok": true,
+      "vendored": []
+    },
+    {
+      "id": "r2-nhairs__python-json-logger-e76fa4092852",
+      "project": "python-json-logger",
+      "installed": "4.1.0",
+      "released": 1774759195,
+      "ok": true,
+      "vendored": []
+    },
+    {
+      "id": "r2-nhairs__python-json-logger-cebb72f3f022",
+      "project": "python-json-logger",
+      "installed": "4.1.0",
+      "released": 1774759195,
+      "ok": true,
+      "vendored": []
+    },
+    {
+      "id": "r2b-cronlite-1",
+      "project": "cronlite",
+      "installed": null,
+      "ok": true,
+      "vendored": []
+    },
+    {
+      "id": "r2b-cronlite-2",
+      "project": "cronlite",
+      "installed": null,
+      "ok": true,
+      "vendored": []
+    },
+    {
+      "id": "r2b-cronlite-3",
+      "project": "cronlite",
+      "installed": null,
+      "ok": true,
+      "vendored": []
+    },
+    {
+      "id": "r2b-cronlite-4",
+      "project": "cronlite",
+      "installed": null,
+      "ok": true,
+      "vendored": []
+    },
+    {
+      "id": "r2b-cronlite-5",
+      "project": "cronlite",
+      "installed": null,
+      "ok": true,
+      "vendored": []
+    },
+    {
+      "id": "r2b-cronlite-6",
+      "project": "cronlite",
+      "installed": null,
+      "ok": true,
+      "vendored": []
+    },
+    {
+      "id": "r2b-cronlite-7",
+      "project": "cronlite",
+      "installed": null,
+      "ok": true,
+      "vendored": []
+    },
+    {
+      "id": "r2b-cronlite-8",
+      "project": "cronlite",
+      "installed": null,
+      "ok": true,
+      "vendored": []
+    },
+    {
+      "id": "r2b-tabula-1",
+      "project": "tabula",
+      "installed": null,
+      "ok": true,
+      "vendored": []
+    },
+    {
+      "id": "r2b-tabula-10",
+      "project": "tabula",
+      "installed": null,
+      "ok": true,
+      "vendored": []
+    },
+    {
+      "id": "r2b-tabula-2",
+      "project": "tabula",
+      "installed": null,
+      "ok": true,
+      "vendored": []
+    },
+    {
+      "id": "r2b-tabula-3",
+      "project": "tabula",
+      "installed": null,
+      "ok": true,
+      "vendored": []
+    },
+    {
+      "id": "r2b-tabula-4",
+      "project": "tabula",
+      "installed": null,
+      "ok": true,
+      "vendored": []
+    },
+    {
+      "id": "r2b-tabula-5",
+      "project": "tabula",
+      "installed": null,
+      "ok": true,
+      "vendored": []
+    },
+    {
+      "id": "r2b-tabula-6",
+      "project": "tabula",
+      "installed": null,
+      "ok": true,
+      "vendored": []
+    },
+    {
+      "id": "r2b-tabula-7",
+      "project": "tabula",
+      "installed": null,
+      "ok": true,
+      "vendored": []
+    },
+    {
+      "id": "r2b-tabula-8",
+      "project": "tabula",
+      "installed": null,
+      "ok": true,
+      "vendored": []
+    },
+    {
+      "id": "r2b-tabula-9",
+      "project": "tabula",
+      "installed": null,
+      "ok": true,
+      "vendored": []
+    },
+    {
+      "id": "r2bd-cronlite-1",
+      "project": "cronlite",
+      "installed": null,
+      "ok": true,
+      "vendored": []
+    },
+    {
+      "id": "r2bd-cronlite-2",
+      "project": "cronlite",
+      "installed": null,
+      "ok": true,
+      "vendored": []
+    },
+    {
+      "id": "r2bd-tabula-1",
+      "project": "tabula",
+      "installed": null,
+      "ok": true,
+      "vendored": []
+    },
+    {
+      "id": "r2bd-tabula-2",
+      "project": "tabula",
+      "installed": null,
+      "ok": true,
+      "vendored": []
+    }
+  ],
+  "ok": true
+}
