@@ -339,7 +339,8 @@
    "test_modularity_selfloops": "Weights and self-loops must matter: large self-loop weights on a few nodes change the resulting partition, while small self-loop weights do not change it, for both metrics on undirected graphs and for modularity on a digraph (where a weighted run with large self-loops differs from an unweighted run, which keeps two-node reciprocal pairs and a directed triangle as communities and leaves isolated nodes alone); a node with a heavy self-loop and only a light edge to another node stays alone under modularity at resolution 2.",
    "test_modularity_twom_instead_of_m": "For undirected modularity, use the total degree (2m) in the normalisation; a two-node graph with a single edge and resolution 1 must end as one community of both nodes.",
    "test_cpm_node_weights_on_G": "With a fixed `seed`, results are reproducible, and with suitable seeds and resolutions they agree with Louvain and the planted communities on the LFR and barbell examples, coverage on the test graphs stays at least 45% at small resolutions, modularity partitions grow in number as resolution increases, and the documented karate club and CPM examples give stable partitions."
-  }
+  },
+  "excluded": "hidden assertions compare partitions produced with fixed seeds, which depend on the reference implementation's order of random draws; the brief cannot cover them, against the rule that the brief covers every hidden assertion (coordinator decision 2026-11-20, #375)"
  },
  "r2-networkx__networkx-d8081795e134": {
   "commit": "d8081795e134",
