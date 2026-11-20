@@ -708,23 +708,82 @@ def leftovers(before: list[dict] | None, after: list[dict] | None, markers: list
     return out
 
 
-def kill(pids: list[int]) -> list[int]:
-    """Kill these processes and their trees; returns the ones still alive afterwards."""
-    for pid in pids:
-        try:
-            if os.name == "nt":
-                subprocess.run(["taskkill", "/T", "/F", "/PID", str(pid)], capture_output=True, timeout=30)
-            else:
-                try:                       # a detached leftover leads its own process group: take the group too
-                    if os.getpgid(pid) == pid and pid != os.getpgid(0):
-                        os.killpg(pid, signal.SIGKILL)
-                except OSError:
-                    pass
-                os.kill(pid, signal.SIGKILL)
-        except (OSError, subprocess.SubprocessError):
-            pass
-    time.sleep(0.5 if pids else 0)
-    return [pid for pid in pids if alive(pid)]
+_SYNCHRONIZE_QUERY = 0x00100000 | 0x1000      # SYNCHRONIZE | PROCESS_QUERY_LIMITED_INFORMATION
+
+
+def _wait_gone(k, held: list, unopened: list[int], end: float) -> list[int]:
+    """Wait until `end` (time.monotonic) for the processes in `held` ((pid, handle) pairs, opened before the kill so
+    the handle is that process even if its pid is reused) to exit; `unopened` pids could not be opened, so they are
+    checked by pid until the time runs out. Returns the pids still running. The caller closes the handles (#362, #396)."""
+    left = []
+    for pid, h in held:
+        ms = max(0, int((end - time.monotonic()) * 1000))
+        if k.WaitForSingleObject(h, ms) != 0:                    # 0 = WAIT_OBJECT_0: the process has exited
+            left.append(pid)
+    while unopened:
+        unopened = [pid for pid in unopened if alive(pid)]
+        if not unopened or time.monotonic() >= end:
+            break
+        time.sleep(0.1)
+    return left + unopened
+
+
+def _wait_kernel():
+    """kernel32 with the signatures kill() needs (a separate load from Job's; tests replace it); None if unavailable."""
+    try:
+        import ctypes
+        from ctypes import wintypes
+        k = ctypes.WinDLL("kernel32", use_last_error=True)
+        k.OpenProcess.restype = wintypes.HANDLE
+        k.OpenProcess.argtypes = (wintypes.DWORD, wintypes.BOOL, wintypes.DWORD)
+        k.WaitForSingleObject.restype = wintypes.DWORD
+        k.WaitForSingleObject.argtypes = (wintypes.HANDLE, wintypes.DWORD)
+        k.CloseHandle.argtypes = (wintypes.HANDLE,)
+        return k, ctypes
+    except (OSError, AttributeError):
+        return None
+
+
+def kill(pids: list[int], wait: float = 10.0) -> list[int]:
+    """Kill these processes and their trees; returns the ones still alive afterwards. On Windows TerminateProcess is
+    asynchronous and a pid can be handed to a new process, so a handle to each process is opened before the kill and
+    waited on for up to `wait` seconds, not a fixed sleep plus a lookup by pid (#396). A process that cannot be
+    opened is checked by pid instead (only ERROR_INVALID_PARAMETER, 87, means it is already gone). All handles are
+    opened before the first taskkill: killing a parent takes its children down too, and while a handle is open
+    Windows does not reuse that pid, so a later `taskkill /T /F /PID` cannot hit an unrelated process that was
+    handed a freed pid. The window between the caller listing the pids (after_unit's snapshot()) and the opens
+    here, some tens of milliseconds, is unchanged."""
+    held, unopened = [], []
+    win = _wait_kernel() if os.name == "nt" else None
+    try:
+        if win:
+            k, ct = win
+            for pid in pids:
+                h = k.OpenProcess(_SYNCHRONIZE_QUERY, False, pid)
+                if h:
+                    held.append((pid, h))
+                elif ct.get_last_error() != 87:
+                    unopened.append(pid)
+        for pid in pids:
+            try:
+                if os.name == "nt":
+                    subprocess.run(["taskkill", "/T", "/F", "/PID", str(pid)], capture_output=True, timeout=30)
+                else:
+                    try:                   # a detached leftover leads its own process group: take the group too
+                        if os.getpgid(pid) == pid and pid != os.getpgid(0):
+                            os.killpg(pid, signal.SIGKILL)
+                    except OSError:
+                        pass
+                    os.kill(pid, signal.SIGKILL)
+            except (OSError, subprocess.SubprocessError):
+                pass
+        if win:
+            return _wait_gone(win[0], held, unopened, time.monotonic() + wait)
+        time.sleep(0.5 if pids else 0)
+        return [pid for pid in pids if alive(pid)]
+    finally:
+        for _pid, h in held:
+            win[0].CloseHandle(h)
 
 
 def alive(pid: int) -> bool:
@@ -880,12 +939,12 @@ class Job:
         if not self.h:
             return []
         ct = self.ctypes
-        held, unopened, left = [], [], []
+        held, unopened = [], []
         try:
             for pid in self.pids():
                 if pid == os.getpid():
                     continue
-                h = self.k.OpenProcess(0x00100000 | 0x1000, False, pid)   # SYNCHRONIZE | PROCESS_QUERY_LIMITED_INFO
+                h = self.k.OpenProcess(_SYNCHRONIZE_QUERY, False, pid)
                 if not h:
                     if ct.get_last_error() != 87:     # 87 = ERROR_INVALID_PARAMETER: no such pid, it is gone
                         unopened.append(pid)          # e.g. 5 = access denied: still there, check it by pid below
@@ -896,17 +955,7 @@ class Job:
                 else:                                 # the pid was reused between list and open
                     self.k.CloseHandle(h)
             self.k.TerminateJobObject(self.h, 1)
-            end = time.monotonic() + wait
-            for pid, h in held:
-                ms = max(0, int((end - time.monotonic()) * 1000))
-                if self.k.WaitForSingleObject(h, ms) != 0:           # 0 = WAIT_OBJECT_0: the process has exited
-                    left.append(pid)
-            while unopened:
-                unopened = [pid for pid in unopened if alive(pid)]
-                if not unopened or time.monotonic() >= end:
-                    break
-                time.sleep(0.1)
-            left += unopened
+            left = _wait_gone(self.k, held, unopened, time.monotonic() + wait)
         finally:                                      # also on Ctrl-C during the wait: no handle or job is leaked
             for _pid, h in held:
                 self.k.CloseHandle(h)
@@ -1107,9 +1156,19 @@ def canon(text: str, home: Path) -> str:
     t = re.sub(r"(?i)\$\{?env:userprofile\}?|%userprofile%|%homedrive%%homepath%|\$\{home\}|\$home\b|"
                r"\$\{userprofile\}|\$userprofile\b", lambda _m: h, t)
     t = re.sub(_B + r"~(?=/|$|[\s\"'`;)])", lambda m: m.group(1) + h, t)
+    if os.name == "nt":                                              # a URL's "://" is not a doubled slash
+        t = re.sub(r"(?<=[A-Za-z0-9+.-]{2}):/{2,}", "\0", t)
     t = re.sub(r"/{2,}", "/", t)
     if os.name == "nt":
-        t = re.sub(_B + r"/([A-Za-z])(?=/|$|[\s\"'`;)])", lambda m: f"{m.group(1)}{m.group(2)}:", t)
+        def _drive(m: re.Match) -> str:
+            # "/c/..." is Git Bash's drive form, but not right after an existing drive ("D:/a/x"; a "/" before the
+            # letter makes it a folder name, as in "PATH=/a:/c/x"). It reads the outer `t`, which the re.sub below
+            # is still scanning: do not rebind `t` before that call returns.
+            if m.group(1) == ":" and re.search(r"(?:^|[^A-Za-z0-9/])[A-Za-z]$", t[:m.start(1)]):
+                return m.group(0)
+            return f"{m.group(1)}{m.group(2)}:"
+        t = re.sub(_B + r"/([A-Za-z])(?=/|$|[\s\"'`;)])", _drive, t)
+    t = t.replace("\0", "://")
     return t.lower() if os.name == "nt" else t
 
 

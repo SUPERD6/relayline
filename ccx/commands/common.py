@@ -370,8 +370,16 @@ def resolve(spec: dict, caller: str, p, cfg: dict) -> tuple[dict | None, dict]:
                         max_escalations=int(cfg["defaults"].get("max_escalations", 1)), mode=spec.get("mode"),
                         kind=spec.get("kind"), quota=spec.get("quota"), risk=spec.get("risk"))
         route["kind"] = learn.task_kind(spec.get("mode"), spec.get("kind"))
+        from ..plan import cold_start
+        cold = cold_start(p, cfg, spec, route, pk, eligible,      # #426: experimental, off unless switched on
+                          max_esc=int(cfg["defaults"].get("max_escalations", 1)))
+        if cold:
+            pk = {**pk, **{k: cold[k] for k in ("rung", "agent", "model", "effort", "ladder")}}
         route.update(source="task-routing", rung=pk["rung"], ladder=pk["ladder"], p=pk["p"],
                      chain_p=pk["chain_p"], expected_usd=pk.get("expected_usd"))
+        if cold:
+            for key in ("p", "chain_p", "expected_usd"):          # task-routing's odds were for another rung
+                route.pop(key, None)
         if pk.get("stale"):
             route["stale"] = pk["stale"]
         if pk.get("advice") and not spec.get("force") and spec.get("person_to") \
@@ -396,6 +404,7 @@ def resolve(spec: dict, caller: str, p, cfg: dict) -> tuple[dict | None, dict]:
                         and not explicit and random.random() < rate)
         if self_run:
             route["ab"] = _ab_open(p, caller, route["b"], pk["rung"], spec.get("brief", ""),
+                                   size=ab_size_signals(route, spec),
                                    **({"trial": tr["id"], "bucket": route["bucket"], "kind": route["kind"],
                                        "lead_session": lead_session_id(caller)} if tr else {}))
             why = (f"the {tr['id']} comparison puts about {tr['rate']:.0%} of tasks on your side" if tr else
@@ -474,12 +483,30 @@ def picked_tier(cfg: dict) -> str:
     return v if v in ("save", "balanced", "fast", "cheapest") else ""
 
 
-def _ab_open(p, caller: str, b: float, rung: str, brief: str, **extra) -> str:
+SIZE_SIGNALS = ("estimate_files", "estimate_minutes", "band", "coupling", "clarity")   # the keys, in one place
+
+
+def ab_size_signals(route: dict, spec: dict) -> dict:
+    """#433: the size signals a delegated run's ledger row carries (estimate_files, estimate_minutes, band, coupling,
+    clarity: the tier plan's and the rubric's values, as plan/ledger record them), for an A/B self-run sample, so the
+    two arms can be compared on them. Only what was given or measured; nothing is guessed."""
+    tp = route.get("policy") or {}
+    sig = tp.get("signals") or {}
+    rub = route.get("rubric") or {}
+    # minutes: the tier plan's; the lead's own --minutes only when there is no plan (an older task-routing skill
+    # copy returns none, a bad [policy] returns an error entry), so a given estimate is not lost
+    out = dict(zip(SIZE_SIGNALS, (sig.get("files") or None,
+                                  sig.get("minutes") or route.get("minutes") or spec.get("minutes") or None,
+                                  tp.get("band"), rub.get("coupling"), rub.get("clarity"))))
+    return {k: v for k, v in out.items() if v is not None}
+
+
+def _ab_open(p, caller: str, b: float, rung: str, brief: str, size: dict | None = None, **extra) -> str:
     ab_id = time.strftime("%Y%m%d-%H%M%S-") + uuid.uuid4().hex[:4]
     d = p.state / "ab"
     d.mkdir(parents=True, exist_ok=True)
     (d / f"{ab_id}.json").write_text(json.dumps({"id": ab_id, "caller": caller, "b": b, "would_route": rung,
-                                                 "brief_chars": len(brief), "ts": time.time(), **extra}),
+                                                 "brief_chars": len(brief), "ts": time.time(), **(size or {}), **extra}),
                                      encoding="utf-8")
     return ab_id
 

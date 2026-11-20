@@ -170,6 +170,11 @@ def _slim(record: dict, cfg: dict | None = None) -> dict:
     slim["seconds"] = round(sum(a["seconds"] for a in record["attempts"]), 1)
     if "check_baseline_seconds" in record:
         slim["check_baseline_seconds"] = record["check_baseline_seconds"]
+    slim.update(timing_fields(record))
+    if (record.get("review") or {}).get("verdict") == "skipped":
+        # #427 [review] skip_when_clean: a review was due and skipped as clean (it has no review_timing), told apart
+        # from a run that needed none, so an evaluation can group the two
+        slim["review_skipped"] = True
     if "dispatch" in record:
         slim["dispatch"] = record["dispatch"]
     costs = [a["cost_usd"] for a in record["attempts"] if a.get("cost_usd") is not None]
@@ -196,6 +201,33 @@ def _slim(record: dict, cfg: dict | None = None) -> dict:
                 if cov.get(k):
                     slim["check"][k] = True
     return slim
+
+
+def timing_fields(record: dict) -> dict:
+    """#392: the handover timings of a run, for its ledger row; {} for a record written before they existed.
+
+    startup_seconds  sum over attempts of CLI launch -> first event (None when an attempt that started saw no event)
+    check_seconds    sum of every check's seconds on this run (passed ones too); check_timing lists each check as
+                     {"started_at", "seconds"} ([] when no check ran: its presence marks a record that has timings)
+    review_timing    {"started_at", "ended_at", "seconds", "background"} of the review recorded on this run, if any
+    """
+    atts = record.get("attempts") or []
+    started = [a for a in atts if "started_at" in a]
+    if not started and not any("check_started_at" in a for a in atts) and not (
+            isinstance(record.get("review"), dict) and "started_at" in record["review"]):
+        return {}
+    out: dict = {}
+    if started:
+        ups = [a.get("startup_seconds") for a in started]
+        out["startup_seconds"] = round(sum(ups), 3) if all(u is not None for u in ups) else None
+    out["check_timing"] = [{"started_at": a["check_started_at"], "seconds": a.get("check_seconds")}
+                           for a in atts if "check_started_at" in a]
+    secs = [c["seconds"] for c in out["check_timing"] if c["seconds"] is not None]
+    out["check_seconds"] = round(sum(secs), 3) if secs else None
+    rv = record.get("review")
+    if isinstance(rv, dict) and "started_at" in rv:
+        out["review_timing"] = {k: rv.get(k) for k in ("started_at", "ended_at", "seconds", "background")}
+    return out
 
 
 def sum_usage(attempts: list[dict]) -> dict:

@@ -17,7 +17,7 @@ from ..delegate import Request, compact, exit_ok, human_summary, recap, run, ver
 from ..gitstate import SHARED_WHY, STALE_WHY, clean, in_git
 from ..runners import find_bin
 from ..workspace import missing_test_paths
-from .common import (_brief, _caller, _out, lead_out, _routing_args, human_tail, _spec_from_args, _target, find_continuable,
+from .common import (SIZE_SIGNALS, _brief, _caller, _out, lead_out, _routing_args, human_tail, _spec_from_args, _target, find_continuable,
     apply_mode, find_seat, installed_agents, lead_session_id, parse_quota, person_named_to, picked_tier,
     provider_agents, resolve, tier_policy)
 from .install import tier_spec_safe
@@ -65,7 +65,9 @@ def cmd_ab(a) -> int:
            "would_route": s["would_route"], "ok": bool(a.ok), "usage4": w["usage"],
            "messages": w["messages"], "ae_usd": None if ae is None else round(ae, 6),
            "seconds": round(time.time() - s["ts"], 1), "ts": time.time(),
-           **{k: s[k] for k in ("trial", "bucket", "kind") if s.get(k)}}
+           **{k: s[k] for k in ("trial", "bucket", "kind", *SIZE_SIGNALS) if s.get(k)}}
+    if s.get("coupling") or s.get("clarity"):      # where scripts/eval/routing_calibration.py reads them for a run
+        row["route"] = {"rubric": {k: s[k] for k in ("coupling", "clarity") if s.get(k)}}
     ledger.append_event(p, row)
     f.unlink()
     _out(row)
@@ -591,7 +593,7 @@ def _cmd_run(a) -> int:
 
 ROUTE_KEYS = ("source", "b", "rung", "p", "chain_p", "tier", "stale", "mode", "trial", "cheaper_self", "role",
               "role_effort_auto", "role_fallback", "why", "rubric", "difficulty", "role_effort_reason",
-              "strict_escalate", "self_first")
+              "strict_escalate", "self_first", "cold_start")
 
 
 def _dry_run(p, cfg: dict, req: Request, route: dict) -> int:

@@ -459,6 +459,230 @@ class TestAcceptBranch(AcceptEnv):
         self.assertEqual(git(self.work, "rev-parse", "HEAD"), before)
 
 
+class TestBranchLanded(AcceptEnv):
+    """#402: is a worktree piece's work already in the checked-out branch? With its worktree still there, the commit
+    the worktree has checked out decides (so a resumed piece, whose own ccx/<run> never existed, and new commits on a
+    detached worktree are both seen), together with its run's branch; the name the queue noted is the fallback."""
+
+    item, resume = TestAcceptBranch.item, TestAcceptBranch.resume
+
+    def landed(self, q):
+        from ccx.accept import branch_landed
+        return branch_landed(self.work, self.item(q))
+
+    def test_a_resumed_piece_merged_by_hand_is_landed(self):
+        self.repo()
+        q1 = self.piece("one", {"a.txt": "a\n"})
+        first = self.item(q1)["run"]
+        self.resume(q1, branch=None)                        # ccx/<r2> does not exist
+        git(self.work, "merge", "-q", "--no-ff", "-m", "by hand", f"ccx/{first}")
+        wq.update(self.work, q1, verdict=True)
+        self.assertTrue(self.landed(q1))
+        out = self.accept("--all-ready")
+        self.assertEqual(out["accepted"], [])
+        self.assertNotIn("refused", out)                    # not listed as ready again
+        out = self.accept(q1, code=2)
+        self.assertIn("already accepted", out["refused"][0]["why"])
+
+    def test_new_commits_on_a_detached_worktree_are_not_landed(self):
+        self.repo()
+        q1 = self.piece("one", {"a.txt": "a\n"})
+        wt = self.item(q1)["worktree"]
+        git(self.work, "merge", "-q", "--no-ff", "-m", "by hand", self.item(q1)["branch"])
+        git(wt, "checkout", "-q", "--detach")
+        (Path(wt) / "late.txt").write_text("late\n", encoding="utf-8")
+        git(wt, "add", "-A")
+        git(wt, "commit", "-qm", "after the merge")
+        wq.update(self.work, q1, branch="HEAD", verdict=True)
+        self.assertFalse(self.landed(q1))                   # ccx/<run> is in, the detached commit is not
+        from ccx.accept import accepted_unmerged
+        self.assertEqual(accepted_unmerged(self.work, wq.load(self.work)), [q1])
+
+    def test_a_worktree_moved_to_a_landed_branch_does_not_hide_its_runs_branch(self):
+        self.repo()
+        q1 = self.piece("one", {"a.txt": "a\n"})
+        git(self.item(q1)["worktree"], "checkout", "-q", "-b", "elsewhere", "work")   # already in work
+        wq.update(self.work, q1, verdict=True)
+        self.assertFalse(self.landed(q1))                   # ccx/<run> still is not
+
+    def test_a_resumed_piece_moved_to_a_landed_branch_is_not_landed(self):
+        """#412 review: ccx/<r2> does not exist, so the worktree's commit alone cannot say ccx/<first> is in."""
+        self.repo()
+        q1 = self.piece("one", {"a.txt": "a\n"})
+        self.resume(q1, branch=None)
+        wt = self.item(q1)["worktree"]
+        git(wt, "checkout", "-q", "-b", "other", "work")     # already in work; ccx/<first> is not
+        self.assertFalse(self.landed(q1))
+        wq.update(self.work, q1, branch="HEAD")
+        self.assertFalse(self.landed(q1))
+        git(wt, "checkout", "-q", "--detach", "work")        # detached on a landed commit: not landed either
+        self.assertFalse(self.landed(q1))
+
+    def test_a_folder_left_inside_the_project_does_not_answer_for_it(self):
+        """The worktree was removed but its folder stays under the project: git there answers for the project."""
+        self.repo()
+        q1 = self.piece("one", {"a.txt": "a\n"})
+        git(self.work, "worktree", "remove", "--force", self.item(q1)["worktree"])
+        left = self.work / ".ccx" / "worktrees" / "left-412"
+        left.mkdir(parents=True)
+        wq.update(self.work, q1, worktree=str(left))
+        self.assertFalse(self.landed(q1))                   # ccx/<run> is not in; the project's HEAD is no answer
+
+    def test_a_plain_piece_before_and_after_a_merge_by_hand(self):
+        self.repo()
+        q1 = self.piece("one", {"a.txt": "a\n"})
+        self.assertFalse(self.landed(q1))
+        git(self.work, "merge", "-q", "--no-ff", "-m", "by hand", self.item(q1)["branch"])
+        self.assertTrue(self.landed(q1))
+        wq.update(self.work, q1, branch="HEAD")             # noted as HEAD, worktree on ccx/<run>: same answer
+        self.assertTrue(self.landed(q1))
+
+    def test_with_the_worktree_gone_the_noted_branch_decides(self):
+        self.repo()
+        q1 = self.piece("one", {"a.txt": "a\n"})
+        git(self.work, "worktree", "remove", "--force", self.item(q1)["worktree"])
+        self.assertFalse(self.landed(q1))
+        git(self.work, "merge", "-q", "--no-ff", "-m", "by hand", self.item(q1)["branch"])
+        self.assertTrue(self.landed(q1))
+        wq.update(self.work, q1, branch="HEAD")             # falls back to ccx/<run>
+        self.assertTrue(self.landed(q1))
+
+
+class TestBranchLandedByContent(AcceptEnv):
+    """#413: work landed by squash, cherry-pick or rebase (new commits, so no ancestry) is landed too; a piece only
+    part of whose commits landed is not."""
+
+    item = TestAcceptBranch.item
+
+    def landed(self, q):
+        from ccx.accept import branch_landed
+        return branch_landed(self.work, self.item(q))
+
+    def two_commits(self):
+        """A piece with two commits on its branch: a.txt, then b.txt."""
+        self.repo()
+        q1 = self.piece("one", {"a.txt": "a\n"})
+        wt = Path(self.item(q1)["worktree"])
+        (wt / "b.txt").write_text("b\n", encoding="utf-8")
+        git(wt, "add", "-A")
+        git(wt, "commit", "-qm", "second")
+        wq.update(self.work, q1, verdict=True)
+        return q1
+
+    def advance(self):
+        """The project branch moves on with a change of its own, so a later landing is not a fast-forward."""
+        (self.work / "own.txt").write_text("own\n", encoding="utf-8")
+        git(self.work, "add", "own.txt")
+        git(self.work, "commit", "-qm", "own work")
+
+    def assert_landed(self, q1):
+        from ccx.accept import accepted_unmerged
+        self.assertTrue(self.landed(q1))
+        self.assertEqual(accepted_unmerged(self.work, wq.load(self.work)), [])
+        out = self.accept("--all-ready")
+        self.assertEqual(out["accepted"], [])
+        self.assertNotIn("refused", out)
+        out = self.accept(q1, code=2)
+        self.assertIn("already accepted", out["refused"][0]["why"])
+
+    def test_squash_merged_is_landed(self):
+        q1 = self.two_commits()
+        self.advance()
+        git(self.work, "merge", "-q", "--squash", self.item(q1)["branch"])
+        git(self.work, "commit", "-qm", "squashed")
+        self.assert_landed(q1)
+
+    def test_cherry_picked_is_landed(self):
+        q1 = self.two_commits()
+        self.advance()
+        git(self.work, "cherry-pick", f"work..{self.item(q1)['branch']}")
+        self.assert_landed(q1)
+
+    def test_rebase_merged_is_landed_even_after_later_edits(self):
+        """Rebased onto the project branch, then that file changed again: each commit's patch is still in."""
+        q1 = self.two_commits()
+        self.advance()
+        base = git(self.work, "merge-base", "work", self.item(q1)["branch"])
+        git(self.work, "cherry-pick", f"{base}..{self.item(q1)['branch']}")
+        (self.work / "a.txt").write_text("a changed later\n", encoding="utf-8")
+        git(self.work, "commit", "-qam", "later")
+        self.assertTrue(self.landed(q1))
+
+    def test_not_landed_and_partly_landed_are_not_landed(self):
+        from ccx.accept import accepted_unmerged
+        q1 = self.two_commits()
+        self.advance()
+        self.assertFalse(self.landed(q1))
+        git(self.work, "cherry-pick", f"{self.item(q1)['branch']}~1")    # a.txt only, not b.txt
+        self.assertFalse(self.landed(q1))
+        self.assertEqual(accepted_unmerged(self.work, wq.load(self.work)), [q1])
+
+    def test_landed_then_reverted_is_not_landed(self):
+        q1 = self.two_commits()
+        git(self.work, "merge", "-q", "--squash", self.item(q1)["branch"])
+        git(self.work, "commit", "-qm", "squashed")
+        git(self.work, "revert", "--no-edit", "HEAD")
+        self.assertFalse(self.landed(q1))
+
+    def test_cherry_picked_then_all_reverted_is_not_landed(self):
+        """#420 review: the patches are still in the history (git cherry says `-`), the changes are not."""
+        q1 = self.two_commits()
+        self.advance()
+        git(self.work, "cherry-pick", f"work..{self.item(q1)['branch']}")
+        git(self.work, "revert", "--no-edit", "HEAD")      # b.txt
+        git(self.work, "revert", "--no-edit", "HEAD~2")    # a.txt
+        self.assertTrue(all(x.startswith("-") for x in
+                            git(self.work, "cherry", "work", self.item(q1)["branch"]).splitlines()))
+        self.assertFalse(self.landed(q1))
+
+    def without_merge_tree(self):
+        """An older git (before 2.38): `merge-tree --write-tree` fails with a usage error."""
+        from unittest import mock
+        from ccx import autonomy
+        real = autonomy._git
+
+        def fake(cwd, *args, **kw):
+            if args[:2] == ("merge-tree", "--write-tree"):
+                return 129, "usage: git merge-tree"
+            return real(cwd, *args, **kw)
+        return mock.patch.object(autonomy, "_git", fake)
+
+    def test_older_git_falls_back_to_git_cherry(self):
+        q1 = self.two_commits()
+        self.advance()
+        git(self.work, "cherry-pick", f"work..{self.item(q1)['branch']}")
+        with self.without_merge_tree():
+            self.assertTrue(self.landed(q1))
+
+    def test_older_git_does_not_see_a_squash(self):
+        """The documented limit: one squashed patch matches none of the piece's commits."""
+        q1 = self.two_commits()
+        git(self.work, "merge", "-q", "--squash", self.item(q1)["branch"])
+        git(self.work, "commit", "-qm", "squashed")
+        self.assertTrue(self.landed(q1))
+        with self.without_merge_tree():
+            self.assertFalse(self.landed(q1))
+
+    def test_new_commits_on_a_detached_worktree_after_a_squash_are_not_landed(self):
+        q1 = self.two_commits()
+        wt = self.item(q1)["worktree"]
+        git(self.work, "merge", "-q", "--squash", self.item(q1)["branch"])
+        git(self.work, "commit", "-qm", "squashed")
+        git(wt, "checkout", "-q", "--detach")
+        (Path(wt) / "late.txt").write_text("late\n", encoding="utf-8")
+        git(wt, "add", "-A")
+        git(wt, "commit", "-qm", "after the squash")
+        self.assertFalse(self.landed(q1))
+
+    def test_with_the_worktree_gone_a_squash_of_the_noted_branch_is_landed(self):
+        q1 = self.two_commits()
+        git(self.work, "worktree", "remove", "--force", self.item(q1)["worktree"])
+        self.assertFalse(self.landed(q1))
+        git(self.work, "merge", "-q", "--squash", self.item(q1)["branch"])
+        git(self.work, "commit", "-qm", "squashed")
+        self.assertTrue(self.landed(q1))
+
+
 class TestPipelineEndToEnd(AcceptEnv):
     def why(self) -> dict:
         """Each item's status, summary and its run's kind and attempts (CI failures used to show only `failed`)."""

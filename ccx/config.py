@@ -349,6 +349,10 @@ SETTINGS = {   # key -> (type, help). Only these can be set with `ccx config set
     "review.tests_model": (str, "test reviewer model or vendor:model[:effort]; empty keeps the cross-vendor candidate"),
     "review.tests_effort": (str, "task-derived test reviewer effort; empty keeps the selected candidate's effort"),
     "review.contract_diag": (bool, "experimental offline contract diagnostic; default false; never changes verdicts"),
+    "review.skip_when_clean": (_bool, "experimental (#427, effect Unknown): skip an automatic review when the run is "
+                                      "clean (check passed and sensitive, small, no edited tests); default false"),
+    "review.skip_max_files": (int, "skip_when_clean: at most this many changed files (default 3)"),
+    "review.skip_max_lines": (int, "skip_when_clean: at most this many changed lines, added + removed (default 49)"),
     "delegate.user_words": (bool, "experimental: attach the Claude lead's latest real user message (default false)"),
     "delegate.user_words_max_chars": (int, "maximum retained original-wording characters (default 8000)"),
     # Arbitrary roles.<name> and roles.defaults.<name> mode/worktree/review/check use ccx.roles
@@ -372,6 +376,10 @@ SETTINGS = {   # key -> (type, help). Only these can be set with `ccx config set
     "routing.require_ready": (_bool, "true | false: prefer installed CLIs with local login evidence (default true)"),
     "routing.small_self_run": (_bool, "true | false: experimental small-task run refusal for leads; --force bypasses (default false)"),
     "routing.strict_escalate": (_bool, "true | false: experimental cheapest-rung guard for unchecked writes or strict interfaces (default false)"),
+    "routing.cold_start": (_bool, "true | false: experimental: with no learned outcome yet for the candidate "
+                                  "vendors, task-routing's first rung takes its tier from the [cold_start] table "
+                                  "(kind, difficulty b); a person's --to/--model/--tier/--provider (--effort with "
+                                  "--model) or a role is left alone (default false)"),
     "routing.small_self": (_bool, "true | false: `ccx route` / `ccx propose` advise doing a small task yourself "
                                   "instead of delegating it, sized by routing.small_self_by; `ccx run` still "
                                   "delegates (default false until a measured round backs it)"),
@@ -420,6 +428,9 @@ SETTINGS = {   # key -> (type, help). Only these can be set with `ccx config set
     "prompt.slim": (_bool, "true | false: a run given --mode write and no --check is not told what to do when the "
                            "task only asks for an answer (that sentence is left out); false = the text as before "
                            "(default true)"),
+    "brief.slim": (_bool, "experimental, effect Unknown: the sub-agent's first message keeps only the task, scope and "
+                          "read/write boundary, acceptance command and receipt format; the rest goes in the run's "
+                          "guidance.md, named in one line (default false; not lead.slim_context, which is the lead's own context)"),
     "run.stall_minutes": (float, "experimental: stop an attempt whose CLI printed no event (stdout line) for this "
                                  "many minutes, as a timeout marked stalled (default 0 = off; keep it above the longest "
                                  "quiet stretch: a long model step or a long tool command prints nothing)"),
@@ -488,6 +499,8 @@ def set_setting(p: Paths, key: str, raw: str) -> dict:
         raise ValueError("billing.mode must be api or subscription")
     if key == "review.mode" and raw not in ("read", "tests", "auto", "on", "off"):
         raise ValueError("review.mode must be read, tests, auto, on or off")
+    if key in ("review.skip_max_files", "review.skip_max_lines") and not int(raw) >= 0:
+        raise ValueError(f"{key} must be 0 or a positive whole number")
     if key == "defaults.tradeoff" and raw not in ("save", "balanced", "fast", "cheapest"):
         k = float(raw)
         if not 0 <= k <= 1:

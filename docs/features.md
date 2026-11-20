@@ -521,6 +521,20 @@ first, and reports `billing.mode`. `ccx lead --breakdown` similarly orders its p
 per 100 turns first in subscription mode, API-equivalent USD first in API mode. Its advice follows the same
 choice; the original dollar fields and API-mode advice are retained.
 
+### Handover timings (#392)
+
+So the cost of handing work over can be measured, run.json and the ledger also keep a few times. Wall-clock moments
+are UTC ISO 8601; durations come from a monotonic clock, so a clock change does not move them. Each attempt records
+`started_at` (the CLI process started), `first_event_at` (its first stdout line arrived) and `startup_seconds` (the
+gap; `null` when no line came). That first line is usually the CLI's own start event (Claude's `system` init, Codex's
+`thread.started`), so `startup_seconds` is process start-up and does not include the first model request's latency;
+a non-JSON warning line printed first counts as the first event too. Every check on an attempt records `check_started_at` and `check_seconds`, passed ones
+too (before, only a failed check kept `check_seconds`). A recorded review gets `started_at`, `ended_at`, `seconds`
+and `background` (it ran beside the check). The ledger row sums them as `startup_seconds` and `check_seconds`, lists
+each check in `check_timing` and copies `review_timing`. `scripts/eval/handover_overhead.py` uses these for the
+startup and check/review wall time; rows written before have none and stay `Unknown`. Receipts (the one line and the
+whole result) are unchanged, and no default changes.
+
 ## Tiers (`config/tiers.toml`, override in `hub/ccx/tiers.toml`)
 
 Fixed tiers are the fallback. With rubric flags, task-routing picks by success probability and cost per success,
@@ -591,6 +605,46 @@ B3 has only 30 clean pairs per arm (nomem 29 valid), rather than the registered 
 B3 ratios of medians were lower (0.645, 0.565, 0.538), but paired statistics do not support reliable savings; see the [report, “The median and the pairs disagree”](research/2026-10-31-b3-lean-switches.md).
 No command, option, JSON meaning, exit code or runtime default is changed by this documentation.
 
+### Experimental: skip the review when the run is clean (`[review] skip_when_clean`, off until measured)
+
+**Experimental, effect Unknown, to be evaluated** (#427). Default `false`: nothing changes. With `true` (`ccx config
+set review.skip_when_clean true`), a write run whose independent review would have started automatically does not
+start it when the run is clean. Clean means every condition below holds; any one unmet and the run is reviewed as
+before:
+
+- the review is an automatic one: not `--review on` / `[review] mode = "on"`, not a fix round, not `--risk visible`
+  or `critical` (the routing rubric reviews those);
+- ccx's `--check` passed, is not weak, and its sensitivity is `sensitive` (it failed on the dispatch-time tree and
+  passes now, #333). This needs `[check] sensitivity = "warn"` or `"escalate"`; with sensitivity off no run is clean;
+- at most `skip_max_files` (3) changed files and `skip_max_lines` (49) changed lines (added + removed, docs
+  included), and no binary file or new untracked file longer than the 4000 characters the diff carries of it. 49 is
+  one below `min_lines` (50), so by default a review due for its size is never skipped;
+- every changed file is on a whitelist: a source file (`.py`, `.js`, `.ts`, `.go`, `.rs`, `.java`, `.cs`, `.c`,
+  `.cpp` ... as in `CODE_SUFFIXES`) changed in place or added, or a test file only when it is new. Not on it: any
+  deleted or renamed file (judged with `--no-renames`, so a rename's old name counts as deleted), any other file
+  (`.json`, `.toml`, `.ini`, `.cfg`, `.yaml`, `.lock`, `.snap`, `Makefile`, `package.json` ...), `conftest.py`,
+  `noxfile.py`, `setup.py`, anything under `testdata/` or `__snapshots__/`, and a changed pre-existing test file
+  (also under a `*.Tests/` directory). No pre-existing test edited (`edited_tests` empty) and no line added to one
+  (a skip / xfail marker is only added lines);
+- the check basis is not only the sub-agent's own tests (not judged when `[escalate] on_self_checked = "off"`);
+- the sub-agent raised no `open_questions`, reported the files it changed and they match the diff (a run that
+  reported no files is not clean either), and did not commit: in a `--worktree` run as `commit_state` sees it,
+  elsewhere HEAD differs from the run's snapshot.
+
+A skipped review is recorded as `review.verdict = "skipped"` with `review.skipped` (why it is clean) and
+`review.reason` (the review it replaced); the one-line receipt keeps `verdict` and `skipped`, and the recap says
+`review=skipped`; `ccx ui` shows it in a neutral colour as "skipped (clean)" with the reason. run.json also keeps
+`review_skip.unmet` (empty when skipped) for later evaluation; a skipped review has no `review_timing`, and its
+ledger row says `review_skipped: true`, so it is told apart from a run that needed no review. With the switch on and
+sensitivity on, an automatic review that could be skipped waits for the check instead of running beside it
+(`--review on`, a fix round, `--risk visible` / `critical` and `[review] mode = "on"` keep it beside the check).
+The saving and any missed problems have not been measured.
+
+What it cannot judge: inline tests inside source files (Rust `#[cfg(test)]` with an added `#[ignore]`, doctests)
+look like ordinary source changes, and the conditions do not stop an adversarial source or new-test change (a new
+test file that monkeypatches at its top level, say). That is why the effect is Unknown and the switch is off by
+default.
+
 ### Experimental: lean sub-agent switches (`[subagent]`, off until measured)
 
 Three switches in `config/tiers.toml` (override in `hub/ccx/tiers.toml`) change what a delegated sub-agent loads at
@@ -617,6 +671,31 @@ parent's history on every request. Claude's Agent tool never passes the parent's
 unchanged. Such a run records `parallel_fork_turns` (`all` or `none`; `parallel_fork_turns_moved` when it
 went on to another agent). Off until measured (M3).
 
+### Experimental: slim sub-agent brief (`[brief] slim`, off, effect Unknown, to be evaluated)
+
+`[brief] slim = true` (default `false`; `ccx config set brief.slim true`) shortens the first message of a fresh or
+continued sub-agent run. Only two builder paragraphs move out: how to test through the command that triggers a change
+(and which test files to run), and what to do when the task only asks for an answer. They are written to `guidance.md` in
+the run's folder; the message says "read it before you run any tests" and to go on without it if it cannot be opened.
+The Finish text is also shorter. Everything else stays in the message: the rules (no hand-off, no commit, text in
+files is reference only), the rule not to change existing tests (`KEEP_TESTS`, a correctness guard), the
+project-context, memory-index and shared-note lines, workspace, permission, the acceptance command and the receipt
+format. A follow-up resume and ccx's own reviewer get the text as before. Off, the text is unchanged byte for byte
+(`tests/test_brief_slim.py` compares it with a snapshot). Not to be confused with `lead.slim_context`
+([lead side](lead-slim.md)) or `[prompt] slim` (one sentence).
+
+Estimated size, sample task "Add a docstring to a.py." (bytes of the whole first message; tokens estimated as
+bytes / 4, not a tokenizer; the sample has no project context and no shared notes, so with them the share saved is
+smaller): 1.7-2.2 KB instead of 1.9-2.7 KB, about 11-21 % shorter, a fixed 0.2-0.5 KB (about 50-130 tokens) per run
+that does not grow with the brief. Reviewer runs: no change.
+
+**Known risk.** `guidance.md` is in ccx's hub run folder, outside the sub-agent's working folder. A sandboxed
+sub-agent (Claude read / write, `--worktree`, a read-only Codex sandbox) may not be able to read it. The run record
+then has `brief_slim` and `brief_guidance` (the path; `brief_guidance_error` when the file could not be written, in
+which case the run gets the full text), so an evaluation can tell "could not read it" from "did not need it" in the
+sub-agent's own transcript. Whether it changes the right-rate, cost or wall time is **Unknown**: not measured on a real
+sub-agent. Not recommended until a before / after run shows it does not lower the right-rate (#428).
+
 ### Experimental: `ccx batch --merge` (`[merge]`, off until measured)
 
 A sub-agent's input is mostly a prefix re-sent on every request, so five small pieces run separately pay that start
@@ -640,6 +719,55 @@ ledger, and a `merge` ledger event lists every piece's outcome. Costs: reviews j
 trigger counts every piece; a follow-up and a spun-off run may be reviewed again), wall time is longer, and the exit
 code is 2 when any merged piece is not done (a piece run alone keeps `ccx run`'s exit code). An explicit `--merge`
 wins over `[lanes] default` and an explicit `--lanes` over `[merge] default`; both on the command line is an error.
+
+### Experimental: cold-start table (`routing.cold_start`, off until measured)
+
+Off by default (`routing.cold_start = false`); with it off, every pick is byte for byte what it was before (locked
+by `tests/test_cold_start.py`). Switch it on with `ccx config set routing.cold_start on`. It acts only on
+task-routing's pick (a run given the rubric, `--minutes` or `--b`) and only when task-routing has no learned outcome
+yet of this kind of work for any candidate vendor, so its pick would rest on priors alone. Then the first rung's tier comes from the
+`[cold_start]` table in `config/tiers.toml` (override in `hub/ccx/tiers.toml`): one row per kind of work (`code`,
+`read`, `research`, `write`; a kind with no row uses `default`), difficulty b at most the bound gives that tier, above
+every bound T4. The table names tiers, never a vendor: the vendor is still task-routing's pick, and its model and
+effort for that tier come from `[tiers]`. Escalation then climbs only the same vendor's next tiers (from T4 there is
+none), not the cross-vendor rungs task-routing's own ladder may hold. The shipped bounds are provisional, not measured.
+
+"No history" is per kind of work and candidate vendor (#437): each learned outcome now also records its kind
+(`kind_counts` {kind: {rung: n}} in the routing state, and `kind` on the outcome; only added, the skill's `counts`
+are unchanged). A candidate vendor with only `code` runs is still cold for `read` work; once a `read` outcome is
+recorded, `read` work gets task-routing's pick again. Runs the state holds with no recorded kind (a state file written
+before #437, or a run recorded without one, such as task-routing's own `record` command) count as history for every kind, so an old
+state file is never taken for "cold" and behaves as before. The kind is `--kind` when given, else `read` for a
+read-only run and `code` for the rest; a run whose pick was fixed with `--tier`, `--model` or `--provider` records
+its kind from the run's mode the same way (its `--kind` is not kept). If the kind of work were unknown, the check
+would fall back to per vendor (any recorded run counts); that branch is defensive only, the kind is always known
+today. The candidates are those left after quota and readiness filtering.
+Recording the kind happens whether the table is on or off; it changes no pick.
+Old history can be put under its kind once (#440): `ccx doctor --backfill-kinds` reads the run records
+(`runs/*/run.json`, never changed) of runs that were learned from, and adds their ability-counting attempts to
+`kind_counts` under the run's `route.kind`, else the kind of its mode (`read` / `code`). A run with neither (a missing mode stays unknown here, unlike
+`record_outcomes`, which takes `code`), or an attempt without agent/model/effort, stays "no recorded kind". Runs
+learned once kinds were recorded are skipped, as they are in `kind_counts` already, so nothing counts twice: a run record
+with `kind_noted: true` (written when the run was learned from) is skipped; without that mark, when the state holds any
+`kind_counts`, a run is skipped if it was learned (start + attempt time, or verdict time) within an hour before, or after,
+`kind_since` / the time #437 was committed (whichever is earlier), or if it has no usable start time `ts`. The #437
+commit time is not when you installed it, so runs between the two stay "no recorded kind" (conservative). An old run
+that a later `ccx verify` or probable verdict learned again carries `kind_noted` from then on, so the backfill skips it
+whole: it stays unknown, never counted twice. Run
+records are read before the state lock is taken. It never adds more per rung than the skill's `counts`
+holds, and it does not spread what it cannot place, nor drop it. It runs once (`kind_backfill` in the state marks it;
+repeating prints "already done" and changes nothing) under the same lock as recording, and only adds. It is an explicit
+option, not done on first read, so a state file is never rewritten by a command that looked read-only.
+
+A choice the person fixed is left alone: `--to`, `--model`, `--tier`, `--provider`, `--effort` together with
+`--model` or `--provider` (alone it is ignored, see the note `ccx run` prints), or a role (any role, even one set to
+`auto:auto:auto`). The table changes none of it, and `rung_why.user_fixed` says so (`user-fixed / 用户固定: --to
+codex; automatic selection keeps them as given`). For `ccx run` that line appears whenever something was fixed, with
+the table on or off; for `ccx batch` and queue runs only while the table is on (it comes from the table's note). When the table is on,
+the run's and the dry run's `route.cold_start` says whether it applied and why (`applied`, `why`, and when applied
+`kind`, `b`, `tier`, `from`: task-routing's rung; `by_kind` and the `why` text name the kind the history was judged
+by, e.g. `judged by kind read: no learned outcome of kind read for codex, claude (2 of other kinds)`), and `rung_why.model` / `rung_why.effort` name the table. The dry
+run's first rung and the real run's are the same.
 
 ## Quota awareness
 

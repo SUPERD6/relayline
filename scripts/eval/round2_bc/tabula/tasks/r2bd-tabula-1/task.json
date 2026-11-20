@@ -1,0 +1,37 @@
+{
+ "id": "r2bd-tabula-1",
+ "dev": true,
+ "subject": "Record source lines of rows and per-column null tokens",
+ "author_model": "claude-opus-5-5",
+ "brief": "In the tabula package, make errors point at the line of the input where a row starts, and let a schema treat column-specific placeholder words as missing values.\n\n1. `Table` takes an optional third argument `lines`: one line number per row (1-based, the line of the text on which that row begins). Without it, `table.lines` is None. If a list is given whose length differs from the number of rows, raise ValueError.\n2. `read_table` fills `lines` for its data rows. The line counting must include blank lines that were skipped and line breaks inside quoted fields, so a row that follows a quoted field spanning two lines starts two lines later. The ParseError for a row with the wrong number of fields must report the line that row starts on (not its position among the rows).\n3. Tables derived with `select`, `where` and `sort_by` keep the line of each row they contain, in their new order. A table without lines stays without lines.\n4. `Schema` takes an optional `nulls` argument mapping a column name to placeholder tokens. A value of that column equal to one of its tokens after stripping surrounding spaces becomes None, like the empty string. The comparison is case-sensitive: a token in a different case is not a placeholder and is coerced (and may fail) as usual. Tokens only apply to their own column; a text column without tokens keeps the same word as text. A column named in `nulls` but absent from the table raises KeyError in `apply`, just like an unknown column in the kinds.\n5. `CoercionError` gets a `line` attribute: the start line of the offending row when the table has lines (so `Schema.apply` on a table from `read_table` reports it), otherwise None. The line is an optional fourth argument: existing calls `CoercionError(column, value, kind)` keep working and give exactly the same message as before. When the line is known the message starts with the word line and the number (as ParseError does); when it is None the message does not mention a line at all. A table coerced by `Schema.apply` keeps the lines of the table it came from.\n\nAll behavior that the existing tests check must keep working.",
+ "hidden_tests": [
+  "tests/test_lines_and_nulls.py"
+ ],
+ "trace_by_test": {
+  "test_rows_record_their_start_line": "The line counting must include blank lines that were skipped and line breaks inside quoted fields, so a row that follows a quoted field spanning two lines starts two lines later.",
+  "test_field_count_error_uses_start_line": [
+   "The ParseError for a row with the wrong number of fields must report the line that row starts on (not its position among the rows).",
+   "The ParseError for a row with the wrong number of fields must report the line that row starts on (not its position among the rows)."
+  ],
+  "test_lines_follow_rows": "Tables derived with `select`, `where` and `sort_by` keep the line of each row they contain, in their new order.",
+  "test_coercion_error_names_line": [
+   "`CoercionError` gets a `line` attribute: the start line of the offending row when the table has lines (so `Schema.apply` on a table from `read_table` reports it), otherwise None.",
+   "`CoercionError` gets a `line` attribute: the start line of the offending row when the table has lines (so `Schema.apply` on a table from `read_table` reports it), otherwise None.",
+   "When the line is known the message starts with the word line and the number (as ParseError does); when it is None the message does not mention a line at all."
+  ],
+  "test_coerced_table_keeps_lines": "A table coerced by `Schema.apply` keeps the lines of the table it came from.",
+  "test_null_tokens_per_column": [
+   "A value of that column equal to one of its tokens after stripping surrounding spaces becomes None, like the empty string.",
+   "A value of that column equal to one of its tokens after stripping surrounding spaces becomes None, like the empty string.",
+   "Tokens only apply to their own column; a text column without tokens keeps the same word as text.",
+   "The comparison is case-sensitive: a token in a different case is not a placeholder and is coerced (and may fail) as usual."
+  ],
+  "test_null_token_column_must_exist": "A column named in `nulls` but absent from the table raises KeyError in `apply`, just like an unknown column in the kinds.",
+  "test_table_without_lines": [
+   "A table without lines stays without lines.",
+   "`CoercionError` gets a `line` attribute: the start line of the offending row when the table has lines (so `Schema.apply` on a table from `read_table` reports it), otherwise None.",
+   "The line is an optional fourth argument: existing calls `CoercionError(column, value, kind)` keep working and give exactly the same message as before."
+  ],
+  "test_line_count_must_match_rows": "If a list is given whose length differs from the number of rows, raise ValueError."
+ }
+}

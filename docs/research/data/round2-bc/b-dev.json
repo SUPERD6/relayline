@@ -1,0 +1,114 @@
+{
+  "about": "Round 2 B development tasks (#375): authored, not analysed; for smoke runs and cost estimates (pre-registration section 2 and 7). Built by scripts/eval/round2_bc/build.py build --dev-out.",
+  "accepted": [
+    {
+      "id": "r2bd-cronlite-1",
+      "repo": "round2-authored/cronlite",
+      "project": "cronlite",
+      "url": null,
+      "commit": "2a4625c537b2ed6157293a4177b6535c149cf677",
+      "timestamp": 1794960060,
+      "subject": "Ranges and steps in cron fields; weekday 7 as Sunday",
+      "brief": "Extend the field syntax of the cronlite package (`parse_field`, and so every expression).\n\n1. Each comma-separated item of a field may be a bare star, a number, or a range of two numbers joined by a hyphen (both ends included). A star or a range may be followed by a slash and a step: take every step-th value from the start of the range (or from the lowest value of the field for the star). A single number followed by a step means from that number up to the highest value of the field, in that step.\n2. A field that is exactly a bare star is still the wildcard. A stepped star is a restriction, not a wildcard, so in an expression where the day of month uses a stepped star and the weekday is restricted, the classic either-day-or-weekday rule applies.\n3. In the weekday field, 7 is accepted as another name for Sunday and is stored as 0, also as the end of a range (a range from Friday to 7 covers Friday, Saturday and Sunday). In every other field the usual bounds apply.\n4. In the month field and the weekday field, a three-letter English name may be written wherever a number may (single values, range ends, the start of a stepped item), in any letter case. Names are accepted only in those two fields and only as exactly three letters. A name stands for its number, so a weekday range that ends in the name for Sunday runs backwards (Sunday is 0) and is an error; write 7 for that.\n5. Invalid items raise CronError with a message that starts with the field name: a step that is zero or not a number, a range whose start is greater than its end, an end outside the field's bounds, a range with a missing end or start, and an empty item between two commas.\n\nAll behavior that the existing tests check must keep working.",
+      "tests": [
+        "tests/test_ranges_steps.py"
+      ],
+      "code": [
+        "cronlite/fields.py",
+        "cronlite/names.py"
+      ],
+      "code_lines": 68,
+      "group": "B",
+      "source": "authored",
+      "author_model": "claude-opus-5-5",
+      "src_layout": false,
+      "stubs": [],
+      "pythonutf8": true,
+      "pytest_plugins": [],
+      "dev": true
+    },
+    {
+      "id": "r2bd-cronlite-2",
+      "repo": "round2-authored/cronlite",
+      "project": "cronlite",
+      "url": null,
+      "commit": "bc0ae19568c9f29ab0cefb38dbf29e63e4bf9ce0",
+      "timestamp": 1794960120,
+      "subject": "Retry backoff with a cap; a retry never runs after the next scheduled run",
+      "brief": "Change how the cronlite job registry retries failed jobs.\n\n1. `Job` (and so `Registry.add`) takes two new options: `backoff`, a factor of at least 1 (default 1, which keeps today's fixed delay), and `max_delay`, a number of minutes or None (default None, no cap). Add `Job.delay(attempt)`: the minutes to wait before retry number `attempt`, counting from 1, which is `retry_delay` multiplied by `backoff` raised to `attempt - 1`, rounded down to a whole number of minutes, and never more than `max_delay` when one is set. A backoff below 1, or a `max_delay` smaller than `retry_delay`, raises CronError when the job is created.\n2. `Registry.record_failure(name, when)` uses that delay for the attempt it schedules (seconds of `when` are dropped as before). Counter-intuitively, a retry is only scheduled when it would come strictly before the job's next scheduled run after `when`: if the retry would fall on that run's minute or later, no retry is scheduled, the method returns None and the attempt count starts again from zero, because the regular run takes its place. When the retries are used up it also returns None and resets, as today.\n3. `Registry.due(when)` lists every job at most once, even when its pending retry falls on a minute its schedule also matches.\n4. Add a function `next_run(expr, when, extra=None)` to the schedule module and export it from the package: the expression's next firing time after `when`, or `extra` instead when `extra` is later than `when` and earlier than that firing time. `Job.next_run(when)` gives the same for the job, with its pending retry as `extra`.\n5. Add `Registry.next_due(when)`: None when there are no jobs, otherwise a pair of the earliest minute after `when` at which any job runs (pending retries included) and the list `due` returns for that minute.\n\nAll behavior that the existing tests check must keep working.",
+      "tests": [
+        "tests/test_backoff.py"
+      ],
+      "code": [
+        "cronlite/__init__.py",
+        "cronlite/jobs.py",
+        "cronlite/schedule.py"
+      ],
+      "code_lines": 62,
+      "group": "B",
+      "source": "authored",
+      "author_model": "claude-opus-5-5",
+      "src_layout": false,
+      "stubs": [],
+      "pythonutf8": true,
+      "pytest_plugins": [],
+      "dev": true
+    },
+    {
+      "id": "r2bd-tabula-1",
+      "repo": "round2-authored/tabula",
+      "project": "tabula",
+      "url": null,
+      "commit": "4f2984e54566dde086a45843fbc38b47a81bd9d1",
+      "timestamp": 1794960060,
+      "subject": "Record source lines of rows and per-column null tokens",
+      "brief": "In the tabula package, make errors point at the line of the input where a row starts, and let a schema treat column-specific placeholder words as missing values.\n\n1. `Table` takes an optional third argument `lines`: one line number per row (1-based, the line of the text on which that row begins). Without it, `table.lines` is None. If a list is given whose length differs from the number of rows, raise ValueError.\n2. `read_table` fills `lines` for its data rows. The line counting must include blank lines that were skipped and line breaks inside quoted fields, so a row that follows a quoted field spanning two lines starts two lines later. The ParseError for a row with the wrong number of fields must report the line that row starts on (not its position among the rows).\n3. Tables derived with `select`, `where` and `sort_by` keep the line of each row they contain, in their new order. A table without lines stays without lines.\n4. `Schema` takes an optional `nulls` argument mapping a column name to placeholder tokens. A value of that column equal to one of its tokens after stripping surrounding spaces becomes None, like the empty string. The comparison is case-sensitive: a token in a different case is not a placeholder and is coerced (and may fail) as usual. Tokens only apply to their own column; a text column without tokens keeps the same word as text. A column named in `nulls` but absent from the table raises KeyError in `apply`, just like an unknown column in the kinds.\n5. `CoercionError` gets a `line` attribute: the start line of the offending row when the table has lines (so `Schema.apply` on a table from `read_table` reports it), otherwise None. The line is an optional fourth argument: existing calls `CoercionError(column, value, kind)` keep working and give exactly the same message as before. When the line is known the message starts with the word line and the number (as ParseError does); when it is None the message does not mention a line at all. A table coerced by `Schema.apply` keeps the lines of the table it came from.\n\nAll behavior that the existing tests check must keep working.",
+      "tests": [
+        "tests/test_lines_and_nulls.py"
+      ],
+      "code": [
+        "tabula/errors.py",
+        "tabula/reader.py",
+        "tabula/schema.py",
+        "tabula/table.py"
+      ],
+      "code_lines": 83,
+      "group": "B",
+      "source": "authored",
+      "author_model": "claude-opus-5-5",
+      "src_layout": false,
+      "stubs": [],
+      "pythonutf8": true,
+      "pytest_plugins": [],
+      "dev": true
+    },
+    {
+      "id": "r2bd-tabula-2",
+      "repo": "round2-authored/tabula",
+      "project": "tabula",
+      "url": null,
+      "commit": "cd12247ff09f7099991049e9bc5e684aefdb7d2a",
+      "timestamp": 1794960120,
+      "subject": "Multi-key sorting with missing values last; right-align numeric columns",
+      "brief": "Two changes to the tabula package.\n\nA. Sorting. `Table.sort_by` accepts one or more column names: `sort_by(*keys, reverse=False)`, the first key most significant. A key written with a leading minus sign sorts that column descending, except when the table really has a column whose name is exactly that string (then it is that column, ascending). `reverse=True` flips the direction of every key, so the old one-column calls keep their meaning. The sort is stable: rows that compare equal on all keys keep their original order, also in descending order. Missing values (None) always come after every present value of that key, in ascending and in descending order alike (they are not treated as smallest or largest). Calling it without any key raises ValueError; an unknown column (with or without the minus sign) raises KeyError.\n\nB. Rendering. A column counts as numeric when it has at least one value that is not None and every value that is not None is an int or a float; booleans do not count as numbers, and a column of only None is not numeric. Expose this as `numeric_columns(table)` in the render module and from the package: one boolean per column, in column order (a table without rows gives False for every column). In `render_text`, numeric columns are right-aligned within their width, header included; all other columns stay left-aligned; widths, the two-space gap, the dashed rule and the dropping of trailing spaces are unchanged. This changes the expected plain-text output for a numeric column in the existing render test, which must be updated accordingly. In `render_markdown`, the separator cell under a numeric column becomes the right-aligned form (three dashes followed by a colon); other columns keep the plain three dashes.\n\nAll behavior that the existing tests check must keep working, apart from that right alignment.",
+      "tests": [
+        "tests/test_render.py",
+        "tests/test_sort_keys.py"
+      ],
+      "code": [
+        "tabula/__init__.py",
+        "tabula/render.py",
+        "tabula/table.py"
+      ],
+      "code_lines": 53,
+      "group": "B",
+      "source": "authored",
+      "author_model": "claude-opus-5-5",
+      "src_layout": false,
+      "stubs": [],
+      "pythonutf8": true,
+      "pytest_plugins": [],
+      "dev": true
+    }
+  ]
+}

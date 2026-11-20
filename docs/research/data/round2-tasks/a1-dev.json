@@ -1,0 +1,213 @@
+{
+  "kind": "context",
+  "group": "A1-DEV",
+  "dev": true,
+  "author": "Claude Opus 5.5 (claude-opus-5-5), task-writing session that takes part in no evaluation",
+  "preregistration": "docs/research/prereg/2026-11-16-round2.md, section 2 (A1, A2)",
+  "issue": 375,
+  "trace_granularity": "per hidden test function: every assert of a test maps to that test's sentences; a reviewer reads each assert against them",
+  "tasks": [
+    {
+      "id": "r2a1-dev-01-ledger-totals",
+      "dev": true,
+      "source": "authored",
+      "files": {
+        "ledger.py": "'''Ledger helpers used by the CSV exporter.'''\n\n\ndef parse_amount(text):\n    '''\"12.50\" -> 12.5'''\n    return float(text.strip())\n\n\ndef format_amount(value):\n    return f\"{value:.2f}\"\n"
+      },
+      "brief": "Add summarize(entries) to ledger.py. Each entry is a dict with an 'account' name and an 'amount' string such as '12.50'. It should return the per-account totals in the shape and units the person and I agreed on this morning.",
+      "neutral": false,
+      "settle": "For summarize(): totals are integer cents, never floats, so '12.50' counts as 1250. It returns a list of (account, cents) tuples sorted by cents, largest first, and accounts with equal totals in alphabetical order. The CSV exporter keeps its float amounts, so leave parse_amount and format_amount as they are.",
+      "reversed": null,
+      "modified": false,
+      "distractor": "The CSV exporter keeps its float amounts, so leave parse_amount and format_amount as they are.",
+      "hidden": "from ledger import summarize, parse_amount\n\n\ndef test_cents_are_ints():\n    out = summarize([{'account': 'rent', 'amount': '0.10'}, {'account': 'rent', 'amount': '0.20'}])\n    assert out == [('rent', 30)]\n    assert isinstance(out[0][1], int)\n\n\ndef test_largest_first():\n    rows = [{'account': 'food', 'amount': '3.00'}, {'account': 'rent', 'amount': '900.00'},\n            {'account': 'food', 'amount': '4.25'}]\n    assert summarize(rows) == [('rent', 90000), ('food', 725)]\n\n\ndef test_ties_alphabetical():\n    rows = [{'account': 'b', 'amount': '1.00'}, {'account': 'a', 'amount': '1.00'}]\n    assert summarize(rows) == [('a', 100), ('b', 100)]\n\n\ndef test_exporter_untouched():\n    assert parse_amount(' 12.50 ') == 12.5\n",
+      "reference": {
+        "ledger.py": "'''Ledger helpers used by the CSV exporter.'''\nfrom decimal import Decimal\n\n\ndef parse_amount(text):\n    '''\"12.50\" -> 12.5'''\n    return float(text.strip())\n\n\ndef format_amount(value):\n    return f\"{value:.2f}\"\n\n\ndef summarize(entries):\n    totals = {}\n    for e in entries:\n        cents = int(Decimal(e['amount'].strip()) * 100)\n        totals[e['account']] = totals.get(e['account'], 0) + cents\n    return sorted(totals.items(), key=lambda kv: (-kv[1], kv[0]))\n"
+      },
+      "naive": {
+        "ledger.py": "'''Ledger helpers used by the CSV exporter.'''\n\n\ndef parse_amount(text):\n    '''\"12.50\" -> 12.5'''\n    return float(text.strip())\n\n\ndef format_amount(value):\n    return f\"{value:.2f}\"\n\n\ndef summarize(entries):\n    totals = {}\n    for e in entries:\n        totals[e['account']] = totals.get(e['account'], 0.0) + parse_amount(e['amount'])\n    return sorted(totals.items())\n"
+      },
+      "conventions": [
+        "totals are integer cents, never floats",
+        "list of (account, cents) tuples sorted by cents, largest first",
+        "accounts with equal totals in alphabetical order"
+      ],
+      "trace": [
+        {
+          "assertion": "test_zz_hidden_eval.py::test_cents_are_ints#1",
+          "brief": "per-account totals"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_cents_are_ints#1",
+          "brief": "totals are integer cents, never floats"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_cents_are_ints#2",
+          "brief": "per-account totals"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_cents_are_ints#2",
+          "brief": "totals are integer cents, never floats"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_largest_first#1",
+          "brief": "list of (account, cents) tuples sorted by cents, largest first"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_ties_alphabetical#1",
+          "brief": "accounts with equal totals in alphabetical order"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_exporter_untouched#1",
+          "brief": "leave parse_amount and format_amount as they are"
+        }
+      ]
+    },
+    {
+      "id": "r2a1-dev-02-retry-schedule",
+      "dev": true,
+      "source": "authored",
+      "files": {
+        "backoff.py": "import time\n\n\ndef wait(seconds, sleep=time.sleep):\n    sleep(seconds)\n"
+      },
+      "brief": "Write delays(attempts) in backoff.py: the list of waits before each retry for a job that may be retried `attempts` times. Use the schedule we settled with the person, not the first idea.",
+      "neutral": false,
+      "settle": "Change of plan for the retry waits: start at 0.5 seconds and multiply by 3 each time, and no single wait may exceed 10 seconds (clamp it to 10). delays() returns the waits in milliseconds as ints, because the scheduler takes milliseconds. Zero attempts gives an empty list. wait() keeps taking seconds; only delays() uses milliseconds.",
+      "reversed": "For retries let's just double each time, starting from 1 second: 1, 2, 4, 8 and so on.",
+      "modified": true,
+      "distractor": "wait() keeps taking seconds; only delays() uses milliseconds.",
+      "hidden": "from backoff import delays\n\n\ndef test_growth():\n    assert delays(3) == [500, 1500, 4500]\n\n\ndef test_clamped():\n    assert delays(6) == [500, 1500, 4500, 10000, 10000, 10000]\n\n\ndef test_ints_and_empty():\n    assert all(type(x) is int for x in delays(4))\n    assert delays(0) == []\n",
+      "reference": {
+        "backoff.py": "import time\n\n\ndef wait(seconds, sleep=time.sleep):\n    sleep(seconds)\n\n\ndef delays(attempts):\n    out, ms = [], 500\n    for _ in range(attempts):\n        out.append(min(ms, 10000))\n        ms *= 3\n    return out\n"
+      },
+      "naive": {
+        "backoff.py": "import time\n\n\ndef wait(seconds, sleep=time.sleep):\n    sleep(seconds)\n\n\ndef delays(attempts):\n    return [2 ** i for i in range(attempts)]\n"
+      },
+      "conventions": [
+        "start at 0.5 seconds and multiply by 3 each time",
+        "no single wait may exceed 10 seconds (clamp it to 10)",
+        "returns the waits in milliseconds as ints"
+      ],
+      "trace": [
+        {
+          "assertion": "test_zz_hidden_eval.py::test_growth#1",
+          "brief": "start at 0.5 seconds and multiply by 3 each time"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_growth#1",
+          "brief": "returns the waits in milliseconds as ints"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_clamped#1",
+          "brief": "no single wait may exceed 10 seconds (clamp it to 10)"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_ints_and_empty#1",
+          "brief": "returns the waits in milliseconds as ints"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_ints_and_empty#1",
+          "brief": "Zero attempts gives an empty list"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_ints_and_empty#2",
+          "brief": "returns the waits in milliseconds as ints"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_ints_and_empty#2",
+          "brief": "Zero attempts gives an empty list"
+        }
+      ]
+    },
+    {
+      "id": "r2a1-dev-03-tag-parse",
+      "dev": true,
+      "source": "authored",
+      "files": {
+        "tags.py": "def normalize(tag):\n    return tag.strip().lower()\n"
+      },
+      "brief": "Implement parse_tags(text) in tags.py: it reads the tag field of a form and returns the tags. Apply the rules we agreed on for the tag field.",
+      "neutral": false,
+      "settle": "Tag field rules for parse_tags: tags are separated by semicolons, not commas, and a comma is part of a tag. Keep the case the user typed (normalize() is only for search). Drop empty tags and repeated ones, keeping the first occurrence order. Separately, the search box should stay case-insensitive, but that is another ticket.",
+      "reversed": null,
+      "modified": false,
+      "distractor": "Separately, the search box should stay case-insensitive, but that is another ticket.",
+      "hidden": "from tags import parse_tags\n\n\ndef test_semicolons():\n    assert parse_tags('red, blue;green') == ['red, blue', 'green']\n\n\ndef test_case_kept():\n    assert parse_tags('Python;SQL') == ['Python', 'SQL']\n\n\ndef test_dedupe_in_order():\n    assert parse_tags(' b ;a;; b;') == ['b', 'a']\n",
+      "reference": {
+        "tags.py": "def normalize(tag):\n    return tag.strip().lower()\n\n\ndef parse_tags(text):\n    out = []\n    for part in text.split(';'):\n        part = part.strip()\n        if part and part not in out:\n            out.append(part)\n    return out\n"
+      },
+      "naive": {
+        "tags.py": "def normalize(tag):\n    return tag.strip().lower()\n\n\ndef parse_tags(text):\n    return sorted({normalize(t) for t in text.split(',') if t.strip()})\n"
+      },
+      "conventions": [
+        "tags are separated by semicolons, not commas",
+        "Keep the case the user typed",
+        "Drop empty tags and repeated ones, keeping the first occurrence order"
+      ],
+      "trace": [
+        {
+          "assertion": "test_zz_hidden_eval.py::test_semicolons#1",
+          "brief": "tags are separated by semicolons, not commas"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_semicolons#1",
+          "brief": "a comma is part of a tag"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_case_kept#1",
+          "brief": "Keep the case the user typed"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_dedupe_in_order#1",
+          "brief": "Drop empty tags and repeated ones, keeping the first occurrence order"
+        }
+      ]
+    },
+    {
+      "id": "r2a1-dev-04-neutral-initials",
+      "dev": true,
+      "source": "authored",
+      "files": {
+        "names.py": "def initials(full_name):\n    raise NotImplementedError\n"
+      },
+      "brief": "Implement initials(full_name) in names.py: the first letter of each space-separated word, upper case, joined with no separator ('ada king lovelace' gives 'AKL'). Extra spaces between words are ignored and an empty or blank name gives ''.",
+      "neutral": true,
+      "settle": "Let's move the weekly sync to Thursday from next week.",
+      "reversed": null,
+      "modified": false,
+      "distractor": null,
+      "hidden": "from names import initials\n\n\ndef test_initials():\n    assert initials('ada king lovelace') == 'AKL'\n    assert initials('  grace   hopper ') == 'GH'\n\n\ndef test_blank():\n    assert initials('') == ''\n    assert initials('   ') == ''\n",
+      "reference": {
+        "names.py": "def initials(full_name):\n    return ''.join(w[0].upper() for w in full_name.split())\n"
+      },
+      "naive": null,
+      "conventions": [],
+      "trace": [
+        {
+          "assertion": "test_zz_hidden_eval.py::test_initials#1",
+          "brief": "the first letter of each space-separated word, upper case, joined with no separator"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_initials#1",
+          "brief": "Extra spaces between words are ignored"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_initials#2",
+          "brief": "the first letter of each space-separated word, upper case, joined with no separator"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_initials#2",
+          "brief": "Extra spaces between words are ignored"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_blank#1",
+          "brief": "an empty or blank name gives ''"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_blank#2",
+          "brief": "an empty or blank name gives ''"
+        }
+      ]
+    }
+  ]
+}

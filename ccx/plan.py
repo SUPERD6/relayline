@@ -213,6 +213,121 @@ def _strict_start(req: Request, p: Paths, cfg: dict, out: list[dict]) -> list[di
     return [{**stronger[0], "raised_from": first["rung"]}, *stronger[1:]]
 
 
+COLD_START_TIERS = ("T1", "T2", "T3", "T4")
+
+
+FIXED_FLAGS = ("to", "model", "effort", "tier", "provider")
+
+
+def _effort_counts(d: dict) -> bool:
+    """--effort alone is ignored (EFFORT_ALONE_NOTE: the route picks model and effort), so it fixes nothing then."""
+    return bool(d.get("model") or d.get("provider"))
+
+
+def fixed_by_user(spec: dict) -> list[str]:
+    """What the person or a role table fixed for this pick (#426): --to/--model/--tier/--provider, --effort together
+    with --model or --provider, a role (any role, even auto:auto:auto). Automatic selection (the cold-start table)
+    then changes none of it."""
+    out = [f"--{k} {spec[k]}" for k in FIXED_FLAGS
+           if spec.get(k) and spec.get(k) != "auto" and (k != "effort" or _effort_counts(spec))]
+    if spec.get("role"):
+        out.append(f"role {spec['role']}")
+    return out
+
+
+def user_fixed_text(route: dict | None, given: dict | None) -> str | None:
+    """The rung reasons' line for a pick the person fixed (#426), or None. Names flags and the role only: a role's
+    source may be a path with a user name in it, so it is left out. `given` comes from `ccx run`; a run without it
+    (batch, queue) falls back to what the cold-start table recorded when it stepped aside (only while it is on)."""
+    route, given = route or {}, given or {}
+    items = [f"--{k} {given[k]}" for k in FIXED_FLAGS if given.get(k) and (k != "effort" or _effort_counts(given))]
+    if route.get("role"):
+        items.append(f"role {route['role']}")
+    cs = route.get("cold_start") or {}
+    if not items and not cs.get("applied") and str(cs.get("why", "")).startswith("user-fixed: "):
+        items = [cs["why"][len("user-fixed: "):]]
+    if not items:
+        return None
+    return f"user-fixed / 用户固定: {', '.join(items)}; automatic selection keeps them as given"
+
+
+def cold_start(p: Paths, cfg: dict, spec: dict, route: dict, pk: dict, agents: list[str],
+               max_esc: int = 1) -> dict | None:
+    """Experimental, off unless routing.cold_start is on (#426). When task-routing has no learned outcome yet of this
+    kind of work for any candidate vendor (#437; its pick is then priors only), the first rung's tier comes from the
+    [cold_start] table: by the kind of work and difficulty b, at most bound -> tier. The table names tiers, never a vendor: the vendor stays
+    task-routing's pick, its model and effort for that tier come from [tiers]. A person's or role's fixed choice is
+    left alone. Returns the replacement {rung, agent, model, effort, ladder, tier, ...}, or None (pick unchanged);
+    when on and not applied, route["cold_start"] says why."""
+    from .small_tasks import enabled
+    if not enabled(cfg, "cold_start") or route.get("b") is None:
+        return None
+    fixed = fixed_by_user(spec)
+    if fixed:
+        route["cold_start"] = {"applied": False, "why": f"user-fixed: {', '.join(fixed)}"}
+        return None
+    try:
+        state = learn.module(p, "routing").load_state() or {}
+    except Exception:  # noqa: BLE001 — no routing skill / unreadable state: leave the pick as it is
+        return None
+    counts = state.get("counts") or {}
+    kind = learn.task_kind(spec.get("mode"), spec.get("kind"))
+    names = ", ".join(agents)
+    # agents = the candidates task-routing chose among, after quota / readiness filtering: a vendor filtered out this
+    # time is not counted, so its history does not make this pick warm. #437: judged per kind of work; runs the state
+    # recorded with no kind (before #437) count as history, so an old state file is never taken for "cold"
+    hist = learn.kind_history(state, agents, kind)
+    if hist is None:      # defensive only: task_kind never returns None today; then per vendor, as #426 shipped it
+        seen = sum(int(n or 0) for rung, n in counts.items() if str(rung).split(":", 1)[0] in agents)
+        if seen:
+            route["cold_start"] = {"applied": False,
+                                   "why": f"{seen} learned outcome(s) for {names}: task-routing's pick"}
+            return None
+        cold_why, by_kind = f"no learned outcome for {names}", {}
+    else:
+        by_kind = {"by_kind": kind}
+        if hist["kind"] or hist["unknown"]:
+            parts = ([f"{hist['kind']} learned outcome(s) of kind {kind}"] if hist["kind"] else []) + \
+                    ([f"{hist['unknown']} learned outcome(s) with no recorded kind"] if hist["unknown"] else [])
+            route["cold_start"] = {"applied": False, **by_kind,
+                                   "why": f"judged by kind {kind}: {' + '.join(parts)} for {names}: "
+                                          f"task-routing's pick"}
+            return None
+        cold_why = (f"judged by kind {kind}: no learned outcome of kind {kind} for {names}"
+                    + (f" ({hist['other']} of other kinds)" if hist["other"] else ""))
+    table = cfg.get("cold_start") or {}
+    bands = table.get(kind) if isinstance(table.get(kind), dict) else table.get("default")
+    if not isinstance(bands, dict):
+        route["cold_start"] = {"applied": False, "why": f"no [cold_start] table for {kind} or default"}
+        return None
+    b = float(route["b"])
+    tier = COLD_START_TIERS[-1]
+    for t in COLD_START_TIERS:
+        try:
+            if t in bands and b <= float(bands[t]):
+                tier = t
+                break
+        except (TypeError, ValueError):
+            continue                                  # a bad hand-edited bound is skipped, not fatal
+    agent = pk["agent"]
+    if not (cfg.get("tiers") or {}).get(tier, {}).get(agent):
+        route["cold_start"] = {"applied": False, "why": f"no tiers.{tier}.{agent} configured: task-routing's pick"}
+        return None
+    ts = tier_spec(cfg, tier, agent)
+    ladder, nxt = [], next_tier(tier)
+    while nxt and len(ladder) < max_esc and cfg["tiers"].get(nxt, {}).get(agent):
+        s = tier_spec(cfg, nxt, agent)
+        rung = f"{agent}:{s['model']}:{s['effort']}"
+        if rung not in ladder:
+            ladder.append(rung)
+        nxt = next_tier(nxt)
+    rung = f"{agent}:{ts['model']}:{ts['effort']}"
+    route["cold_start"] = {"applied": True, "kind": kind, "b": b, "tier": tier, "from": pk["rung"], **by_kind,
+                           "why": cold_why}
+    return {"rung": rung, "agent": agent, "model": ts["model"], "effort": ts["effort"],
+            "ladder": [r for r in ladder if r != rung], "tier": tier}
+
+
 def pick_reasons(route: dict | None, kw: dict, caller: str, given: dict | None) -> dict:
     """Why this vendor, model and effort (#379), from the signals the pick actually used: what the person named
     (given: --to/--model/--effort/--tier/--provider), the role table, task-routing's difficulty, learned pass rate and
@@ -264,6 +379,10 @@ def pick_reasons(route: dict | None, kw: dict, caller: str, given: dict | None) 
         why_model = "the provider's last listed model"
     elif route.get("role_fixed_model"):
         why_model = f"role {role} fixes the model"
+    elif src == "task-routing" and (route.get("cold_start") or {}).get("applied"):
+        cs = route["cold_start"]
+        why_model = (f"cold-start table (experimental): {cs['why']}; kind {cs['kind']}, b={cs['b']:.2f} -> "
+                     f"{cs['tier']}, tiers.{cs['tier']}.{agent} in tiers.toml (task-routing had {cs['from']})")
     elif src == "task-routing":
         why_model = f"task-routing pick (tradeoff {route.get('tradeoff', 'save')})"
     elif tier:
@@ -278,6 +397,8 @@ def pick_reasons(route: dict | None, kw: dict, caller: str, given: dict | None) 
         why_effort = f"default ({effort}) when --effort is not given"
     elif src.startswith("provider:"):
         why_effort = f"provider default ({effort})"
+    elif src == "task-routing" and (route.get("cold_start") or {}).get("applied"):
+        why_effort = f"cold-start table (experimental): tiers.{route['cold_start']['tier']}.{agent} in tiers.toml"
     elif src == "task-routing":
         why_effort = "task-routing pick"
     elif tier:

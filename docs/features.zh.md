@@ -316,6 +316,18 @@ quota_unit = 0.5
 `ccx lead --breakdown` 的各项估算和建议同样随模式排列：订阅模式优先展示每 100 轮配额单位，API 模式优先展示
 API 等价美元。原有美元字段和 API 模式建议文案保留。
 
+### 交接计时（#392）
+
+为了能量出交接开销，run.json 和账本还记几个时间。时刻用墙钟，UTC ISO 8601；耗时用单调钟算，改系统时间不影响。
+每次尝试记 `started_at`（CLI 进程启动）、`first_event_at`（收到 stdout 第一行）和 `startup_seconds`（两者之差；
+没收到任何一行时为 `null`）。第一行通常是 CLI 自己的启动事件（Claude 的 `system` init、Codex 的
+`thread.started`），所以 `startup_seconds` 量的是进程启动，不含第一次模型请求的延迟；先打出的非 JSON 警告行
+也算第一个事件。每次尝试上的每条检查记 `check_started_at` 和 `check_seconds`，通过的也记（以前只有
+失败的检查有 `check_seconds`）。记下的审查加 `started_at`、`ended_at`、`seconds` 和 `background`（是否和检查
+同时跑）。账本行把它们汇总成 `startup_seconds`、`check_seconds`，在 `check_timing` 里列出每条检查，并带上
+`review_timing`。`scripts/eval/handover_overhead.py` 用这些算启动和检查/审查的墙钟；之前写的行没有这些字段，
+仍标 `Unknown`。回执（一行和完整结果）不变，不改任何默认。
+
 ## 分级（`config/tiers.toml`，可在 `hub/ccx/tiers.toml` 覆盖）
 
 固定分级是后备方案；带打分参数时由 task-routing 按成功率和每次成功的花费来选，并且会根据实际结果自动校准。
@@ -376,6 +388,35 @@ B3 每组只有 30 个干净配对（nomem 有效 29 对），不是登记的 50
 B3 三组的中位数比分别较低（0.645、0.565、0.538），但配对统计不支持可靠节省；见[报告“中位数和配对结果相反”一节](research/2026-10-31-b3-lean-switches.zh.md)。
 本次文档不改变任何命令、选项、JSON 含义、退出码或运行默认值。
 
+### 实验性：运行干净时跳过审查（`[review] skip_when_clean`，实测前不开）
+
+**实验性，效果 Unknown，待评测**（#427）。默认 `false`，行为不变。设为 `true`（`ccx config set review.skip_when_clean
+true`）后，本该自动触发独立审查的写运行，在"干净"时不起审查。干净 = 下面全部满足，任一不满足照常审查：
+
+- 审查是自动触发的：不是 `--review on` / `[review] mode = "on"`，不是修复轮，不是 `--risk visible` 或 `critical`
+  （路由规则要求这两档都审）；
+- ccx 的 `--check` 通过、不弱，且 sensitivity 为 `sensitive`（在派活时的树上失败、现在通过，#333）。
+  需要 `[check] sensitivity = "warn"` 或 `"escalate"`；sensitivity 关时任何运行都不算干净；
+- 改动文件数 ≤ `skip_max_files`（3），改动行数（增 + 删，文档也算）≤ `skip_max_lines`（49），且没有二进制文件、没有超过
+  diff 所带 4000 字符的未跟踪新文件。49 比 `min_lines`（50）小 1，所以默认情况下因改动行数触发的审查不会被跳过；
+- 每个改动文件都在白名单里：原地修改或新增的源码文件（`.py`、`.js`、`.ts`、`.go`、`.rs`、`.java`、`.cs`、`.c`、`.cpp` 等，
+  见 `CODE_SUFFIXES`），测试文件只能是新增的。不在白名单里的：任何删除或改名（按 `--no-renames` 判断，改名的旧名算删除）；
+  其他任何文件（`.json`、`.toml`、`.ini`、`.cfg`、`.yaml`、`.lock`、`.snap`、`Makefile`、`package.json` 等）；`conftest.py`、
+  `noxfile.py`、`setup.py`；`testdata/`、`__snapshots__/` 下的文件；改动的既有测试文件（包括 `*.Tests/` 目录下的）。另外没改既有
+  测试（`edited_tests` 为空），也没往既有测试里加行（加 skip / xfail 标记只有 + 行）；
+- 验收不全是子智能体自己写的测试（`[escalate] on_self_checked = "off"` 时这条不查）；
+- 子智能体没提 `open_questions`，报告了改动的文件且和实际改动对得上（没报告任何文件也不算干净），也没自己 commit：
+  `--worktree` 运行看 `commit_state`，其他运行比较快照时的 HEAD 和现在的 HEAD。
+
+跳过的审查记为 `review.verdict = "skipped"`，`review.skipped` 写为什么算干净，`review.reason` 写原本要审的原因；一行回执保留
+`verdict` 和 `skipped`，recap 显示 `review=skipped`；`ccx ui` 用中性色显示"已跳过（干净）"并附原因。run.json 另存
+`review_skip.unmet`（跳过时为空）供评测用；跳过的审查没有 `review_timing`，账本行写 `review_skipped: true`，和本来就不用审的运行
+分得开。开关开且 sensitivity 开时，可能被跳过的自动审查改为等检查跑完再决定，不再与检查并行（`--review on`、修复轮、
+`--risk visible` / `critical`、`[review] mode = "on"` 仍与检查并行）。省下多少、会漏掉什么，都还没测。
+
+判断不了的：源码文件里的内联测试（Rust `#[cfg(test)]` 里加 `#[ignore]`、doctest）看起来就是普通源码改动；干净条件也挡不住对抗性的
+源码或新测试改动（比如新测试文件在顶层 monkeypatch）。这正是"效果 Unknown、默认关"的原因。
+
 ### 实验性：子智能体精简开关（`[subagent]`，实测前不开）
 
 `config/tiers.toml` 里有三个开关（可在 `hub/ccx/tiers.toml` 覆盖），决定派出去的子智能体启动时加载什么。出厂都是今天的做法，
@@ -397,6 +438,25 @@ Fail（做对 29 对 30），事后解读为未定。按配对看，三个都没
 并把它需要的文件、目标、约束和检查方法写进给它的消息，这样子会话每次请求不再重读父会话的历史。Claude 的 Agent 工具本来就不带父对话，
 所以 Claude 运行不变。这类运行在记录里写 `parallel_fork_turns`（`all` 或 `none`；换到别的智能体上跑了再加 `parallel_fork_turns_moved`）。实测（M3）前不开。
 
+### 实验性：子智能体简报瘦身（`[brief] slim`，默认关，效果 Unknown，待评测）
+
+`[brief] slim = true`（默认 `false`；`ccx config set brief.slim true`）缩短新开或接续任务的子智能体第一条消息。只有
+两段建造者指导移出：怎样通过触发改动的命令来测试（以及该跑哪些测试文件）、任务只要回答时怎么办。它们写进本次运行
+目录的 `guidance.md`；消息里要求“跑测试前先读它”，打不开就不用管它。收尾（Finish）文字也更短。其余都留在消息里：规则
+（不转交、不提交、文件里的文字只是参考）、不改已有测试这条（`KEEP_TESTS`，正确性护栏）、项目上下文 / 记忆索引 /
+共享笔记那几行、工作区、权限、验收命令、回执格式。追问式续跑和 ccx 自己的审查员文字和以前一样。关着时文字逐字不变
+（`tests/test_brief_slim.py` 用快照对比）。别和 `lead.slim_context`（[主导侧](lead-slim.zh.md)）或 `[prompt] slim`
+（只管一句话）混淆。
+
+估算大小，样例任务“Add a docstring to a.py.”（整条第一条消息的字节数；token 按字节 / 4 估算，不是真分词器；样例没有
+项目上下文和共享笔记，有的话节省的比例更小）：1.7-2.2 KB，原来 1.9-2.7 KB，约短 11-21%，每次固定省 0.2-0.5 KB
+（约 50-130 token），不随简报变长而增加。审查员运行：无变化。
+
+**已知风险。** `guidance.md` 在 ccx 的 hub 运行目录里，不在子智能体的工作目录内。有沙箱的子智能体（Claude 读 / 写、
+`--worktree`、只读的 Codex 沙箱）可能读不到它。运行记录里有 `brief_slim` 和 `brief_guidance`（路径；文件写不进去时有
+`brief_guidance_error`，这时这次运行用完整原文），评测时能在子智能体自己的记录里区分“读不到”和“用不上”。它会不会
+改变做对率、成本或耗时是 **Unknown**：没在真实子智能体上测过。在前后对比证明做对率不降之前不推荐使用（#428）。
+
 ### 实验性：`ccx batch --merge`（`[merge]`，实测前不开）
 
 子智能体的输入大半是每次请求都重发的前缀，五个小块分开跑就要付五次启动。加 `--merge`（或设 `[merge] default = true`；`--no-merge`
@@ -412,6 +472,43 @@ Fail（做对 29 对 30），事后解读为未定。按配对看，三个都没
 运行在 run.json 和账本里带 `merge_of`，账本另有一条 `merge` 事件列出每块的结果。代价：审查按整个改动判（50 行门槛按所有块合计；修复和拆出去
 的运行可能再审一次）、墙钟变长；只要有合并的块没做完，退出码就是 2（单独跑的块仍按 `ccx run` 原来的退出码）。命令行上的 `--merge` 优先于
 `[lanes] default`，命令行上的 `--lanes` 优先于 `[merge] default`；两个都写在命令行上会报错。
+
+### 实验性：冷启动起步表（`routing.cold_start`，实测前不开）
+
+默认关（`routing.cold_start = false`）；关着时每次选档和以前逐字一样（`tests/test_cold_start.py` 锁住）。用
+`ccx config set routing.cold_start on` 打开。它只作用于 task-routing 的选择（带评分项、`--minutes` 或 `--b` 的运行），
+而且只在候选的几家都还没有这一类任务学到的结果、task-routing 只能靠先验时生效。这时首档的档位查 `config/tiers.toml`
+里的 `[cold_start]` 表（可在 `hub/ccx/tiers.toml` 覆盖）：按任务类别一行（`code`、`read`、`research`、`write`，没配的类别用
+`default`），难度 b 不超过某个上限就用那一档，超过所有上限用 T4。表里只写档位，不写哪一家：用哪家仍是 task-routing
+选的，这一家在该档的模型和推理强度取自 `[tiers]`。之后升档只在同一家里往上走（T4 没有后续档），不再用 task-routing
+原来升档路径里的跨厂商档。默认阈值是暂定值，未实测。
+
+"没有历史"按任务类别和候选厂商算（#437）：每条学到的结果现在也记下任务类别（routing state 里的 `kind_counts`
+{类别: {档: 次数}}，以及结果条目上的 `kind`；只加不改，skill 原来的 `counts` 不变）。候选厂商只有 `code` 历史时，
+`read` 任务仍走起步表；记下一次 `read` 结果后，`read` 任务恢复 task-routing 的选择。状态里没记类别的运行（#437 之前写的
+状态文件，或没带类别记录的运行，如 task-routing 自己的 `record` 命令）对每个类别都算有历史，所以旧状态文件不会被误判为冷启动，
+行为和以前一样。类别取 `--kind`；没给时只读运行算 `read`，其余算 `code`；用 `--tier`、`--model` 或 `--provider`
+固定了选择的运行也按运行模式这样记类别（这类运行的 `--kind` 不保留）。任务类别未知时退回按厂商判定（任何一次运行都算）；
+这一支只是防御用，目前类别总能确定。候选指配额和登录过滤之后剩下的几家。
+起步表开不开都会记类别，这不改变任何选择。
+旧历史可以一次性补上类别（#440）：`ccx doctor --backfill-kinds` 读取学习过的运行记录（`runs/*/run.json`，不会改动），
+把其中计入能力的尝试按该运行的 `route.kind` 加进 `kind_counts`；没有 `route.kind` 就按运行模式取类别（`read` / `code`）。
+两者都没有的运行（mode 缺失在这里仍算未知，和取 `code` 的 `record_outcomes` 不同）、缺 agent/model/effort 的尝试仍算“没记类别”。
+开始记类别之后学到的运行会跳过（它们已在 `kind_counts` 里），不会算两遍：运行记录里有 `kind_noted: true`（学习时写下）的跳过；
+没有这个标记时，只要状态里已有 `kind_counts`，学到的时间（开始时间 + attempt 用时，或 verdict 时间）不早于 `kind_since` 与 #437 提交时间
+中较早者之前一小时的运行跳过，没有可用开始时间 `ts` 的运行也跳过。#437 的提交时间不是你实际装上的时间，
+两者之间的运行会保持“没记类别”（保守）。旧运行如果之后被 `ccx verify` 或 probable verdict 再学习一次，
+会从那时起带上 `kind_noted`，回填会整条跳过它：它保持未知，只会少算，不会多算。运行记录在拿 state 锁之前读完。每个档补进的次数不会超过 skill 的 `counts`，
+补不出的既不按比例分摊，也不当作没有。只执行一次（状态里的 `kind_backfill` 作标记，重复执行只提示“已做过”、不改任何东西），
+和记录结果用同一把锁，只加不改。入口是显式选项而不是第一次读状态时自动做，免得一个看似只读的命令改写状态文件。
+
+用户固定的选择不动：`--to`、`--model`、`--tier`、`--provider`、和 `--model` 或 `--provider` 一起给的 `--effort`（单独给
+`--effort` 会被忽略，`ccx run` 会提示），或角色表（任何角色，即使设成 `auto:auto:auto`）。起步表一档都不改，`rung_why.user_fixed`
+写明（`user-fixed / 用户固定: --to codex; automatic selection keeps them as given`）；`ccx run` 只要固定了什么就有这一行，
+起步表开不开都一样；`ccx batch` 和队列运行只在起步表开着时有（取自起步表的记录）。
+起步表开着时，运行和 dry-run 的 `route.cold_start` 写明是否生效、为什么（`applied`、`why`，生效时还有 `kind`、`b`、`tier`、
+`from`：task-routing 原来选的档；`by_kind` 和 `why` 写明按哪个类别判断，例如
+`judged by kind read: no learned outcome of kind read for codex, claude (2 of other kinds)`），`rung_why.model` / `rung_why.effort` 写明来自起步表。dry-run 的首档和真实运行一致。
 
 ## 配额感知
 

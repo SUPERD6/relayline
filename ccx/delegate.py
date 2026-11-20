@@ -30,12 +30,13 @@ from pathlib import Path
 from . import agents, context_share, dispatch, learn, ledger, quota, recover, subagents
 from .check_baseline import BASELINE_FAILED, Checks, only_baseline
 from .config import DELEGATE_AGENTS, SUBAGENT_SWITCHES, Paths, load_config, provider_of, subagent_switches  # noqa: F401
-from .runners import BUILDERS, Outcome, execute, usage_dict, without_launcher_vars
+from .runners import BUILDERS, Outcome, execute, usage_dict, wall_now, without_launcher_vars
 # split out by job (J11); re-exported so `from ccx.delegate import ...` keeps working
 from .agents.codex import _add_children, _codex_growth, _codex_seen, _codex_total  # noqa: F401
 from .ledger import write_record as _write_record  # noqa: F401
 from .plan import _fallback_plan, _plan, _provider_envs, _rung_spec, _usable, _within_budget, other  # noqa: F401
 from .prompts import (CLEAN_LANG, CHECK_RETRY, CHECK_RETRY_SAME, CHECK_RETRY_STRONGER, CHECK_TAIL_CHARS, CONTINUE, ESCALATE, FOLLOWUP, LEAD_NOTE, NEEDS_WRITE, POLICY_MARKERS, POLICY_RETRY, PROMPT,  # noqa: F401
+                      CONTINUE_SLIM, GUIDANCE_FILE, GUIDANCE_LINE, PROMPT_SLIM, SELFCHECK_CMD_SLIM, SELFCHECK_SLIM, guidance_text,
                       REVIEW_CALLER, REVIEW_FINISH, REVIEW_PERMISSION, SELF_CHECKED_RETRY, SELFCHECK, SELFCHECK_CMD, SELFCHECK_WRITE, _policy_rejections,
                       is_policy_line, review_permission)
 from .coverage import SELF_CHECKED, SELF_CHECKED_NOTE, on_self_checked, self_checked as coverage_self_checked
@@ -142,6 +143,14 @@ def slim_prompt(cfg: dict) -> bool:
     """[prompt] slim (default true): no answer-only sentence for a `--mode write` run without --check (P0-11 item 2)."""
     v = (cfg.get("prompt") or {}).get("slim", True)
     return v if isinstance(v, bool) else str(v).strip().lower() not in ("false", "0", "no", "off")
+def slim_brief(cfg: dict) -> bool:
+    """[brief] slim (#428, experimental, default false): the sub-agent's first message keeps only the task, the scope,
+    the acceptance command and the receipt format; the rest is one line pointing at guidance.md in the run's folder.
+    Only a real true turns it on. Not `lead.slim_context` (the lead's own context)."""
+    v = (cfg.get("brief") or {}).get("slim", False)
+    return v if isinstance(v, bool) else str(v).strip().lower() in ("true", "1", "yes", "on")
+
+
 def _capped(req: Request, record: dict, before: str) -> bool:
     """P0-15 --max-usd: the chain has spent its cap, so `before` (the next attempt, the review, the fix round) does
     not start; record["max_usd"] says so. Called only where that step would really start (the review: in review_run,
@@ -166,14 +175,32 @@ def _start_review(req: Request, p: Paths, cfg: dict, record: dict, cwd: Path, ru
     cancel = threading.Event()
 
     def go() -> None:
-        try:
-            _review(req, p, cfg, shadow, cwd, run_dir, cancel=cancel)
-        except Exception as e:  # noqa: BLE001 — a review that can't run never fails the work itself
-            shadow["review"] = {"verdict": "not-run", "error": f"{type(e).__name__}: {e}"[:200]}
+        _timed_review(req, p, cfg, shadow, cwd, run_dir, cancel=cancel, background=True)
 
     t = threading.Thread(target=go, name=f"ccx-review-{record['run_id']}", daemon=True)
     t.start()
     return {"thread": t, "cancel": cancel, "shadow": shadow, "run_id": record["run_id"]}
+
+
+def _timed_review(req: Request, p: Paths, cfg: dict, record: dict, cwd: Path, run_dir: Path, cancel=None,
+                  background: bool = False) -> None:
+    """Run the review (review_run) and, when it recorded one, stamp record["review"] with when it started and ended
+    (wall clock, UTC ISO 8601), how long it took (monotonic `seconds`) and whether it ran beside the check (#392).
+    A review that can't run never fails the work itself: it is recorded as not-run, timed the same way."""
+    before = record.get("review")
+    started, t0 = wall_now(), time.perf_counter()
+    try:
+        _review(req, p, cfg, record, cwd, run_dir, **({"cancel": cancel} if cancel is not None else {}))
+    except Exception as e:  # noqa: BLE001 — a review that can't run never fails the work itself
+        record["review"] = {"verdict": "not-run", "error": f"{type(e).__name__}: {e}"[:200]}
+    rv = record.get("review")
+    # identity, not equality: review_run (and review_tests.run_review) always assign a new dict to record["review"]
+    # when they record a review, so the same object as before means no review was recorded this time. If one ever
+    # updates record["review"] in place instead, this check must change (it would then leave that review untimed)
+    # a review skipped as clean (#427) did not run: no timing, so review_timing measures only real reviews
+    if isinstance(rv, dict) and rv is not before and rv.get("verdict") != "skipped":
+        rv.update(started_at=started, ended_at=wall_now(), seconds=round(time.perf_counter() - t0, 3),
+                  background=background)
 
 
 def _stop_reviews(p: Paths, run_id: str, scan: int = 50) -> None:
@@ -201,7 +228,7 @@ def _finish_review(bg: dict, record: dict, p: Paths, keep: bool, wait: float = 1
     t, shadow = bg["thread"], bg["shadow"]
     if keep:
         t.join()
-        for k in ("review", "edited_tests", "max_usd", "review_test_mode"):
+        for k in ("review", "edited_tests", "max_usd", "review_test_mode", "review_skip"):
             if k in shadow:
                 record[k] = shadow[k]
         if shadow.get("kind") in ("review_issues", "review_failed"):
@@ -212,6 +239,13 @@ def _finish_review(bg: dict, record: dict, p: Paths, keep: bool, wait: float = 1
     while t.is_alive() and time.time() < end:
         _stop_reviews(p, bg["run_id"])
         t.join(0.5)
+
+
+def _time_check(attempt: dict, chk: dict, started_at: str) -> None:
+    """#392: every check on an attempt keeps its time, passed or not (before, only a failed one kept check_seconds):
+    check_started_at (wall clock) and check_seconds (the check's own measure; None when no command ran)."""
+    attempt["check_started_at"] = started_at
+    attempt["check_seconds"] = chk.get("seconds")
 
 
 def stall_seconds(cfg: dict) -> float:
@@ -513,7 +547,7 @@ def rung_why(req: Request, plan: list[dict], requested: dict, cheap: bool,
              before_budget: list[dict] | None = None) -> dict:
     """The planned first rung (routing's pick, before the strict floor, cheap-first, a model swap or the budget), the
     rung the run starts on, and why (#379). Recorded and shown; it decides nothing."""
-    from .plan import pick_reasons, plan_changes
+    from .plan import pick_reasons, plan_changes, user_fixed_text
     planned = requested.get("raised_from") or requested["rung"]
     kw = {"to": requested["agent"], "model": requested["model"], "effort": requested["effort"],
           "tier": requested.get("tier")}
@@ -524,6 +558,9 @@ def rung_why(req: Request, plan: list[dict], requested: dict, cheap: bool,
     changes = plan_changes(planned, plan, cheap, requested, before_budget)
     if changes:
         why["changes"] = changes
+    fixed = user_fixed_text(req.route, req.given)    # #426: what the person / a role fixed; selection leaves it alone
+    if fixed:
+        why["user_fixed"] = fixed
     return why
 
 
@@ -624,9 +661,20 @@ def run(req: Request, p: Paths) -> dict:
         # codex-cli 0.164 offers its multi_agent v2 tools (spawn_agent ...) even with both features disabled and
         # --ignore-user-config (checked 2026-10-24), so the rule has to be said; the spend watchdog stays as backstop
         mode_text += "; do not start sub-agents of your own (no spawn_agent / Agent tool)"
+    # [brief] slim (#428, experimental, default off): see prompts.PROMPT_SLIM. ccx's own reviewer has no builder advice to
+    # move out, so for it nothing changes. If guidance.md cannot be written, the run gets the full text as before.
+    slim_cfg = slim_brief(cfg)
+    slim, guidance_path, guidance_err = slim_cfg and not reviewer and (not prev or cont), None, None
+    if slim:
+        try:
+            guidance_path = run_dir / GUIDANCE_FILE
+            guidance_path.write_text(guidance_text(), encoding="utf-8")
+        except OSError as x:
+            slim, guidance_path, guidance_err = False, None, str(x)
     selfcheck = (REVIEW_FINISH if reviewer
                  else req.finish_note if req.finish_note
-                 else SELFCHECK_CMD.format(check=req.check) if req.check
+                 else (SELFCHECK_CMD_SLIM if slim else SELFCHECK_CMD).format(check=req.check) if req.check
+                 else SELFCHECK_SLIM if slim
                  else SELFCHECK_WRITE if (req.mode == "write" and req.mode_why == "--mode given"   # the lead said so
                                           and slim_prompt(cfg))
                  else SELFCHECK)
@@ -662,8 +710,10 @@ def run(req: Request, p: Paths) -> dict:
     # "you are the implementer" only where it is true and the block it refers to is there: a write run with the
     # lead's shared context attached; never ccx's read-only reviewer or a read task
     lead_note = LEAD_NOTE if shared and req.mode == "write" and not reviewer else ""
+    guidance_line = GUIDANCE_LINE.format(path=guidance_path) if slim else ""
     def make_fresh_prompt():
-        return PROMPT.format(
+        return (PROMPT_SLIM if slim else PROMPT).format(
+            guidance_line=guidance_line,
             run_id=run_id, caller=req.caller, cwd=cwd, brief=brief,
             mode_text=mode_text, selfcheck=selfcheck, lead_note=lead_note,
             context_line=f"Project context (read first): {ctx}\n" if ctx else "",
@@ -672,8 +722,9 @@ def run(req: Request, p: Paths) -> dict:
         )
     fresh_prompt = None
     if cont:
-        first_prompt = CONTINUE.format(run_id=run_id, caller=req.caller, cwd=cwd, brief=brief,
-                                       mode_text=mode_text, selfcheck=selfcheck, lead_note=lead_note)
+        first_prompt = (CONTINUE_SLIM if slim else CONTINUE).format(
+            run_id=run_id, caller=req.caller, cwd=cwd, brief=brief, mode_text=mode_text, selfcheck=selfcheck,
+            lead_note=lead_note, guidance_line=guidance_line)
     elif prev:
         first_prompt = FOLLOWUP.format(run_id=run_id, brief=req.brief)
     else:
@@ -708,6 +759,10 @@ def run(req: Request, p: Paths) -> dict:
         "state": "running", "error": None, "auth_problem": False, "kind": None,
         "route": req.route, "task": req.task, "step": req.step, "learned": None, "ts": time.time(),
         "provider": req.provider, "lead_session": req.lead_session, "continued": cont,
+        # [brief] slim (#428): only when switched on, so a run record without the switch is as before. brief_guidance
+        # is where the pointer line sent the sub-agent: a run that did not read it can be told from one that had none
+        **({"brief_slim": slim, "brief_guidance": str(guidance_path) if guidance_path else None,
+            **({"brief_guidance_error": guidance_err} if guidance_err else {})} if slim_cfg else {}),
         "first_rung": plan[0]["rung"],
         # #379: routing's first rung, the first rung that really took the task (set after each attempt), and why
         "planned_first_rung": why_rung["planned_first_rung"], "actual_first_rung": None, "rung_why": why_rung,
@@ -777,6 +832,16 @@ def run(req: Request, p: Paths) -> dict:
     checks = Checks(dispatch.check_config(cfg, cheap_dispatch), cwd, run_dir, record, run_check,
                     enabled=bool(req.check or str(req.label or "").startswith(("merge:", "eval-merge:"))))
     want_review = req.mode == "write" and req.review != "off" and not req.ephemeral
+    # #427 [review] skip_when_clean (default off): whether the run is clean needs the check's real result and
+    # sensitivity, so the review then waits for the check instead of running beside it. A run that cannot be clean
+    # whatever the check says (--review on, a fix round, risk visible / critical, [review] mode = "on") keeps it
+    # beside the check
+    from .review import skip_when_clean
+    from .review_tests import trigger
+    rcfg = cfg.get("review") or {}
+    could_skip = (skip_when_clean(rcfg) and checks.sensitivity != "off" and req.review == "auto"
+                  and not req.review_round and req.risk not in ("visible", "critical") and trigger(rcfg) == "auto")
+    defer_review = checks.defer_review or could_skip
     stop_file = run_dir / "stop.request"         # written by `ccx stop <run_id>`
 
     def on_start(pid: int) -> None:
@@ -965,6 +1030,9 @@ def run(req: Request, p: Paths) -> dict:
             "effort": spec["effort"], "ok": oc.ok, "kind": oc.kind, "seconds": dt, "usage": oc.usage,
             **({"timeout_context": timeout_detail} if timeout_detail is not None else {}),
             **({"stalled": True} if oc.stalled else {}),
+            # #392: CLI launch and first event (wall clock), the gap between them (monotonic); absent: never started
+            **({"started_at": oc.started_at, "first_event_at": oc.first_event_at,
+                "startup_seconds": oc.startup_seconds} if oc.started_at else {}),
             # through a provider the CLI still prices with its own vendor's table: only ccx's price is right
             "cost_usd": None if extra else oc.cost_usd, "ae_usd": round(ae, 6) if ae is not None else None,
             "error": oc.error, "auth_problem": oc.auth_problem, "retry_after": oc.retry_after,
@@ -1083,13 +1151,15 @@ def run(req: Request, p: Paths) -> dict:
             # "done" but ccx's own run of the check fails: that is a failure too, so climb while a rung is left.
             # Before, only blocked/failed escalated, and a cheap model that wrongly said done stopped there
             # (needed once tradeoff = save picks cheap models first, 2026-10-25)
-            if want_review and not checks.defer_review:
+            if want_review and not defer_review:
                 bg_review = _start_review(req, p, cfg, record, cwd, run_dir, oc.result)
             # did this attempt change anything: told before the check runs, so files the check writes don't count
             left = _left_unchanged(p, record) if req.mode == "write" else None
             focused = focused_retry(cfg)
+            chk_started = wall_now()
             chk = (_namecheck(req, p, cfg, record, cwd)         # mode fail + a hit: the command is not run
                    or checks(req.check, **({"tail_chars": CHECK_TAIL_CHARS} if focused else {})))
+            _time_check(record["attempts"][-1], chk, chk_started)
             early_check = (len(record["attempts"]), chk, left)
             insensitive_retry = (dispatch.sensitivity_retry(cfg, chk, cheap_dispatch, dispatch_phase)
                                  and spec["rung"] != requested["rung"])
@@ -1213,11 +1283,17 @@ def run(req: Request, p: Paths) -> dict:
         record["check"], record["kind"], check_passed = nc_fail, "check_failed", False
     elif req.check and oc.ok and status in ("done", "partial"):
         reuse = early_check and early_check[0] == len(record["attempts"])    # already run on this very attempt
-        if not reuse and want_review and bg_review is None and not checks.defer_review:
+        if not reuse and want_review and bg_review is None and not defer_review:
             # the review runs while ccx runs the check (it needs only the command, not its result); it counts
             # only if the check passes, and is stopped otherwise
             bg_review = _start_review(req, p, cfg, record, cwd, run_dir, oc.result)
-        record["check"] = early_check[1] if reuse else checks(req.check)
+        if reuse:
+            record["check"] = early_check[1]
+        else:
+            chk_started = wall_now()
+            record["check"] = checks(req.check)
+            if record["attempts"]:
+                _time_check(record["attempts"][-1], record["check"], chk_started)
         check_passed = record["check"]["passed"]
         if record["check"].get("broken"):
             # the command tested nothing (pytest exit 4/5): no verdict on the work, the lead fixes the check
@@ -1234,10 +1310,7 @@ def run(req: Request, p: Paths) -> dict:
     if bg_review is not None:
         _finish_review(bg_review, record, p, keep=record.get("kind") not in ("check_failed", "check_broken", BASELINE_FAILED))
     elif want_review and record.get("kind") not in ("check_failed", "check_broken", BASELINE_FAILED):
-        try:
-            _review(req, p, cfg, record, cwd, run_dir)
-        except Exception as e:  # noqa: BLE001 — a review that can't run never fails the work itself
-            record["review"] = {"verdict": "not-run", "error": f"{type(e).__name__}: {e}"[:200]}
+        _timed_review(req, p, cfg, record, cwd, run_dir)
     res_now = oc.result or {}
     if (req.mode == "read" and oc.ok and status in ("done", "partial") and record.get("kind") in (None, "ok")
             and not str(req.label or "").startswith("discuss") and no_answer(res_now)):
@@ -1715,7 +1788,7 @@ def compact(record: dict) -> dict:
     if record.get("review"):
         rv = record["review"]
         out["review"] = {k: rv[k] for k in ("verdict", "reason", "by", "issues", "notes", "usd", "error",
-                                            "edited_tests", "downgraded") if rv.get(k)}
+                                            "edited_tests", "downgraded", "skipped") if rv.get(k)}
         if rv.get("review_mode") == "tests":
             out["review_mode"] = "tests"
             out["review"].update({k: rv[k] for k in ("review_mode", "tests_written", "tests_run", "tests_failed",

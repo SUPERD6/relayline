@@ -153,7 +153,7 @@ ccx config set ui.lang zh          # ccx ui 和 ccx 写进会话的提示用中�
 ccx config set defaults.tradeoff 0.3   # 省钱↔快 的旋钮：save / balanced / fast，或 0..1
 ccx config set routing.mode off       # 不派活：活都自己做；ccx ask / discuss / run --mode read（跨厂商审查）、mem、
                                       # board 照常；run / batch / q run / q resume / way 不带 --force 就拒绝（auto = 出厂）
-ccx ab done <id> --ok 1             # 结束一次 A/B 抽样（主导自己做的那 10%）
+ccx ab done <id> --ok 1             # 结束一次 A/B 抽样（主导自己做的那 10%）；账本行记下这次任务的规模信号
 ccx run "任务" --to gemini --tier T2                       # 派给 Gemini CLI
 ccx run "任务" --to deepseek      # 通过 Claude Code 用 DeepSeek flash（密钥放环境变量 DEEPSEEK_API_KEY），思考强度按难度选
 ccx run "任务" --provider deepseek-codex   # 同一个模型经 Codex（用 -c 设 model provider，密钥从环境变量读）

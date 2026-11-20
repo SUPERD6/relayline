@@ -1,0 +1,219 @@
+{
+  "models_called": false,
+  "tasks": [
+    {
+      "id": "r2bd-cronlite-1",
+      "pythonutf8": true,
+      "existing": {
+        "rc": 0,
+        "summary": "56 passed in 0.14s",
+        "errors": []
+      },
+      "start": {
+        "rc": 1,
+        "summary": "8 failed, 9 passed in 0.13s",
+        "errors": [
+          "E               cronlite.errors.CronError: hour: '9-12' is not a number",
+          "E               cronlite.errors.CronError: minute: '*/20' is not a number",
+          "E               cronlite.errors.CronError: day: '1-9/4' is not a number",
+          "E               cronlite.errors.CronError: month: '10/1' is not a number",
+          "E               cronlite.errors.CronError: weekday: 7 is outside 0-6",
+          "E               cronlite.errors.CronError: month: 'Jan' is not a number",
+          "E               cronlite.errors.CronError: day: '*/10' is not a number",
+          "E               cronlite.errors.CronError: minute: '*/15' is not a number",
+          "FAILED tests/test_ranges_steps.py::test_range - cronlite.errors.CronError: ho...",
+          "FAILED tests/test_ranges_steps.py::test_star_step - cronlite.errors.CronError...",
+          "FAILED tests/test_ranges_steps.py::test_range_step_and_list - cronlite.errors...",
+          "FAILED tests/test_ranges_steps.py::test_number_step_runs_to_the_top - cronlit..."
+        ]
+      },
+      "reference": {
+        "rc": 0,
+        "summary": "17 passed in 0.05s",
+        "errors": []
+      },
+      "reference_full": {
+        "rc": 0,
+        "summary": "73 passed in 0.15s",
+        "errors": []
+      },
+      "reference_failed": [],
+      "assertions": 22,
+      "literal_overlap": [
+        {
+          "assertion": "tests/test_ranges_steps.py::test_number_step_runs_to_the_top#1",
+          "literal": "month"
+        },
+        {
+          "assertion": "tests/test_ranges_steps.py::test_weekday_seven_is_sunday#1",
+          "literal": "weekday"
+        },
+        {
+          "assertion": "tests/test_ranges_steps.py::test_weekday_seven_is_sunday#2",
+          "literal": "weekday"
+        },
+        {
+          "assertion": "tests/test_ranges_steps.py::test_weekday_seven_is_sunday#3",
+          "literal": "weekday"
+        },
+        {
+          "assertion": "tests/test_ranges_steps.py::test_month_and_weekday_names#1",
+          "literal": "month"
+        },
+        {
+          "assertion": "tests/test_ranges_steps.py::test_month_and_weekday_names#2",
+          "literal": "weekday"
+        },
+        {
+          "assertion": "tests/test_ranges_steps.py::test_month_and_weekday_names#3",
+          "literal": "weekday"
+        }
+      ],
+      "unmapped": [],
+      "unknown_in_trace": [],
+      "sentence_not_in_brief": [],
+      "trace_complete": true,
+      "problems": [],
+      "valid": true,
+      "review": [
+        "literal 'month' of tests/test_ranges_steps.py::test_number_step_runs_to_the_top#1 appears in the brief",
+        "literal 'weekday' of tests/test_ranges_steps.py::test_weekday_seven_is_sunday#1 appears in the brief",
+        "literal 'weekday' of tests/test_ranges_steps.py::test_weekday_seven_is_sunday#2 appears in the brief",
+        "literal 'weekday' of tests/test_ranges_steps.py::test_weekday_seven_is_sunday#3 appears in the brief",
+        "literal 'month' of tests/test_ranges_steps.py::test_month_and_weekday_names#1 appears in the brief",
+        "literal 'weekday' of tests/test_ranges_steps.py::test_month_and_weekday_names#2 appears in the brief",
+        "literal 'weekday' of tests/test_ranges_steps.py::test_month_and_weekday_names#3 appears in the brief"
+      ],
+      "lib": "cronlite",
+      "dev": true
+    },
+    {
+      "id": "r2bd-cronlite-2",
+      "pythonutf8": true,
+      "existing": {
+        "rc": 0,
+        "summary": "56 passed in 0.13s",
+        "errors": []
+      },
+      "start": {
+        "rc": 2,
+        "summary": "1 error in 0.17s",
+        "errors": [
+          "E   ImportError: cannot import name 'next_run' from 'cronlite' (<tree>\\cronlite\\__init__.py)",
+          "ERROR tests/test_backoff.py"
+        ]
+      },
+      "reference": {
+        "rc": 0,
+        "summary": "9 passed in 0.05s",
+        "errors": []
+      },
+      "reference_full": {
+        "rc": 0,
+        "summary": "65 passed in 0.14s",
+        "errors": []
+      },
+      "reference_failed": [],
+      "assertions": 21,
+      "literal_overlap": [],
+      "unmapped": [],
+      "unknown_in_trace": [],
+      "sentence_not_in_brief": [],
+      "trace_complete": true,
+      "problems": [],
+      "valid": true,
+      "review": [],
+      "lib": "cronlite",
+      "dev": true
+    },
+    {
+      "id": "r2bd-tabula-1",
+      "pythonutf8": true,
+      "existing": {
+        "rc": 0,
+        "summary": "93 passed in 0.13s",
+        "errors": []
+      },
+      "start": {
+        "rc": 1,
+        "summary": "9 failed in 0.13s",
+        "errors": [
+          "E       AttributeError: 'Table' object has no attribute 'lines'",
+          "E       AssertionError: assert 3 == 5",
+          "E        +  where 3 = ParseError('line 3: expected 2 fields, found 1').line",
+          "E        +    where ParseError('line 3: expected 2 fields, found 1') = <ExceptionInfo ParseError('line 3: expected 2 fields, found 1') tblen=2>.value",
+          "E       AttributeError: 'Table' object has no attribute 'lines'",
+          "E       AttributeError: 'CoercionError' object has no attribute 'line'",
+          "E       AttributeError: 'Table' object has no attribute 'lines'",
+          "E       TypeError: Schema.__init__() got an unexpected keyword argument 'nulls'",
+          "E           TypeError: Schema.__init__() got an unexpected keyword argument 'nulls'",
+          "E       AttributeError: 'Table' object has no attribute 'lines'",
+          "E           TypeError: Table.__init__() got an unexpected keyword argument 'lines'",
+          "FAILED tests/test_lines_and_nulls.py::test_rows_record_their_start_line - Att..."
+        ]
+      },
+      "reference": {
+        "rc": 0,
+        "summary": "9 passed in 0.04s",
+        "errors": []
+      },
+      "reference_full": {
+        "rc": 0,
+        "summary": "102 passed in 0.13s",
+        "errors": []
+      },
+      "reference_failed": [],
+      "assertions": 19,
+      "literal_overlap": [],
+      "unmapped": [],
+      "unknown_in_trace": [],
+      "sentence_not_in_brief": [],
+      "trace_complete": true,
+      "problems": [],
+      "valid": true,
+      "review": [],
+      "lib": "tabula",
+      "dev": true
+    },
+    {
+      "id": "r2bd-tabula-2",
+      "pythonutf8": true,
+      "existing": {
+        "rc": 0,
+        "summary": "93 passed in 0.13s",
+        "errors": []
+      },
+      "start": {
+        "rc": 2,
+        "summary": "1 error in 0.15s",
+        "errors": [
+          "E   ImportError: cannot import name 'numeric_columns' from 'tabula' (<tree>\\tabula\\__init__.py)",
+          "ERROR tests/test_render.py"
+        ]
+      },
+      "reference": {
+        "rc": 0,
+        "summary": "15 passed in 0.04s",
+        "errors": []
+      },
+      "reference_full": {
+        "rc": 0,
+        "summary": "105 passed in 0.13s",
+        "errors": []
+      },
+      "reference_failed": [],
+      "assertions": 21,
+      "literal_overlap": [],
+      "unmapped": [],
+      "unknown_in_trace": [],
+      "sentence_not_in_brief": [],
+      "trace_complete": true,
+      "problems": [],
+      "valid": true,
+      "review": [],
+      "lib": "tabula",
+      "dev": true
+    }
+  ],
+  "valid": true
+}

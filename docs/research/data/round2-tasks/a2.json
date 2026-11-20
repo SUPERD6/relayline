@@ -1,0 +1,3213 @@
+{
+  "kind": "memory",
+  "group": "A2",
+  "dev": false,
+  "author": "Claude Opus 5.5 (claude-opus-5-5), task-writing session that takes part in no evaluation",
+  "preregistration": "docs/research/prereg/2026-11-16-round2.md, section 2 (A1, A2)",
+  "issue": 375,
+  "trace_granularity": "per hidden test function: every assert of a test maps to that test's sentences; a reviewer reads each assert against them",
+  "tasks": [
+    {
+      "id": "r2a2-01-euro-amount",
+      "dev": false,
+      "source": "authored",
+      "files": {
+        "money.py": "def dollars(cents):\n    return f\"${cents / 100:,.2f}\"\n"
+      },
+      "brief": "Add euro_text(cents) to money.py: format an amount of euro cents for the invoices.",
+      "neutral": false,
+      "kind": "convention",
+      "memory": "Convention for euro amounts on invoices: comma as the decimal separator and a period between thousands (1.234,56), always two decimals. The euro sign comes after the number, separated by a space (12,50 €). Negative amounts start with a minus sign before the number.",
+      "distractors": [
+        [
+          "tooling",
+          "Release builds are made from a clean checkout with `python -m build`; never upload a dirty tree."
+        ],
+        [
+          "people",
+          "Reviews on this project are asynchronous: leave a summary comment, do not wait for a call."
+        ],
+        [
+          "pitfall",
+          "The CI image has no locale data: tests must not depend on locale-specific formatting."
+        ],
+        [
+          "convention",
+          "Amounts in the US price list use a dollar sign in front and a comma between thousands."
+        ]
+      ],
+      "hidden": "from money import euro_text\n\n\ndef test_separators():\n    assert euro_text(123456) == '1.234,56 €'\n    assert euro_text(100000000) == '1.000.000,00 €'\n\n\ndef test_sign_after():\n    assert euro_text(1250) == '12,50 €'\n    assert euro_text(5) == '0,05 €'\n\n\ndef test_negative():\n    assert euro_text(-1250) == '-12,50 €'\n",
+      "reference": {
+        "money.py": "def dollars(cents):\n    return f\"${cents / 100:,.2f}\"\n\n\ndef euro_text(cents):\n    sign = '-' if cents < 0 else ''\n    whole, rest = divmod(abs(cents), 100)\n    grouped = f'{whole:,}'.replace(',', '.')\n    return f'{sign}{grouped},{rest:02d} €'\n"
+      },
+      "naive": {
+        "money.py": "def dollars(cents):\n    return f\"${cents / 100:,.2f}\"\n\n\ndef euro_text(cents):\n    return f\"€{cents / 100:,.2f}\"\n"
+      },
+      "conventions": [
+        "comma as the decimal separator and a period between thousands (1.234,56)",
+        "The euro sign comes after the number, separated by a space (12,50 €)",
+        "Negative amounts start with a minus sign before the number"
+      ],
+      "trace": [
+        {
+          "assertion": "test_zz_hidden_eval.py::test_separators#1",
+          "brief": "comma as the decimal separator and a period between thousands (1.234,56)"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_separators#1",
+          "brief": "always two decimals"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_separators#2",
+          "brief": "comma as the decimal separator and a period between thousands (1.234,56)"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_separators#2",
+          "brief": "always two decimals"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_sign_after#1",
+          "brief": "The euro sign comes after the number, separated by a space (12,50 €)"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_sign_after#2",
+          "brief": "The euro sign comes after the number, separated by a space (12,50 €)"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_negative#1",
+          "brief": "Negative amounts start with a minus sign before the number"
+        }
+      ]
+    },
+    {
+      "id": "r2a2-02-utc-stamp",
+      "dev": false,
+      "source": "authored",
+      "files": {
+        "stamps.py": "import datetime\n\n\ndef today():\n    return datetime.date.today().isoformat()\n"
+      },
+      "brief": "Implement stamp(dt) in stamps.py: the timestamp string stored with each record for a datetime dt.",
+      "neutral": false,
+      "kind": "convention",
+      "memory": "Timestamp convention for stored records: always UTC, written with a trailing Z instead of +00:00. Whole seconds only, microseconds dropped (not rounded). A naive datetime (no tzinfo) is taken to already be UTC.",
+      "distractors": [
+        [
+          "tooling",
+          "Release builds are made from a clean checkout with `python -m build`; never upload a dirty tree."
+        ],
+        [
+          "people",
+          "Reviews on this project are asynchronous: leave a summary comment, do not wait for a call."
+        ],
+        [
+          "pitfall",
+          "The CI image has no locale data: tests must not depend on locale-specific formatting."
+        ],
+        [
+          "convention",
+          "Dates shown in the admin UI are in the user's local time zone, formatted as day month year."
+        ]
+      ],
+      "hidden": "import datetime\nfrom stamps import stamp\n\nTZ = datetime.timezone(datetime.timedelta(hours=-5))\n\n\ndef test_utc_z():\n    dt = datetime.datetime(2026, 3, 1, 7, 0, 0, tzinfo=TZ)\n    assert stamp(dt) == '2026-03-01T12:00:00Z'\n\n\ndef test_seconds_only():\n    dt = datetime.datetime(2026, 3, 1, 12, 0, 0, 999999, tzinfo=datetime.timezone.utc)\n    assert stamp(dt) == '2026-03-01T12:00:00Z'\n\n\ndef test_naive_is_utc():\n    assert stamp(datetime.datetime(2026, 3, 1, 12, 30)) == '2026-03-01T12:30:00Z'\n",
+      "reference": {
+        "stamps.py": "import datetime\n\n\ndef today():\n    return datetime.date.today().isoformat()\n\n\ndef stamp(dt):\n    if dt.tzinfo is None:\n        dt = dt.replace(tzinfo=datetime.timezone.utc)\n    dt = dt.astimezone(datetime.timezone.utc).replace(microsecond=0)\n    return dt.strftime('%Y-%m-%dT%H:%M:%SZ')\n"
+      },
+      "naive": {
+        "stamps.py": "import datetime\n\n\ndef today():\n    return datetime.date.today().isoformat()\n\n\ndef stamp(dt):\n    return dt.isoformat()\n"
+      },
+      "conventions": [
+        "always UTC, written with a trailing Z instead of +00:00",
+        "Whole seconds only, microseconds dropped (not rounded)",
+        "A naive datetime (no tzinfo) is taken to already be UTC"
+      ],
+      "trace": [
+        {
+          "assertion": "test_zz_hidden_eval.py::test_utc_z#1",
+          "brief": "always UTC, written with a trailing Z instead of +00:00"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_seconds_only#1",
+          "brief": "Whole seconds only, microseconds dropped (not rounded)"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_naive_is_utc#1",
+          "brief": "A naive datetime (no tzinfo) is taken to already be UTC"
+        }
+      ]
+    },
+    {
+      "id": "r2a2-03-record-ids",
+      "dev": false,
+      "source": "authored",
+      "files": {
+        "ids.py": "import uuid\n\n\ndef random_id():\n    return uuid.uuid4().hex\n"
+      },
+      "brief": "Write make_id(kind, n) in ids.py: the identifier of the n-th record of a given kind (for example kind 'user').",
+      "neutral": false,
+      "kind": "convention",
+      "memory": "Record id convention: the kind in lower case, an underscore, then the counter n in base 36 using digits and lower-case letters, zero-padded to six characters (user_00002s). n must be a non-negative int; anything else raises ValueError.",
+      "distractors": [
+        [
+          "tooling",
+          "Release builds are made from a clean checkout with `python -m build`; never upload a dirty tree."
+        ],
+        [
+          "people",
+          "Reviews on this project are asynchronous: leave a summary comment, do not wait for a call."
+        ],
+        [
+          "pitfall",
+          "The CI image has no locale data: tests must not depend on locale-specific formatting."
+        ],
+        [
+          "convention",
+          "Session tokens are 32 random hex characters from uuid4, never derived from a counter."
+        ]
+      ],
+      "hidden": "import pytest\nfrom ids import make_id\n\n\ndef test_prefix():\n    assert make_id('User', 1) == 'user_000001'\n\n\ndef test_base36():\n    assert make_id('order', 100) == 'order_00002s'\n    assert make_id('order', 36 ** 6 - 1) == 'order_zzzzzz'\n\n\ndef test_invalid():\n    for bad in (-1, 1.5, '3'):\n        with pytest.raises(ValueError):\n            make_id('x', bad)\n",
+      "reference": {
+        "ids.py": "import string\nimport uuid\n\nDIGITS = string.digits + string.ascii_lowercase\n\n\ndef random_id():\n    return uuid.uuid4().hex\n\n\ndef make_id(kind, n):\n    if not isinstance(n, int) or isinstance(n, bool) or n < 0:\n        raise ValueError('n must be a non-negative int')\n    out = ''\n    while True:\n        n, r = divmod(n, 36)\n        out = DIGITS[r] + out\n        if n == 0:\n            break\n    return f'{kind.lower()}_{out.rjust(6, \"0\")}'\n"
+      },
+      "naive": {
+        "ids.py": "import uuid\n\n\ndef random_id():\n    return uuid.uuid4().hex\n\n\ndef make_id(kind, n):\n    return f'{kind}-{n}'\n"
+      },
+      "conventions": [
+        "the kind in lower case, an underscore",
+        "the counter n in base 36 using digits and lower-case letters, zero-padded to six characters (user_00002s)",
+        "n must be a non-negative int; anything else raises ValueError"
+      ],
+      "trace": [
+        {
+          "assertion": "test_zz_hidden_eval.py::test_prefix#1",
+          "brief": "the kind in lower case, an underscore"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_base36#1",
+          "brief": "the counter n in base 36 using digits and lower-case letters, zero-padded to six characters (user_00002s)"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_base36#2",
+          "brief": "the counter n in base 36 using digits and lower-case letters, zero-padded to six characters (user_00002s)"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_invalid#1",
+          "brief": "n must be a non-negative int; anything else raises ValueError"
+        }
+      ]
+    },
+    {
+      "id": "r2a2-04-error-body",
+      "dev": false,
+      "source": "authored",
+      "files": {
+        "api.py": "def ok(data):\n    return {\"status\": \"ok\", \"data\": data}\n"
+      },
+      "brief": "Implement error_body(status, message) in api.py: the JSON-ready dict returned to clients when a request fails with the given HTTP status code.",
+      "neutral": false,
+      "kind": "convention",
+      "memory": "API error convention: error bodies use camelCase keys, exactly errorCode (the HTTP status as an int), message and retryable. retryable is true only for status 429 and for 5xx codes. The message is passed through unchanged, never upper-cased or prefixed.",
+      "distractors": [
+        [
+          "tooling",
+          "Release builds are made from a clean checkout with `python -m build`; never upload a dirty tree."
+        ],
+        [
+          "people",
+          "Reviews on this project are asynchronous: leave a summary comment, do not wait for a call."
+        ],
+        [
+          "pitfall",
+          "The CI image has no locale data: tests must not depend on locale-specific formatting."
+        ],
+        [
+          "convention",
+          "Internal event payloads between services use snake_case keys and include a trace_id."
+        ]
+      ],
+      "hidden": "from api import error_body\n\n\ndef test_keys():\n    body = error_body(404, 'not found')\n    assert body == {'errorCode': 404, 'message': 'not found', 'retryable': False}\n\n\ndef test_retryable():\n    assert error_body(429, 'slow down')['retryable'] is True\n    assert error_body(503, 'busy')['retryable'] is True\n    assert error_body(400, 'bad')['retryable'] is False\n    assert error_body(499, 'gone')['retryable'] is False\n",
+      "reference": {
+        "api.py": "def ok(data):\n    return {\"status\": \"ok\", \"data\": data}\n\n\ndef error_body(status, message):\n    return {'errorCode': int(status), 'message': message,\n            'retryable': status == 429 or 500 <= status <= 599}\n"
+      },
+      "naive": {
+        "api.py": "def ok(data):\n    return {\"status\": \"ok\", \"data\": data}\n\n\ndef error_body(status, message):\n    return {\"status\": \"error\", \"error_code\": status, \"message\": message}\n"
+      },
+      "conventions": [
+        "error bodies use camelCase keys, exactly errorCode (the HTTP status as an int), message and retryable",
+        "retryable is true only for status 429 and for 5xx codes"
+      ],
+      "trace": [
+        {
+          "assertion": "test_zz_hidden_eval.py::test_keys#1",
+          "brief": "error bodies use camelCase keys, exactly errorCode (the HTTP status as an int), message and retryable"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_keys#1",
+          "brief": "The message is passed through unchanged"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_retryable#1",
+          "brief": "retryable is true only for status 429 and for 5xx codes"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_retryable#2",
+          "brief": "retryable is true only for status 429 and for 5xx codes"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_retryable#3",
+          "brief": "retryable is true only for status 429 and for 5xx codes"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_retryable#4",
+          "brief": "retryable is true only for status 429 and for 5xx codes"
+        }
+      ]
+    },
+    {
+      "id": "r2a2-05-author-name",
+      "dev": false,
+      "source": "authored",
+      "files": {
+        "citations.py": "def initials(given):\n    return ''.join(w[0] + '.' for w in given.split())\n"
+      },
+      "brief": "Add author_label(given, family) to citations.py: how an author's name is printed in the reference list of a paper.",
+      "neutral": false,
+      "kind": "convention",
+      "memory": "Reference list convention: family name first, in capitals, then a comma and the given names as initials with periods and no spaces between them (LOVELACE, A.K.). An author with no given names is printed as the capitalised family name alone, with no comma.",
+      "distractors": [
+        [
+          "tooling",
+          "Release builds are made from a clean checkout with `python -m build`; never upload a dirty tree."
+        ],
+        [
+          "people",
+          "Reviews on this project are asynchronous: leave a summary comment, do not wait for a call."
+        ],
+        [
+          "pitfall",
+          "The CI image has no locale data: tests must not depend on locale-specific formatting."
+        ],
+        [
+          "convention",
+          "Speaker badges at the conference print the given name large and the family name small underneath."
+        ]
+      ],
+      "hidden": "from citations import author_label\n\n\ndef test_family_first_caps():\n    assert author_label('Grace', 'Hopper') == 'HOPPER, G.'\n\n\ndef test_initials_no_spaces():\n    assert author_label('Ada King', 'Lovelace') == 'LOVELACE, A.K.'\n    assert author_label('john ronald reuel', 'tolkien') == 'TOLKIEN, J.R.R.'\n\n\ndef test_no_given():\n    assert author_label('', 'Aristotle') == 'ARISTOTLE'\n",
+      "reference": {
+        "citations.py": "def initials(given):\n    return ''.join(w[0] + '.' for w in given.split())\n\n\ndef author_label(given, family):\n    inits = ''.join(w[0].upper() + '.' for w in given.split())\n    return f'{family.upper()}, {inits}' if inits else family.upper()\n"
+      },
+      "naive": {
+        "citations.py": "def initials(given):\n    return ''.join(w[0] + '.' for w in given.split())\n\n\ndef author_label(given, family):\n    return f\"{' '.join(w[0] + '.' for w in given.split())} {family}\".strip()\n"
+      },
+      "conventions": [
+        "family name first, in capitals",
+        "the given names as initials with periods and no spaces between them (LOVELACE, A.K.)",
+        "An author with no given names is printed as the capitalised family name alone, with no comma"
+      ],
+      "trace": [
+        {
+          "assertion": "test_zz_hidden_eval.py::test_family_first_caps#1",
+          "brief": "family name first, in capitals"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_family_first_caps#1",
+          "brief": "then a comma and the given names as initials"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_initials_no_spaces#1",
+          "brief": "the given names as initials with periods and no spaces between them (LOVELACE, A.K.)"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_initials_no_spaces#2",
+          "brief": "the given names as initials with periods and no spaces between them (LOVELACE, A.K.)"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_no_given#1",
+          "brief": "An author with no given names is printed as the capitalised family name alone, with no comma"
+        }
+      ]
+    },
+    {
+      "id": "r2a2-06-data-lines",
+      "dev": false,
+      "source": "authored",
+      "files": {
+        "loader.py": "def read_text(path):\n    with open(path, encoding='utf-8') as f:\n        return f.read()\n"
+      },
+      "brief": "Write read_entries(path) in loader.py: return the entries of one of our list files (one entry per line) as a list of strings.",
+      "neutral": false,
+      "kind": "convention",
+      "memory": "List file convention: files may start with a UTF-8 byte order mark, so open them with encoding='utf-8-sig'. Lines starting with '#' (after leading spaces) are comments and are skipped, as are blank lines. Entries keep their leading spaces but lose trailing whitespace.",
+      "distractors": [
+        [
+          "tooling",
+          "Release builds are made from a clean checkout with `python -m build`; never upload a dirty tree."
+        ],
+        [
+          "people",
+          "Reviews on this project are asynchronous: leave a summary comment, do not wait for a call."
+        ],
+        [
+          "pitfall",
+          "The CI image has no locale data: tests must not depend on locale-specific formatting."
+        ],
+        [
+          "pitfall",
+          "Log files written by the old exporter are Latin-1, not UTF-8; decode them with errors='replace'."
+        ]
+      ],
+      "hidden": "from loader import read_entries\n\n\ndef test_bom(tmp_path):\n    f = tmp_path / 'a.txt'\n    f.write_bytes('﻿alpha\\nbeta\\n'.encode('utf-8'))\n    assert read_entries(f) == ['alpha', 'beta']\n\n\ndef test_comments_and_blanks(tmp_path):\n    f = tmp_path / 'b.txt'\n    f.write_text('# header\\none\\n\\n   # indented comment\\ntwo\\n   \\n', encoding='utf-8')\n    assert read_entries(f) == ['one', 'two']\n\n\ndef test_whitespace(tmp_path):\n    f = tmp_path / 'c.txt'\n    f.write_text('  nested item  \\t\\nplain\\r\\n', encoding='utf-8')\n    assert read_entries(f) == ['  nested item', 'plain']\n",
+      "reference": {
+        "loader.py": "def read_text(path):\n    with open(path, encoding='utf-8') as f:\n        return f.read()\n\n\ndef read_entries(path):\n    out = []\n    with open(path, encoding='utf-8-sig') as f:\n        for line in f:\n            line = line.rstrip()\n            if not line.strip() or line.lstrip().startswith('#'):\n                continue\n            out.append(line)\n    return out\n"
+      },
+      "naive": {
+        "loader.py": "def read_text(path):\n    with open(path, encoding='utf-8') as f:\n        return f.read()\n\n\ndef read_entries(path):\n    return [line.strip() for line in read_text(path).splitlines() if line.strip()]\n"
+      },
+      "conventions": [
+        "open them with encoding='utf-8-sig'",
+        "Lines starting with '#' (after leading spaces) are comments and are skipped, as are blank lines",
+        "Entries keep their leading spaces but lose trailing whitespace"
+      ],
+      "trace": [
+        {
+          "assertion": "test_zz_hidden_eval.py::test_bom#1",
+          "brief": "open them with encoding='utf-8-sig'"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_comments_and_blanks#1",
+          "brief": "Lines starting with '#' (after leading spaces) are comments and are skipped, as are blank lines"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_whitespace#1",
+          "brief": "Entries keep their leading spaces but lose trailing whitespace"
+        }
+      ]
+    },
+    {
+      "id": "r2a2-07-relative-change",
+      "dev": false,
+      "source": "authored",
+      "files": {
+        "metrics.py": "def delta(old, new):\n    return new - old\n"
+      },
+      "brief": "Implement relative_change(old, new) in metrics.py: how much a metric changed relative to its old value, for the KPI dashboard.",
+      "neutral": false,
+      "kind": "convention",
+      "memory": "KPI convention: relative changes are fractions, not percentages (a rise from 80 to 100 is 0.25, not 25), rounded to four decimals. When the old value is 0 the change is undefined and the function returns None.",
+      "distractors": [
+        [
+          "tooling",
+          "Release builds are made from a clean checkout with `python -m build`; never upload a dirty tree."
+        ],
+        [
+          "people",
+          "Reviews on this project are asynchronous: leave a summary comment, do not wait for a call."
+        ],
+        [
+          "pitfall",
+          "The CI image has no locale data: tests must not depend on locale-specific formatting."
+        ],
+        [
+          "convention",
+          "Conversion rates on the marketing page are shown as percentages with one decimal, e.g. 3.4%."
+        ]
+      ],
+      "hidden": "from metrics import relative_change\n\n\ndef test_fraction():\n    assert relative_change(80, 100) == 0.25\n    assert relative_change(3, 2) == -0.3333\n\n\ndef test_zero_old():\n    assert relative_change(0, 5) is None\n",
+      "reference": {
+        "metrics.py": "def delta(old, new):\n    return new - old\n\n\ndef relative_change(old, new):\n    if old == 0:\n        return None\n    return round((new - old) / old, 4)\n"
+      },
+      "naive": {
+        "metrics.py": "def delta(old, new):\n    return new - old\n\n\ndef relative_change(old, new):\n    return round(delta(old, new) / old * 100, 1)\n"
+      },
+      "conventions": [
+        "relative changes are fractions, not percentages (a rise from 80 to 100 is 0.25, not 25), rounded to four decimals",
+        "When the old value is 0 the change is undefined and the function returns None"
+      ],
+      "trace": [
+        {
+          "assertion": "test_zz_hidden_eval.py::test_fraction#1",
+          "brief": "relative changes are fractions, not percentages (a rise from 80 to 100 is 0.25, not 25), rounded to four decimals"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_fraction#2",
+          "brief": "relative changes are fractions, not percentages (a rise from 80 to 100 is 0.25, not 25), rounded to four decimals"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_zero_old#1",
+          "brief": "When the old value is 0 the change is undefined and the function returns None"
+        }
+      ]
+    },
+    {
+      "id": "r2a2-08-event-line",
+      "dev": false,
+      "source": "authored",
+      "files": {
+        "events.py": "import json\n\n\ndef to_json(name, fields):\n    return json.dumps({\"event\": name, **fields})\n"
+      },
+      "brief": "Add event_line(name, fields) to events.py: one line of the plain-text event log for an event name and a dict of fields.",
+      "neutral": false,
+      "kind": "convention",
+      "memory": "Event log line convention: logfmt style, event=<name> first, then the fields as key=value sorted by key, separated by single spaces. A value containing a space or a double quote is wrapped in double quotes, with inner double quotes escaped as \\\". None values are written as key= with nothing after the equals sign.",
+      "distractors": [
+        [
+          "tooling",
+          "Release builds are made from a clean checkout with `python -m build`; never upload a dirty tree."
+        ],
+        [
+          "people",
+          "Reviews on this project are asynchronous: leave a summary comment, do not wait for a call."
+        ],
+        [
+          "pitfall",
+          "The CI image has no locale data: tests must not depend on locale-specific formatting."
+        ],
+        [
+          "convention",
+          "Metrics are exported as JSON lines with the keys name, value and ts."
+        ]
+      ],
+      "hidden": "from events import event_line\n\n\ndef test_order():\n    assert event_line('login', {'user': 'ann', 'id': 7}) == 'event=login id=7 user=ann'\n\n\ndef test_quoting():\n    assert event_line('note', {'text': 'hello world'}) == 'event=note text=\"hello world\"'\n    assert event_line('note', {'q': 'say \"hi\"'}) == 'event=note q=\"say \\\\\"hi\\\\\"\"'\n\n\ndef test_none():\n    assert event_line('x', {'a': None, 'b': 1}) == 'event=x a= b=1'\n",
+      "reference": {
+        "events.py": "import json\n\n\ndef to_json(name, fields):\n    return json.dumps({\"event\": name, **fields})\n\n\ndef _value(v):\n    if v is None:\n        return ''\n    text = str(v)\n    if ' ' in text or '\"' in text:\n        return '\"' + text.replace('\"', '\\\\\"') + '\"'\n    return text\n\n\ndef event_line(name, fields):\n    parts = [f'event={name}'] + [f'{k}={_value(fields[k])}' for k in sorted(fields)]\n    return ' '.join(parts)\n"
+      },
+      "naive": {
+        "events.py": "import json\n\n\ndef to_json(name, fields):\n    return json.dumps({\"event\": name, **fields})\n\n\ndef event_line(name, fields):\n    return to_json(name, fields)\n"
+      },
+      "conventions": [
+        "event=<name> first, then the fields as key=value sorted by key",
+        "A value containing a space or a double quote is wrapped in double quotes",
+        "None values are written as key= with nothing after the equals sign"
+      ],
+      "trace": [
+        {
+          "assertion": "test_zz_hidden_eval.py::test_order#1",
+          "brief": "event=<name> first, then the fields as key=value sorted by key"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_order#1",
+          "brief": "separated by single spaces"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_quoting#1",
+          "brief": "A value containing a space or a double quote is wrapped in double quotes"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_quoting#1",
+          "brief": "with inner double quotes escaped as"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_quoting#2",
+          "brief": "A value containing a space or a double quote is wrapped in double quotes"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_quoting#2",
+          "brief": "with inner double quotes escaped as"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_none#1",
+          "brief": "None values are written as key= with nothing after the equals sign"
+        }
+      ]
+    },
+    {
+      "id": "r2a2-09-tenths-temp",
+      "dev": false,
+      "source": "authored",
+      "files": {
+        "thermo.py": "def to_fahrenheit(c):\n    return c * 9 / 5 + 32\n"
+      },
+      "brief": "Write show_temp(raw) in thermo.py: the text shown on the thermostat display for a raw sensor value.",
+      "neutral": false,
+      "kind": "convention",
+      "memory": "Thermostat convention: raw sensor values are integers in tenths of a degree Celsius (215 means 21.5 °C). The display shows one decimal followed by a space and °C, and zero is never shown as -0.0. A raw value of None (sensor offline) is shown as '--.- °C'.",
+      "distractors": [
+        [
+          "tooling",
+          "Release builds are made from a clean checkout with `python -m build`; never upload a dirty tree."
+        ],
+        [
+          "people",
+          "Reviews on this project are asynchronous: leave a summary comment, do not wait for a call."
+        ],
+        [
+          "pitfall",
+          "The CI image has no locale data: tests must not depend on locale-specific formatting."
+        ],
+        [
+          "convention",
+          "Outdoor temperatures from the weather feed are whole degrees Fahrenheit."
+        ]
+      ],
+      "hidden": "from thermo import show_temp\n\n\ndef test_tenths():\n    assert show_temp(215) == '21.5 °C'\n    assert show_temp(-35) == '-3.5 °C'\n\n\ndef test_format():\n    assert show_temp(200) == '20.0 °C'\n    assert show_temp(0) == '0.0 °C'\n\n\ndef test_offline():\n    assert show_temp(None) == '--.- °C'\n",
+      "reference": {
+        "thermo.py": "def to_fahrenheit(c):\n    return c * 9 / 5 + 32\n\n\ndef show_temp(raw):\n    if raw is None:\n        return '--.- °C'\n    sign = '-' if raw < 0 else ''\n    whole, tenth = divmod(abs(raw), 10)\n    return f'{sign}{whole}.{tenth} °C'\n"
+      },
+      "naive": {
+        "thermo.py": "def to_fahrenheit(c):\n    return c * 9 / 5 + 32\n\n\ndef show_temp(raw):\n    return f'{to_fahrenheit(raw):.0f}°F'\n"
+      },
+      "conventions": [
+        "raw sensor values are integers in tenths of a degree Celsius (215 means 21.5 °C)",
+        "The display shows one decimal followed by a space and °C, and zero is never shown as -0.0",
+        "A raw value of None (sensor offline) is shown as '--.- °C'"
+      ],
+      "trace": [
+        {
+          "assertion": "test_zz_hidden_eval.py::test_tenths#1",
+          "brief": "raw sensor values are integers in tenths of a degree Celsius (215 means 21.5 °C)"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_tenths#2",
+          "brief": "raw sensor values are integers in tenths of a degree Celsius (215 means 21.5 °C)"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_format#1",
+          "brief": "The display shows one decimal followed by a space and °C, and zero is never shown as -0.0"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_format#2",
+          "brief": "The display shows one decimal followed by a space and °C, and zero is never shown as -0.0"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_offline#1",
+          "brief": "A raw value of None (sensor offline) is shown as '--.- °C'"
+        }
+      ]
+    },
+    {
+      "id": "r2a2-10-email-key",
+      "dev": false,
+      "source": "authored",
+      "files": {
+        "signup.py": "def clean(text):\n    return text.strip().lower()\n"
+      },
+      "brief": "Implement email_key(addr) in signup.py: the normalized form of an email address used to detect duplicate sign-ups.",
+      "neutral": false,
+      "kind": "convention",
+      "memory": "Duplicate sign-up rule: only the domain part is lower-cased; the local part keeps its case because some of our mail servers are case-sensitive. A +tag in the local part is removed (ann+news@example.org is ann@example.org). Dots in the local part are kept, even for the webmail domain mail.example.com, whose servers ignore them. Surrounding spaces are stripped.",
+      "distractors": [
+        [
+          "tooling",
+          "Release builds are made from a clean checkout with `python -m build`; never upload a dirty tree."
+        ],
+        [
+          "people",
+          "Reviews on this project are asynchronous: leave a summary comment, do not wait for a call."
+        ],
+        [
+          "pitfall",
+          "The CI image has no locale data: tests must not depend on locale-specific formatting."
+        ],
+        [
+          "convention",
+          "Usernames are compared case-insensitively and stored lower-case."
+        ]
+      ],
+      "hidden": "from signup import email_key\n\n\ndef test_domain_only_lower():\n    assert email_key(' Ann.Lee@Example.ORG ') == 'Ann.Lee@example.org'\n\n\ndef test_plus_tag():\n    assert email_key('ann+news@example.org') == 'ann@example.org'\n    assert email_key('Bo+a+b@EXAMPLE.org') == 'Bo@example.org'\n\n\ndef test_dots_kept():\n    assert email_key('first.last@mail.example.com') == 'first.last@mail.example.com'\n",
+      "reference": {
+        "signup.py": "def clean(text):\n    return text.strip().lower()\n\n\ndef email_key(addr):\n    local, _, domain = addr.strip().rpartition('@')\n    local = local.split('+', 1)[0]\n    return f'{local}@{domain.lower()}'\n"
+      },
+      "naive": {
+        "signup.py": "def clean(text):\n    return text.strip().lower()\n\n\ndef email_key(addr):\n    local, _, domain = clean(addr).rpartition('@')\n    if domain == \"mail.example.com\":\n        local = local.replace('.', '')\n    return f'{local}@{domain}'\n"
+      },
+      "conventions": [
+        "only the domain part is lower-cased; the local part keeps its case",
+        "A +tag in the local part is removed (ann+news@example.org is ann@example.org)",
+        "Dots in the local part are kept, even for the webmail domain mail.example.com"
+      ],
+      "trace": [
+        {
+          "assertion": "test_zz_hidden_eval.py::test_domain_only_lower#1",
+          "brief": "only the domain part is lower-cased; the local part keeps its case"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_domain_only_lower#1",
+          "brief": "Surrounding spaces are stripped"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_plus_tag#1",
+          "brief": "A +tag in the local part is removed (ann+news@example.org is ann@example.org)"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_plus_tag#2",
+          "brief": "A +tag in the local part is removed (ann+news@example.org is ann@example.org)"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_dots_kept#1",
+          "brief": "Dots in the local part are kept, even for the webmail domain mail.example.com"
+        }
+      ]
+    },
+    {
+      "id": "r2a2-11-geo-point",
+      "dev": false,
+      "source": "authored",
+      "files": {
+        "places.py": "def describe(lat, lon):\n    return f\"{lat}, {lon}\"\n"
+      },
+      "brief": "Add point_json(lat, lon) to places.py: the geometry object written for a place in our map data files.",
+      "neutral": false,
+      "kind": "convention",
+      "memory": "Map data convention: geometry is GeoJSON, {'type': 'Point', 'coordinates': [...]}, and GeoJSON puts longitude first, so coordinates are [lon, lat], never [lat, lon]. Coordinates are rounded to six decimals.",
+      "distractors": [
+        [
+          "tooling",
+          "Release builds are made from a clean checkout with `python -m build`; never upload a dirty tree."
+        ],
+        [
+          "people",
+          "Reviews on this project are asynchronous: leave a summary comment, do not wait for a call."
+        ],
+        [
+          "pitfall",
+          "The CI image has no locale data: tests must not depend on locale-specific formatting."
+        ],
+        [
+          "convention",
+          "Human-readable positions in the UI are written latitude first, like describe() does."
+        ]
+      ],
+      "hidden": "from places import point_json\n\n\ndef test_geojson():\n    assert point_json(1.0, 2.0)['type'] == 'Point'\n\n\ndef test_lon_first():\n    assert point_json(48.8584, 2.2945)['coordinates'] == [2.2945, 48.8584]\n\n\ndef test_six_decimals():\n    assert point_json(10.12345678, -20.987654321)['coordinates'] == [-20.987654, 10.123457]\n",
+      "reference": {
+        "places.py": "def describe(lat, lon):\n    return f\"{lat}, {lon}\"\n\n\ndef point_json(lat, lon):\n    return {'type': 'Point', 'coordinates': [round(lon, 6), round(lat, 6)]}\n"
+      },
+      "naive": {
+        "places.py": "def describe(lat, lon):\n    return f\"{lat}, {lon}\"\n\n\ndef point_json(lat, lon):\n    return {'lat': lat, 'lon': lon}\n"
+      },
+      "conventions": [
+        "GeoJSON, {'type': 'Point', 'coordinates': [...]}",
+        "coordinates are [lon, lat], never [lat, lon]",
+        "Coordinates are rounded to six decimals"
+      ],
+      "trace": [
+        {
+          "assertion": "test_zz_hidden_eval.py::test_geojson#1",
+          "brief": "GeoJSON, {'type': 'Point', 'coordinates': [...]}"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_lon_first#1",
+          "brief": "coordinates are [lon, lat], never [lat, lon]"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_six_decimals#1",
+          "brief": "Coordinates are rounded to six decimals"
+        }
+      ]
+    },
+    {
+      "id": "r2a2-12-percentile",
+      "dev": false,
+      "source": "authored",
+      "files": {
+        "latency.py": "from statistics import mean\n\n\ndef average(samples):\n    return mean(samples)\n"
+      },
+      "brief": "Implement percentile(samples, p) in latency.py for the latency report: the p-th percentile of a list of samples, p from 0 to 100.",
+      "neutral": false,
+      "kind": "convention",
+      "memory": "Latency report convention: percentiles use the nearest-rank method, never interpolation: sort, then take the value at rank ceil(p / 100 * n), counting from 1, with p = 0 giving the smallest sample. So the result is always one of the samples. An empty list returns None.",
+      "distractors": [
+        [
+          "tooling",
+          "Release builds are made from a clean checkout with `python -m build`; never upload a dirty tree."
+        ],
+        [
+          "people",
+          "Reviews on this project are asynchronous: leave a summary comment, do not wait for a call."
+        ],
+        [
+          "pitfall",
+          "The CI image has no locale data: tests must not depend on locale-specific formatting."
+        ],
+        [
+          "convention",
+          "Throughput graphs are smoothed with a five-minute moving average."
+        ]
+      ],
+      "hidden": "from latency import percentile\n\n\ndef test_nearest_rank():\n    xs = [15, 20, 35, 40, 50]\n    assert percentile(xs, 30) == 20\n    assert percentile(xs, 40) == 20\n    assert percentile(xs, 50) == 35\n\n\ndef test_bounds():\n    xs = [3, 1, 2]\n    assert percentile(xs, 0) == 1\n    assert percentile(xs, 100) == 3\n\n\ndef test_empty():\n    assert percentile([], 90) is None\n",
+      "reference": {
+        "latency.py": "import math\nfrom statistics import mean\n\n\ndef average(samples):\n    return mean(samples)\n\n\ndef percentile(samples, p):\n    if not samples:\n        return None\n    s = sorted(samples)\n    rank = max(1, math.ceil(p / 100 * len(s)))\n    return s[rank - 1]\n"
+      },
+      "naive": {
+        "latency.py": "from statistics import mean, quantiles\n\n\ndef average(samples):\n    return mean(samples)\n\n\ndef percentile(samples, p):\n    s = sorted(samples)\n    k = (len(s) - 1) * p / 100\n    lo = int(k)\n    hi = min(lo + 1, len(s) - 1)\n    return s[lo] + (s[hi] - s[lo]) * (k - lo)\n"
+      },
+      "conventions": [
+        "percentiles use the nearest-rank method, never interpolation",
+        "take the value at rank ceil(p / 100 * n), counting from 1, with p = 0 giving the smallest sample",
+        "An empty list returns None"
+      ],
+      "trace": [
+        {
+          "assertion": "test_zz_hidden_eval.py::test_nearest_rank#1",
+          "brief": "percentiles use the nearest-rank method, never interpolation"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_nearest_rank#1",
+          "brief": "take the value at rank ceil(p / 100 * n), counting from 1, with p = 0 giving the smallest sample"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_nearest_rank#2",
+          "brief": "percentiles use the nearest-rank method, never interpolation"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_nearest_rank#2",
+          "brief": "take the value at rank ceil(p / 100 * n), counting from 1, with p = 0 giving the smallest sample"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_nearest_rank#3",
+          "brief": "percentiles use the nearest-rank method, never interpolation"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_nearest_rank#3",
+          "brief": "take the value at rank ceil(p / 100 * n), counting from 1, with p = 0 giving the smallest sample"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_bounds#1",
+          "brief": "take the value at rank ceil(p / 100 * n), counting from 1, with p = 0 giving the smallest sample"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_bounds#2",
+          "brief": "take the value at rank ceil(p / 100 * n), counting from 1, with p = 0 giving the smallest sample"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_empty#1",
+          "brief": "An empty list returns None"
+        }
+      ]
+    },
+    {
+      "id": "r2a2-13-joined-list",
+      "dev": false,
+      "source": "authored",
+      "files": {
+        "phrases.py": "def comma_list(items):\n    return ', '.join(items)\n"
+      },
+      "brief": "Write join_names(names) in phrases.py: turn a list of names into the English phrase used in like notifications.",
+      "neutral": false,
+      "kind": "convention",
+      "memory": "Copy style for notifications: use the serial (Oxford) comma, so three or more names read 'Ann, Bo, and Cy'. Two names are joined with ' and ' and no comma. More than four names show the first three and then 'and N others' (with N the rest), still with the serial comma. A single name is shown alone and an empty list gives the empty string.",
+      "distractors": [
+        [
+          "tooling",
+          "Release builds are made from a clean checkout with `python -m build`; never upload a dirty tree."
+        ],
+        [
+          "people",
+          "Reviews on this project are asynchronous: leave a summary comment, do not wait for a call."
+        ],
+        [
+          "pitfall",
+          "The CI image has no locale data: tests must not depend on locale-specific formatting."
+        ],
+        [
+          "convention",
+          "Error messages never end with a period and start with a lower-case letter."
+        ]
+      ],
+      "hidden": "from phrases import join_names\n\n\ndef test_serial_comma():\n    assert join_names(['Ann', 'Bo', 'Cy']) == 'Ann, Bo, and Cy'\n    assert join_names(['A', 'B', 'C', 'D']) == 'A, B, C, and D'\n\n\ndef test_two_and_one():\n    assert join_names(['Ann', 'Bo']) == 'Ann and Bo'\n    assert join_names(['Ann']) == 'Ann'\n    assert join_names([]) == ''\n\n\ndef test_others():\n    assert join_names(['A', 'B', 'C', 'D', 'E', 'F']) == 'A, B, C, and 3 others'\n",
+      "reference": {
+        "phrases.py": "def comma_list(items):\n    return ', '.join(items)\n\n\ndef join_names(names):\n    names = list(names)\n    if len(names) > 4:\n        names = names[:3] + [f'{len(names) - 3} others']\n    if len(names) <= 1:\n        return ''.join(names)\n    if len(names) == 2:\n        return f'{names[0]} and {names[1]}'\n    return ', '.join(names[:-1]) + ', and ' + names[-1]\n"
+      },
+      "naive": {
+        "phrases.py": "def comma_list(items):\n    return ', '.join(items)\n\n\ndef join_names(names):\n    if len(names) <= 1:\n        return ''.join(names)\n    return comma_list(names[:-1]) + ', ' + names[-1]\n"
+      },
+      "conventions": [
+        "use the serial (Oxford) comma, so three or more names read 'Ann, Bo, and Cy'",
+        "Two names are joined with ' and ' and no comma",
+        "More than four names show the first three and then 'and N others'"
+      ],
+      "trace": [
+        {
+          "assertion": "test_zz_hidden_eval.py::test_serial_comma#1",
+          "brief": "use the serial (Oxford) comma, so three or more names read 'Ann, Bo, and Cy'"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_serial_comma#2",
+          "brief": "use the serial (Oxford) comma, so three or more names read 'Ann, Bo, and Cy'"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_two_and_one#1",
+          "brief": "Two names are joined with ' and ' and no comma"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_two_and_one#1",
+          "brief": "A single name is shown alone and an empty list gives the empty string"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_two_and_one#2",
+          "brief": "Two names are joined with ' and ' and no comma"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_two_and_one#2",
+          "brief": "A single name is shown alone and an empty list gives the empty string"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_two_and_one#3",
+          "brief": "Two names are joined with ' and ' and no comma"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_two_and_one#3",
+          "brief": "A single name is shown alone and an empty list gives the empty string"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_others#1",
+          "brief": "More than four names show the first three and then 'and N others'"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_others#1",
+          "brief": "still with the serial comma"
+        }
+      ]
+    },
+    {
+      "id": "r2a2-14-week-start",
+      "dev": false,
+      "source": "authored",
+      "files": {
+        "weeks.py": "import datetime\n\n\ndef add_days(d, n):\n    return d + datetime.timedelta(days=n)\n"
+      },
+      "brief": "Add week_start(d) to weeks.py: the first day of the week that date d is in, for the shift planner.",
+      "neutral": false,
+      "kind": "convention",
+      "memory": "Shift planner convention: weeks start on Sunday, not Monday (US customers). week_start returns a datetime.date even when given a datetime, and a Sunday is its own week start.",
+      "distractors": [
+        [
+          "tooling",
+          "Release builds are made from a clean checkout with `python -m build`; never upload a dirty tree."
+        ],
+        [
+          "people",
+          "Reviews on this project are asynchronous: leave a summary comment, do not wait for a call."
+        ],
+        [
+          "pitfall",
+          "The CI image has no locale data: tests must not depend on locale-specific formatting."
+        ],
+        [
+          "convention",
+          "Payroll periods run from the 1st to the 15th and from the 16th to the end of the month."
+        ]
+      ],
+      "hidden": "import datetime\nfrom weeks import week_start\n\n\ndef test_sunday_start():\n    assert week_start(datetime.date(2026, 11, 18)) == datetime.date(2026, 11, 15)\n    assert week_start(datetime.date(2026, 11, 15)) == datetime.date(2026, 11, 15)\n    assert week_start(datetime.date(2026, 11, 21)) == datetime.date(2026, 11, 15)\n\n\ndef test_date_from_datetime():\n    out = week_start(datetime.datetime(2026, 11, 17, 23, 30))\n    assert type(out) is datetime.date and out == datetime.date(2026, 11, 15)\n",
+      "reference": {
+        "weeks.py": "import datetime\n\n\ndef add_days(d, n):\n    return d + datetime.timedelta(days=n)\n\n\ndef week_start(d):\n    if isinstance(d, datetime.datetime):\n        d = d.date()\n    return d - datetime.timedelta(days=(d.weekday() + 1) % 7)\n"
+      },
+      "naive": {
+        "weeks.py": "import datetime\n\n\ndef add_days(d, n):\n    return d + datetime.timedelta(days=n)\n\n\ndef week_start(d):\n    return add_days(d, -d.weekday())\n"
+      },
+      "conventions": [
+        "weeks start on Sunday, not Monday",
+        "week_start returns a datetime.date even when given a datetime"
+      ],
+      "trace": [
+        {
+          "assertion": "test_zz_hidden_eval.py::test_sunday_start#1",
+          "brief": "weeks start on Sunday, not Monday"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_sunday_start#1",
+          "brief": "a Sunday is its own week start"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_sunday_start#2",
+          "brief": "weeks start on Sunday, not Monday"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_sunday_start#2",
+          "brief": "a Sunday is its own week start"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_sunday_start#3",
+          "brief": "weeks start on Sunday, not Monday"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_sunday_start#3",
+          "brief": "a Sunday is its own week start"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_date_from_datetime#1",
+          "brief": "week_start returns a datetime.date even when given a datetime"
+        }
+      ]
+    },
+    {
+      "id": "r2a2-15-token-mask",
+      "dev": false,
+      "source": "authored",
+      "files": {
+        "secrets_view.py": "def redact(text):\n    return '[redacted]'\n"
+      },
+      "brief": "Implement mask_token(token) in secrets_view.py: how an API token is shown on the settings page so users can recognise it without exposing it.",
+      "neutral": false,
+      "kind": "convention",
+      "memory": "Token display convention: show only the last four characters, preceded by asterisks, but never more than eight asterisks whatever the token length. Tokens of four characters or fewer are shown as asterisks only, one per character.",
+      "distractors": [
+        [
+          "tooling",
+          "Release builds are made from a clean checkout with `python -m build`; never upload a dirty tree."
+        ],
+        [
+          "people",
+          "Reviews on this project are asynchronous: leave a summary comment, do not wait for a call."
+        ],
+        [
+          "pitfall",
+          "The CI image has no locale data: tests must not depend on locale-specific formatting."
+        ],
+        [
+          "convention",
+          "Passwords are never displayed at all, not even partially."
+        ]
+      ],
+      "hidden": "from secrets_view import mask_token\n\n\ndef test_last_four():\n    assert mask_token('abcdefgh') == '****efgh'\n\n\ndef test_max_eight_stars():\n    assert mask_token('x' * 40 + 'WXYZ') == '********WXYZ'\n\n\ndef test_short():\n    assert mask_token('abcd') == '****'\n    assert mask_token('ab') == '**'\n",
+      "reference": {
+        "secrets_view.py": "def redact(text):\n    return '[redacted]'\n\n\ndef mask_token(token):\n    if len(token) <= 4:\n        return '*' * len(token)\n    return '*' * min(8, len(token) - 4) + token[-4:]\n"
+      },
+      "naive": {
+        "secrets_view.py": "def redact(text):\n    return '[redacted]'\n\n\ndef mask_token(token):\n    return token[:4] + '...'\n"
+      },
+      "conventions": [
+        "show only the last four characters, preceded by asterisks",
+        "never more than eight asterisks whatever the token length",
+        "Tokens of four characters or fewer are shown as asterisks only, one per character"
+      ],
+      "trace": [
+        {
+          "assertion": "test_zz_hidden_eval.py::test_last_four#1",
+          "brief": "show only the last four characters, preceded by asterisks"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_max_eight_stars#1",
+          "brief": "never more than eight asterisks whatever the token length"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_short#1",
+          "brief": "Tokens of four characters or fewer are shown as asterisks only, one per character"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_short#2",
+          "brief": "Tokens of four characters or fewer are shown as asterisks only, one per character"
+        }
+      ]
+    },
+    {
+      "id": "r2a2-16-player-level",
+      "dev": false,
+      "source": "authored",
+      "files": {
+        "progression.py": "def xp_for_kill(enemy_level):\n    return 10 * enemy_level\n"
+      },
+      "brief": "Write level_for(xp) in progression.py: the player level for a total amount of experience points.",
+      "neutral": false,
+      "kind": "convention",
+      "memory": "Progression convention: levels start at 1, not 0. Reaching level n needs 100 * (n - 1) ** 2 total XP, so level 2 starts at 100 XP and level 3 at 400. The level cap is 50; more XP never goes past it. Negative XP raises ValueError.",
+      "distractors": [
+        [
+          "tooling",
+          "Release builds are made from a clean checkout with `python -m build`; never upload a dirty tree."
+        ],
+        [
+          "people",
+          "Reviews on this project are asynchronous: leave a summary comment, do not wait for a call."
+        ],
+        [
+          "pitfall",
+          "The CI image has no locale data: tests must not depend on locale-specific formatting."
+        ],
+        [
+          "convention",
+          "Item rarity tiers are common, rare, epic and legendary, in that order."
+        ]
+      ],
+      "hidden": "import pytest\nfrom progression import level_for\n\n\ndef test_starts_at_one():\n    assert level_for(0) == 1\n    assert level_for(99) == 1\n\n\ndef test_thresholds():\n    assert level_for(100) == 2\n    assert level_for(399) == 2\n    assert level_for(400) == 3\n    assert level_for(100 * 9 ** 2) == 10\n\n\ndef test_cap_and_negative():\n    assert level_for(10 ** 9) == 50\n    with pytest.raises(ValueError):\n        level_for(-1)\n",
+      "reference": {
+        "progression.py": "def xp_for_kill(enemy_level):\n    return 10 * enemy_level\n\n\ndef level_for(xp):\n    if xp < 0:\n        raise ValueError('negative xp')\n    level = 1\n    while level < 50 and xp >= 100 * level ** 2:\n        level += 1\n    return level\n"
+      },
+      "naive": {
+        "progression.py": "def xp_for_kill(enemy_level):\n    return 10 * enemy_level\n\n\ndef level_for(xp):\n    if xp < 0:\n        raise ValueError('negative xp')\n    return xp // 100\n"
+      },
+      "conventions": [
+        "levels start at 1, not 0",
+        "Reaching level n needs 100 * (n - 1) ** 2 total XP",
+        "The level cap is 50; more XP never goes past it"
+      ],
+      "trace": [
+        {
+          "assertion": "test_zz_hidden_eval.py::test_starts_at_one#1",
+          "brief": "levels start at 1, not 0"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_starts_at_one#2",
+          "brief": "levels start at 1, not 0"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_thresholds#1",
+          "brief": "Reaching level n needs 100 * (n - 1) ** 2 total XP"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_thresholds#2",
+          "brief": "Reaching level n needs 100 * (n - 1) ** 2 total XP"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_thresholds#3",
+          "brief": "Reaching level n needs 100 * (n - 1) ** 2 total XP"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_thresholds#4",
+          "brief": "Reaching level n needs 100 * (n - 1) ** 2 total XP"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_cap_and_negative#1",
+          "brief": "The level cap is 50; more XP never goes past it"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_cap_and_negative#1",
+          "brief": "Negative XP raises ValueError"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_cap_and_negative#2",
+          "brief": "The level cap is 50; more XP never goes past it"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_cap_and_negative#2",
+          "brief": "Negative XP raises ValueError"
+        }
+      ]
+    },
+    {
+      "id": "r2a2-17-sheet-column",
+      "dev": false,
+      "source": "authored",
+      "files": {
+        "sheets.py": "def cell(row, col_name):\n    return f\"{col_name}{row}\"\n"
+      },
+      "brief": "Implement column_name(n) in sheets.py: the spreadsheet column label for column number n.",
+      "neutral": false,
+      "kind": "convention",
+      "memory": "Spreadsheet convention in this code: column numbers are 1-based (1 is A, 26 is Z, 27 is AA), matching what users see, not 0-based. Labels are upper case. Zero or negative n raises ValueError.",
+      "distractors": [
+        [
+          "tooling",
+          "Release builds are made from a clean checkout with `python -m build`; never upload a dirty tree."
+        ],
+        [
+          "people",
+          "Reviews on this project are asynchronous: leave a summary comment, do not wait for a call."
+        ],
+        [
+          "pitfall",
+          "The CI image has no locale data: tests must not depend on locale-specific formatting."
+        ],
+        [
+          "convention",
+          "Row indexes inside the CSV importer are 0-based and skip the header row."
+        ]
+      ],
+      "hidden": "import pytest\nfrom sheets import column_name\n\n\ndef test_one_based():\n    assert column_name(1) == 'A'\n    assert column_name(26) == 'Z'\n    assert column_name(27) == 'AA'\n    assert column_name(703) == 'AAA'\n\n\ndef test_upper():\n    assert column_name(28) == 'AB'\n    assert column_name(52).isupper()\n\n\ndef test_invalid():\n    with pytest.raises(ValueError):\n        column_name(0)\n",
+      "reference": {
+        "sheets.py": "def cell(row, col_name):\n    return f\"{col_name}{row}\"\n\n\ndef column_name(n):\n    if n < 1:\n        raise ValueError('columns start at 1')\n    out = ''\n    while n:\n        n, r = divmod(n - 1, 26)\n        out = chr(ord('A') + r) + out\n    return out\n"
+      },
+      "naive": {
+        "sheets.py": "def cell(row, col_name):\n    return f\"{col_name}{row}\"\n\n\ndef column_name(n):\n    out = ''\n    n += 1\n    while n:\n        n, r = divmod(n - 1, 26)\n        out = chr(ord('a') + r) + out\n    return out\n"
+      },
+      "conventions": [
+        "column numbers are 1-based (1 is A, 26 is Z, 27 is AA)",
+        "Labels are upper case",
+        "Zero or negative n raises ValueError"
+      ],
+      "trace": [
+        {
+          "assertion": "test_zz_hidden_eval.py::test_one_based#1",
+          "brief": "column numbers are 1-based (1 is A, 26 is Z, 27 is AA)"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_one_based#2",
+          "brief": "column numbers are 1-based (1 is A, 26 is Z, 27 is AA)"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_one_based#3",
+          "brief": "column numbers are 1-based (1 is A, 26 is Z, 27 is AA)"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_one_based#4",
+          "brief": "column numbers are 1-based (1 is A, 26 is Z, 27 is AA)"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_upper#1",
+          "brief": "Labels are upper case"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_upper#2",
+          "brief": "Labels are upper case"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_invalid#1",
+          "brief": "Zero or negative n raises ValueError"
+        }
+      ]
+    },
+    {
+      "id": "r2a2-18-http-date",
+      "dev": false,
+      "source": "authored",
+      "files": {
+        "headers.py": "def content_type(kind):\n    return {\"json\": \"application/json\", \"text\": \"text/plain\"}[kind]\n"
+      },
+      "brief": "Add last_modified(dt) to headers.py: the value of the Last-Modified response header for an aware datetime dt.",
+      "neutral": false,
+      "kind": "convention",
+      "memory": "HTTP header convention: dates in headers use the IMF-fixdate format from RFC 9110, e.g. 'Sun, 06 Nov 1994 08:49:37 GMT', never ISO 8601. The time is converted to UTC first. Day and month names are always English, whatever the locale.",
+      "distractors": [
+        [
+          "tooling",
+          "Release builds are made from a clean checkout with `python -m build`; never upload a dirty tree."
+        ],
+        [
+          "people",
+          "Reviews on this project are asynchronous: leave a summary comment, do not wait for a call."
+        ],
+        [
+          "pitfall",
+          "The CI image has no locale data: tests must not depend on locale-specific formatting."
+        ],
+        [
+          "convention",
+          "JSON responses carry timestamps as ISO 8601 strings with a Z suffix."
+        ]
+      ],
+      "hidden": "import datetime\nfrom headers import last_modified\n\n\ndef test_format():\n    dt = datetime.datetime(1994, 11, 6, 8, 49, 37, tzinfo=datetime.timezone.utc)\n    assert last_modified(dt) == 'Sun, 06 Nov 1994 08:49:37 GMT'\n\n\ndef test_utc():\n    tz = datetime.timezone(datetime.timedelta(hours=9))\n    dt = datetime.datetime(2026, 1, 1, 3, 0, 0, tzinfo=tz)\n    assert last_modified(dt) == 'Wed, 31 Dec 2025 18:00:00 GMT'\n\n\ndef test_english_names():\n    dt = datetime.datetime(2026, 5, 2, 0, 0, 0, tzinfo=datetime.timezone.utc)\n    assert last_modified(dt).startswith('Sat, 02 May 2026')\n",
+      "reference": {
+        "headers.py": "import datetime\nfrom email.utils import format_datetime\n\n\ndef content_type(kind):\n    return {\"json\": \"application/json\", \"text\": \"text/plain\"}[kind]\n\n\ndef last_modified(dt):\n    return format_datetime(dt.astimezone(datetime.timezone.utc), usegmt=True)\n"
+      },
+      "naive": {
+        "headers.py": "def content_type(kind):\n    return {\"json\": \"application/json\", \"text\": \"text/plain\"}[kind]\n\n\ndef last_modified(dt):\n    return dt.isoformat()\n"
+      },
+      "conventions": [
+        "dates in headers use the IMF-fixdate format from RFC 9110",
+        "The time is converted to UTC first",
+        "Day and month names are always English, whatever the locale"
+      ],
+      "trace": [
+        {
+          "assertion": "test_zz_hidden_eval.py::test_format#1",
+          "brief": "dates in headers use the IMF-fixdate format from RFC 9110"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_utc#1",
+          "brief": "The time is converted to UTC first"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_english_names#1",
+          "brief": "Day and month names are always English, whatever the locale"
+        }
+      ]
+    },
+    {
+      "id": "r2a2-19-score-display",
+      "dev": false,
+      "source": "authored",
+      "files": {
+        "leaderboard.py": "def rank_label(i):\n    return f\"#{i}\"\n"
+      },
+      "brief": "Write score_text(x) in leaderboard.py: how a player's average score is shown on the leaderboard.",
+      "neutral": false,
+      "kind": "convention",
+      "memory": "Leaderboard convention: scores are shown with exactly two decimals, rounding halves away from zero (2.675 shows 2.68 and -1.005 shows -1.01), not Python's round(), which works on the binary value. The result is a string; None (no games yet) is shown as '-'.",
+      "distractors": [
+        [
+          "tooling",
+          "Release builds are made from a clean checkout with `python -m build`; never upload a dirty tree."
+        ],
+        [
+          "people",
+          "Reviews on this project are asynchronous: leave a summary comment, do not wait for a call."
+        ],
+        [
+          "pitfall",
+          "The CI image has no locale data: tests must not depend on locale-specific formatting."
+        ],
+        [
+          "convention",
+          "Win rates are stored as fractions between 0 and 1."
+        ]
+      ],
+      "hidden": "from leaderboard import score_text\n\n\ndef test_half_away():\n    assert score_text(2.675) == '2.68'\n    assert score_text(-1.005) == '-1.01'\n    assert score_text(0.125) == '0.13'\n\n\ndef test_string_and_none():\n    assert score_text(3) == '3.00'\n    assert score_text(None) == '-'\n",
+      "reference": {
+        "leaderboard.py": "from decimal import Decimal, ROUND_HALF_UP\n\n\ndef rank_label(i):\n    return f\"#{i}\"\n\n\ndef score_text(x):\n    if x is None:\n        return '-'\n    return str(Decimal(str(x)).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP))\n"
+      },
+      "naive": {
+        "leaderboard.py": "def rank_label(i):\n    return f\"#{i}\"\n\n\ndef score_text(x):\n    return f'{round(x, 2):.2f}'\n"
+      },
+      "conventions": [
+        "exactly two decimals, rounding halves away from zero (2.675 shows 2.68 and -1.005 shows -1.01)",
+        "The result is a string; None (no games yet) is shown as '-'"
+      ],
+      "trace": [
+        {
+          "assertion": "test_zz_hidden_eval.py::test_half_away#1",
+          "brief": "exactly two decimals, rounding halves away from zero (2.675 shows 2.68 and -1.005 shows -1.01)"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_half_away#2",
+          "brief": "exactly two decimals, rounding halves away from zero (2.675 shows 2.68 and -1.005 shows -1.01)"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_half_away#3",
+          "brief": "exactly two decimals, rounding halves away from zero (2.675 shows 2.68 and -1.005 shows -1.01)"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_string_and_none#1",
+          "brief": "The result is a string; None (no games yet) is shown as '-'"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_string_and_none#1",
+          "brief": "exactly two decimals"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_string_and_none#2",
+          "brief": "The result is a string; None (no games yet) is shown as '-'"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_string_and_none#2",
+          "brief": "exactly two decimals"
+        }
+      ]
+    },
+    {
+      "id": "r2a2-20-phone-intl",
+      "dev": false,
+      "source": "authored",
+      "files": {
+        "dialing.py": "def strip_spaces(text):\n    return text.replace(' ', '')\n"
+      },
+      "brief": "Implement to_international(number) in dialing.py: convert a phone number as typed by a customer to the form stored in the CRM.",
+      "neutral": false,
+      "kind": "convention",
+      "memory": "CRM phone convention: numbers are stored in E.164 form, '+' then country code then the number, no spaces or punctuation. Our customers are in Germany, so a number without a country code gets +49. The national trunk prefix 0 is dropped (030 1234567 becomes +49301234567). A number starting with 00 already has a country code: replace the 00 with '+'.",
+      "distractors": [
+        [
+          "tooling",
+          "Release builds are made from a clean checkout with `python -m build`; never upload a dirty tree."
+        ],
+        [
+          "people",
+          "Reviews on this project are asynchronous: leave a summary comment, do not wait for a call."
+        ],
+        [
+          "pitfall",
+          "The CI image has no locale data: tests must not depend on locale-specific formatting."
+        ],
+        [
+          "convention",
+          "Fax numbers are stored exactly as the customer typed them."
+        ]
+      ],
+      "hidden": "from dialing import to_international\n\n\ndef test_e164_shape():\n    assert to_international('+49 (30) 123-4567') == '+49301234567'\n\n\ndef test_default_country_and_trunk():\n    assert to_international('030 1234567') == '+49301234567'\n    assert to_international('89 555') == '+4989555'\n\n\ndef test_double_zero():\n    assert to_international('0044 20 7946 0958') == '+442079460958'\n",
+      "reference": {
+        "dialing.py": "def strip_spaces(text):\n    return text.replace(' ', '')\n\n\ndef to_international(number):\n    plus = number.strip().startswith('+')\n    digits = ''.join(c for c in number if c.isdigit())\n    if plus:\n        return '+' + digits\n    if digits.startswith('00'):\n        return '+' + digits[2:]\n    if digits.startswith('0'):\n        digits = digits[1:]\n    return '+49' + digits\n"
+      },
+      "naive": {
+        "dialing.py": "def strip_spaces(text):\n    return text.replace(' ', '')\n\n\ndef to_international(number):\n    return strip_spaces(number)\n"
+      },
+      "conventions": [
+        "'+' then country code then the number, no spaces or punctuation",
+        "a number without a country code gets +49",
+        "The national trunk prefix 0 is dropped"
+      ],
+      "trace": [
+        {
+          "assertion": "test_zz_hidden_eval.py::test_e164_shape#1",
+          "brief": "'+' then country code then the number, no spaces or punctuation"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_default_country_and_trunk#1",
+          "brief": "a number without a country code gets +49"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_default_country_and_trunk#1",
+          "brief": "The national trunk prefix 0 is dropped"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_default_country_and_trunk#2",
+          "brief": "a number without a country code gets +49"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_default_country_and_trunk#2",
+          "brief": "The national trunk prefix 0 is dropped"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_double_zero#1",
+          "brief": "A number starting with 00 already has a country code: replace the 00 with '+'"
+        }
+      ]
+    },
+    {
+      "id": "r2a2-21-identifier-words",
+      "dev": false,
+      "source": "authored",
+      "files": {
+        "naming.py": "def snake(words):\n    return '_'.join(words)\n"
+      },
+      "brief": "Add split_identifier(name) to naming.py: break a code identifier (camelCase, PascalCase or snake_case) into its words, for the API docs generator.",
+      "neutral": false,
+      "kind": "convention",
+      "memory": "Docs generator convention: words come back in lower case. A run of capitals is one acronym word and stays together, so HTTPServer splits into ['http', 'server'] and parseURL into ['parse', 'url']. Digits stay attached to the word before them (utf8Decode gives ['utf8', 'decode']).",
+      "distractors": [
+        [
+          "tooling",
+          "Release builds are made from a clean checkout with `python -m build`; never upload a dirty tree."
+        ],
+        [
+          "people",
+          "Reviews on this project are asynchronous: leave a summary comment, do not wait for a call."
+        ],
+        [
+          "pitfall",
+          "The CI image has no locale data: tests must not depend on locale-specific formatting."
+        ],
+        [
+          "convention",
+          "Database column names are snake_case and never abbreviated."
+        ]
+      ],
+      "hidden": "from naming import split_identifier\n\n\ndef test_lower():\n    assert split_identifier('getUserName') == ['get', 'user', 'name']\n    assert split_identifier('max_retry_count') == ['max', 'retry', 'count']\n\n\ndef test_acronyms():\n    assert split_identifier('HTTPServer') == ['http', 'server']\n    assert split_identifier('parseURL') == ['parse', 'url']\n\n\ndef test_digits():\n    assert split_identifier('utf8Decode') == ['utf8', 'decode']\n    assert split_identifier('Base64Encoder') == ['base64', 'encoder']\n",
+      "reference": {
+        "naming.py": "import re\n\n\ndef snake(words):\n    return '_'.join(words)\n\n\ndef split_identifier(name):\n    words = []\n    for part in name.split('_'):\n        words += re.findall(r'[A-Z]+(?![a-z])\\d*|[A-Z]?[a-z]+\\d*|\\d+', part)\n    return [w.lower() for w in words if w]\n"
+      },
+      "naive": {
+        "naming.py": "import re\n\n\ndef snake(words):\n    return '_'.join(words)\n\n\ndef split_identifier(name):\n    return [w for w in re.split(r'_|(?=[A-Z])|(?<=\\d)(?=[A-Za-z])', name) if w]\n"
+      },
+      "conventions": [
+        "words come back in lower case",
+        "A run of capitals is one acronym word and stays together",
+        "Digits stay attached to the word before them"
+      ],
+      "trace": [
+        {
+          "assertion": "test_zz_hidden_eval.py::test_lower#1",
+          "brief": "words come back in lower case"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_lower#2",
+          "brief": "words come back in lower case"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_acronyms#1",
+          "brief": "A run of capitals is one acronym word and stays together"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_acronyms#2",
+          "brief": "A run of capitals is one acronym word and stays together"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_digits#1",
+          "brief": "Digits stay attached to the word before them"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_digits#2",
+          "brief": "Digits stay attached to the word before them"
+        }
+      ]
+    },
+    {
+      "id": "r2a2-22-upload-path",
+      "dev": false,
+      "source": "authored",
+      "files": {
+        "storage.py": "import os\n\n\ndef join(*parts):\n    return os.path.join(*parts)\n"
+      },
+      "brief": "Implement upload_path(user_id, filename, when) in storage.py: where an uploaded file is stored in the bucket, given the user's numeric id, the original file name and the upload date.",
+      "neutral": false,
+      "kind": "convention",
+      "memory": "Bucket layout convention: keys always use forward slashes, never os.path.join (the bucket is not a file system), in the form uploads/<user id zero-padded to 8 digits>/<year>/<month two digits>/<filename>. The file name is lower-cased and spaces in it become hyphens.",
+      "distractors": [
+        [
+          "tooling",
+          "Release builds are made from a clean checkout with `python -m build`; never upload a dirty tree."
+        ],
+        [
+          "people",
+          "Reviews on this project are asynchronous: leave a summary comment, do not wait for a call."
+        ],
+        [
+          "pitfall",
+          "The CI image has no locale data: tests must not depend on locale-specific formatting."
+        ],
+        [
+          "convention",
+          "Local cache files go under the system temp folder and use os.path.join."
+        ]
+      ],
+      "hidden": "import datetime\nfrom storage import upload_path\n\n\ndef test_layout():\n    assert upload_path(42, 'cv.pdf', datetime.date(2026, 3, 9)) == 'uploads/00000042/2026/03/cv.pdf'\n\n\ndef test_forward_slashes():\n    assert '\\\\' not in upload_path(1, 'a.txt', datetime.date(2026, 12, 1))\n\n\ndef test_filename():\n    out = upload_path(7, 'My Photo.JPG', datetime.date(2026, 11, 2))\n    assert out == 'uploads/00000007/2026/11/my-photo.jpg'\n",
+      "reference": {
+        "storage.py": "import os\n\n\ndef join(*parts):\n    return os.path.join(*parts)\n\n\ndef upload_path(user_id, filename, when):\n    name = filename.lower().replace(' ', '-')\n    return f'uploads/{user_id:08d}/{when.year}/{when.month:02d}/{name}'\n"
+      },
+      "naive": {
+        "storage.py": "import os\n\n\ndef join(*parts):\n    return os.path.join(*parts)\n\n\ndef upload_path(user_id, filename, when):\n    return join('uploads', str(user_id), str(when.year), str(when.month), filename)\n"
+      },
+      "conventions": [
+        "keys always use forward slashes, never os.path.join",
+        "uploads/<user id zero-padded to 8 digits>/<year>/<month two digits>/<filename>",
+        "The file name is lower-cased and spaces in it become hyphens"
+      ],
+      "trace": [
+        {
+          "assertion": "test_zz_hidden_eval.py::test_layout#1",
+          "brief": "uploads/<user id zero-padded to 8 digits>/<year>/<month two digits>/<filename>"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_forward_slashes#1",
+          "brief": "keys always use forward slashes, never os.path.join"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_filename#1",
+          "brief": "The file name is lower-cased and spaces in it become hyphens"
+        }
+      ]
+    },
+    {
+      "id": "r2a2-23-status-colour",
+      "dev": false,
+      "source": "authored",
+      "files": {
+        "badges.py": "def badge_html(text, colour):\n    return f'<span class=\"badge {colour}\">{text}</span>'\n"
+      },
+      "brief": "Write badge_colour(status) in badges.py: the colour class of the status badge for a CI job status.",
+      "neutral": false,
+      "kind": "convention",
+      "memory": "Badge colour convention: 'passed' is green, 'failed' and 'error' are red, 'running' is blue and 'queued' is grey. Status matching ignores case and surrounding spaces. Any status not in this list is grey too, never an exception.",
+      "distractors": [
+        [
+          "tooling",
+          "Release builds are made from a clean checkout with `python -m build`; never upload a dirty tree."
+        ],
+        [
+          "people",
+          "Reviews on this project are asynchronous: leave a summary comment, do not wait for a call."
+        ],
+        [
+          "pitfall",
+          "The CI image has no locale data: tests must not depend on locale-specific formatting."
+        ],
+        [
+          "convention",
+          "Pull request labels use the GitHub default colours."
+        ]
+      ],
+      "hidden": "from badges import badge_colour\n\n\ndef test_table():\n    assert badge_colour('passed') == 'green'\n    assert badge_colour('failed') == 'red'\n    assert badge_colour('error') == 'red'\n    assert badge_colour('running') == 'blue'\n    assert badge_colour('queued') == 'grey'\n\n\ndef test_case_and_space():\n    assert badge_colour(' PASSED ') == 'green'\n\n\ndef test_unknown():\n    assert badge_colour('cancelled') == 'grey'\n",
+      "reference": {
+        "badges.py": "COLOURS = {'passed': 'green', 'failed': 'red', 'error': 'red', 'running': 'blue', 'queued': 'grey'}\n\n\ndef badge_html(text, colour):\n    return f'<span class=\"badge {colour}\">{text}</span>'\n\n\ndef badge_colour(status):\n    return COLOURS.get(status.strip().lower(), 'grey')\n"
+      },
+      "naive": {
+        "badges.py": "def badge_html(text, colour):\n    return f'<span class=\"badge {colour}\">{text}</span>'\n\n\ndef badge_colour(status):\n    return {'passed': 'green', 'failed': 'red', 'running': 'yellow'}[status]\n"
+      },
+      "conventions": [
+        "'passed' is green, 'failed' and 'error' are red, 'running' is blue and 'queued' is grey",
+        "Status matching ignores case and surrounding spaces",
+        "Any status not in this list is grey too, never an exception"
+      ],
+      "trace": [
+        {
+          "assertion": "test_zz_hidden_eval.py::test_table#1",
+          "brief": "'passed' is green, 'failed' and 'error' are red, 'running' is blue and 'queued' is grey"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_table#2",
+          "brief": "'passed' is green, 'failed' and 'error' are red, 'running' is blue and 'queued' is grey"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_table#3",
+          "brief": "'passed' is green, 'failed' and 'error' are red, 'running' is blue and 'queued' is grey"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_table#4",
+          "brief": "'passed' is green, 'failed' and 'error' are red, 'running' is blue and 'queued' is grey"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_table#5",
+          "brief": "'passed' is green, 'failed' and 'error' are red, 'running' is blue and 'queued' is grey"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_case_and_space#1",
+          "brief": "Status matching ignores case and surrounding spaces"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_unknown#1",
+          "brief": "Any status not in this list is grey too, never an exception"
+        }
+      ]
+    },
+    {
+      "id": "r2a2-24-wrap-lines",
+      "dev": false,
+      "source": "authored",
+      "files": {
+        "wrapping.py": "import textwrap\n\n\ndef fill(text, width):\n    return textwrap.fill(text, width)\n"
+      },
+      "brief": "Implement wrap(text, width) in wrapping.py: wrap a paragraph to lines of at most width characters for the terminal help output, returning the list of lines.",
+      "neutral": false,
+      "kind": "convention",
+      "memory": "Help output convention: words are never broken, even when longer than the width: such a word goes on a line of its own (URLs must stay clickable). Hyphenated words are not split at the hyphen either. Runs of whitespace between words count as one space.",
+      "distractors": [
+        [
+          "tooling",
+          "Release builds are made from a clean checkout with `python -m build`; never upload a dirty tree."
+        ],
+        [
+          "people",
+          "Reviews on this project are asynchronous: leave a summary comment, do not wait for a call."
+        ],
+        [
+          "pitfall",
+          "The CI image has no locale data: tests must not depend on locale-specific formatting."
+        ],
+        [
+          "convention",
+          "Code blocks in the README are never wrapped."
+        ]
+      ],
+      "hidden": "from wrapping import wrap\n\n\ndef test_basic():\n    assert wrap('the quick brown fox', 10) == ['the quick', 'brown fox']\n\n\ndef test_long_word_kept():\n    url = 'https://example.org/very/long/path'\n    assert wrap(f'see {url} now', 10) == ['see', url, 'now']\n\n\ndef test_hyphen_kept():\n    assert wrap('a well-known fact', 8) == ['a', 'well-known', 'fact']\n\n\ndef test_whitespace_runs():\n    assert wrap('a   b\\n c', 20) == ['a b c']\n",
+      "reference": {
+        "wrapping.py": "import textwrap\n\n\ndef fill(text, width):\n    return textwrap.fill(text, width)\n\n\ndef wrap(text, width):\n    return textwrap.wrap(' '.join(text.split()), width, break_long_words=False, break_on_hyphens=False)\n"
+      },
+      "naive": {
+        "wrapping.py": "import textwrap\n\n\ndef fill(text, width):\n    return textwrap.fill(text, width)\n\n\ndef wrap(text, width):\n    return textwrap.wrap(text, width)\n"
+      },
+      "conventions": [
+        "words are never broken, even when longer than the width: such a word goes on a line of its own",
+        "Hyphenated words are not split at the hyphen either"
+      ],
+      "trace": [
+        {
+          "assertion": "test_zz_hidden_eval.py::test_basic#1",
+          "brief": "wrap a paragraph to lines of at most width characters"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_long_word_kept#1",
+          "brief": "words are never broken, even when longer than the width: such a word goes on a line of its own"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_hyphen_kept#1",
+          "brief": "Hyphenated words are not split at the hyphen either"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_whitespace_runs#1",
+          "brief": "Runs of whitespace between words count as one space"
+        }
+      ]
+    },
+    {
+      "id": "r2a2-25-ride-speed",
+      "dev": false,
+      "source": "authored",
+      "files": {
+        "rides.py": "def km(meters):\n    return meters / 1000\n"
+      },
+      "brief": "Add average_speed(meters, seconds) to rides.py: the average speed of a recorded bike ride, for the ride summary.",
+      "neutral": false,
+      "kind": "convention",
+      "memory": "Ride summary convention: speeds are in km/h (not m/s), rounded to one decimal. A ride with zero or negative duration has no speed: return None instead of raising.",
+      "distractors": [
+        [
+          "tooling",
+          "Release builds are made from a clean checkout with `python -m build`; never upload a dirty tree."
+        ],
+        [
+          "people",
+          "Reviews on this project are asynchronous: leave a summary comment, do not wait for a call."
+        ],
+        [
+          "pitfall",
+          "The CI image has no locale data: tests must not depend on locale-specific formatting."
+        ],
+        [
+          "convention",
+          "Running paces are shown in minutes per kilometre."
+        ]
+      ],
+      "hidden": "from rides import average_speed\n\n\ndef test_kmh():\n    assert average_speed(10_000, 1800) == 20.0\n    assert average_speed(1234, 300) == 14.8\n\n\ndef test_zero_duration():\n    assert average_speed(500, 0) is None\n    assert average_speed(500, -3) is None\n",
+      "reference": {
+        "rides.py": "def km(meters):\n    return meters / 1000\n\n\ndef average_speed(meters, seconds):\n    if seconds <= 0:\n        return None\n    return round(km(meters) / (seconds / 3600), 1)\n"
+      },
+      "naive": {
+        "rides.py": "def km(meters):\n    return meters / 1000\n\n\ndef average_speed(meters, seconds):\n    return meters / seconds\n"
+      },
+      "conventions": [
+        "speeds are in km/h (not m/s), rounded to one decimal",
+        "A ride with zero or negative duration has no speed: return None instead of raising"
+      ],
+      "trace": [
+        {
+          "assertion": "test_zz_hidden_eval.py::test_kmh#1",
+          "brief": "speeds are in km/h (not m/s), rounded to one decimal"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_kmh#2",
+          "brief": "speeds are in km/h (not m/s), rounded to one decimal"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_zero_duration#1",
+          "brief": "A ride with zero or negative duration has no speed: return None instead of raising"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_zero_duration#2",
+          "brief": "A ride with zero or negative duration has no speed: return None instead of raising"
+        }
+      ]
+    },
+    {
+      "id": "r2a2-26-tag-merge",
+      "dev": false,
+      "source": "authored",
+      "files": {
+        "labels.py": "def union(a, b):\n    return sorted(set(a) | set(b))\n"
+      },
+      "brief": "Implement merge_tags(existing, new) in labels.py: combine an item's existing tags with newly added ones.",
+      "neutral": false,
+      "kind": "convention",
+      "memory": "Tag convention: tags that differ only in case are the same tag, and the spelling that was there first wins (existing before new). The merged list is sorted case-insensitively. An item has at most 10 tags: extra tags beyond the first 10 after sorting are dropped.",
+      "distractors": [
+        [
+          "tooling",
+          "Release builds are made from a clean checkout with `python -m build`; never upload a dirty tree."
+        ],
+        [
+          "people",
+          "Reviews on this project are asynchronous: leave a summary comment, do not wait for a call."
+        ],
+        [
+          "pitfall",
+          "The CI image has no locale data: tests must not depend on locale-specific formatting."
+        ],
+        [
+          "convention",
+          "Category names are fixed by the admin and cannot be merged."
+        ]
+      ],
+      "hidden": "from labels import merge_tags\n\n\ndef test_case_duplicates():\n    assert merge_tags(['Python'], ['python', 'SQL']) == ['Python', 'SQL']\n\n\ndef test_sorted_ignoring_case():\n    assert merge_tags(['b', 'C'], ['a']) == ['a', 'b', 'C']\n\n\ndef test_limit():\n    out = merge_tags([f't{i:02d}' for i in range(8)], ['x1', 'x2', 'x3', 'a0'])\n    assert out == ['a0'] + [f't{i:02d}' for i in range(8)] + ['x1']\n",
+      "reference": {
+        "labels.py": "def union(a, b):\n    return sorted(set(a) | set(b))\n\n\ndef merge_tags(existing, new):\n    seen = {}\n    for tag in list(existing) + list(new):\n        seen.setdefault(tag.lower(), tag)\n    return sorted(seen.values(), key=str.lower)[:10]\n"
+      },
+      "naive": {
+        "labels.py": "def union(a, b):\n    return sorted(set(a) | set(b))\n\n\ndef merge_tags(existing, new):\n    return union(existing, new)\n"
+      },
+      "conventions": [
+        "tags that differ only in case are the same tag, and the spelling that was there first wins",
+        "The merged list is sorted case-insensitively",
+        "An item has at most 10 tags: extra tags beyond the first 10 after sorting are dropped"
+      ],
+      "trace": [
+        {
+          "assertion": "test_zz_hidden_eval.py::test_case_duplicates#1",
+          "brief": "tags that differ only in case are the same tag, and the spelling that was there first wins"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_sorted_ignoring_case#1",
+          "brief": "The merged list is sorted case-insensitively"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_limit#1",
+          "brief": "An item has at most 10 tags: extra tags beyond the first 10 after sorting are dropped"
+        }
+      ]
+    },
+    {
+      "id": "r2a2-27-next-working-day",
+      "dev": false,
+      "source": "authored",
+      "files": {
+        "schedule.py": "import datetime\n\nHOLIDAYS = {datetime.date(2026, 12, 25), datetime.date(2026, 12, 28), datetime.date(2027, 1, 1)}\n\n\ndef is_weekend(d):\n    return d.weekday() >= 5\n"
+      },
+      "brief": "Write next_working_day(d) in schedule.py: the date a job queued on day d is processed.",
+      "neutral": false,
+      "kind": "convention",
+      "memory": "Processing convention: jobs are processed on the next working day, always strictly after d, even when d itself is a working day. Saturdays, Sundays and the dates in HOLIDAYS are not working days.",
+      "distractors": [
+        [
+          "tooling",
+          "Release builds are made from a clean checkout with `python -m build`; never upload a dirty tree."
+        ],
+        [
+          "people",
+          "Reviews on this project are asynchronous: leave a summary comment, do not wait for a call."
+        ],
+        [
+          "pitfall",
+          "The CI image has no locale data: tests must not depend on locale-specific formatting."
+        ],
+        [
+          "convention",
+          "Support tickets get a reply within one calendar day, weekends included."
+        ]
+      ],
+      "hidden": "import datetime\nfrom schedule import next_working_day\n\nD = datetime.date\n\n\ndef test_strictly_after():\n    assert next_working_day(D(2026, 11, 17)) == D(2026, 11, 18)\n\n\ndef test_weekend_and_holidays():\n    assert next_working_day(D(2026, 11, 20)) == D(2026, 11, 23)\n    assert next_working_day(D(2026, 12, 24)) == D(2026, 12, 29)\n    assert next_working_day(D(2026, 12, 31)) == D(2027, 1, 4)\n",
+      "reference": {
+        "schedule.py": "import datetime\n\nHOLIDAYS = {datetime.date(2026, 12, 25), datetime.date(2026, 12, 28), datetime.date(2027, 1, 1)}\n\n\ndef is_weekend(d):\n    return d.weekday() >= 5\n\n\ndef next_working_day(d):\n    d += datetime.timedelta(days=1)\n    while is_weekend(d) or d in HOLIDAYS:\n        d += datetime.timedelta(days=1)\n    return d\n"
+      },
+      "naive": {
+        "schedule.py": "import datetime\n\nHOLIDAYS = {datetime.date(2026, 12, 25), datetime.date(2026, 12, 28), datetime.date(2027, 1, 1)}\n\n\ndef is_weekend(d):\n    return d.weekday() >= 5\n\n\ndef next_working_day(d):\n    while is_weekend(d):\n        d += datetime.timedelta(days=1)\n    return d\n"
+      },
+      "conventions": [
+        "always strictly after d, even when d itself is a working day",
+        "Saturdays, Sundays and the dates in HOLIDAYS are not working days"
+      ],
+      "trace": [
+        {
+          "assertion": "test_zz_hidden_eval.py::test_strictly_after#1",
+          "brief": "always strictly after d, even when d itself is a working day"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_weekend_and_holidays#1",
+          "brief": "Saturdays, Sundays and the dates in HOLIDAYS are not working days"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_weekend_and_holidays#2",
+          "brief": "Saturdays, Sundays and the dates in HOLIDAYS are not working days"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_weekend_and_holidays#3",
+          "brief": "Saturdays, Sundays and the dates in HOLIDAYS are not working days"
+        }
+      ]
+    },
+    {
+      "id": "r2a2-28-title-sort",
+      "dev": false,
+      "source": "authored",
+      "files": {
+        "library.py": "def by_title(books):\n    return sorted(books)\n"
+      },
+      "brief": "Implement title_key(title) in library.py: a sort key so that sorted(titles, key=title_key) lists book titles in catalogue order.",
+      "neutral": false,
+      "kind": "convention",
+      "memory": "Catalogue order convention: a leading 'The ', 'A ' or 'An ' is ignored when sorting, and case is ignored. Numbers inside titles sort by value, so 'Volume 9' comes before 'Volume 10'.",
+      "distractors": [
+        [
+          "tooling",
+          "Release builds are made from a clean checkout with `python -m build`; never upload a dirty tree."
+        ],
+        [
+          "people",
+          "Reviews on this project are asynchronous: leave a summary comment, do not wait for a call."
+        ],
+        [
+          "pitfall",
+          "The CI image has no locale data: tests must not depend on locale-specific formatting."
+        ],
+        [
+          "convention",
+          "Author names are sorted by family name, then given name."
+        ]
+      ],
+      "hidden": "from library import title_key\n\n\ndef test_articles_and_case():\n    titles = ['The Zoo', 'apple pie', 'An Orange', 'A Banana']\n    assert sorted(titles, key=title_key) == ['apple pie', 'A Banana', 'An Orange', 'The Zoo']\n\n\ndef test_numbers():\n    titles = ['Volume 10', 'Volume 9', 'Volume 1']\n    assert sorted(titles, key=title_key) == ['Volume 1', 'Volume 9', 'Volume 10']\n",
+      "reference": {
+        "library.py": "import re\n\n\ndef by_title(books):\n    return sorted(books)\n\n\ndef title_key(title):\n    t = re.sub(r'^(the|a|an)\\s+', '', title.strip(), flags=re.I).lower()\n    return [(0, int(p), '') if p.isdigit() else (1, 0, p) for p in re.split(r'(\\d+)', t) if p]\n"
+      },
+      "naive": {
+        "library.py": "def by_title(books):\n    return sorted(books)\n\n\ndef title_key(title):\n    return title\n"
+      },
+      "conventions": [
+        "a leading 'The ', 'A ' or 'An ' is ignored when sorting, and case is ignored",
+        "Numbers inside titles sort by value, so 'Volume 9' comes before 'Volume 10'"
+      ],
+      "trace": [
+        {
+          "assertion": "test_zz_hidden_eval.py::test_articles_and_case#1",
+          "brief": "a leading 'The ', 'A ' or 'An ' is ignored when sorting, and case is ignored"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_numbers#1",
+          "brief": "Numbers inside titles sort by value, so 'Volume 9' comes before 'Volume 10'"
+        }
+      ]
+    },
+    {
+      "id": "r2a2-29-page-cursor",
+      "dev": false,
+      "source": "authored",
+      "files": {
+        "cursors.py": "def next_offset(offset, limit):\n    return offset + limit\n"
+      },
+      "brief": "Add encode_cursor(offset) and decode_cursor(cursor) to cursors.py: the opaque pagination cursor returned by the list endpoints, and its inverse.",
+      "neutral": false,
+      "kind": "convention",
+      "memory": "Cursor convention: a cursor is the text 'o:<offset>' encoded with URL-safe base64 with the '=' padding removed. decode_cursor raises ValueError for anything that is not a valid cursor, including a negative offset.",
+      "distractors": [
+        [
+          "tooling",
+          "Release builds are made from a clean checkout with `python -m build`; never upload a dirty tree."
+        ],
+        [
+          "people",
+          "Reviews on this project are asynchronous: leave a summary comment, do not wait for a call."
+        ],
+        [
+          "pitfall",
+          "The CI image has no locale data: tests must not depend on locale-specific formatting."
+        ],
+        [
+          "convention",
+          "Webhook signatures are hex-encoded HMAC-SHA256 digests."
+        ]
+      ],
+      "hidden": "import base64\nimport pytest\nfrom cursors import encode_cursor, decode_cursor\n\n\ndef test_encoding():\n    assert encode_cursor(40) == base64.urlsafe_b64encode(b'o:40').decode().rstrip('=')\n    assert '=' not in encode_cursor(1)\n\n\ndef test_round_trip():\n    for n in (0, 7, 123456):\n        assert decode_cursor(encode_cursor(n)) == n\n\n\ndef test_invalid():\n    bad_neg = base64.urlsafe_b64encode(b'o:-5').decode().rstrip('=')\n    bare = base64.urlsafe_b64encode(b'-5').decode()\n    for bad in ('', '!!!', base64.urlsafe_b64encode(b'x:3').decode(), bad_neg, bare):\n        with pytest.raises(ValueError):\n            decode_cursor(bad)\n",
+      "reference": {
+        "cursors.py": "import base64\nimport binascii\n\n\ndef next_offset(offset, limit):\n    return offset + limit\n\n\ndef encode_cursor(offset):\n    return base64.urlsafe_b64encode(f'o:{offset}'.encode()).decode().rstrip('=')\n\n\ndef decode_cursor(cursor):\n    try:\n        raw = base64.urlsafe_b64decode(cursor + '=' * (-len(cursor) % 4)).decode()\n    except (binascii.Error, UnicodeDecodeError, ValueError):\n        raise ValueError('bad cursor') from None\n    if not raw.startswith('o:') or not raw[2:].isdigit():\n        raise ValueError('bad cursor')\n    return int(raw[2:])\n"
+      },
+      "naive": {
+        "cursors.py": "import base64\n\n\ndef next_offset(offset, limit):\n    return offset + limit\n\n\ndef encode_cursor(offset):\n    return base64.b64encode(str(offset).encode()).decode()\n\n\ndef decode_cursor(cursor):\n    return int(base64.b64decode(cursor).decode())\n"
+      },
+      "conventions": [
+        "the text 'o:<offset>' encoded with URL-safe base64 with the '=' padding removed",
+        "decode_cursor raises ValueError for anything that is not a valid cursor"
+      ],
+      "trace": [
+        {
+          "assertion": "test_zz_hidden_eval.py::test_encoding#1",
+          "brief": "the text 'o:<offset>' encoded with URL-safe base64 with the '=' padding removed"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_encoding#2",
+          "brief": "the text 'o:<offset>' encoded with URL-safe base64 with the '=' padding removed"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_round_trip#1",
+          "brief": "the opaque pagination cursor returned by the list endpoints, and its inverse"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_invalid#1",
+          "brief": "decode_cursor raises ValueError for anything that is not a valid cursor"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_invalid#1",
+          "brief": "including a negative offset"
+        }
+      ]
+    },
+    {
+      "id": "r2a2-30-vat-line",
+      "dev": false,
+      "source": "authored",
+      "files": {
+        "vat.py": "def gross(net, rate):\n    return net * (1 + rate)\n"
+      },
+      "brief": "Implement vat_line(net_cents, rate) in vat.py: the amounts printed on one invoice line for a net amount in cents and a VAT rate.",
+      "neutral": false,
+      "kind": "convention",
+      "memory": "VAT convention: the rate is given as a whole percent (19 means 19 %), not a fraction like gross() takes. VAT is computed per line and rounded to the cent with halves going up. vat_line returns the tuple (net, vat, gross), all int cents.",
+      "distractors": [
+        [
+          "tooling",
+          "Release builds are made from a clean checkout with `python -m build`; never upload a dirty tree."
+        ],
+        [
+          "people",
+          "Reviews on this project are asynchronous: leave a summary comment, do not wait for a call."
+        ],
+        [
+          "pitfall",
+          "The CI image has no locale data: tests must not depend on locale-specific formatting."
+        ],
+        [
+          "convention",
+          "Shipping is always shown as a separate invoice line without VAT."
+        ]
+      ],
+      "hidden": "from vat import vat_line\n\n\ndef test_percent_rate():\n    assert vat_line(1000, 19) == (1000, 190, 1190)\n\n\ndef test_half_up():\n    assert vat_line(50, 7) == (50, 4, 54)\n    assert vat_line(250, 19) == (250, 48, 298)\n\n\ndef test_int_tuple():\n    out = vat_line(333, 10)\n    assert out == (333, 33, 366) and all(type(x) is int for x in out)\n",
+      "reference": {
+        "vat.py": "def gross(net, rate):\n    return net * (1 + rate)\n\n\ndef vat_line(net_cents, rate):\n    vat = (net_cents * rate * 2 + 100) // 200\n    return net_cents, vat, net_cents + vat\n"
+      },
+      "naive": {
+        "vat.py": "def gross(net, rate):\n    return net * (1 + rate)\n\n\ndef vat_line(net_cents, rate):\n    return {'net': net_cents, 'vat': net_cents * rate, 'gross': gross(net_cents, rate)}\n"
+      },
+      "conventions": [
+        "the rate is given as a whole percent (19 means 19 %), not a fraction",
+        "VAT is computed per line and rounded to the cent with halves going up",
+        "returns the tuple (net, vat, gross), all int cents"
+      ],
+      "trace": [
+        {
+          "assertion": "test_zz_hidden_eval.py::test_percent_rate#1",
+          "brief": "the rate is given as a whole percent (19 means 19 %), not a fraction"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_half_up#1",
+          "brief": "VAT is computed per line and rounded to the cent with halves going up"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_half_up#2",
+          "brief": "VAT is computed per line and rounded to the cent with halves going up"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_int_tuple#1",
+          "brief": "returns the tuple (net, vat, gross), all int cents"
+        }
+      ]
+    },
+    {
+      "id": "r2a2-31-hex-rgb",
+      "dev": false,
+      "source": "authored",
+      "files": {
+        "palette.py": "def rgb_css(r, g, b):\n    return f\"rgb({r}, {g}, {b})\"\n"
+      },
+      "brief": "Implement hex_to_rgb(code) in palette.py: parse a CSS hex colour code into its channel values.",
+      "neutral": false,
+      "kind": "convention",
+      "memory": "Colour parsing convention: accept 3, 6 or 8 hex digits, with or without '#', any case. The result is a tuple: (r, g, b) for 3 or 6 digits, and (r, g, b, a) for 8 digits, where alpha is a float from 0 to 1 rounded to two decimals, not 0-255. Any other input raises ValueError.",
+      "distractors": [
+        [
+          "tooling",
+          "Release builds are made from a clean checkout with `python -m build`; never upload a dirty tree."
+        ],
+        [
+          "people",
+          "Reviews on this project are asynchronous: leave a summary comment, do not wait for a call."
+        ],
+        [
+          "pitfall",
+          "The CI image has no locale data: tests must not depend on locale-specific formatting."
+        ],
+        [
+          "convention",
+          "Colours in the design tokens file are stored as lower-case six-digit hex with '#'."
+        ]
+      ],
+      "hidden": "import pytest\nfrom palette import hex_to_rgb\n\n\ndef test_forms():\n    assert hex_to_rgb('#1A2b3C') == (26, 43, 60)\n    assert hex_to_rgb('fa0') == (255, 170, 0)\n\n\ndef test_alpha():\n    assert hex_to_rgb('#ff000080') == (255, 0, 0, 0.5)\n    assert hex_to_rgb('000000FF') == (0, 0, 0, 1.0)\n\n\ndef test_invalid():\n    for bad in ('#12345', 'zzzzzz', ''):\n        with pytest.raises(ValueError):\n            hex_to_rgb(bad)\n",
+      "reference": {
+        "palette.py": "import string\n\n\ndef rgb_css(r, g, b):\n    return f\"rgb({r}, {g}, {b})\"\n\n\ndef hex_to_rgb(code):\n    h = code[1:] if code.startswith('#') else code\n    if len(h) not in (3, 6, 8) or any(c not in string.hexdigits for c in h):\n        raise ValueError(f'bad colour {code!r}')\n    if len(h) == 3:\n        h = ''.join(c * 2 for c in h)\n    vals = [int(h[i:i + 2], 16) for i in range(0, len(h), 2)]\n    if len(vals) == 4:\n        vals[3] = round(vals[3] / 255, 2)\n    return tuple(vals)\n"
+      },
+      "naive": {
+        "palette.py": "def rgb_css(r, g, b):\n    return f\"rgb({r}, {g}, {b})\"\n\n\ndef hex_to_rgb(code):\n    h = code.lstrip('#')\n    return tuple(int(h[i:i + 2], 16) for i in range(0, len(h), 2))\n"
+      },
+      "conventions": [
+        "accept 3, 6 or 8 hex digits, with or without '#', any case",
+        "alpha is a float from 0 to 1 rounded to two decimals, not 0-255",
+        "Any other input raises ValueError"
+      ],
+      "trace": [
+        {
+          "assertion": "test_zz_hidden_eval.py::test_forms#1",
+          "brief": "accept 3, 6 or 8 hex digits, with or without '#', any case"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_forms#1",
+          "brief": "(r, g, b) for 3 or 6 digits"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_forms#2",
+          "brief": "accept 3, 6 or 8 hex digits, with or without '#', any case"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_forms#2",
+          "brief": "(r, g, b) for 3 or 6 digits"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_alpha#1",
+          "brief": "alpha is a float from 0 to 1 rounded to two decimals, not 0-255"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_alpha#1",
+          "brief": "(r, g, b, a) for 8 digits"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_alpha#2",
+          "brief": "alpha is a float from 0 to 1 rounded to two decimals, not 0-255"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_alpha#2",
+          "brief": "(r, g, b, a) for 8 digits"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_invalid#1",
+          "brief": "Any other input raises ValueError"
+        }
+      ]
+    },
+    {
+      "id": "r2a2-32-page-title",
+      "dev": false,
+      "source": "authored",
+      "files": {
+        "docsite.py": "SITE = \"Docs\"\n\n\ndef heading(text):\n    return text.title()\n"
+      },
+      "brief": "Add page_title(section, page) to docsite.py: the text of the HTML <title> element for a documentation page.",
+      "neutral": false,
+      "kind": "convention",
+      "memory": "Title convention for the docs site: most specific first: page, then section, then SITE, separated by ' · ' (a middle dot with spaces), not ' | ' or ' - '. Empty parts are left out. Titles are cut to 60 characters, the last of them replaced by '…' when cut.",
+      "distractors": [
+        [
+          "tooling",
+          "Release builds are made from a clean checkout with `python -m build`; never upload a dirty tree."
+        ],
+        [
+          "people",
+          "Reviews on this project are asynchronous: leave a summary comment, do not wait for a call."
+        ],
+        [
+          "pitfall",
+          "The CI image has no locale data: tests must not depend on locale-specific formatting."
+        ],
+        [
+          "convention",
+          "Blog post titles use title case; docs page names keep their own casing."
+        ]
+      ],
+      "hidden": "from docsite import page_title\n\n\ndef test_order():\n    assert page_title('Guides', 'Install') == 'Install · Guides · Docs'\n\n\ndef test_separator_and_empty():\n    assert page_title('', 'FAQ') == 'FAQ · Docs'\n    assert ' | ' not in page_title('A', 'B')\n\n\ndef test_cut():\n    out = page_title('Section', 'p' * 70)\n    assert len(out) == 60 and out.endswith('…') and out.startswith('p' * 59)\n",
+      "reference": {
+        "docsite.py": "SITE = \"Docs\"\n\n\ndef heading(text):\n    return text.title()\n\n\ndef page_title(section, page):\n    title = ' · '.join(p for p in (page, section, SITE) if p)\n    return title if len(title) <= 60 else title[:59] + '…'\n"
+      },
+      "naive": {
+        "docsite.py": "SITE = \"Docs\"\n\n\ndef heading(text):\n    return text.title()\n\n\ndef page_title(section, page):\n    return f\"{SITE} | {section} | {page}\"\n"
+      },
+      "conventions": [
+        "most specific first: page, then section, then SITE",
+        "separated by ' · ' (a middle dot with spaces), not ' | ' or ' - '",
+        "Titles are cut to 60 characters, the last of them replaced by '…' when cut"
+      ],
+      "trace": [
+        {
+          "assertion": "test_zz_hidden_eval.py::test_order#1",
+          "brief": "most specific first: page, then section, then SITE"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_separator_and_empty#1",
+          "brief": "separated by ' · ' (a middle dot with spaces), not ' | ' or ' - '"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_separator_and_empty#1",
+          "brief": "Empty parts are left out"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_separator_and_empty#2",
+          "brief": "separated by ' · ' (a middle dot with spaces), not ' | ' or ' - '"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_separator_and_empty#2",
+          "brief": "Empty parts are left out"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_cut#1",
+          "brief": "Titles are cut to 60 characters, the last of them replaced by '…' when cut"
+        }
+      ]
+    },
+    {
+      "id": "r2a2-33-count-by",
+      "dev": false,
+      "source": "authored",
+      "files": {
+        "tally.py": "from collections import Counter\n\n\ndef counts(values):\n    return dict(Counter(values))\n"
+      },
+      "brief": "Write count_by(items, key) in tally.py: count a list of dicts by the value of one key, for the analytics summary.",
+      "neutral": false,
+      "kind": "convention",
+      "memory": "Analytics summary convention: results are a list of (value, count) pairs, highest count first and equal counts by value. A missing key or a None value is counted under the value 'unknown', never dropped.",
+      "distractors": [
+        [
+          "tooling",
+          "Release builds are made from a clean checkout with `python -m build`; never upload a dirty tree."
+        ],
+        [
+          "people",
+          "Reviews on this project are asynchronous: leave a summary comment, do not wait for a call."
+        ],
+        [
+          "pitfall",
+          "The CI image has no locale data: tests must not depend on locale-specific formatting."
+        ],
+        [
+          "convention",
+          "Raw analytics events older than 90 days are deleted every night."
+        ]
+      ],
+      "hidden": "from tally import count_by\n\n\ndef test_order():\n    items = [{'c': 'b'}, {'c': 'a'}, {'c': 'b'}, {'c': 'c'}, {'c': 'a'}, {'c': 'b'}]\n    assert count_by(items, 'c') == [('b', 3), ('a', 2), ('c', 1)]\n\n\ndef test_unknown():\n    items = [{'c': None}, {}, {'c': 'x'}]\n    assert count_by(items, 'c') == [('unknown', 2), ('x', 1)]\n",
+      "reference": {
+        "tally.py": "from collections import Counter\n\n\ndef counts(values):\n    return dict(Counter(values))\n\n\ndef count_by(items, key):\n    c = Counter('unknown' if it.get(key) is None else it[key] for it in items)\n    return sorted(c.items(), key=lambda kv: (-kv[1], kv[0]))\n"
+      },
+      "naive": {
+        "tally.py": "from collections import Counter\n\n\ndef counts(values):\n    return dict(Counter(values))\n\n\ndef count_by(items, key):\n    return counts(it[key] for it in items if it.get(key) is not None)\n"
+      },
+      "conventions": [
+        "a list of (value, count) pairs, highest count first and equal counts by value",
+        "A missing key or a None value is counted under the value 'unknown', never dropped"
+      ],
+      "trace": [
+        {
+          "assertion": "test_zz_hidden_eval.py::test_order#1",
+          "brief": "a list of (value, count) pairs, highest count first and equal counts by value"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_unknown#1",
+          "brief": "A missing key or a None value is counted under the value 'unknown', never dropped"
+        }
+      ]
+    },
+    {
+      "id": "r2a2-34-great-circle",
+      "dev": false,
+      "source": "authored",
+      "files": {
+        "routes.py": "def total(legs):\n    return sum(legs)\n"
+      },
+      "brief": "Implement distance_km(a, b) in routes.py: the great-circle (haversine) distance between two points a and b.",
+      "neutral": false,
+      "kind": "convention",
+      "memory": "Routing convention: points are (lon, lat) tuples in degrees, longitude first as in our GeoJSON data, never (lat, lon). The Earth radius is 6371.0 km. Distances are rounded to two decimals.",
+      "distractors": [
+        [
+          "tooling",
+          "Release builds are made from a clean checkout with `python -m build`; never upload a dirty tree."
+        ],
+        [
+          "people",
+          "Reviews on this project are asynchronous: leave a summary comment, do not wait for a call."
+        ],
+        [
+          "pitfall",
+          "The CI image has no locale data: tests must not depend on locale-specific formatting."
+        ],
+        [
+          "convention",
+          "Flight distances on the booking page are shown in nautical miles."
+        ]
+      ],
+      "hidden": "import math\nfrom routes import distance_km\n\n\ndef _hav(lon1, lat1, lon2, lat2, r):\n    p1, p2 = math.radians(lat1), math.radians(lat2)\n    dp, dl = p2 - p1, math.radians(lon2 - lon1)\n    h = math.sin(dp / 2) ** 2 + math.cos(p1) * math.cos(p2) * math.sin(dl / 2) ** 2\n    return 2 * r * math.asin(math.sqrt(h))\n\n\ndef test_lon_first():\n    c, d = (10.0, 50.0), (11.0, 50.0)\n    assert abs(distance_km(c, d) - _hav(10, 50, 11, 50, 6371.0)) <= 0.006\n    e, f = (-74.0, 40.7), (2.35, 48.86)\n    assert abs(distance_km(e, f) - _hav(-74.0, 40.7, 2.35, 48.86, 6371.0)) <= 0.006\n\n\ndef test_radius_and_rounding():\n    assert abs(distance_km((0.0, 0.0), (180.0, 0.0)) - 20015.09) < 1e-6\n",
+      "reference": {
+        "routes.py": "import math\n\n\ndef total(legs):\n    return sum(legs)\n\n\ndef distance_km(a, b):\n    lon1, lat1 = a\n    lon2, lat2 = b\n    p1, p2 = math.radians(lat1), math.radians(lat2)\n    dp, dl = p2 - p1, math.radians(lon2 - lon1)\n    h = math.sin(dp / 2) ** 2 + math.cos(p1) * math.cos(p2) * math.sin(dl / 2) ** 2\n    return round(2 * 6371.0 * math.asin(math.sqrt(h)), 2)\n"
+      },
+      "naive": {
+        "routes.py": "import math\n\n\ndef total(legs):\n    return sum(legs)\n\n\ndef distance_km(a, b):\n    lat1, lon1 = map(math.radians, a)\n    lat2, lon2 = map(math.radians, b)\n    h = math.sin((lat2 - lat1) / 2) ** 2 + math.cos(lat1) * math.cos(lat2) * math.sin((lon2 - lon1) / 2) ** 2\n    return 2 * 6378.137 * math.asin(math.sqrt(h))\n"
+      },
+      "conventions": [
+        "points are (lon, lat) tuples in degrees, longitude first",
+        "The Earth radius is 6371.0 km",
+        "Distances are rounded to two decimals"
+      ],
+      "trace": [
+        {
+          "assertion": "test_zz_hidden_eval.py::test_lon_first#1",
+          "brief": "points are (lon, lat) tuples in degrees, longitude first"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_lon_first#1",
+          "brief": "Distances are rounded to two decimals"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_lon_first#2",
+          "brief": "points are (lon, lat) tuples in degrees, longitude first"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_lon_first#2",
+          "brief": "Distances are rounded to two decimals"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_radius_and_rounding#1",
+          "brief": "The Earth radius is 6371.0 km"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_radius_and_rounding#1",
+          "brief": "Distances are rounded to two decimals"
+        }
+      ]
+    },
+    {
+      "id": "r2a2-35-age-years",
+      "dev": false,
+      "source": "authored",
+      "files": {
+        "members.py": "import datetime\n\n\ndef years_between(a, b):\n    return (b - a).days // 365\n"
+      },
+      "brief": "Write age_on(birth, day) in members.py: a member's age in whole years on a given date, for the membership discounts.",
+      "neutral": false,
+      "kind": "convention",
+      "memory": "Age convention: age is counted in completed birthdays, not days divided by 365. Someone born on 29 February has their birthday on 1 March in non-leap years. A day before the birth date raises ValueError.",
+      "distractors": [
+        [
+          "tooling",
+          "Release builds are made from a clean checkout with `python -m build`; never upload a dirty tree."
+        ],
+        [
+          "people",
+          "Reviews on this project are asynchronous: leave a summary comment, do not wait for a call."
+        ],
+        [
+          "pitfall",
+          "The CI image has no locale data: tests must not depend on locale-specific formatting."
+        ],
+        [
+          "convention",
+          "Membership renewals are due on the anniversary of joining, not on the birthday."
+        ]
+      ],
+      "hidden": "import datetime\nimport pytest\nfrom members import age_on\n\nD = datetime.date\n\n\ndef test_completed_birthdays():\n    assert age_on(D(2000, 6, 15), D(2026, 6, 14)) == 25\n    assert age_on(D(2000, 6, 15), D(2026, 6, 15)) == 26\n    assert age_on(D(1990, 1, 1), D(2026, 12, 31)) == 36\n\n\ndef test_leap_day():\n    assert age_on(D(2004, 2, 29), D(2026, 2, 28)) == 21\n    assert age_on(D(2004, 2, 29), D(2026, 3, 1)) == 22\n    assert age_on(D(2004, 2, 29), D(2028, 2, 29)) == 24\n\n\ndef test_before_birth():\n    with pytest.raises(ValueError):\n        age_on(D(2020, 1, 2), D(2020, 1, 1))\n",
+      "reference": {
+        "members.py": "import calendar\nimport datetime\n\n\ndef years_between(a, b):\n    return (b - a).days // 365\n\n\ndef _birthday(birth, year):\n    if birth.month == 2 and birth.day == 29 and not calendar.isleap(year):\n        return datetime.date(year, 3, 1)\n    return birth.replace(year=year)\n\n\ndef age_on(birth, day):\n    if day < birth:\n        raise ValueError('day is before birth')\n    age = day.year - birth.year\n    if day < _birthday(birth, day.year):\n        age -= 1\n    return age\n"
+      },
+      "naive": {
+        "members.py": "import datetime\n\n\ndef years_between(a, b):\n    return (b - a).days // 365\n\n\ndef age_on(birth, day):\n    if day < birth:\n        raise ValueError('day is before birth')\n    return years_between(birth, day)\n"
+      },
+      "conventions": [
+        "age is counted in completed birthdays, not days divided by 365",
+        "Someone born on 29 February has their birthday on 1 March in non-leap years"
+      ],
+      "trace": [
+        {
+          "assertion": "test_zz_hidden_eval.py::test_completed_birthdays#1",
+          "brief": "age is counted in completed birthdays, not days divided by 365"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_completed_birthdays#2",
+          "brief": "age is counted in completed birthdays, not days divided by 365"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_completed_birthdays#3",
+          "brief": "age is counted in completed birthdays, not days divided by 365"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_leap_day#1",
+          "brief": "Someone born on 29 February has their birthday on 1 March in non-leap years"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_leap_day#2",
+          "brief": "Someone born on 29 February has their birthday on 1 March in non-leap years"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_leap_day#3",
+          "brief": "Someone born on 29 February has their birthday on 1 March in non-leap years"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_before_birth#1",
+          "brief": "A day before the birth date raises ValueError"
+        }
+      ]
+    },
+    {
+      "id": "r2a2-36-cache-names",
+      "dev": false,
+      "source": "authored",
+      "files": {
+        "kvstore.py": "def namespaced(ns, key):\n    return f\"{ns}.{key}\"\n"
+      },
+      "brief": "Implement store_key(name) in kvstore.py: turn a human-readable name into the key used in the shared key-value store.",
+      "neutral": false,
+      "kind": "convention",
+      "memory": "Key-value store convention: every key starts with the prefix 'app:' (other teams share the store). The rest is lower-cased with runs of whitespace replaced by one underscore. Keys are at most 64 characters in total, prefix included; longer ones are cut.",
+      "distractors": [
+        [
+          "tooling",
+          "Release builds are made from a clean checkout with `python -m build`; never upload a dirty tree."
+        ],
+        [
+          "people",
+          "Reviews on this project are asynchronous: leave a summary comment, do not wait for a call."
+        ],
+        [
+          "pitfall",
+          "The CI image has no locale data: tests must not depend on locale-specific formatting."
+        ],
+        [
+          "convention",
+          "Feature flag names use kebab-case and live in flags.yaml."
+        ]
+      ],
+      "hidden": "from kvstore import store_key\n\n\ndef test_prefix():\n    assert store_key('session') == 'app:session'\n\n\ndef test_lower_and_underscores():\n    assert store_key('  User  Profile\\tCache ') == 'app:user_profile_cache'\n\n\ndef test_max_length():\n    out = store_key('x' * 100)\n    assert out == 'app:' + 'x' * 60 and len(out) == 64\n",
+      "reference": {
+        "kvstore.py": "def namespaced(ns, key):\n    return f\"{ns}.{key}\"\n\n\ndef store_key(name):\n    return ('app:' + '_'.join(name.lower().split()))[:64]\n"
+      },
+      "naive": {
+        "kvstore.py": "def namespaced(ns, key):\n    return f\"{ns}.{key}\"\n\n\ndef store_key(name):\n    return namespaced('app', name.strip().replace(' ', '-'))\n"
+      },
+      "conventions": [
+        "every key starts with the prefix 'app:'",
+        "lower-cased with runs of whitespace replaced by one underscore",
+        "Keys are at most 64 characters in total, prefix included"
+      ],
+      "trace": [
+        {
+          "assertion": "test_zz_hidden_eval.py::test_prefix#1",
+          "brief": "every key starts with the prefix 'app:'"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_lower_and_underscores#1",
+          "brief": "lower-cased with runs of whitespace replaced by one underscore"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_max_length#1",
+          "brief": "Keys are at most 64 characters in total, prefix included"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_max_length#1",
+          "brief": "longer ones are cut"
+        }
+      ]
+    },
+    {
+      "id": "r2a2-37-host-list",
+      "dev": false,
+      "source": "authored",
+      "files": {
+        "envlist.py": "import os\n\n\ndef raw(name):\n    return os.environ.get(name, \"\")\n"
+      },
+      "brief": "Add hosts_from(value) to envlist.py: parse the value of the ALLOWED_HOSTS environment variable into a list of host names.",
+      "neutral": false,
+      "kind": "convention",
+      "memory": "ALLOWED_HOSTS convention: entries may be separated by commas, whitespace or both. Empty entries are dropped and host names are lower-cased. Duplicates are removed, keeping the first occurrence, so the order of the remaining entries is preserved.",
+      "distractors": [
+        [
+          "tooling",
+          "Release builds are made from a clean checkout with `python -m build`; never upload a dirty tree."
+        ],
+        [
+          "people",
+          "Reviews on this project are asynchronous: leave a summary comment, do not wait for a call."
+        ],
+        [
+          "pitfall",
+          "The CI image has no locale data: tests must not depend on locale-specific formatting."
+        ],
+        [
+          "convention",
+          "Proxy settings come from HTTPS_PROXY only; HTTP_PROXY is ignored."
+        ]
+      ],
+      "hidden": "from envlist import hosts_from\n\n\ndef test_separators():\n    assert hosts_from('a.com, b.com c.com\\td.com') == ['a.com', 'b.com', 'c.com', 'd.com']\n\n\ndef test_empty_and_case():\n    assert hosts_from(',,Example.COM,, ') == ['example.com']\n    assert hosts_from('') == []\n\n\ndef test_dedupe_in_order():\n    assert hosts_from('b.io a.io B.io') == ['b.io', 'a.io']\n",
+      "reference": {
+        "envlist.py": "import os\nimport re\n\n\ndef raw(name):\n    return os.environ.get(name, \"\")\n\n\ndef hosts_from(value):\n    out = []\n    for part in re.split(r'[,\\s]+', value):\n        host = part.strip().lower()\n        if host and host not in out:\n            out.append(host)\n    return out\n"
+      },
+      "naive": {
+        "envlist.py": "import os\n\n\ndef raw(name):\n    return os.environ.get(name, \"\")\n\n\ndef hosts_from(value):\n    return [h.strip() for h in value.split(',')]\n"
+      },
+      "conventions": [
+        "entries may be separated by commas, whitespace or both",
+        "Empty entries are dropped and host names are lower-cased",
+        "Duplicates are removed, keeping the first occurrence"
+      ],
+      "trace": [
+        {
+          "assertion": "test_zz_hidden_eval.py::test_separators#1",
+          "brief": "entries may be separated by commas, whitespace or both"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_empty_and_case#1",
+          "brief": "Empty entries are dropped and host names are lower-cased"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_empty_and_case#2",
+          "brief": "Empty entries are dropped and host names are lower-cased"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_dedupe_in_order#1",
+          "brief": "Duplicates are removed, keeping the first occurrence"
+        }
+      ]
+    },
+    {
+      "id": "r2a2-38-duration-text",
+      "dev": false,
+      "source": "authored",
+      "files": {
+        "timing.py": "def seconds(ms):\n    return ms / 1000\n"
+      },
+      "brief": "Implement duration_text(ms) in timing.py: a short human-readable text for a duration in milliseconds, shown in the job history.",
+      "neutral": false,
+      "kind": "convention",
+      "memory": "Job history convention: durations are written as units with no spaces inside each part, like 1h 2m 3s, with parts separated by single spaces and zero parts left out (1h 3s). Seconds are whole, rounded down. Durations under one second are written in milliseconds, like 250ms.",
+      "distractors": [
+        [
+          "tooling",
+          "Release builds are made from a clean checkout with `python -m build`; never upload a dirty tree."
+        ],
+        [
+          "people",
+          "Reviews on this project are asynchronous: leave a summary comment, do not wait for a call."
+        ],
+        [
+          "pitfall",
+          "The CI image has no locale data: tests must not depend on locale-specific formatting."
+        ],
+        [
+          "convention",
+          "Build logs print elapsed time as HH:MM:SS."
+        ]
+      ],
+      "hidden": "from timing import duration_text\n\n\ndef test_parts():\n    assert duration_text(3_723_000) == '1h 2m 3s'\n    assert duration_text(61_999) == '1m 1s'\n\n\ndef test_zero_parts():\n    assert duration_text(3_603_000) == '1h 3s'\n    assert duration_text(7_200_000) == '2h'\n\n\ndef test_milliseconds():\n    assert duration_text(250) == '250ms'\n    assert duration_text(0) == '0ms'\n",
+      "reference": {
+        "timing.py": "def seconds(ms):\n    return ms / 1000\n\n\ndef duration_text(ms):\n    if ms < 1000:\n        return f'{ms}ms'\n    total = ms // 1000\n    h, rest = divmod(total, 3600)\n    m, s = divmod(rest, 60)\n    return ' '.join(f'{v}{u}' for v, u in ((h, 'h'), (m, 'm'), (s, 's')) if v)\n"
+      },
+      "naive": {
+        "timing.py": "def seconds(ms):\n    return ms / 1000\n\n\ndef duration_text(ms):\n    return f'{seconds(ms):.1f} s'\n"
+      },
+      "conventions": [
+        "units with no spaces inside each part, like 1h 2m 3s",
+        "zero parts left out (1h 3s)",
+        "Durations under one second are written in milliseconds, like 250ms"
+      ],
+      "trace": [
+        {
+          "assertion": "test_zz_hidden_eval.py::test_parts#1",
+          "brief": "units with no spaces inside each part, like 1h 2m 3s"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_parts#1",
+          "brief": "Seconds are whole, rounded down"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_parts#2",
+          "brief": "units with no spaces inside each part, like 1h 2m 3s"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_parts#2",
+          "brief": "Seconds are whole, rounded down"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_zero_parts#1",
+          "brief": "zero parts left out (1h 3s)"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_zero_parts#2",
+          "brief": "zero parts left out (1h 3s)"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_milliseconds#1",
+          "brief": "Durations under one second are written in milliseconds, like 250ms"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_milliseconds#2",
+          "brief": "Durations under one second are written in milliseconds, like 250ms"
+        }
+      ]
+    },
+    {
+      "id": "r2a2-39-parcel-cost",
+      "dev": false,
+      "source": "authored",
+      "files": {
+        "shipping.py": "ZONES = {\"domestic\": 1.0, \"eu\": 1.5, \"world\": 2.5}\n\n\ndef weight_kg(grams):\n    return grams / 1000\n"
+      },
+      "brief": "Write shipping_cents(grams, zone, subtotal_cents) in shipping.py: the shipping charge for an order.",
+      "neutral": false,
+      "kind": "convention",
+      "memory": "Shipping convention: the base price is 400 cents per started 500 g, so weights are rounded up to the next 500 g (501 g costs two steps). The base is multiplied by the ZONES factor and rounded to the nearest cent. Orders with a subtotal of 5000 cents or more ship free to domestic addresses only.",
+      "distractors": [
+        [
+          "tooling",
+          "Release builds are made from a clean checkout with `python -m build`; never upload a dirty tree."
+        ],
+        [
+          "people",
+          "Reviews on this project are asynchronous: leave a summary comment, do not wait for a call."
+        ],
+        [
+          "pitfall",
+          "The CI image has no locale data: tests must not depend on locale-specific formatting."
+        ],
+        [
+          "convention",
+          "Returns are always free within 30 days, whatever the zone."
+        ]
+      ],
+      "hidden": "from shipping import shipping_cents\n\n\ndef test_steps():\n    assert shipping_cents(500, 'domestic', 0) == 400\n    assert shipping_cents(501, 'domestic', 0) == 800\n    assert shipping_cents(1, 'domestic', 0) == 400\n\n\ndef test_zone_factor():\n    assert shipping_cents(1200, 'eu', 0) == 1800\n    assert shipping_cents(400, 'world', 0) == 1000\n\n\ndef test_free_domestic_only():\n    assert shipping_cents(900, 'domestic', 5000) == 0\n    assert shipping_cents(900, 'eu', 9000) == 1200\n",
+      "reference": {
+        "shipping.py": "ZONES = {\"domestic\": 1.0, \"eu\": 1.5, \"world\": 2.5}\n\n\ndef weight_kg(grams):\n    return grams / 1000\n\n\ndef shipping_cents(grams, zone, subtotal_cents):\n    if zone == 'domestic' and subtotal_cents >= 5000:\n        return 0\n    steps = max(1, -(-grams // 500))\n    return int(steps * 400 * ZONES[zone] + 0.5)\n"
+      },
+      "naive": {
+        "shipping.py": "ZONES = {\"domestic\": 1.0, \"eu\": 1.5, \"world\": 2.5}\n\n\ndef weight_kg(grams):\n    return grams / 1000\n\n\ndef shipping_cents(grams, zone, subtotal_cents):\n    if subtotal_cents >= 5000:\n        return 0\n    return round(weight_kg(grams) * 800)\n"
+      },
+      "conventions": [
+        "400 cents per started 500 g, so weights are rounded up to the next 500 g",
+        "multiplied by the ZONES factor",
+        "ship free to domestic addresses only"
+      ],
+      "trace": [
+        {
+          "assertion": "test_zz_hidden_eval.py::test_steps#1",
+          "brief": "400 cents per started 500 g, so weights are rounded up to the next 500 g"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_steps#2",
+          "brief": "400 cents per started 500 g, so weights are rounded up to the next 500 g"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_steps#3",
+          "brief": "400 cents per started 500 g, so weights are rounded up to the next 500 g"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_zone_factor#1",
+          "brief": "multiplied by the ZONES factor"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_zone_factor#1",
+          "brief": "rounded to the nearest cent"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_zone_factor#2",
+          "brief": "multiplied by the ZONES factor"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_zone_factor#2",
+          "brief": "rounded to the nearest cent"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_free_domestic_only#1",
+          "brief": "Orders with a subtotal of 5000 cents or more"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_free_domestic_only#1",
+          "brief": "ship free to domestic addresses only"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_free_domestic_only#2",
+          "brief": "Orders with a subtotal of 5000 cents or more"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_free_domestic_only#2",
+          "brief": "ship free to domestic addresses only"
+        }
+      ]
+    },
+    {
+      "id": "r2a2-40-sku-check",
+      "dev": false,
+      "source": "authored",
+      "files": {
+        "products.py": "def is_code(text):\n    return text.isalnum()\n"
+      },
+      "brief": "Implement normalize_sku(text) in products.py: validate a stock-keeping unit code typed by staff and return it in canonical form.",
+      "neutral": false,
+      "kind": "convention",
+      "memory": "SKU convention: a SKU is three letters, a hyphen and four digits (ABC-0042). Input may be lower case or have surrounding spaces, and the canonical form is upper case. A missing hyphen is not accepted. Invalid input returns None, never raises.",
+      "distractors": [
+        [
+          "tooling",
+          "Release builds are made from a clean checkout with `python -m build`; never upload a dirty tree."
+        ],
+        [
+          "people",
+          "Reviews on this project are asynchronous: leave a summary comment, do not wait for a call."
+        ],
+        [
+          "pitfall",
+          "The CI image has no locale data: tests must not depend on locale-specific formatting."
+        ],
+        [
+          "convention",
+          "Barcodes are EAN-13 and stored as strings of 13 digits."
+        ]
+      ],
+      "hidden": "from products import normalize_sku\n\n\ndef test_pattern():\n    assert normalize_sku('ABC-0042') == 'ABC-0042'\n    assert normalize_sku('AB-0042') is None\n    assert normalize_sku('ABC0042') is None\n    assert normalize_sku('ABC-042') is None\n\n\ndef test_upper():\n    assert normalize_sku('  xyz-1234 ') == 'XYZ-1234'\n\n\ndef test_none_not_raise():\n    assert normalize_sku('???') is None\n",
+      "reference": {
+        "products.py": "import re\n\n\ndef is_code(text):\n    return text.isalnum()\n\n\ndef normalize_sku(text):\n    s = text.strip().upper()\n    return s if re.fullmatch(r'[A-Z]{3}-\\d{4}', s) else None\n"
+      },
+      "naive": {
+        "products.py": "def is_code(text):\n    return text.isalnum()\n\n\ndef normalize_sku(text):\n    s = text.strip().replace('-', '')\n    if not is_code(s):\n        raise ValueError('bad sku')\n    return s\n"
+      },
+      "conventions": [
+        "three letters, a hyphen and four digits (ABC-0042)",
+        "the canonical form is upper case",
+        "Invalid input returns None, never raises"
+      ],
+      "trace": [
+        {
+          "assertion": "test_zz_hidden_eval.py::test_pattern#1",
+          "brief": "three letters, a hyphen and four digits (ABC-0042)"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_pattern#1",
+          "brief": "A missing hyphen is not accepted"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_pattern#2",
+          "brief": "three letters, a hyphen and four digits (ABC-0042)"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_pattern#2",
+          "brief": "A missing hyphen is not accepted"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_pattern#3",
+          "brief": "three letters, a hyphen and four digits (ABC-0042)"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_pattern#3",
+          "brief": "A missing hyphen is not accepted"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_pattern#4",
+          "brief": "three letters, a hyphen and four digits (ABC-0042)"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_pattern#4",
+          "brief": "A missing hyphen is not accepted"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_upper#1",
+          "brief": "the canonical form is upper case"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_upper#1",
+          "brief": "Input may be lower case or have surrounding spaces"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_none_not_raise#1",
+          "brief": "Invalid input returns None, never raises"
+        }
+      ]
+    },
+    {
+      "id": "r2a2-41-markdown-escape",
+      "dev": false,
+      "source": "authored",
+      "files": {
+        "chatfmt.py": "def bold(text):\n    return f\"**{text}**\"\n"
+      },
+      "brief": "Write escape_md(text) in chatfmt.py: make user-supplied text safe to embed in a chat message that is rendered as Markdown.",
+      "neutral": false,
+      "kind": "convention",
+      "memory": "Chat Markdown convention: escape only the characters * _ ` [ ] and the backslash itself, each with a backslash in front. Everything else, including # and >, is left alone because our renderer only supports inline formatting. Escape the backslash first so it is not doubled twice.",
+      "distractors": [
+        [
+          "tooling",
+          "Release builds are made from a clean checkout with `python -m build`; never upload a dirty tree."
+        ],
+        [
+          "people",
+          "Reviews on this project are asynchronous: leave a summary comment, do not wait for a call."
+        ],
+        [
+          "pitfall",
+          "The CI image has no locale data: tests must not depend on locale-specific formatting."
+        ],
+        [
+          "convention",
+          "Email bodies are sent as plain text and never contain Markdown."
+        ]
+      ],
+      "hidden": "from chatfmt import escape_md\n\n\ndef test_escaped():\n    assert escape_md('a*b_c`d[e]f') == 'a\\\\*b\\\\_c\\\\`d\\\\[e\\\\]f'\n    assert escape_md('back\\\\slash') == 'back\\\\\\\\slash'\n\n\ndef test_left_alone():\n    assert escape_md('# title > quote (x) !') == '# title > quote (x) !'\n",
+      "reference": {
+        "chatfmt.py": "def bold(text):\n    return f\"**{text}**\"\n\n\ndef escape_md(text):\n    text = text.replace('\\\\', '\\\\\\\\')\n    for ch in '*_`[]':\n        text = text.replace(ch, '\\\\' + ch)\n    return text\n"
+      },
+      "naive": {
+        "chatfmt.py": "import re\n\n\ndef bold(text):\n    return f\"**{text}**\"\n\n\ndef escape_md(text):\n    return re.sub(r'([\\\\`*_{}\\[\\]()#+\\-.!>])', r'\\\\\\1', text)\n"
+      },
+      "conventions": [
+        "escape only the characters * _ ` [ ] and the backslash itself, each with a backslash in front",
+        "Everything else, including # and >, is left alone"
+      ],
+      "trace": [
+        {
+          "assertion": "test_zz_hidden_eval.py::test_escaped#1",
+          "brief": "escape only the characters * _ ` [ ] and the backslash itself, each with a backslash in front"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_escaped#2",
+          "brief": "escape only the characters * _ ` [ ] and the backslash itself, each with a backslash in front"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_left_alone#1",
+          "brief": "escape only the characters * _ ` [ ] and the backslash itself, each with a backslash in front"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_left_alone#1",
+          "brief": "Everything else, including # and >, is left alone"
+        }
+      ]
+    },
+    {
+      "id": "r2a2-42-report-day",
+      "dev": false,
+      "source": "authored",
+      "files": {
+        "daily.py": "import datetime\n\n\ndef utc_date(ts):\n    return datetime.datetime.fromtimestamp(ts, datetime.timezone.utc).date()\n"
+      },
+      "brief": "Implement report_day(ts) in daily.py: the day a sale with Unix timestamp ts is counted under in the daily sales report, as an ISO date string.",
+      "neutral": false,
+      "kind": "convention",
+      "memory": "Daily report convention: the business day starts at 04:00 UTC, not at midnight, so a sale at 03:59 UTC counts under the previous day. The result is the ISO date string YYYY-MM-DD.",
+      "distractors": [
+        [
+          "tooling",
+          "Release builds are made from a clean checkout with `python -m build`; never upload a dirty tree."
+        ],
+        [
+          "people",
+          "Reviews on this project are asynchronous: leave a summary comment, do not wait for a call."
+        ],
+        [
+          "pitfall",
+          "The CI image has no locale data: tests must not depend on locale-specific formatting."
+        ],
+        [
+          "convention",
+          "The weekly newsletter goes out on Mondays at 09:00 local time."
+        ]
+      ],
+      "hidden": "import datetime\nfrom daily import report_day\n\n\ndef ts(*args):\n    return datetime.datetime(*args, tzinfo=datetime.timezone.utc).timestamp()\n\n\ndef test_cutoff():\n    assert report_day(ts(2026, 3, 2, 3, 59, 59)) == '2026-03-01'\n    assert report_day(ts(2026, 3, 2, 4, 0, 0)) == '2026-03-02'\n    assert report_day(ts(2026, 1, 1, 0, 30)) == '2025-12-31'\n\n\ndef test_string():\n    out = report_day(ts(2026, 7, 4, 12))\n    assert out == '2026-07-04' and isinstance(out, str)\n",
+      "reference": {
+        "daily.py": "import datetime\n\n\ndef utc_date(ts):\n    return datetime.datetime.fromtimestamp(ts, datetime.timezone.utc).date()\n\n\ndef report_day(ts):\n    return utc_date(ts - 4 * 3600).isoformat()\n"
+      },
+      "naive": {
+        "daily.py": "import datetime\n\n\ndef utc_date(ts):\n    return datetime.datetime.fromtimestamp(ts, datetime.timezone.utc).date()\n\n\ndef report_day(ts):\n    return utc_date(ts)\n"
+      },
+      "conventions": [
+        "the business day starts at 04:00 UTC, not at midnight",
+        "The result is the ISO date string YYYY-MM-DD"
+      ],
+      "trace": [
+        {
+          "assertion": "test_zz_hidden_eval.py::test_cutoff#1",
+          "brief": "the business day starts at 04:00 UTC, not at midnight"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_cutoff#1",
+          "brief": "a sale at 03:59 UTC counts under the previous day"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_cutoff#2",
+          "brief": "the business day starts at 04:00 UTC, not at midnight"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_cutoff#2",
+          "brief": "a sale at 03:59 UTC counts under the previous day"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_cutoff#3",
+          "brief": "the business day starts at 04:00 UTC, not at midnight"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_cutoff#3",
+          "brief": "a sale at 03:59 UTC counts under the previous day"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_string#1",
+          "brief": "The result is the ISO date string YYYY-MM-DD"
+        }
+      ]
+    },
+    {
+      "id": "r2a2-43-competition-rank",
+      "dev": false,
+      "source": "authored",
+      "files": {
+        "contest.py": "def winners(scores):\n    best = max(scores)\n    return [i for i, s in enumerate(scores) if s == best]\n"
+      },
+      "brief": "Write ranks(scores) in contest.py: the rank of each entry in a contest, returned as a list in the same order as scores.",
+      "neutral": false,
+      "kind": "convention",
+      "memory": "Contest ranking convention: the highest score is rank 1. Ties share the same rank and the next rank skips accordingly (standard competition ranking, 1224): scores 90, 80, 80, 70 give ranks 1, 2, 2, 4, never 1, 2, 2, 3.",
+      "distractors": [
+        [
+          "tooling",
+          "Release builds are made from a clean checkout with `python -m build`; never upload a dirty tree."
+        ],
+        [
+          "people",
+          "Reviews on this project are asynchronous: leave a summary comment, do not wait for a call."
+        ],
+        [
+          "pitfall",
+          "The CI image has no locale data: tests must not depend on locale-specific formatting."
+        ],
+        [
+          "convention",
+          "Leaderboard pages show at most 100 entries."
+        ]
+      ],
+      "hidden": "from contest import ranks\n\n\ndef test_highest_first():\n    assert ranks([10, 30, 20]) == [3, 1, 2]\n\n\ndef test_competition_ties():\n    assert ranks([90, 80, 80, 70]) == [1, 2, 2, 4]\n    assert ranks([5, 5, 5]) == [1, 1, 1]\n    assert ranks([]) == []\n",
+      "reference": {
+        "contest.py": "def winners(scores):\n    best = max(scores)\n    return [i for i, s in enumerate(scores) if s == best]\n\n\ndef ranks(scores):\n    return [1 + sum(other > s for other in scores) for s in scores]\n"
+      },
+      "naive": {
+        "contest.py": "def winners(scores):\n    best = max(scores)\n    return [i for i, s in enumerate(scores) if s == best]\n\n\ndef ranks(scores):\n    order = sorted(set(scores))\n    return [order.index(s) + 1 for s in scores]\n"
+      },
+      "conventions": [
+        "the highest score is rank 1",
+        "Ties share the same rank and the next rank skips accordingly (standard competition ranking, 1224)"
+      ],
+      "trace": [
+        {
+          "assertion": "test_zz_hidden_eval.py::test_highest_first#1",
+          "brief": "the highest score is rank 1"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_competition_ties#1",
+          "brief": "Ties share the same rank and the next rank skips accordingly (standard competition ranking, 1224)"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_competition_ties#2",
+          "brief": "Ties share the same rank and the next rank skips accordingly (standard competition ranking, 1224)"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_competition_ties#3",
+          "brief": "Ties share the same rank and the next rank skips accordingly (standard competition ranking, 1224)"
+        }
+      ]
+    },
+    {
+      "id": "r2a2-44-url-join",
+      "dev": false,
+      "source": "authored",
+      "files": {
+        "links.py": "from urllib.parse import urljoin\n\n\ndef absolute(base, path):\n    return urljoin(base, path)\n"
+      },
+      "brief": "Implement join_url(base, *parts) in links.py: build an API URL from a base URL and path segments.",
+      "neutral": false,
+      "kind": "convention",
+      "memory": "URL building convention: exactly one slash between the base and each segment, whatever slashes the pieces already have, and no trailing slash at the end. Each segment is percent-encoded with urllib.parse.quote (safe=''), so a slash inside a segment becomes %2F. Do not use urljoin: it drops the last part of the base path.",
+      "distractors": [
+        [
+          "tooling",
+          "Release builds are made from a clean checkout with `python -m build`; never upload a dirty tree."
+        ],
+        [
+          "people",
+          "Reviews on this project are asynchronous: leave a summary comment, do not wait for a call."
+        ],
+        [
+          "pitfall",
+          "The CI image has no locale data: tests must not depend on locale-specific formatting."
+        ],
+        [
+          "convention",
+          "Links in emails always carry utm_source=email."
+        ]
+      ],
+      "hidden": "from links import join_url\n\n\ndef test_slashes():\n    assert join_url('https://api.example.org/v1/', '/users/', '42') == 'https://api.example.org/v1/users/42'\n    assert join_url('https://api.example.org/v1', 'items') == 'https://api.example.org/v1/items'\n\n\ndef test_encoding():\n    assert join_url('https://h/api', 'a b', 'c/d') == 'https://h/api/a%20b/c%2Fd'\n",
+      "reference": {
+        "links.py": "from urllib.parse import quote, urljoin\n\n\ndef absolute(base, path):\n    return urljoin(base, path)\n\n\ndef join_url(base, *parts):\n    url = base.rstrip('/')\n    for p in parts:\n        url += '/' + quote(p.strip('/'), safe='')\n    return url\n"
+      },
+      "naive": {
+        "links.py": "from urllib.parse import urljoin\n\n\ndef absolute(base, path):\n    return urljoin(base, path)\n\n\ndef join_url(base, *parts):\n    url = base\n    for p in parts:\n        url = absolute(url if url.endswith('/') else url + '/', p)\n    return url\n"
+      },
+      "conventions": [
+        "exactly one slash between the base and each segment, whatever slashes the pieces already have, and no trailing slash at the end",
+        "Each segment is percent-encoded with urllib.parse.quote (safe='')"
+      ],
+      "trace": [
+        {
+          "assertion": "test_zz_hidden_eval.py::test_slashes#1",
+          "brief": "exactly one slash between the base and each segment, whatever slashes the pieces already have, and no trailing slash at the end"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_slashes#2",
+          "brief": "exactly one slash between the base and each segment, whatever slashes the pieces already have, and no trailing slash at the end"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_encoding#1",
+          "brief": "Each segment is percent-encoded with urllib.parse.quote (safe='')"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_encoding#1",
+          "brief": "a slash inside a segment becomes %2F"
+        }
+      ]
+    },
+    {
+      "id": "r2a2-45-aspect-ratio",
+      "dev": false,
+      "source": "authored",
+      "files": {
+        "media.py": "def megapixels(w, h):\n    return w * h / 1_000_000\n"
+      },
+      "brief": "Add aspect(w, h) to media.py: the aspect ratio label of an image or video of w by h pixels, for the media library.",
+      "neutral": false,
+      "kind": "convention",
+      "memory": "Media library convention: aspect ratios are written as reduced whole numbers with a colon, width first (1920 x 1080 is '16:9'), never as a decimal. Portrait sizes stay height-second (1080 x 1920 is '9:16'). A zero dimension gives 'n/a'.",
+      "distractors": [
+        [
+          "tooling",
+          "Release builds are made from a clean checkout with `python -m build`; never upload a dirty tree."
+        ],
+        [
+          "people",
+          "Reviews on this project are asynchronous: leave a summary comment, do not wait for a call."
+        ],
+        [
+          "pitfall",
+          "The CI image has no locale data: tests must not depend on locale-specific formatting."
+        ],
+        [
+          "convention",
+          "Thumbnails are always 320 pixels wide."
+        ]
+      ],
+      "hidden": "from media import aspect\n\n\ndef test_reduced():\n    assert aspect(1920, 1080) == '16:9'\n    assert aspect(1080, 1920) == '9:16'\n    assert aspect(1000, 1000) == '1:1'\n    assert aspect(1366, 768) == '683:384'\n\n\ndef test_zero():\n    assert aspect(0, 100) == 'n/a'\n",
+      "reference": {
+        "media.py": "import math\n\n\ndef megapixels(w, h):\n    return w * h / 1_000_000\n\n\ndef aspect(w, h):\n    if w == 0 or h == 0:\n        return 'n/a'\n    g = math.gcd(w, h)\n    return f'{w // g}:{h // g}'\n"
+      },
+      "naive": {
+        "media.py": "def megapixels(w, h):\n    return w * h / 1_000_000\n\n\ndef aspect(w, h):\n    return round(w / h, 2)\n"
+      },
+      "conventions": [
+        "reduced whole numbers with a colon, width first (1920 x 1080 is '16:9'), never as a decimal",
+        "A zero dimension gives 'n/a'"
+      ],
+      "trace": [
+        {
+          "assertion": "test_zz_hidden_eval.py::test_reduced#1",
+          "brief": "reduced whole numbers with a colon, width first (1920 x 1080 is '16:9'), never as a decimal"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_reduced#1",
+          "brief": "Portrait sizes stay height-second"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_reduced#2",
+          "brief": "reduced whole numbers with a colon, width first (1920 x 1080 is '16:9'), never as a decimal"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_reduced#2",
+          "brief": "Portrait sizes stay height-second"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_reduced#3",
+          "brief": "reduced whole numbers with a colon, width first (1920 x 1080 is '16:9'), never as a decimal"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_reduced#3",
+          "brief": "Portrait sizes stay height-second"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_reduced#4",
+          "brief": "reduced whole numbers with a colon, width first (1920 x 1080 is '16:9'), never as a decimal"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_reduced#4",
+          "brief": "Portrait sizes stay height-second"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_zero#1",
+          "brief": "A zero dimension gives 'n/a'"
+        }
+      ]
+    },
+    {
+      "id": "r2a2-46-reading-time",
+      "dev": false,
+      "source": "authored",
+      "files": {
+        "articles.py": "def word_count(text):\n    return len(text.split())\n"
+      },
+      "brief": "Implement reading_time(text) in articles.py: the reading-time label shown under an article title.",
+      "neutral": false,
+      "kind": "convention",
+      "memory": "Article convention: reading speed is 200 words per minute, and minutes are rounded up, never down, with a minimum of 1 minute even for an empty article. The label reads '<n> min read' for every n, never 'mins'.",
+      "distractors": [
+        [
+          "tooling",
+          "Release builds are made from a clean checkout with `python -m build`; never upload a dirty tree."
+        ],
+        [
+          "people",
+          "Reviews on this project are asynchronous: leave a summary comment, do not wait for a call."
+        ],
+        [
+          "pitfall",
+          "The CI image has no locale data: tests must not depend on locale-specific formatting."
+        ],
+        [
+          "convention",
+          "Article excerpts are the first 160 characters of the body."
+        ]
+      ],
+      "hidden": "from articles import reading_time\n\n\ndef test_round_up():\n    assert reading_time('w ' * 200) == '1 min read'\n    assert reading_time('w ' * 201) == '2 min read'\n    assert reading_time('w ' * 1000) == '5 min read'\n\n\ndef test_minimum():\n    assert reading_time('') == '1 min read'\n\n\ndef test_label():\n    assert reading_time('w ' * 650) == '4 min read'\n",
+      "reference": {
+        "articles.py": "import math\n\n\ndef word_count(text):\n    return len(text.split())\n\n\ndef reading_time(text):\n    minutes = max(1, math.ceil(word_count(text) / 200))\n    return f'{minutes} min read'\n"
+      },
+      "naive": {
+        "articles.py": "def word_count(text):\n    return len(text.split())\n\n\ndef reading_time(text):\n    minutes = round(word_count(text) / 250)\n    return f\"{minutes} min{'s' if minutes != 1 else ''} read\"\n"
+      },
+      "conventions": [
+        "reading speed is 200 words per minute, and minutes are rounded up",
+        "a minimum of 1 minute even for an empty article",
+        "The label reads '<n> min read' for every n, never 'mins'"
+      ],
+      "trace": [
+        {
+          "assertion": "test_zz_hidden_eval.py::test_round_up#1",
+          "brief": "reading speed is 200 words per minute, and minutes are rounded up"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_round_up#2",
+          "brief": "reading speed is 200 words per minute, and minutes are rounded up"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_round_up#3",
+          "brief": "reading speed is 200 words per minute, and minutes are rounded up"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_minimum#1",
+          "brief": "a minimum of 1 minute even for an empty article"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_label#1",
+          "brief": "The label reads '<n> min read' for every n, never 'mins'"
+        }
+      ]
+    },
+    {
+      "id": "r2a2-47-spreadsheet-cell",
+      "dev": false,
+      "source": "authored",
+      "files": {
+        "exports_csv.py": "import csv\nimport io\n\n\ndef write_rows(rows):\n    buf = io.StringIO()\n    csv.writer(buf).writerows(rows)\n    return buf.getvalue()\n"
+      },
+      "brief": "Write safe_cell(value) in exports_csv.py: prepare one value for a CSV export that customers open in spreadsheet programs.",
+      "neutral": false,
+      "kind": "convention",
+      "memory": "CSV export convention (formula injection): a text value starting with =, +, - or @ gets a single quote ' put in front. Numbers (int and float) are left as numbers and never quoted, even negative ones. None becomes the empty string; other values are converted with str().",
+      "distractors": [
+        [
+          "tooling",
+          "Release builds are made from a clean checkout with `python -m build`; never upload a dirty tree."
+        ],
+        [
+          "people",
+          "Reviews on this project are asynchronous: leave a summary comment, do not wait for a call."
+        ],
+        [
+          "pitfall",
+          "The CI image has no locale data: tests must not depend on locale-specific formatting."
+        ],
+        [
+          "convention",
+          "Excel exports use the .xlsx format with frozen header rows."
+        ]
+      ],
+      "hidden": "from exports_csv import safe_cell\n\n\ndef test_formula_prefix():\n    assert safe_cell('=SUM(A1:A2)') == \"'=SUM(A1:A2)\"\n    assert safe_cell('+1') == \"'+1\"\n    assert safe_cell('-x') == \"'-x\"\n    assert safe_cell('@cmd') == \"'@cmd\"\n    assert safe_cell('plain') == 'plain'\n\n\ndef test_numbers_untouched():\n    assert safe_cell(-5) == -5\n    assert safe_cell(2.5) == 2.5\n\n\ndef test_none():\n    assert safe_cell(None) == ''\n",
+      "reference": {
+        "exports_csv.py": "import csv\nimport io\n\n\ndef write_rows(rows):\n    buf = io.StringIO()\n    csv.writer(buf).writerows(rows)\n    return buf.getvalue()\n\n\ndef safe_cell(value):\n    if value is None:\n        return ''\n    if isinstance(value, (int, float)) and not isinstance(value, bool):\n        return value\n    text = str(value)\n    return \"'\" + text if text[:1] in ('=', '+', '-', '@') else text\n"
+      },
+      "naive": {
+        "exports_csv.py": "import csv\nimport io\n\n\ndef write_rows(rows):\n    buf = io.StringIO()\n    csv.writer(buf).writerows(rows)\n    return buf.getvalue()\n\n\ndef safe_cell(value):\n    return str(value)\n"
+      },
+      "conventions": [
+        "a text value starting with =, +, - or @ gets a single quote ' put in front",
+        "Numbers (int and float) are left as numbers and never quoted, even negative ones",
+        "None becomes the empty string"
+      ],
+      "trace": [
+        {
+          "assertion": "test_zz_hidden_eval.py::test_formula_prefix#1",
+          "brief": "a text value starting with =, +, - or @ gets a single quote ' put in front"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_formula_prefix#2",
+          "brief": "a text value starting with =, +, - or @ gets a single quote ' put in front"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_formula_prefix#3",
+          "brief": "a text value starting with =, +, - or @ gets a single quote ' put in front"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_formula_prefix#4",
+          "brief": "a text value starting with =, +, - or @ gets a single quote ' put in front"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_formula_prefix#5",
+          "brief": "a text value starting with =, +, - or @ gets a single quote ' put in front"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_numbers_untouched#1",
+          "brief": "Numbers (int and float) are left as numbers and never quoted, even negative ones"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_numbers_untouched#2",
+          "brief": "Numbers (int and float) are left as numbers and never quoted, even negative ones"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_none#1",
+          "brief": "None becomes the empty string"
+        }
+      ]
+    },
+    {
+      "id": "r2a2-48-count-label",
+      "dev": false,
+      "source": "authored",
+      "files": {
+        "ui_text.py": "def plural_s(n, word):\n    return word if n == 1 else word + \"s\"\n"
+      },
+      "brief": "Implement count_label(n, noun) in ui_text.py: the label for a count of items, like the number of files in a folder.",
+      "neutral": false,
+      "kind": "convention",
+      "memory": "UI copy convention: zero is written 'No <plural>' (No files), never '0 files'. Counts of 1000 or more use a comma between thousands (1,204 files). Nouns ending in s, x or ch take 'es' in the plural (2 boxes, 3 matches); other nouns take 's'.",
+      "distractors": [
+        [
+          "tooling",
+          "Release builds are made from a clean checkout with `python -m build`; never upload a dirty tree."
+        ],
+        [
+          "people",
+          "Reviews on this project are asynchronous: leave a summary comment, do not wait for a call."
+        ],
+        [
+          "pitfall",
+          "The CI image has no locale data: tests must not depend on locale-specific formatting."
+        ],
+        [
+          "convention",
+          "Button labels are sentence case and at most three words."
+        ]
+      ],
+      "hidden": "from ui_text import count_label\n\n\ndef test_zero():\n    assert count_label(0, 'file') == 'No files'\n\n\ndef test_thousands():\n    assert count_label(1204, 'file') == '1,204 files'\n    assert count_label(1, 'file') == '1 file'\n\n\ndef test_es_plurals():\n    assert count_label(2, 'box') == '2 boxes'\n    assert count_label(3, 'match') == '3 matches'\n    assert count_label(0, 'class') == 'No classes'\n",
+      "reference": {
+        "ui_text.py": "def plural_s(n, word):\n    return word if n == 1 else word + \"s\"\n\n\ndef _plural(noun):\n    return noun + ('es' if noun.endswith(('s', 'x', 'ch')) else 's')\n\n\ndef count_label(n, noun):\n    if n == 0:\n        return f'No {_plural(noun)}'\n    return f'{n:,} {noun if n == 1 else _plural(noun)}'\n"
+      },
+      "naive": {
+        "ui_text.py": "def plural_s(n, word):\n    return word if n == 1 else word + \"s\"\n\n\ndef count_label(n, noun):\n    return f\"{n} {plural_s(n, noun)}\"\n"
+      },
+      "conventions": [
+        "zero is written 'No <plural>' (No files), never '0 files'",
+        "Counts of 1000 or more use a comma between thousands (1,204 files)",
+        "Nouns ending in s, x or ch take 'es' in the plural (2 boxes, 3 matches)"
+      ],
+      "trace": [
+        {
+          "assertion": "test_zz_hidden_eval.py::test_zero#1",
+          "brief": "zero is written 'No <plural>' (No files), never '0 files'"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_thousands#1",
+          "brief": "Counts of 1000 or more use a comma between thousands (1,204 files)"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_thousands#1",
+          "brief": "the label for a count of items"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_thousands#2",
+          "brief": "Counts of 1000 or more use a comma between thousands (1,204 files)"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_thousands#2",
+          "brief": "the label for a count of items"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_es_plurals#1",
+          "brief": "Nouns ending in s, x or ch take 'es' in the plural (2 boxes, 3 matches)"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_es_plurals#2",
+          "brief": "Nouns ending in s, x or ch take 'es' in the plural (2 boxes, 3 matches)"
+        },
+        {
+          "assertion": "test_zz_hidden_eval.py::test_es_plurals#3",
+          "brief": "Nouns ending in s, x or ch take 'es' in the plural (2 boxes, 3 matches)"
+        }
+      ]
+    }
+  ],
+  "distractors": [
+    [
+      "tooling",
+      "Release builds are made from a clean checkout with `python -m build`; never upload a dirty tree."
+    ],
+    [
+      "people",
+      "Reviews on this project are asynchronous: leave a summary comment, do not wait for a call."
+    ],
+    [
+      "pitfall",
+      "The CI image has no locale data: tests must not depend on locale-specific formatting."
+    ]
+  ]
+}

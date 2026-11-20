@@ -393,6 +393,27 @@ def test_phase_wall_from_run_records(tmp_path):
     assert st["sub_s"] == {"med": 50.0, "p75": 50.0, "n": 2} and st["lead_wait_s"]["med"] == 76.0
 
 
+def test_phase_wall_counts_a_392_final_check_once(tmp_path):
+    """#392 records keep the final (passed) check on the last attempt too: it is record["check"], counted once."""
+    hub = tmp_path / "h"
+    t = "2026-11-17T10:00:00+00:00"
+    _rec(hub, "p1", label="L", attempts=[{"seconds": 30, "check_started_at": t, "check_seconds": 10.0}],
+         check={"seconds": 10.0, "passed": True}, review={"run_id": "pv"})
+    _rec(hub, "pv", label="review:p1", attempts=[{"seconds": 12}])
+    p = r5.phase_wall(hub, ["p1"], wall_s=100)
+    assert p["check_s"] == 10.0 and p["overlap_s"] == 10.0 and p["lead_wait_s"] == 42.0
+    # a failed rung (kept) then the passing final check on the last attempt (left out of early)
+    _rec(hub, "p2", label="L", attempts=[{"seconds": 10, "kind": "check_failed", "check_started_at": t,
+                                          "check_seconds": 7.0},
+                                         {"seconds": 20, "check_started_at": t, "check_seconds": 3.0}],
+         check={"seconds": 3.0, "passed": True})
+    assert r5.phase_wall(hub, ["p2"])["check_s"] == 10.0
+    # an old check-baseline record put the final check on the last attempt as well: also counted once now
+    _rec(hub, "p3", label="L", attempts=[{"seconds": 10, "kind": "ok", "check_seconds": 4.0}],
+         check={"seconds": 4.0, "passed": True})
+    assert r5.phase_wall(hub, ["p3"])["check_s"] == 4.0
+
+
 def test_budget_counts_only_its_tag(tmp_path):
     from common import append_jsonl
     f = tmp_path / "r.jsonl"

@@ -714,7 +714,7 @@ def piece_of_run(rd: Reader, rec: dict, verdict: dict | None, now: float, title:
     skip = []
     if not rec.get("check"):
         skip.append(STEP["check"])
-    if not rec.get("review") or (rec.get("review") or {}).get("verdict") == "not-run":
+    if not rec.get("review") or (rec.get("review") or {}).get("verdict") in ("not-run", "skipped"):
         skip.append(STEP["review"])
     if running:
         status, step = "run", STEP["working"]
@@ -738,11 +738,12 @@ def piece_of_run(rd: Reader, rec: dict, verdict: dict | None, now: float, title:
         "skip": skip, "secs": secs, "usd": _usd(rec), "quota_units": _quota_units(rec, rd.cfg()),
         "tokens": lv["tokens"] if running and lv["tokens"] else _tokens(rec),
         "live": running, "beat": lv["beat"], "ts": rec.get("ts"),
-        "reviewer": _who_rung(rv.get("by")) if rv.get("verdict") not in (None, "not-run") else None,
+        "reviewer": _who_rung(rv.get("by")) if rv.get("verdict") not in (None, "not-run", "skipped") else None,
         "summary": res.get("summary") or rec.get("error") or "", "files": res.get("files_changed") or [],
         "verification": _clip(res.get("verification"), JUDGE_TEXT_MAX),     # U1: what the agent says it checked
         "check": check_view(rec.get("check")),                              # ... and what ccx ran (cmd, exit, tail)
-        "review": ({"verdict": rv.get("verdict"), "issues": rv.get("issues") or []} if rv else None),
+        "review": ({"verdict": rv.get("verdict"), "issues": rv.get("issues") or [],
+                    **({"skipped": rv["skipped"]} if rv.get("skipped") else {})} if rv else None),
         "verdict": ({"ok": v.get("ok"), "soft": bool(v.get("soft")), "reason": v.get("reason")} if v else None),
         "attempts": len(atts), "rungs": [a.get("rung") for a in atts],
         "native": [{"id": k[-8:], "tokens": int(sum(x.values())) if isinstance(x, dict) else 0}
@@ -1393,8 +1394,9 @@ def receipt_row(rd: Reader, p: Paths, rec: dict, verdict: dict | None, piece_run
             "running": rec.get("state") == "running", "ok": rec.get("ok"), "kind": rec.get("kind"),
             "headline": leadview.record_headline(rec),
             "check": check,
+            # "skipped" (#427) is shown as such (map_rv_skipped), like the detail panel; only not-run means none
             "review": rv.get("verdict") if rv.get("verdict") not in (None, "not-run") else None,
-            "reviewer": _who_rung(rv.get("by")) if rv.get("verdict") not in (None, "not-run") else None,
+            "reviewer": _who_rung(rv.get("by")) if rv.get("verdict") not in (None, "not-run", "skipped") else None,
             "verdict": v.get("ok") if v else None, "outcome": _outcome(rec, verdict),
             "notes": brief_notes(rd, p.runs / rec["run_id"])}
 
@@ -2067,7 +2069,7 @@ def full_run(rd: Reader, rid: str, after: int = 0, source: str = "") -> dict:
                        "basis_changed": check.get("basis_changed", (check.get("covers") or {}).get("basis_changed")),
                        "added_to": check.get("added_to", (check.get("covers") or {}).get("added_to"))},
             "review": {"by": review.get("by"), "verdict": review.get("verdict"),
-                       "error": review.get("error"),
+                       "error": review.get("error"), "skipped": review.get("skipped"),
                        "summary": review.get("summary"), "issues": review.get("issues_full") or review.get("issues") or [],
                        "notes": review.get("notes") or [],
                        "fixes": fixes, "round": rec.get("review_round")},

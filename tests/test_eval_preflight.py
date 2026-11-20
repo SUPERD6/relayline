@@ -482,6 +482,98 @@ def test_job_close_reports_a_process_it_could_not_open_while_still_alive(tmp_pat
             PF.kill([grandchild])
 
 
+class _FakeWin:
+    """kernel32 stand-in for kill() (#396): the process 'exits' `exit_after` seconds after taskkill; `err` is None
+    (OpenProcess returns a handle) or the last error OpenProcess fails with. `events` logs opens and taskkills."""
+
+    def __init__(self, exit_after=0.0, err=None):
+        self.exit_after, self.err, self.killed_at, self.closed, self.waits = exit_after, err, None, [], 0
+        self.events = []
+
+    def OpenProcess(self, _access, _inherit, pid):
+        self.events.append(("open", pid))
+        if self.err is not None:
+            import ctypes
+            ctypes.set_last_error(self.err)
+            return None
+        return 777
+
+    def WaitForSingleObject(self, _h, ms):
+        self.waits += 1
+        left = self.killed_at + self.exit_after - time.monotonic()
+        if left <= 0:
+            return 0
+        if ms / 1000 >= left:
+            time.sleep(left)
+            return 0
+        time.sleep(ms / 1000)
+        return 258
+
+    def CloseHandle(self, h):
+        self.closed.append(h)
+
+
+def _fake_kill_env(monkeypatch, fake, alive_answer):
+    import ctypes
+    monkeypatch.setattr(PF, "_wait_kernel", lambda: (fake, ctypes), raising=False)
+    monkeypatch.setattr(PF.os, "name", "nt")
+
+    def run(argv, **_kw):
+        fake.events.append(("kill", int(argv[-1])))
+        fake.killed_at = time.monotonic()
+        return None
+    monkeypatch.setattr(PF.subprocess, "run", run)
+    monkeypatch.setattr(PF, "alive", lambda pid: alive_answer)
+
+
+@pytest.mark.skipif(not NT, reason="the Windows branch of kill()")
+def test_kill_waits_on_the_handle_for_a_process_that_exits_slower_than_half_a_second(monkeypatch):
+    fake = _FakeWin(exit_after=0.9)
+    _fake_kill_env(monkeypatch, fake, alive_answer=True)      # by pid it would still look alive after 0.5 s
+    assert PF.kill([4242]) == [] and fake.closed == [777]
+
+
+@pytest.mark.skipif(not NT, reason="the Windows branch of kill()")
+def test_kill_opens_every_handle_before_the_first_taskkill(monkeypatch):
+    """A parent's taskkill /T takes its child down too; the child's pid must already be pinned by a handle then,
+    or it could be reused and the next taskkill would hit an unrelated process tree."""
+    fake = _FakeWin()
+    _fake_kill_env(monkeypatch, fake, alive_answer=False)
+    assert PF.kill([10, 11]) == []
+    assert fake.events == [("open", 10), ("open", 11), ("kill", 10), ("kill", 11)] and fake.closed == [777, 777]
+
+
+@pytest.mark.skipif(not NT, reason="the Windows branch of kill()")
+def test_kill_is_not_fooled_by_a_reused_pid(monkeypatch):
+    fake = _FakeWin(exit_after=0.0)
+    _fake_kill_env(monkeypatch, fake, alive_answer=True)      # someone else now owns the pid; our handle has exited
+    assert PF.kill([4242], wait=5) == [] and fake.waits == 1
+
+
+@pytest.mark.skipif(not NT, reason="the Windows branch of kill()")
+def test_kill_reports_a_pid_it_cannot_open_while_alive_and_not_once_gone(monkeypatch):
+    fake = _FakeWin(err=5)                                     # access denied: check by pid
+    _fake_kill_env(monkeypatch, fake, alive_answer=True)
+    assert PF.kill([4242], wait=0.3) == [4242]
+    _fake_kill_env(monkeypatch, _FakeWin(err=5), alive_answer=False)
+    assert PF.kill([4242], wait=0.3) == []
+    fake87 = _FakeWin(err=87)                                  # no such pid: gone, no pid lookup needed
+    _fake_kill_env(monkeypatch, fake87, alive_answer=True)
+    assert PF.kill([4242], wait=0.3) == []
+
+
+@pytest.mark.skipif(not NT, reason="the Windows branch of kill()")
+def test_kill_really_ends_a_process_and_closes_its_handle():
+    p = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(120)"], stdin=subprocess.DEVNULL,
+                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    try:
+        assert PF.kill([p.pid]) == []
+        assert p.poll() is not None
+    finally:
+        if p.poll() is None:
+            p.kill()
+
+
 def test_flags_mode_removes_only_this_units_claude_session_folders(machine):
     w = Path("/evalw")          # short: a slug of the real tmp path would pass Windows' 255-character name limit
     u = PF.Unit(key="1-t-ccx", work=w, repo=w / "1-t-ccx", hub=w / "h-x")
@@ -1468,3 +1560,35 @@ def test_summaries_say_when_rows_ran_under_different_sandboxes(capsys, tmp_path)
     rows = [row("b1", None, arm="ccx-batch", batch="B"), row("b1", "unelevated", arm="ccx-pipeline", batch="B"),
             row("b1", "elevated", arm="self", batch="B")]
     assert batch.summarize(rows)["codex_windows_sandbox"]["counts"] == {"unknown": 1, "unelevated": 1}
+
+
+# ------------------------------------------------------------------ canon(): drive spellings (#456)
+
+
+@pytest.mark.skipif(not NT, reason="Git Bash's /c/... drive form only exists on Windows")
+def test_canon_drive_and_git_bash_spellings_agree(tmp_path):
+    c = lambda s: PF.canon(s, tmp_path / "h")       # noqa: E731
+    assert c("D:/a/x") == c("/d/a/x") == c("D:\\a\\x") == "d:/a/x"
+    assert c("D:/a/relayline/x") == c("/d/a/relayline/x") == "d:/a/relayline/x"
+    assert c("/c/Users/x") == "c:/users/x" and c("C:\\Users\\x") == "c:/users/x"
+    assert c("http://a/b") == "http://a/b" and c("https://github.com/a/b") == "https://github.com/a/b"
+    assert c("a:/c/x") == "a:/c/x"                                   # after an existing drive: not a second drive
+    assert c("cat D:/a/x /d/a/y && ls /c/q") == "cat d:/a/x d:/a/y && ls c:/q"
+    assert c("PATH=/usr/bin:/c/x") == "path=/usr/bin:c:/x"          # a list separator is still a boundary
+    assert c("PATH=/a:/c/x") == "path=/a:c:/x"                      # "/a" is a folder, not a drive
+    assert c("file:///c/x") == "file://c/x"                         # known, left as is: a URL's "//" is kept
+
+
+@pytest.mark.skipif(not NT, reason="Git Bash's /c/... drive form only exists on Windows")
+def test_path_hits_matches_git_bash_spelling_under_a_single_letter_dir(machine):
+    w = machine["work"]
+    u = PF.Unit(key="1-t-ccx", work=w, repo=w / "1-t-ccx", hub=w / "h-1-t-ccx", hidden=("D:/a/relayline/secret",))
+    for cmd in ("cat D:/a/relayline/secret/x", "cat /d/a/relayline/secret/x", "cat D:\\a\\relayline\\secret\\x"):
+        assert PF.path_hits([cmd], u), cmd
+    assert not PF.path_hits(["cat /d/a/relayline/other/x", "cat D:/a/relayline/secrets/x"], u)
+
+
+@pytest.mark.skipif(NT, reason="POSIX behaviour")
+def test_canon_is_unchanged_off_windows(tmp_path):
+    c = lambda s: PF.canon(s, tmp_path)             # noqa: E731
+    assert c("/d/a/x") == "/d/a/x" and c("D:/a/x") == "D:/a/x" and c("http://a/b") == "http:/a/b"

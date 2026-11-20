@@ -1,0 +1,33 @@
+{
+ "id": "r2bd-cronlite-1",
+ "dev": true,
+ "subject": "Ranges and steps in cron fields; weekday 7 as Sunday",
+ "author_model": "claude-opus-5-5",
+ "brief": "Extend the field syntax of the cronlite package (`parse_field`, and so every expression).\n\n1. Each comma-separated item of a field may be a bare star, a number, or a range of two numbers joined by a hyphen (both ends included). A star or a range may be followed by a slash and a step: take every step-th value from the start of the range (or from the lowest value of the field for the star). A single number followed by a step means from that number up to the highest value of the field, in that step.\n2. A field that is exactly a bare star is still the wildcard. A stepped star is a restriction, not a wildcard, so in an expression where the day of month uses a stepped star and the weekday is restricted, the classic either-day-or-weekday rule applies.\n3. In the weekday field, 7 is accepted as another name for Sunday and is stored as 0, also as the end of a range (a range from Friday to 7 covers Friday, Saturday and Sunday). In every other field the usual bounds apply.\n4. In the month field and the weekday field, a three-letter English name may be written wherever a number may (single values, range ends, the start of a stepped item), in any letter case. Names are accepted only in those two fields and only as exactly three letters. A name stands for its number, so a weekday range that ends in the name for Sunday runs backwards (Sunday is 0) and is an error; write 7 for that.\n5. Invalid items raise CronError with a message that starts with the field name: a step that is zero or not a number, a range whose start is greater than its end, an end outside the field's bounds, a range with a missing end or start, and an empty item between two commas.\n\nAll behavior that the existing tests check must keep working.",
+ "hidden_tests": [
+  "tests/test_ranges_steps.py"
+ ],
+ "trace_by_test": {
+  "test_range": "Each comma-separated item of a field may be a bare star, a number, or a range of two numbers joined by a hyphen (both ends included).",
+  "test_star_step": [
+   "A field that is exactly a bare star is still the wildcard. A stepped star is a restriction, not a wildcard, so in an expression where the day of month uses a stepped star and the weekday is restricted, the classic either-day-or-weekday rule applies."
+  ],
+  "test_range_step_and_list": "A star or a range may be followed by a slash and a step: take every step-th value from the start of the range (or from the lowest value of the field for the star).",
+  "test_number_step_runs_to_the_top": "A single number followed by a step means from that number up to the highest value of the field, in that step.",
+  "test_weekday_seven_is_sunday": [
+   "In the weekday field, 7 is accepted as another name for Sunday and is stored as 0, also as the end of a range (a range from Friday to 7 covers Friday, Saturday and Sunday).",
+   "In the weekday field, 7 is accepted as another name for Sunday and is stored as 0, also as the end of a range (a range from Friday to 7 covers Friday, Saturday and Sunday).",
+   "A field that is exactly a bare star is still the wildcard."
+  ],
+  "test_seven_only_for_weekday": "In every other field the usual bounds apply.",
+  "test_invalid_parts": "Invalid items raise CronError with a message that starts with the field name: a step that is zero or not a number, a range whose start is greater than its end, an end outside the field's bounds, a range with a missing end or start, and an empty item between two commas.",
+  "test_month_and_weekday_names": "In the month field and the weekday field, a three-letter English name may be written wherever a number may (single values, range ends, the start of a stepped item), in any letter case.",
+  "test_names_only_in_their_fields": [
+   "Names are accepted only in those two fields and only as exactly three letters.",
+   "A name stands for its number, so a weekday range that ends in the name for Sunday runs backwards (Sunday is 0) and is an error; write 7 for that.",
+   "Names are accepted only in those two fields and only as exactly three letters."
+  ],
+  "test_step_restricts_day_for_either_rule": "A stepped star is a restriction, not a wildcard, so in an expression where the day of month uses a stepped star and the weekday is restricted, the classic either-day-or-weekday rule applies.",
+  "test_schedule_with_steps": "A star or a range may be followed by a slash and a step: take every step-th value from the start of the range (or from the lowest value of the field for the star)."
+ }
+}

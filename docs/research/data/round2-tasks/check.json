@@ -1,0 +1,2540 @@
+{
+  "models_called": false,
+  "python": "3.11.9",
+  "files": {
+    "a1-dev": {
+      "summary": {
+        "tasks": 4,
+        "loaded_by_strength_retest": 4,
+        "sha256": "34aec1ab75549dced8eeb1692bc235eb3c28bda7acb3fb966afc35d5ffb858b9",
+        "neutral": 1,
+        "settled_or_memory": 3,
+        "start_fails": "4/4",
+        "reference_passes": "4/4",
+        "naive_fails": "3/3",
+        "trace_complete": "4/4",
+        "valid": "4/4",
+        "modified_mid_conversation": "1/3",
+        "adjacent_topic_distractor": "3/3",
+        "conventions_per_task": {
+          "2": 0,
+          "3": 3
+        }
+      },
+      "tasks": [
+        {
+          "id": "r2a1-dev-01-ledger-totals",
+          "start_rc": 2,
+          "reference_rc": 0,
+          "start_failed": [
+            "test_zz_hidden_eval"
+          ],
+          "reference_passed": "4/4",
+          "assertions": 5,
+          "trace_complete": true,
+          "literal_in_brief_or_conventions": 2,
+          "problems": [],
+          "valid": true,
+          "settle_whole_in_context": true,
+          "context_chars": 1402,
+          "clauses_dropped": 0,
+          "naive_rc": 1,
+          "naive_failed": [
+            "test_cents_are_ints",
+            "test_largest_first",
+            "test_ties_alphabetical"
+          ],
+          "naive_brief_only_tests_passed": "1/1"
+        },
+        {
+          "id": "r2a1-dev-02-retry-schedule",
+          "start_rc": 2,
+          "reference_rc": 0,
+          "start_failed": [
+            "test_zz_hidden_eval"
+          ],
+          "reference_passed": "3/3",
+          "assertions": 4,
+          "trace_complete": true,
+          "literal_in_brief_or_conventions": 0,
+          "problems": [],
+          "valid": true,
+          "settle_whole_in_context": true,
+          "context_chars": 1457,
+          "clauses_dropped": 0,
+          "naive_rc": 1,
+          "naive_failed": [
+            "test_clamped",
+            "test_growth"
+          ],
+          "naive_brief_only_tests_passed": "0/0"
+        },
+        {
+          "id": "r2a1-dev-03-tag-parse",
+          "start_rc": 2,
+          "reference_rc": 0,
+          "start_failed": [
+            "test_zz_hidden_eval"
+          ],
+          "reference_passed": "3/3",
+          "assertions": 3,
+          "trace_complete": true,
+          "literal_in_brief_or_conventions": 0,
+          "problems": [],
+          "valid": true,
+          "settle_whole_in_context": true,
+          "context_chars": 1316,
+          "clauses_dropped": 0,
+          "naive_rc": 1,
+          "naive_failed": [
+            "test_case_kept",
+            "test_dedupe_in_order",
+            "test_semicolons"
+          ],
+          "naive_brief_only_tests_passed": "0/0"
+        },
+        {
+          "id": "r2a1-dev-04-neutral-initials",
+          "start_rc": 1,
+          "reference_rc": 0,
+          "start_failed": [
+            "test_blank",
+            "test_initials"
+          ],
+          "reference_passed": "2/2",
+          "assertions": 4,
+          "trace_complete": true,
+          "literal_in_brief_or_conventions": 1,
+          "problems": [],
+          "valid": true,
+          "settle_whole_in_context": true,
+          "context_chars": 1045,
+          "clauses_dropped": 0
+        }
+      ]
+    },
+    "a2-dev": {
+      "summary": {
+        "tasks": 4,
+        "loaded_by_strength_retest": 4,
+        "sha256": "6b6b8e16b9106eed29eb61bed73f42bec6baeefedbc32e8cb68c3a4da60f5b9e",
+        "neutral": 0,
+        "settled_or_memory": 4,
+        "start_fails": "4/4",
+        "reference_passes": "4/4",
+        "naive_fails": "4/4",
+        "trace_complete": "4/4",
+        "valid": "4/4",
+        "conventions_per_task": {
+          "2": 0,
+          "3": 4
+        }
+      },
+      "tasks": [
+        {
+          "id": "r2a2-dev-01-env-flag",
+          "start_rc": 2,
+          "reference_rc": 0,
+          "start_failed": [
+            "test_task",
+            "test_zz_hidden_eval"
+          ],
+          "reference_passed": "5/5",
+          "assertions": 5,
+          "trace_complete": true,
+          "literal_in_brief_or_conventions": 2,
+          "problems": [],
+          "valid": true,
+          "naive_rc": 1,
+          "naive_failed": [
+            "test_other_raises"
+          ],
+          "naive_brief_only_tests_passed": "1/1"
+        },
+        {
+          "id": "r2a2-dev-02-page-window",
+          "start_rc": 2,
+          "reference_rc": 0,
+          "start_failed": [
+            "test_zz_hidden_eval"
+          ],
+          "reference_passed": "3/3",
+          "assertions": 5,
+          "trace_complete": true,
+          "literal_in_brief_or_conventions": 0,
+          "problems": [],
+          "valid": true,
+          "naive_rc": 1,
+          "naive_failed": [
+            "test_bad_per_page",
+            "test_first_pages",
+            "test_past_end"
+          ],
+          "naive_brief_only_tests_passed": "0/0"
+        },
+        {
+          "id": "r2a2-dev-03-file-size",
+          "start_rc": 2,
+          "reference_rc": 0,
+          "start_failed": [
+            "test_zz_hidden_eval"
+          ],
+          "reference_passed": "3/3",
+          "assertions": 5,
+          "trace_complete": true,
+          "literal_in_brief_or_conventions": 1,
+          "problems": [],
+          "valid": true,
+          "naive_rc": 1,
+          "naive_failed": [
+            "test_decimal_units",
+            "test_small_and_digit",
+            "test_symbols"
+          ],
+          "naive_brief_only_tests_passed": "0/0"
+        },
+        {
+          "id": "r2a2-dev-04-csv-row",
+          "start_rc": 2,
+          "reference_rc": 0,
+          "start_failed": [
+            "test_zz_hidden_eval"
+          ],
+          "reference_passed": "3/3",
+          "assertions": 3,
+          "trace_complete": true,
+          "literal_in_brief_or_conventions": 0,
+          "problems": [],
+          "valid": true,
+          "naive_rc": 1,
+          "naive_failed": [
+            "test_inner_whitespace",
+            "test_none_and_bools",
+            "test_tabs"
+          ],
+          "naive_brief_only_tests_passed": "0/0"
+        }
+      ]
+    },
+    "a1": {
+      "summary": {
+        "tasks": 56,
+        "loaded_by_strength_retest": 56,
+        "sha256": "291b63c388624eebfc2cc07b8a30154a84cbba8f0df991bfd01876adf2858201",
+        "neutral": 8,
+        "settled_or_memory": 48,
+        "start_fails": "56/56",
+        "reference_passes": "56/56",
+        "naive_fails": "48/48",
+        "trace_complete": "56/56",
+        "valid": "56/56",
+        "modified_mid_conversation": "19/48",
+        "adjacent_topic_distractor": "48/48",
+        "conventions_per_task": {
+          "2": 18,
+          "3": 30
+        }
+      },
+      "tasks": [
+        {
+          "id": "r2a1-01-restock",
+          "start_rc": 2,
+          "reference_rc": 0,
+          "start_failed": [
+            "test_zz_hidden_eval"
+          ],
+          "reference_passed": "4/4",
+          "assertions": 4,
+          "trace_complete": true,
+          "literal_in_brief_or_conventions": 0,
+          "problems": [],
+          "valid": true,
+          "settle_whole_in_context": true,
+          "context_chars": 1441,
+          "clauses_dropped": 0,
+          "naive_rc": 1,
+          "naive_failed": [
+            "test_at_threshold_included",
+            "test_order",
+            "test_shortfall_and_case"
+          ],
+          "naive_brief_only_tests_passed": "1/1"
+        },
+        {
+          "id": "r2a1-02-phone-format",
+          "start_rc": 2,
+          "reference_rc": 0,
+          "start_failed": [
+            "test_zz_hidden_eval"
+          ],
+          "reference_passed": "3/3",
+          "assertions": 4,
+          "trace_complete": true,
+          "literal_in_brief_or_conventions": 1,
+          "problems": [],
+          "valid": true,
+          "settle_whole_in_context": true,
+          "context_chars": 1426,
+          "clauses_dropped": 0,
+          "naive_rc": 1,
+          "naive_failed": [
+            "test_country_code",
+            "test_dots",
+            "test_invalid_is_none"
+          ],
+          "naive_brief_only_tests_passed": "0/0"
+        },
+        {
+          "id": "r2a1-03-sensor-stats",
+          "start_rc": 2,
+          "reference_rc": 0,
+          "start_failed": [
+            "test_zz_hidden_eval"
+          ],
+          "reference_passed": "4/4",
+          "assertions": 7,
+          "trace_complete": true,
+          "literal_in_brief_or_conventions": 1,
+          "problems": [],
+          "valid": true,
+          "settle_whole_in_context": true,
+          "context_chars": 1352,
+          "clauses_dropped": 0,
+          "naive_rc": 1,
+          "naive_failed": [
+            "test_half_up",
+            "test_keys",
+            "test_none_skipped"
+          ],
+          "naive_brief_only_tests_passed": "1/1"
+        },
+        {
+          "id": "r2a1-04-username-check",
+          "start_rc": 2,
+          "reference_rc": 0,
+          "start_failed": [
+            "test_zz_hidden_eval"
+          ],
+          "reference_passed": "4/4",
+          "assertions": 9,
+          "trace_complete": true,
+          "literal_in_brief_or_conventions": 8,
+          "problems": [],
+          "valid": true,
+          "settle_whole_in_context": true,
+          "context_chars": 1903,
+          "clauses_dropped": 0,
+          "naive_rc": 1,
+          "naive_failed": [
+            "test_length_and_chars",
+            "test_order_of_rules",
+            "test_start",
+            "test_valid"
+          ],
+          "naive_brief_only_tests_passed": "0/1"
+        },
+        {
+          "id": "r2a1-05-grade-bands",
+          "start_rc": 2,
+          "reference_rc": 0,
+          "start_failed": [
+            "test_zz_hidden_eval"
+          ],
+          "reference_passed": "4/4",
+          "assertions": 12,
+          "trace_complete": true,
+          "literal_in_brief_or_conventions": 3,
+          "problems": [],
+          "valid": true,
+          "settle_whole_in_context": true,
+          "context_chars": 1304,
+          "clauses_dropped": 0,
+          "naive_rc": 1,
+          "naive_failed": [
+            "test_plus",
+            "test_rounding"
+          ],
+          "naive_brief_only_tests_passed": "2/2"
+        },
+        {
+          "id": "r2a1-06-query-string",
+          "start_rc": 2,
+          "reference_rc": 0,
+          "start_failed": [
+            "test_zz_hidden_eval"
+          ],
+          "reference_passed": "4/4",
+          "assertions": 4,
+          "trace_complete": true,
+          "literal_in_brief_or_conventions": 1,
+          "problems": [],
+          "valid": true,
+          "settle_whole_in_context": true,
+          "context_chars": 1336,
+          "clauses_dropped": 0,
+          "naive_rc": 1,
+          "naive_failed": [
+            "test_lists",
+            "test_sorted_and_none",
+            "test_spaces"
+          ],
+          "naive_brief_only_tests_passed": "1/1"
+        },
+        {
+          "id": "r2a1-07-top-words",
+          "start_rc": 2,
+          "reference_rc": 0,
+          "start_failed": [
+            "test_zz_hidden_eval"
+          ],
+          "reference_passed": "3/3",
+          "assertions": 3,
+          "trace_complete": true,
+          "literal_in_brief_or_conventions": 2,
+          "problems": [],
+          "valid": true,
+          "settle_whole_in_context": true,
+          "context_chars": 1540,
+          "clauses_dropped": 0,
+          "naive_rc": 1,
+          "naive_failed": [
+            "test_case_folded",
+            "test_first_appearance_breaks_ties",
+            "test_short_words_and_apostrophes"
+          ],
+          "naive_brief_only_tests_passed": "0/0"
+        },
+        {
+          "id": "r2a1-08-duration-parse",
+          "start_rc": 2,
+          "reference_rc": 0,
+          "start_failed": [
+            "test_zz_hidden_eval"
+          ],
+          "reference_passed": "3/3",
+          "assertions": 5,
+          "trace_complete": true,
+          "literal_in_brief_or_conventions": 2,
+          "problems": [],
+          "valid": true,
+          "settle_whole_in_context": true,
+          "context_chars": 1375,
+          "clauses_dropped": 0,
+          "naive_rc": 1,
+          "naive_failed": [
+            "test_bare_minutes_and_no_seconds",
+            "test_timedelta"
+          ],
+          "naive_brief_only_tests_passed": "1/1"
+        },
+        {
+          "id": "r2a1-09-invoice-number",
+          "start_rc": 2,
+          "reference_rc": 0,
+          "start_failed": [
+            "test_zz_hidden_eval"
+          ],
+          "reference_passed": "3/3",
+          "assertions": 4,
+          "trace_complete": true,
+          "literal_in_brief_or_conventions": 4,
+          "problems": [],
+          "valid": true,
+          "settle_whole_in_context": true,
+          "context_chars": 1272,
+          "clauses_dropped": 0,
+          "naive_rc": 1,
+          "naive_failed": [
+            "test_first",
+            "test_format",
+            "test_year_rollover"
+          ],
+          "naive_brief_only_tests_passed": "0/1"
+        },
+        {
+          "id": "r2a1-10-config-merge",
+          "start_rc": 2,
+          "reference_rc": 0,
+          "start_failed": [
+            "test_zz_hidden_eval"
+          ],
+          "reference_passed": "4/4",
+          "assertions": 5,
+          "trace_complete": true,
+          "literal_in_brief_or_conventions": 0,
+          "problems": [],
+          "valid": true,
+          "settle_whole_in_context": true,
+          "context_chars": 1407,
+          "clauses_dropped": 0,
+          "naive_rc": 1,
+          "naive_failed": [
+            "test_deep",
+            "test_lists_extend",
+            "test_none_removes"
+          ],
+          "naive_brief_only_tests_passed": "1/1"
+        },
+        {
+          "id": "r2a1-11-truncate",
+          "start_rc": 2,
+          "reference_rc": 0,
+          "start_failed": [
+            "test_zz_hidden_eval"
+          ],
+          "reference_passed": "4/4",
+          "assertions": 5,
+          "trace_complete": true,
+          "literal_in_brief_or_conventions": 2,
+          "problems": [],
+          "valid": true,
+          "settle_whole_in_context": true,
+          "context_chars": 1456,
+          "clauses_dropped": 0,
+          "naive_rc": 1,
+          "naive_failed": [
+            "test_single_char_ellipsis",
+            "test_word_boundary"
+          ],
+          "naive_brief_only_tests_passed": "2/2"
+        },
+        {
+          "id": "r2a1-12-percent-label",
+          "start_rc": 2,
+          "reference_rc": 0,
+          "start_failed": [
+            "test_zz_hidden_eval"
+          ],
+          "reference_passed": "3/3",
+          "assertions": 6,
+          "trace_complete": true,
+          "literal_in_brief_or_conventions": 4,
+          "problems": [],
+          "valid": true,
+          "settle_whole_in_context": true,
+          "context_chars": 1451,
+          "clauses_dropped": 0,
+          "naive_rc": 1,
+          "naive_failed": [
+            "test_half_up",
+            "test_string_format",
+            "test_zero_whole"
+          ],
+          "naive_brief_only_tests_passed": "0/0"
+        },
+        {
+          "id": "r2a1-13-ticket-queue",
+          "start_rc": 2,
+          "reference_rc": 0,
+          "start_failed": [
+            "test_zz_hidden_eval"
+          ],
+          "reference_passed": "3/3",
+          "assertions": 3,
+          "trace_complete": true,
+          "literal_in_brief_or_conventions": 8,
+          "problems": [],
+          "valid": true,
+          "settle_whole_in_context": true,
+          "context_chars": 1240,
+          "clauses_dropped": 0,
+          "naive_rc": 1,
+          "naive_failed": [
+            "test_closed_and_merged_dropped",
+            "test_oldest_within_priority",
+            "test_priority_first"
+          ],
+          "naive_brief_only_tests_passed": "0/0"
+        },
+        {
+          "id": "r2a1-14-version-compare",
+          "start_rc": 2,
+          "reference_rc": 0,
+          "start_failed": [
+            "test_zz_hidden_eval"
+          ],
+          "reference_passed": "3/3",
+          "assertions": 9,
+          "trace_complete": true,
+          "literal_in_brief_or_conventions": 2,
+          "problems": [],
+          "valid": true,
+          "settle_whole_in_context": true,
+          "context_chars": 1364,
+          "clauses_dropped": 0,
+          "naive_rc": 1,
+          "naive_failed": [
+            "test_prefix_and_padding",
+            "test_prerelease"
+          ],
+          "naive_brief_only_tests_passed": "1/1"
+        },
+        {
+          "id": "r2a1-15-mask-email",
+          "start_rc": 2,
+          "reference_rc": 0,
+          "start_failed": [
+            "test_zz_hidden_eval"
+          ],
+          "reference_passed": "3/3",
+          "assertions": 5,
+          "trace_complete": true,
+          "literal_in_brief_or_conventions": 1,
+          "problems": [],
+          "valid": true,
+          "settle_whole_in_context": true,
+          "context_chars": 1495,
+          "clauses_dropped": 0,
+          "naive_rc": 1,
+          "naive_failed": [
+            "test_short_local",
+            "test_two_chars_three_stars"
+          ],
+          "naive_brief_only_tests_passed": "1/1"
+        },
+        {
+          "id": "r2a1-16-batches",
+          "start_rc": 2,
+          "reference_rc": 0,
+          "start_failed": [
+            "test_zz_hidden_eval"
+          ],
+          "reference_passed": "3/3",
+          "assertions": 4,
+          "trace_complete": true,
+          "literal_in_brief_or_conventions": 0,
+          "problems": [],
+          "valid": true,
+          "settle_whole_in_context": true,
+          "context_chars": 1278,
+          "clauses_dropped": 0,
+          "naive_rc": 1,
+          "naive_failed": [
+            "test_short_tail_dropped",
+            "test_tuples"
+          ],
+          "naive_brief_only_tests_passed": "1/1"
+        },
+        {
+          "id": "r2a1-17-elapsed-clock",
+          "start_rc": 2,
+          "reference_rc": 0,
+          "start_failed": [
+            "test_zz_hidden_eval"
+          ],
+          "reference_passed": "5/5",
+          "assertions": 8,
+          "trace_complete": true,
+          "literal_in_brief_or_conventions": 4,
+          "problems": [],
+          "valid": true,
+          "settle_whole_in_context": true,
+          "context_chars": 1383,
+          "clauses_dropped": 0,
+          "naive_rc": 1,
+          "naive_failed": [
+            "test_hours",
+            "test_truncate",
+            "test_under_hour"
+          ],
+          "naive_brief_only_tests_passed": "2/3"
+        },
+        {
+          "id": "r2a1-18-discount-codes",
+          "start_rc": 2,
+          "reference_rc": 0,
+          "start_failed": [
+            "test_zz_hidden_eval"
+          ],
+          "reference_passed": "3/3",
+          "assertions": 6,
+          "trace_complete": true,
+          "literal_in_brief_or_conventions": 1,
+          "problems": [],
+          "valid": true,
+          "settle_whole_in_context": true,
+          "context_chars": 1665,
+          "clauses_dropped": 0,
+          "naive_rc": 1,
+          "naive_failed": [
+            "test_floor_of_100",
+            "test_round_half_up",
+            "test_unknown_code"
+          ],
+          "naive_brief_only_tests_passed": "0/0"
+        },
+        {
+          "id": "r2a1-19-contact-dedupe",
+          "start_rc": 2,
+          "reference_rc": 0,
+          "start_failed": [
+            "test_zz_hidden_eval"
+          ],
+          "reference_passed": "3/3",
+          "assertions": 3,
+          "trace_complete": true,
+          "literal_in_brief_or_conventions": 3,
+          "problems": [],
+          "valid": true,
+          "settle_whole_in_context": true,
+          "context_chars": 1322,
+          "clauses_dropped": 0,
+          "naive_rc": 1,
+          "naive_failed": [
+            "test_email_case",
+            "test_latest_kept",
+            "test_sorted_by_name"
+          ],
+          "naive_brief_only_tests_passed": "0/0"
+        },
+        {
+          "id": "r2a1-20-run-length",
+          "start_rc": 2,
+          "reference_rc": 0,
+          "start_failed": [
+            "test_zz_hidden_eval"
+          ],
+          "reference_passed": "3/3",
+          "assertions": 6,
+          "trace_complete": true,
+          "literal_in_brief_or_conventions": 1,
+          "problems": [],
+          "valid": true,
+          "settle_whole_in_context": true,
+          "context_chars": 1368,
+          "clauses_dropped": 0,
+          "naive_rc": 1,
+          "naive_failed": [
+            "test_case_and_empty",
+            "test_char_then_count",
+            "test_single_runs"
+          ],
+          "naive_brief_only_tests_passed": "0/1"
+        },
+        {
+          "id": "r2a1-21-name-split",
+          "start_rc": 2,
+          "reference_rc": 0,
+          "start_failed": [
+            "test_zz_hidden_eval"
+          ],
+          "reference_passed": "3/3",
+          "assertions": 5,
+          "trace_complete": true,
+          "literal_in_brief_or_conventions": 13,
+          "problems": [],
+          "valid": true,
+          "settle_whole_in_context": true,
+          "context_chars": 1498,
+          "clauses_dropped": 0,
+          "naive_rc": 1,
+          "naive_failed": [
+            "test_dict",
+            "test_particles",
+            "test_single_word"
+          ],
+          "naive_brief_only_tests_passed": "0/0"
+        },
+        {
+          "id": "r2a1-22-week-key",
+          "start_rc": 2,
+          "reference_rc": 0,
+          "start_failed": [
+            "test_zz_hidden_eval"
+          ],
+          "reference_passed": "3/3",
+          "assertions": 5,
+          "trace_complete": true,
+          "literal_in_brief_or_conventions": 4,
+          "problems": [],
+          "valid": true,
+          "settle_whole_in_context": true,
+          "context_chars": 1417,
+          "clauses_dropped": 0,
+          "naive_rc": 1,
+          "naive_failed": [
+            "test_iso_year",
+            "test_padding"
+          ],
+          "naive_brief_only_tests_passed": "1/1"
+        },
+        {
+          "id": "r2a1-23-rate-window",
+          "start_rc": 2,
+          "reference_rc": 0,
+          "start_failed": [
+            "test_zz_hidden_eval"
+          ],
+          "reference_passed": "3/3",
+          "assertions": 6,
+          "trace_complete": true,
+          "literal_in_brief_or_conventions": 0,
+          "problems": [],
+          "valid": true,
+          "settle_whole_in_context": true,
+          "context_chars": 1273,
+          "clauses_dropped": 0,
+          "naive_rc": 1,
+          "naive_failed": [
+            "test_boundary",
+            "test_five_per_window",
+            "test_milliseconds"
+          ],
+          "naive_brief_only_tests_passed": "0/0"
+        },
+        {
+          "id": "r2a1-24-hex-color",
+          "start_rc": 2,
+          "reference_rc": 0,
+          "start_failed": [
+            "test_zz_hidden_eval"
+          ],
+          "reference_passed": "3/3",
+          "assertions": 5,
+          "trace_complete": true,
+          "literal_in_brief_or_conventions": 2,
+          "problems": [],
+          "valid": true,
+          "settle_whole_in_context": true,
+          "context_chars": 1443,
+          "clauses_dropped": 0,
+          "naive_rc": 1,
+          "naive_failed": [
+            "test_clamped",
+            "test_lower_and_long",
+            "test_short_form"
+          ],
+          "naive_brief_only_tests_passed": "0/0"
+        },
+        {
+          "id": "r2a1-25-age-buckets",
+          "start_rc": 2,
+          "reference_rc": 0,
+          "start_failed": [
+            "test_zz_hidden_eval"
+          ],
+          "reference_passed": "3/3",
+          "assertions": 4,
+          "trace_complete": true,
+          "literal_in_brief_or_conventions": 12,
+          "problems": [],
+          "valid": true,
+          "settle_whole_in_context": true,
+          "context_chars": 1379,
+          "clauses_dropped": 0,
+          "naive_rc": 1,
+          "naive_failed": [
+            "test_all_keys_in_order",
+            "test_bad_values_skipped",
+            "test_groups"
+          ],
+          "naive_brief_only_tests_passed": "0/0"
+        },
+        {
+          "id": "r2a1-26-text-table",
+          "start_rc": 2,
+          "reference_rc": 0,
+          "start_failed": [
+            "test_zz_hidden_eval"
+          ],
+          "reference_passed": "3/3",
+          "assertions": 4,
+          "trace_complete": true,
+          "literal_in_brief_or_conventions": 0,
+          "problems": [],
+          "valid": true,
+          "settle_whole_in_context": true,
+          "context_chars": 1272,
+          "clauses_dropped": 0,
+          "naive_rc": 1,
+          "naive_failed": [
+            "test_alignment",
+            "test_overflow",
+            "test_separator"
+          ],
+          "naive_brief_only_tests_passed": "0/0"
+        },
+        {
+          "id": "r2a1-27-shard-pick",
+          "start_rc": 2,
+          "reference_rc": 0,
+          "start_failed": [
+            "test_zz_hidden_eval"
+          ],
+          "reference_passed": "3/3",
+          "assertions": 6,
+          "trace_complete": true,
+          "literal_in_brief_or_conventions": 4,
+          "problems": [],
+          "valid": true,
+          "settle_whole_in_context": true,
+          "context_chars": 1403,
+          "clauses_dropped": 0,
+          "naive_rc": 1,
+          "naive_failed": [
+            "test_case_insensitive",
+            "test_crc32",
+            "test_power_of_two"
+          ],
+          "naive_brief_only_tests_passed": "0/0"
+        },
+        {
+          "id": "r2a1-28-whitespace",
+          "start_rc": 2,
+          "reference_rc": 0,
+          "start_failed": [
+            "test_zz_hidden_eval"
+          ],
+          "reference_passed": "3/3",
+          "assertions": 4,
+          "trace_complete": true,
+          "literal_in_brief_or_conventions": 0,
+          "problems": [],
+          "valid": true,
+          "settle_whole_in_context": true,
+          "context_chars": 1369,
+          "clauses_dropped": 0,
+          "naive_rc": 1,
+          "naive_failed": [
+            "test_blank_lines",
+            "test_indent_kept",
+            "test_inner_runs"
+          ],
+          "naive_brief_only_tests_passed": "0/0"
+        },
+        {
+          "id": "r2a1-29-cache-key",
+          "start_rc": 2,
+          "reference_rc": 0,
+          "start_failed": [
+            "test_zz_hidden_eval"
+          ],
+          "reference_passed": "3/3",
+          "assertions": 4,
+          "trace_complete": true,
+          "literal_in_brief_or_conventions": 0,
+          "problems": [],
+          "valid": true,
+          "settle_whole_in_context": true,
+          "context_chars": 1313,
+          "clauses_dropped": 0,
+          "naive_rc": 1,
+          "naive_failed": [
+            "test_dicts_sorted",
+            "test_none_and_bools",
+            "test_pipe"
+          ],
+          "naive_brief_only_tests_passed": "0/0"
+        },
+        {
+          "id": "r2a1-30-password-score",
+          "start_rc": 2,
+          "reference_rc": 0,
+          "start_failed": [
+            "test_zz_hidden_eval"
+          ],
+          "reference_passed": "3/3",
+          "assertions": 7,
+          "trace_complete": true,
+          "literal_in_brief_or_conventions": 0,
+          "problems": [],
+          "valid": true,
+          "settle_whole_in_context": true,
+          "context_chars": 1407,
+          "clauses_dropped": 0,
+          "naive_rc": 1,
+          "naive_failed": [
+            "test_kinds",
+            "test_length_bonus"
+          ],
+          "naive_brief_only_tests_passed": "1/1"
+        },
+        {
+          "id": "r2a1-31-cash-rounding",
+          "start_rc": 2,
+          "reference_rc": 0,
+          "start_failed": [
+            "test_zz_hidden_eval"
+          ],
+          "reference_passed": "3/3",
+          "assertions": 6,
+          "trace_complete": true,
+          "literal_in_brief_or_conventions": 4,
+          "problems": [],
+          "valid": true,
+          "settle_whole_in_context": true,
+          "context_chars": 1451,
+          "clauses_dropped": 0,
+          "naive_rc": 1,
+          "naive_failed": [
+            "test_half_up",
+            "test_nearest_five_cents",
+            "test_string"
+          ],
+          "naive_brief_only_tests_passed": "0/0"
+        },
+        {
+          "id": "r2a1-32-key-values",
+          "start_rc": 2,
+          "reference_rc": 0,
+          "start_failed": [
+            "test_zz_hidden_eval"
+          ],
+          "reference_passed": "3/3",
+          "assertions": 3,
+          "trace_complete": true,
+          "literal_in_brief_or_conventions": 0,
+          "problems": [],
+          "valid": true,
+          "settle_whole_in_context": true,
+          "context_chars": 1351,
+          "clauses_dropped": 0,
+          "naive_rc": 1,
+          "naive_failed": [
+            "test_basic",
+            "test_digits_only",
+            "test_first_wins_and_empty"
+          ],
+          "naive_brief_only_tests_passed": "0/0"
+        },
+        {
+          "id": "r2a1-33-working-days",
+          "start_rc": 2,
+          "reference_rc": 0,
+          "start_failed": [
+            "test_zz_hidden_eval"
+          ],
+          "reference_passed": "3/3",
+          "assertions": 5,
+          "trace_complete": true,
+          "literal_in_brief_or_conventions": 0,
+          "problems": [],
+          "valid": true,
+          "settle_whole_in_context": true,
+          "context_chars": 1422,
+          "clauses_dropped": 0,
+          "naive_rc": 1,
+          "naive_failed": [
+            "test_inclusive",
+            "test_order_free",
+            "test_weekdays_only"
+          ],
+          "naive_brief_only_tests_passed": "0/0"
+        },
+        {
+          "id": "r2a1-34-comment-html",
+          "start_rc": 2,
+          "reference_rc": 0,
+          "start_failed": [
+            "test_zz_hidden_eval"
+          ],
+          "reference_passed": "3/3",
+          "assertions": 3,
+          "trace_complete": true,
+          "literal_in_brief_or_conventions": 0,
+          "problems": [],
+          "valid": true,
+          "settle_whole_in_context": true,
+          "context_chars": 1542,
+          "clauses_dropped": 0,
+          "naive_rc": 1,
+          "naive_failed": [
+            "test_escape_only_three",
+            "test_line_breaks"
+          ],
+          "naive_brief_only_tests_passed": "1/1"
+        },
+        {
+          "id": "r2a1-35-booking-merge",
+          "start_rc": 2,
+          "reference_rc": 0,
+          "start_failed": [
+            "test_zz_hidden_eval"
+          ],
+          "reference_passed": "3/3",
+          "assertions": 3,
+          "trace_complete": true,
+          "literal_in_brief_or_conventions": 0,
+          "problems": [],
+          "valid": true,
+          "settle_whole_in_context": true,
+          "context_chars": 1286,
+          "clauses_dropped": 0,
+          "naive_rc": 1,
+          "naive_failed": [
+            "test_overlap_merges",
+            "test_touching_separate",
+            "test_unsorted_input"
+          ],
+          "naive_brief_only_tests_passed": "0/1"
+        },
+        {
+          "id": "r2a1-36-progress-bar",
+          "start_rc": 2,
+          "reference_rc": 0,
+          "start_failed": [
+            "test_zz_hidden_eval"
+          ],
+          "reference_passed": "3/3",
+          "assertions": 5,
+          "trace_complete": true,
+          "literal_in_brief_or_conventions": 0,
+          "problems": [],
+          "valid": true,
+          "settle_whole_in_context": true,
+          "context_chars": 1296,
+          "clauses_dropped": 0,
+          "naive_rc": 1,
+          "naive_failed": [
+            "test_clamped",
+            "test_round_down",
+            "test_shape"
+          ],
+          "naive_brief_only_tests_passed": "0/0"
+        },
+        {
+          "id": "r2a1-37-bill-split",
+          "start_rc": 2,
+          "reference_rc": 0,
+          "start_failed": [
+            "test_zz_hidden_eval"
+          ],
+          "reference_passed": "2/2",
+          "assertions": 5,
+          "trace_complete": true,
+          "literal_in_brief_or_conventions": 1,
+          "problems": [],
+          "valid": true,
+          "settle_whole_in_context": true,
+          "context_chars": 1361,
+          "clauses_dropped": 0,
+          "naive_rc": 1,
+          "naive_failed": [
+            "test_errors",
+            "test_spread_over_first"
+          ],
+          "naive_brief_only_tests_passed": "0/0"
+        },
+        {
+          "id": "r2a1-38-coordinates",
+          "start_rc": 2,
+          "reference_rc": 0,
+          "start_failed": [
+            "test_zz_hidden_eval"
+          ],
+          "reference_passed": "4/4",
+          "assertions": 4,
+          "trace_complete": true,
+          "literal_in_brief_or_conventions": 1,
+          "problems": [],
+          "valid": true,
+          "settle_whole_in_context": true,
+          "context_chars": 1288,
+          "clauses_dropped": 0,
+          "naive_rc": 1,
+          "naive_failed": [
+            "test_case_and_space",
+            "test_signs",
+            "test_tuple"
+          ],
+          "naive_brief_only_tests_passed": "1/1"
+        },
+        {
+          "id": "r2a1-39-deploy-target",
+          "start_rc": 2,
+          "reference_rc": 0,
+          "start_failed": [
+            "test_zz_hidden_eval"
+          ],
+          "reference_passed": "3/3",
+          "assertions": 4,
+          "trace_complete": true,
+          "literal_in_brief_or_conventions": 3,
+          "problems": [],
+          "valid": true,
+          "settle_whole_in_context": true,
+          "context_chars": 1327,
+          "clauses_dropped": 0,
+          "naive_rc": 1,
+          "naive_failed": [
+            "test_main",
+            "test_preview",
+            "test_release"
+          ],
+          "naive_brief_only_tests_passed": "0/0"
+        },
+        {
+          "id": "r2a1-40-log-line",
+          "start_rc": 2,
+          "reference_rc": 0,
+          "start_failed": [
+            "test_zz_hidden_eval"
+          ],
+          "reference_passed": "3/3",
+          "assertions": 4,
+          "trace_complete": true,
+          "literal_in_brief_or_conventions": 2,
+          "problems": [],
+          "valid": true,
+          "settle_whole_in_context": true,
+          "context_chars": 1489,
+          "clauses_dropped": 0,
+          "naive_rc": 1,
+          "naive_failed": [
+            "test_newlines_escaped",
+            "test_utc_time",
+            "test_warn"
+          ],
+          "naive_brief_only_tests_passed": "0/0"
+        },
+        {
+          "id": "r2a1-41-star-rating",
+          "start_rc": 2,
+          "reference_rc": 0,
+          "start_failed": [
+            "test_zz_hidden_eval"
+          ],
+          "reference_passed": "3/3",
+          "assertions": 6,
+          "trace_complete": true,
+          "literal_in_brief_or_conventions": 1,
+          "problems": [],
+          "valid": true,
+          "settle_whole_in_context": true,
+          "context_chars": 1398,
+          "clauses_dropped": 0,
+          "naive_rc": 1,
+          "naive_failed": [
+            "test_half_stars",
+            "test_none",
+            "test_zero_ignored"
+          ],
+          "naive_brief_only_tests_passed": "0/0"
+        },
+        {
+          "id": "r2a1-42-short-number",
+          "start_rc": 2,
+          "reference_rc": 0,
+          "start_failed": [
+            "test_zz_hidden_eval"
+          ],
+          "reference_passed": "3/3",
+          "assertions": 8,
+          "trace_complete": true,
+          "literal_in_brief_or_conventions": 3,
+          "problems": [],
+          "valid": true,
+          "settle_whole_in_context": true,
+          "context_chars": 1304,
+          "clauses_dropped": 0,
+          "naive_rc": 1,
+          "naive_failed": [
+            "test_suffixes",
+            "test_trailing_zero_and_small",
+            "test_truncated"
+          ],
+          "naive_brief_only_tests_passed": "0/0"
+        },
+        {
+          "id": "r2a1-43-index-groups",
+          "start_rc": 2,
+          "reference_rc": 0,
+          "start_failed": [
+            "test_zz_hidden_eval"
+          ],
+          "reference_passed": "3/3",
+          "assertions": 4,
+          "trace_complete": true,
+          "literal_in_brief_or_conventions": 4,
+          "problems": [],
+          "valid": true,
+          "settle_whole_in_context": true,
+          "context_chars": 1354,
+          "clauses_dropped": 0,
+          "naive_rc": 1,
+          "naive_failed": [
+            "test_case_insensitive_sort",
+            "test_hash_last",
+            "test_upper_keys"
+          ],
+          "naive_brief_only_tests_passed": "0/0"
+        },
+        {
+          "id": "r2a1-44-quote-reply",
+          "start_rc": 2,
+          "reference_rc": 0,
+          "start_failed": [
+            "test_zz_hidden_eval"
+          ],
+          "reference_passed": "3/3",
+          "assertions": 3,
+          "trace_complete": true,
+          "literal_in_brief_or_conventions": 0,
+          "problems": [],
+          "valid": true,
+          "settle_whole_in_context": true,
+          "context_chars": 1405,
+          "clauses_dropped": 0,
+          "naive_rc": 1,
+          "naive_failed": [
+            "test_empty_lines",
+            "test_header",
+            "test_nested"
+          ],
+          "naive_brief_only_tests_passed": "0/0"
+        },
+        {
+          "id": "r2a1-45-quota-size",
+          "start_rc": 2,
+          "reference_rc": 0,
+          "start_failed": [
+            "test_zz_hidden_eval"
+          ],
+          "reference_passed": "3/3",
+          "assertions": 6,
+          "trace_complete": true,
+          "literal_in_brief_or_conventions": 7,
+          "problems": [],
+          "valid": true,
+          "settle_whole_in_context": true,
+          "context_chars": 1259,
+          "clauses_dropped": 0,
+          "naive_rc": 1,
+          "naive_failed": [
+            "test_bare_megabytes",
+            "test_binary",
+            "test_case_and_space"
+          ],
+          "naive_brief_only_tests_passed": "0/0"
+        },
+        {
+          "id": "r2a1-46-isbn",
+          "start_rc": 2,
+          "reference_rc": 0,
+          "start_failed": [
+            "test_zz_hidden_eval"
+          ],
+          "reference_passed": "3/3",
+          "assertions": 6,
+          "trace_complete": true,
+          "literal_in_brief_or_conventions": 0,
+          "problems": [],
+          "valid": true,
+          "settle_whole_in_context": true,
+          "context_chars": 1334,
+          "clauses_dropped": 0,
+          "naive_rc": 1,
+          "naive_failed": [
+            "test_invalid_none",
+            "test_isbn10_converted",
+            "test_strip_separators"
+          ],
+          "naive_brief_only_tests_passed": "0/0"
+        },
+        {
+          "id": "r2a1-47-ticket-title",
+          "start_rc": 2,
+          "reference_rc": 0,
+          "start_failed": [
+            "test_zz_hidden_eval"
+          ],
+          "reference_passed": "2/2",
+          "assertions": 4,
+          "trace_complete": true,
+          "literal_in_brief_or_conventions": 5,
+          "problems": [],
+          "valid": true,
+          "settle_whole_in_context": true,
+          "context_chars": 1393,
+          "clauses_dropped": 0,
+          "naive_rc": 1,
+          "naive_failed": [
+            "test_format",
+            "test_long_subject"
+          ],
+          "naive_brief_only_tests_passed": "0/0"
+        },
+        {
+          "id": "r2a1-48-dict-diff",
+          "start_rc": 2,
+          "reference_rc": 0,
+          "start_failed": [
+            "test_zz_hidden_eval"
+          ],
+          "reference_passed": "2/2",
+          "assertions": 3,
+          "trace_complete": true,
+          "literal_in_brief_or_conventions": 0,
+          "problems": [],
+          "valid": true,
+          "settle_whole_in_context": true,
+          "context_chars": 1241,
+          "clauses_dropped": 0,
+          "naive_rc": 1,
+          "naive_failed": [
+            "test_signs",
+            "test_unchanged_omitted_and_sorted"
+          ],
+          "naive_brief_only_tests_passed": "0/0"
+        },
+        {
+          "id": "r2a1-n1-palindrome",
+          "start_rc": 1,
+          "reference_rc": 0,
+          "start_failed": [
+            "test_empty",
+            "test_not",
+            "test_palindromes"
+          ],
+          "reference_passed": "3/3",
+          "assertions": 5,
+          "trace_complete": true,
+          "literal_in_brief_or_conventions": 2,
+          "problems": [],
+          "valid": true,
+          "settle_whole_in_context": true,
+          "context_chars": 1084,
+          "clauses_dropped": 0
+        },
+        {
+          "id": "r2a1-n2-running-total",
+          "start_rc": 1,
+          "reference_rc": 0,
+          "start_failed": [
+            "test_empty_and_untouched",
+            "test_sums"
+          ],
+          "reference_passed": "2/2",
+          "assertions": 4,
+          "trace_complete": true,
+          "literal_in_brief_or_conventions": 0,
+          "problems": [],
+          "valid": true,
+          "settle_whole_in_context": true,
+          "context_chars": 1087,
+          "clauses_dropped": 0
+        },
+        {
+          "id": "r2a1-n3-median",
+          "start_rc": 1,
+          "reference_rc": 0,
+          "start_failed": [
+            "test_empty",
+            "test_not_modified",
+            "test_odd_even"
+          ],
+          "reference_passed": "3/3",
+          "assertions": 4,
+          "trace_complete": true,
+          "literal_in_brief_or_conventions": 0,
+          "problems": [],
+          "valid": true,
+          "settle_whole_in_context": true,
+          "context_chars": 1096,
+          "clauses_dropped": 0
+        },
+        {
+          "id": "r2a1-n4-flatten",
+          "start_rc": 1,
+          "reference_rc": 0,
+          "start_failed": [
+            "test_one_level",
+            "test_strings_kept"
+          ],
+          "reference_passed": "2/2",
+          "assertions": 3,
+          "trace_complete": true,
+          "literal_in_brief_or_conventions": 0,
+          "problems": [],
+          "valid": true,
+          "settle_whole_in_context": true,
+          "context_chars": 1079,
+          "clauses_dropped": 0
+        },
+        {
+          "id": "r2a1-n5-vowels",
+          "start_rc": 1,
+          "reference_rc": 0,
+          "start_failed": [
+            "test_counts",
+            "test_keys_in_order"
+          ],
+          "reference_passed": "2/2",
+          "assertions": 3,
+          "trace_complete": true,
+          "literal_in_brief_or_conventions": 0,
+          "problems": [],
+          "valid": true,
+          "settle_whole_in_context": true,
+          "context_chars": 1087,
+          "clauses_dropped": 0
+        },
+        {
+          "id": "r2a1-n6-common-prefix",
+          "start_rc": 1,
+          "reference_rc": 0,
+          "start_failed": [
+            "test_case_sensitive_and_empty",
+            "test_prefix"
+          ],
+          "reference_passed": "2/2",
+          "assertions": 4,
+          "trace_complete": true,
+          "literal_in_brief_or_conventions": 0,
+          "problems": [],
+          "valid": true,
+          "settle_whole_in_context": true,
+          "context_chars": 1069,
+          "clauses_dropped": 0
+        },
+        {
+          "id": "r2a1-n7-line-widths",
+          "start_rc": 1,
+          "reference_rc": 0,
+          "start_failed": [
+            "test_longest",
+            "test_tie_and_empty"
+          ],
+          "reference_passed": "2/2",
+          "assertions": 3,
+          "trace_complete": true,
+          "literal_in_brief_or_conventions": 0,
+          "problems": [],
+          "valid": true,
+          "settle_whole_in_context": true,
+          "context_chars": 1064,
+          "clauses_dropped": 0
+        },
+        {
+          "id": "r2a1-n8-clamp-values",
+          "start_rc": 1,
+          "reference_rc": 0,
+          "start_failed": [
+            "test_bad_bounds",
+            "test_clamp"
+          ],
+          "reference_passed": "2/2",
+          "assertions": 2,
+          "trace_complete": true,
+          "literal_in_brief_or_conventions": 0,
+          "problems": [],
+          "valid": true,
+          "settle_whole_in_context": true,
+          "context_chars": 1088,
+          "clauses_dropped": 0
+        }
+      ]
+    },
+    "a2": {
+      "summary": {
+        "tasks": 48,
+        "loaded_by_strength_retest": 48,
+        "sha256": "e6b20eb978986a040fc880f52766b8530326b0de0a5458f1e28e1aa94abd3560",
+        "neutral": 0,
+        "settled_or_memory": 48,
+        "start_fails": "48/48",
+        "reference_passes": "48/48",
+        "naive_fails": "48/48",
+        "trace_complete": "48/48",
+        "valid": "48/48",
+        "conventions_per_task": {
+          "2": 16,
+          "3": 32
+        }
+      },
+      "tasks": [
+        {
+          "id": "r2a2-01-euro-amount",
+          "start_rc": 2,
+          "reference_rc": 0,
+          "start_failed": [
+            "test_zz_hidden_eval"
+          ],
+          "reference_passed": "3/3",
+          "assertions": 5,
+          "trace_complete": true,
+          "literal_in_brief_or_conventions": 1,
+          "problems": [],
+          "valid": true,
+          "naive_rc": 1,
+          "naive_failed": [
+            "test_negative",
+            "test_separators",
+            "test_sign_after"
+          ],
+          "naive_brief_only_tests_passed": "0/0"
+        },
+        {
+          "id": "r2a2-02-utc-stamp",
+          "start_rc": 2,
+          "reference_rc": 0,
+          "start_failed": [
+            "test_zz_hidden_eval"
+          ],
+          "reference_passed": "3/3",
+          "assertions": 3,
+          "trace_complete": true,
+          "literal_in_brief_or_conventions": 0,
+          "problems": [],
+          "valid": true,
+          "naive_rc": 1,
+          "naive_failed": [
+            "test_naive_is_utc",
+            "test_seconds_only",
+            "test_utc_z"
+          ],
+          "naive_brief_only_tests_passed": "0/0"
+        },
+        {
+          "id": "r2a2-03-record-ids",
+          "start_rc": 2,
+          "reference_rc": 0,
+          "start_failed": [
+            "test_zz_hidden_eval"
+          ],
+          "reference_passed": "3/3",
+          "assertions": 4,
+          "trace_complete": true,
+          "literal_in_brief_or_conventions": 2,
+          "problems": [],
+          "valid": true,
+          "naive_rc": 1,
+          "naive_failed": [
+            "test_base36",
+            "test_invalid",
+            "test_prefix"
+          ],
+          "naive_brief_only_tests_passed": "0/0"
+        },
+        {
+          "id": "r2a2-04-error-body",
+          "start_rc": 2,
+          "reference_rc": 0,
+          "start_failed": [
+            "test_zz_hidden_eval"
+          ],
+          "reference_passed": "2/2",
+          "assertions": 5,
+          "trace_complete": true,
+          "literal_in_brief_or_conventions": 8,
+          "problems": [],
+          "valid": true,
+          "naive_rc": 1,
+          "naive_failed": [
+            "test_keys",
+            "test_retryable"
+          ],
+          "naive_brief_only_tests_passed": "0/0"
+        },
+        {
+          "id": "r2a2-05-author-name",
+          "start_rc": 2,
+          "reference_rc": 0,
+          "start_failed": [
+            "test_zz_hidden_eval"
+          ],
+          "reference_passed": "3/3",
+          "assertions": 4,
+          "trace_complete": true,
+          "literal_in_brief_or_conventions": 2,
+          "problems": [],
+          "valid": true,
+          "naive_rc": 1,
+          "naive_failed": [
+            "test_family_first_caps",
+            "test_initials_no_spaces",
+            "test_no_given"
+          ],
+          "naive_brief_only_tests_passed": "0/0"
+        },
+        {
+          "id": "r2a2-06-data-lines",
+          "start_rc": 2,
+          "reference_rc": 0,
+          "start_failed": [
+            "test_zz_hidden_eval"
+          ],
+          "reference_passed": "3/3",
+          "assertions": 3,
+          "trace_complete": true,
+          "literal_in_brief_or_conventions": 1,
+          "problems": [],
+          "valid": true,
+          "naive_rc": 1,
+          "naive_failed": [
+            "test_bom",
+            "test_comments_and_blanks",
+            "test_whitespace"
+          ],
+          "naive_brief_only_tests_passed": "0/0"
+        },
+        {
+          "id": "r2a2-07-relative-change",
+          "start_rc": 2,
+          "reference_rc": 0,
+          "start_failed": [
+            "test_zz_hidden_eval"
+          ],
+          "reference_passed": "2/2",
+          "assertions": 3,
+          "trace_complete": true,
+          "literal_in_brief_or_conventions": 3,
+          "problems": [],
+          "valid": true,
+          "naive_rc": 1,
+          "naive_failed": [
+            "test_fraction",
+            "test_zero_old"
+          ],
+          "naive_brief_only_tests_passed": "0/0"
+        },
+        {
+          "id": "r2a2-08-event-line",
+          "start_rc": 2,
+          "reference_rc": 0,
+          "start_failed": [
+            "test_zz_hidden_eval"
+          ],
+          "reference_passed": "3/3",
+          "assertions": 4,
+          "trace_complete": true,
+          "literal_in_brief_or_conventions": 1,
+          "problems": [],
+          "valid": true,
+          "naive_rc": 1,
+          "naive_failed": [
+            "test_none",
+            "test_order",
+            "test_quoting"
+          ],
+          "naive_brief_only_tests_passed": "0/0"
+        },
+        {
+          "id": "r2a2-09-tenths-temp",
+          "start_rc": 2,
+          "reference_rc": 0,
+          "start_failed": [
+            "test_zz_hidden_eval"
+          ],
+          "reference_passed": "3/3",
+          "assertions": 5,
+          "trace_complete": true,
+          "literal_in_brief_or_conventions": 3,
+          "problems": [],
+          "valid": true,
+          "naive_rc": 1,
+          "naive_failed": [
+            "test_format",
+            "test_offline",
+            "test_tenths"
+          ],
+          "naive_brief_only_tests_passed": "0/0"
+        },
+        {
+          "id": "r2a2-10-email-key",
+          "start_rc": 2,
+          "reference_rc": 0,
+          "start_failed": [
+            "test_zz_hidden_eval"
+          ],
+          "reference_passed": "3/3",
+          "assertions": 4,
+          "trace_complete": true,
+          "literal_in_brief_or_conventions": 2,
+          "problems": [],
+          "valid": true,
+          "naive_rc": 1,
+          "naive_failed": [
+            "test_domain_only_lower",
+            "test_dots_kept",
+            "test_plus_tag"
+          ],
+          "naive_brief_only_tests_passed": "0/0"
+        },
+        {
+          "id": "r2a2-11-geo-point",
+          "start_rc": 2,
+          "reference_rc": 0,
+          "start_failed": [
+            "test_zz_hidden_eval"
+          ],
+          "reference_passed": "3/3",
+          "assertions": 3,
+          "trace_complete": true,
+          "literal_in_brief_or_conventions": 4,
+          "problems": [],
+          "valid": true,
+          "naive_rc": 1,
+          "naive_failed": [
+            "test_geojson",
+            "test_lon_first",
+            "test_six_decimals"
+          ],
+          "naive_brief_only_tests_passed": "0/0"
+        },
+        {
+          "id": "r2a2-12-percentile",
+          "start_rc": 2,
+          "reference_rc": 0,
+          "start_failed": [
+            "test_zz_hidden_eval"
+          ],
+          "reference_passed": "3/3",
+          "assertions": 6,
+          "trace_complete": true,
+          "literal_in_brief_or_conventions": 1,
+          "problems": [],
+          "valid": true,
+          "naive_rc": 1,
+          "naive_failed": [
+            "test_empty",
+            "test_nearest_rank"
+          ],
+          "naive_brief_only_tests_passed": "0/0"
+        },
+        {
+          "id": "r2a2-13-joined-list",
+          "start_rc": 2,
+          "reference_rc": 0,
+          "start_failed": [
+            "test_zz_hidden_eval"
+          ],
+          "reference_passed": "3/3",
+          "assertions": 6,
+          "trace_complete": true,
+          "literal_in_brief_or_conventions": 1,
+          "problems": [],
+          "valid": true,
+          "naive_rc": 1,
+          "naive_failed": [
+            "test_others",
+            "test_serial_comma",
+            "test_two_and_one"
+          ],
+          "naive_brief_only_tests_passed": "0/0"
+        },
+        {
+          "id": "r2a2-14-week-start",
+          "start_rc": 2,
+          "reference_rc": 0,
+          "start_failed": [
+            "test_zz_hidden_eval"
+          ],
+          "reference_passed": "2/2",
+          "assertions": 4,
+          "trace_complete": true,
+          "literal_in_brief_or_conventions": 0,
+          "problems": [],
+          "valid": true,
+          "naive_rc": 1,
+          "naive_failed": [
+            "test_date_from_datetime",
+            "test_sunday_start"
+          ],
+          "naive_brief_only_tests_passed": "0/0"
+        },
+        {
+          "id": "r2a2-15-token-mask",
+          "start_rc": 2,
+          "reference_rc": 0,
+          "start_failed": [
+            "test_zz_hidden_eval"
+          ],
+          "reference_passed": "3/3",
+          "assertions": 4,
+          "trace_complete": true,
+          "literal_in_brief_or_conventions": 0,
+          "problems": [],
+          "valid": true,
+          "naive_rc": 1,
+          "naive_failed": [
+            "test_last_four",
+            "test_max_eight_stars",
+            "test_short"
+          ],
+          "naive_brief_only_tests_passed": "0/0"
+        },
+        {
+          "id": "r2a2-16-player-level",
+          "start_rc": 2,
+          "reference_rc": 0,
+          "start_failed": [
+            "test_zz_hidden_eval"
+          ],
+          "reference_passed": "3/3",
+          "assertions": 8,
+          "trace_complete": true,
+          "literal_in_brief_or_conventions": 4,
+          "problems": [],
+          "valid": true,
+          "naive_rc": 1,
+          "naive_failed": [
+            "test_cap_and_negative",
+            "test_starts_at_one",
+            "test_thresholds"
+          ],
+          "naive_brief_only_tests_passed": "0/0"
+        },
+        {
+          "id": "r2a2-17-sheet-column",
+          "start_rc": 2,
+          "reference_rc": 0,
+          "start_failed": [
+            "test_zz_hidden_eval"
+          ],
+          "reference_passed": "3/3",
+          "assertions": 7,
+          "trace_complete": true,
+          "literal_in_brief_or_conventions": 2,
+          "problems": [],
+          "valid": true,
+          "naive_rc": 1,
+          "naive_failed": [
+            "test_invalid",
+            "test_one_based",
+            "test_upper"
+          ],
+          "naive_brief_only_tests_passed": "0/0"
+        },
+        {
+          "id": "r2a2-18-http-date",
+          "start_rc": 2,
+          "reference_rc": 0,
+          "start_failed": [
+            "test_zz_hidden_eval"
+          ],
+          "reference_passed": "3/3",
+          "assertions": 3,
+          "trace_complete": true,
+          "literal_in_brief_or_conventions": 4,
+          "problems": [],
+          "valid": true,
+          "naive_rc": 1,
+          "naive_failed": [
+            "test_english_names",
+            "test_format",
+            "test_utc"
+          ],
+          "naive_brief_only_tests_passed": "0/0"
+        },
+        {
+          "id": "r2a2-19-score-display",
+          "start_rc": 2,
+          "reference_rc": 0,
+          "start_failed": [
+            "test_zz_hidden_eval"
+          ],
+          "reference_passed": "2/2",
+          "assertions": 5,
+          "trace_complete": true,
+          "literal_in_brief_or_conventions": 4,
+          "problems": [],
+          "valid": true,
+          "naive_rc": 1,
+          "naive_failed": [
+            "test_half_away",
+            "test_string_and_none"
+          ],
+          "naive_brief_only_tests_passed": "0/0"
+        },
+        {
+          "id": "r2a2-20-phone-intl",
+          "start_rc": 2,
+          "reference_rc": 0,
+          "start_failed": [
+            "test_zz_hidden_eval"
+          ],
+          "reference_passed": "3/3",
+          "assertions": 4,
+          "trace_complete": true,
+          "literal_in_brief_or_conventions": 3,
+          "problems": [],
+          "valid": true,
+          "naive_rc": 1,
+          "naive_failed": [
+            "test_default_country_and_trunk",
+            "test_double_zero",
+            "test_e164_shape"
+          ],
+          "naive_brief_only_tests_passed": "0/1"
+        },
+        {
+          "id": "r2a2-21-identifier-words",
+          "start_rc": 2,
+          "reference_rc": 0,
+          "start_failed": [
+            "test_zz_hidden_eval"
+          ],
+          "reference_passed": "3/3",
+          "assertions": 6,
+          "trace_complete": true,
+          "literal_in_brief_or_conventions": 9,
+          "problems": [],
+          "valid": true,
+          "naive_rc": 1,
+          "naive_failed": [
+            "test_acronyms",
+            "test_digits",
+            "test_lower"
+          ],
+          "naive_brief_only_tests_passed": "0/0"
+        },
+        {
+          "id": "r2a2-22-upload-path",
+          "start_rc": 2,
+          "reference_rc": 0,
+          "start_failed": [
+            "test_zz_hidden_eval"
+          ],
+          "reference_passed": "3/3",
+          "assertions": 3,
+          "trace_complete": true,
+          "literal_in_brief_or_conventions": 0,
+          "problems": [],
+          "valid": true,
+          "naive_rc": 1,
+          "naive_failed": [
+            "test_filename",
+            "test_forward_slashes",
+            "test_layout"
+          ],
+          "naive_brief_only_tests_passed": "0/0"
+        },
+        {
+          "id": "r2a2-23-status-colour",
+          "start_rc": 2,
+          "reference_rc": 0,
+          "start_failed": [
+            "test_zz_hidden_eval"
+          ],
+          "reference_passed": "3/3",
+          "assertions": 7,
+          "trace_complete": true,
+          "literal_in_brief_or_conventions": 10,
+          "problems": [],
+          "valid": true,
+          "naive_rc": 1,
+          "naive_failed": [
+            "test_case_and_space",
+            "test_table",
+            "test_unknown"
+          ],
+          "naive_brief_only_tests_passed": "0/0"
+        },
+        {
+          "id": "r2a2-24-wrap-lines",
+          "start_rc": 2,
+          "reference_rc": 0,
+          "start_failed": [
+            "test_zz_hidden_eval"
+          ],
+          "reference_passed": "4/4",
+          "assertions": 4,
+          "trace_complete": true,
+          "literal_in_brief_or_conventions": 0,
+          "problems": [],
+          "valid": true,
+          "naive_rc": 1,
+          "naive_failed": [
+            "test_hyphen_kept",
+            "test_long_word_kept",
+            "test_whitespace_runs"
+          ],
+          "naive_brief_only_tests_passed": "1/2"
+        },
+        {
+          "id": "r2a2-25-ride-speed",
+          "start_rc": 2,
+          "reference_rc": 0,
+          "start_failed": [
+            "test_zz_hidden_eval"
+          ],
+          "reference_passed": "2/2",
+          "assertions": 4,
+          "trace_complete": true,
+          "literal_in_brief_or_conventions": 0,
+          "problems": [],
+          "valid": true,
+          "naive_rc": 1,
+          "naive_failed": [
+            "test_kmh",
+            "test_zero_duration"
+          ],
+          "naive_brief_only_tests_passed": "0/0"
+        },
+        {
+          "id": "r2a2-26-tag-merge",
+          "start_rc": 2,
+          "reference_rc": 0,
+          "start_failed": [
+            "test_zz_hidden_eval"
+          ],
+          "reference_passed": "3/3",
+          "assertions": 3,
+          "trace_complete": true,
+          "literal_in_brief_or_conventions": 0,
+          "problems": [],
+          "valid": true,
+          "naive_rc": 1,
+          "naive_failed": [
+            "test_case_duplicates",
+            "test_limit",
+            "test_sorted_ignoring_case"
+          ],
+          "naive_brief_only_tests_passed": "0/0"
+        },
+        {
+          "id": "r2a2-27-next-working-day",
+          "start_rc": 2,
+          "reference_rc": 0,
+          "start_failed": [
+            "test_zz_hidden_eval"
+          ],
+          "reference_passed": "2/2",
+          "assertions": 4,
+          "trace_complete": true,
+          "literal_in_brief_or_conventions": 0,
+          "problems": [],
+          "valid": true,
+          "naive_rc": 1,
+          "naive_failed": [
+            "test_strictly_after",
+            "test_weekend_and_holidays"
+          ],
+          "naive_brief_only_tests_passed": "0/0"
+        },
+        {
+          "id": "r2a2-28-title-sort",
+          "start_rc": 2,
+          "reference_rc": 0,
+          "start_failed": [
+            "test_zz_hidden_eval"
+          ],
+          "reference_passed": "2/2",
+          "assertions": 2,
+          "trace_complete": true,
+          "literal_in_brief_or_conventions": 3,
+          "problems": [],
+          "valid": true,
+          "naive_rc": 1,
+          "naive_failed": [
+            "test_articles_and_case",
+            "test_numbers"
+          ],
+          "naive_brief_only_tests_passed": "0/0"
+        },
+        {
+          "id": "r2a2-29-page-cursor",
+          "start_rc": 2,
+          "reference_rc": 0,
+          "start_failed": [
+            "test_zz_hidden_eval"
+          ],
+          "reference_passed": "3/3",
+          "assertions": 4,
+          "trace_complete": true,
+          "literal_in_brief_or_conventions": 0,
+          "problems": [],
+          "valid": true,
+          "naive_rc": 1,
+          "naive_failed": [
+            "test_encoding",
+            "test_invalid"
+          ],
+          "naive_brief_only_tests_passed": "1/1"
+        },
+        {
+          "id": "r2a2-30-vat-line",
+          "start_rc": 2,
+          "reference_rc": 0,
+          "start_failed": [
+            "test_zz_hidden_eval"
+          ],
+          "reference_passed": "3/3",
+          "assertions": 4,
+          "trace_complete": true,
+          "literal_in_brief_or_conventions": 2,
+          "problems": [],
+          "valid": true,
+          "naive_rc": 1,
+          "naive_failed": [
+            "test_half_up",
+            "test_int_tuple",
+            "test_percent_rate"
+          ],
+          "naive_brief_only_tests_passed": "0/0"
+        },
+        {
+          "id": "r2a2-31-hex-rgb",
+          "start_rc": 2,
+          "reference_rc": 0,
+          "start_failed": [
+            "test_zz_hidden_eval"
+          ],
+          "reference_passed": "3/3",
+          "assertions": 5,
+          "trace_complete": true,
+          "literal_in_brief_or_conventions": 2,
+          "problems": [],
+          "valid": true,
+          "naive_rc": 1,
+          "naive_failed": [
+            "test_alpha",
+            "test_forms",
+            "test_invalid"
+          ],
+          "naive_brief_only_tests_passed": "0/0"
+        },
+        {
+          "id": "r2a2-32-page-title",
+          "start_rc": 2,
+          "reference_rc": 0,
+          "start_failed": [
+            "test_zz_hidden_eval"
+          ],
+          "reference_passed": "3/3",
+          "assertions": 4,
+          "trace_complete": true,
+          "literal_in_brief_or_conventions": 2,
+          "problems": [],
+          "valid": true,
+          "naive_rc": 1,
+          "naive_failed": [
+            "test_cut",
+            "test_order",
+            "test_separator_and_empty"
+          ],
+          "naive_brief_only_tests_passed": "0/0"
+        },
+        {
+          "id": "r2a2-33-count-by",
+          "start_rc": 2,
+          "reference_rc": 0,
+          "start_failed": [
+            "test_zz_hidden_eval"
+          ],
+          "reference_passed": "2/2",
+          "assertions": 2,
+          "trace_complete": true,
+          "literal_in_brief_or_conventions": 1,
+          "problems": [],
+          "valid": true,
+          "naive_rc": 1,
+          "naive_failed": [
+            "test_order",
+            "test_unknown"
+          ],
+          "naive_brief_only_tests_passed": "0/0"
+        },
+        {
+          "id": "r2a2-34-great-circle",
+          "start_rc": 2,
+          "reference_rc": 0,
+          "start_failed": [
+            "test_zz_hidden_eval"
+          ],
+          "reference_passed": "2/2",
+          "assertions": 3,
+          "trace_complete": true,
+          "literal_in_brief_or_conventions": 2,
+          "problems": [],
+          "valid": true,
+          "naive_rc": 1,
+          "naive_failed": [
+            "test_lon_first",
+            "test_radius_and_rounding"
+          ],
+          "naive_brief_only_tests_passed": "0/0"
+        },
+        {
+          "id": "r2a2-35-age-years",
+          "start_rc": 2,
+          "reference_rc": 0,
+          "start_failed": [
+            "test_zz_hidden_eval"
+          ],
+          "reference_passed": "3/3",
+          "assertions": 7,
+          "trace_complete": true,
+          "literal_in_brief_or_conventions": 4,
+          "problems": [],
+          "valid": true,
+          "naive_rc": 1,
+          "naive_failed": [
+            "test_completed_birthdays",
+            "test_leap_day"
+          ],
+          "naive_brief_only_tests_passed": "1/1"
+        },
+        {
+          "id": "r2a2-36-cache-names",
+          "start_rc": 2,
+          "reference_rc": 0,
+          "start_failed": [
+            "test_zz_hidden_eval"
+          ],
+          "reference_passed": "3/3",
+          "assertions": 3,
+          "trace_complete": true,
+          "literal_in_brief_or_conventions": 2,
+          "problems": [],
+          "valid": true,
+          "naive_rc": 1,
+          "naive_failed": [
+            "test_lower_and_underscores",
+            "test_max_length",
+            "test_prefix"
+          ],
+          "naive_brief_only_tests_passed": "0/0"
+        },
+        {
+          "id": "r2a2-37-host-list",
+          "start_rc": 2,
+          "reference_rc": 0,
+          "start_failed": [
+            "test_zz_hidden_eval"
+          ],
+          "reference_passed": "3/3",
+          "assertions": 4,
+          "trace_complete": true,
+          "literal_in_brief_or_conventions": 0,
+          "problems": [],
+          "valid": true,
+          "naive_rc": 1,
+          "naive_failed": [
+            "test_dedupe_in_order",
+            "test_empty_and_case",
+            "test_separators"
+          ],
+          "naive_brief_only_tests_passed": "0/0"
+        },
+        {
+          "id": "r2a2-38-duration-text",
+          "start_rc": 2,
+          "reference_rc": 0,
+          "start_failed": [
+            "test_zz_hidden_eval"
+          ],
+          "reference_passed": "3/3",
+          "assertions": 6,
+          "trace_complete": true,
+          "literal_in_brief_or_conventions": 3,
+          "problems": [],
+          "valid": true,
+          "naive_rc": 1,
+          "naive_failed": [
+            "test_milliseconds",
+            "test_parts",
+            "test_zero_parts"
+          ],
+          "naive_brief_only_tests_passed": "0/0"
+        },
+        {
+          "id": "r2a2-39-parcel-cost",
+          "start_rc": 2,
+          "reference_rc": 0,
+          "start_failed": [
+            "test_zz_hidden_eval"
+          ],
+          "reference_passed": "3/3",
+          "assertions": 7,
+          "trace_complete": true,
+          "literal_in_brief_or_conventions": 10,
+          "problems": [],
+          "valid": true,
+          "naive_rc": 1,
+          "naive_failed": [
+            "test_free_domestic_only",
+            "test_steps",
+            "test_zone_factor"
+          ],
+          "naive_brief_only_tests_passed": "0/0"
+        },
+        {
+          "id": "r2a2-40-sku-check",
+          "start_rc": 2,
+          "reference_rc": 0,
+          "start_failed": [
+            "test_zz_hidden_eval"
+          ],
+          "reference_passed": "3/3",
+          "assertions": 6,
+          "trace_complete": true,
+          "literal_in_brief_or_conventions": 2,
+          "problems": [],
+          "valid": true,
+          "naive_rc": 1,
+          "naive_failed": [
+            "test_none_not_raise",
+            "test_pattern",
+            "test_upper"
+          ],
+          "naive_brief_only_tests_passed": "0/0"
+        },
+        {
+          "id": "r2a2-41-markdown-escape",
+          "start_rc": 2,
+          "reference_rc": 0,
+          "start_failed": [
+            "test_zz_hidden_eval"
+          ],
+          "reference_passed": "2/2",
+          "assertions": 3,
+          "trace_complete": true,
+          "literal_in_brief_or_conventions": 0,
+          "problems": [],
+          "valid": true,
+          "naive_rc": 1,
+          "naive_failed": [
+            "test_left_alone"
+          ],
+          "naive_brief_only_tests_passed": "0/0"
+        },
+        {
+          "id": "r2a2-42-report-day",
+          "start_rc": 2,
+          "reference_rc": 0,
+          "start_failed": [
+            "test_zz_hidden_eval"
+          ],
+          "reference_passed": "2/2",
+          "assertions": 4,
+          "trace_complete": true,
+          "literal_in_brief_or_conventions": 2,
+          "problems": [],
+          "valid": true,
+          "naive_rc": 1,
+          "naive_failed": [
+            "test_cutoff",
+            "test_string"
+          ],
+          "naive_brief_only_tests_passed": "0/0"
+        },
+        {
+          "id": "r2a2-43-competition-rank",
+          "start_rc": 2,
+          "reference_rc": 0,
+          "start_failed": [
+            "test_zz_hidden_eval"
+          ],
+          "reference_passed": "2/2",
+          "assertions": 4,
+          "trace_complete": true,
+          "literal_in_brief_or_conventions": 4,
+          "problems": [],
+          "valid": true,
+          "naive_rc": 1,
+          "naive_failed": [
+            "test_competition_ties",
+            "test_highest_first"
+          ],
+          "naive_brief_only_tests_passed": "0/0"
+        },
+        {
+          "id": "r2a2-44-url-join",
+          "start_rc": 2,
+          "reference_rc": 0,
+          "start_failed": [
+            "test_zz_hidden_eval"
+          ],
+          "reference_passed": "2/2",
+          "assertions": 3,
+          "trace_complete": true,
+          "literal_in_brief_or_conventions": 0,
+          "problems": [],
+          "valid": true,
+          "naive_rc": 1,
+          "naive_failed": [
+            "test_encoding",
+            "test_slashes"
+          ],
+          "naive_brief_only_tests_passed": "0/0"
+        },
+        {
+          "id": "r2a2-45-aspect-ratio",
+          "start_rc": 2,
+          "reference_rc": 0,
+          "start_failed": [
+            "test_zz_hidden_eval"
+          ],
+          "reference_passed": "2/2",
+          "assertions": 5,
+          "trace_complete": true,
+          "literal_in_brief_or_conventions": 6,
+          "problems": [],
+          "valid": true,
+          "naive_rc": 1,
+          "naive_failed": [
+            "test_reduced",
+            "test_zero"
+          ],
+          "naive_brief_only_tests_passed": "0/0"
+        },
+        {
+          "id": "r2a2-46-reading-time",
+          "start_rc": 2,
+          "reference_rc": 0,
+          "start_failed": [
+            "test_zz_hidden_eval"
+          ],
+          "reference_passed": "3/3",
+          "assertions": 5,
+          "trace_complete": true,
+          "literal_in_brief_or_conventions": 1,
+          "problems": [],
+          "valid": true,
+          "naive_rc": 1,
+          "naive_failed": [
+            "test_label",
+            "test_minimum",
+            "test_round_up"
+          ],
+          "naive_brief_only_tests_passed": "0/0"
+        },
+        {
+          "id": "r2a2-47-spreadsheet-cell",
+          "start_rc": 2,
+          "reference_rc": 0,
+          "start_failed": [
+            "test_zz_hidden_eval"
+          ],
+          "reference_passed": "3/3",
+          "assertions": 8,
+          "trace_complete": true,
+          "literal_in_brief_or_conventions": 0,
+          "problems": [],
+          "valid": true,
+          "naive_rc": 1,
+          "naive_failed": [
+            "test_formula_prefix",
+            "test_none",
+            "test_numbers_untouched"
+          ],
+          "naive_brief_only_tests_passed": "0/0"
+        },
+        {
+          "id": "r2a2-48-count-label",
+          "start_rc": 2,
+          "reference_rc": 0,
+          "start_failed": [
+            "test_zz_hidden_eval"
+          ],
+          "reference_passed": "3/3",
+          "assertions": 6,
+          "trace_complete": true,
+          "literal_in_brief_or_conventions": 8,
+          "problems": [],
+          "valid": true,
+          "naive_rc": 1,
+          "naive_failed": [
+            "test_es_plurals",
+            "test_thousands",
+            "test_zero"
+          ],
+          "naive_brief_only_tests_passed": "0/0"
+        }
+      ]
+    }
+  },
+  "valid": true
+}

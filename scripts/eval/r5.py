@@ -1062,8 +1062,9 @@ def phase_wall(hub: Path, run_ids: list, wall_s: float | None = None) -> dict:
     ccx's acceptance checks (check_s), the reviews (review_s: the `review:<id>` runs), the fix rounds after a review
     (fix_s: a run with review_of, its attempts and its check) and, with the lead's wall, the lead waiting on ccx
     (lead_wait_s, an estimate: ccx runs block the lead, or it waits with show --wait) and the rest (lead_active_s).
-    Checks count every run of ccx's check: the final one (record["check"]) and those of earlier rungs that failed
-    and climbed (an attempt's check_seconds). ccx runs a run's review while its final check runs, so lead_wait_s
+    Checks count every run of ccx's check: the final one (record["check"]) and those of earlier rungs (an attempt's
+    check_seconds: before #392 only a failed check that climbed kept it; since #392 every check does, the final one
+    too on the last attempt, which r5_timeline.early_checks leaves out so it is not counted twice). ccx runs a run's review while its final check runs, so lead_wait_s
     counts that time once (overlap_s: the shorter of the two, per run with both) and is at most the wall. A review
     started alongside an earlier rung's check and stopped when that check failed (a `review:<id>` run that is not
     the linked one) overlaps those failed checks the same way. Records
@@ -1102,7 +1103,7 @@ def phase_wall(hub: Path, run_ids: list, wall_s: float | None = None) -> dict:
             review, n_rev = review + secs(rec), n_rev + 1
             continue
         final = (rec.get("check") or {}).get("seconds")
-        early = sum(float(x.get("check_seconds") or 0) for x in rec.get("attempts") or [])
+        early = sum(s for _, s in TL.early_checks(rec))
         c = float(final or 0) + early
         linked = str((rec.get("review") or {}).get("run_id"))
         rv = recs.get(linked)

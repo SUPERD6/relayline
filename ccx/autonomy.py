@@ -214,6 +214,8 @@ def merge(p: Paths, run_id: str, info: dict, cfg: dict | None = None, rules: lis
     rv = (rec.get("review") or {}).get("verdict")
     if rv == "pass" and (rec.get("review") or {}).get("downgraded"):
         no.append("the review's [must] items were only downgraded for lack of a repro (must_needs_repro)")
+    elif rv == "skipped":     # #427 [review] skip_when_clean: no review ran, which is not a failed one
+        no.append("the independent review was skipped as clean ([review] skip_when_clean): use --review on")
     elif rv != "pass":
         no.append(f"the independent review did not pass ({rv or 'none ran'}): use --review on")
     if rec.get("risk") in ("visible", "critical"):

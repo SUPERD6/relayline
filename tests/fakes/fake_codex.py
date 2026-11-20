@@ -193,7 +193,7 @@ if mode == "policy" or (mode == "policy_then_done" and not resuming):   # as cod
     print('ERROR codex_core::tools::router: error=exec_command failed: CreateProcess { message: "Rejected('
           '\\"`powershell.exe -Command \'Get-Content README.md\'` rejected: blocked by policy\\")" }',
           file=sys.stderr)
-res = {"status": status, "summary": os.environ.get("FAKE_SUMMARY") or f"fake codex {status}", "files_changed": ["a.py"] if status == "done" else [],
+res = {"status": status, "summary": os.environ.get("FAKE_SUMMARY") or f"fake codex {status}", "files_changed": (os.environ.get("FAKE_FILES_CHANGED") or "a.py").split(";") if status == "done" else [],
        "commands_run": ["pytest -q"], "verification": "pytest -q passed" if status == "done" else "not-run",
        "open_questions": [] if status == "done" else ["need X"], "next_step": ""}
 from fake_discuss import answer as _discuss  # noqa: E402
@@ -259,6 +259,11 @@ if os.environ.get("FAKE_COMMAND_OUTPUT") is not None:
     print(json.dumps({"type": "item.completed", "item": {
         "id": "c1", "type": "command_execution", "command": cmd,
         "aggregated_output": output, "exit_code": code, "status": "completed" if code == 0 else "failed"}}))
+for i, cmd in enumerate(filter(None, (os.environ.get("FAKE_COMMANDS") or "").split("\n"))):
+    # FAKE_COMMANDS: newline-separated shell commands it ran, one command_execution item each (no output)
+    print(json.dumps({"type": "item.completed", "item": {"id": f"fc{i}", "type": "command_execution", "command": cmd,
+                                                         "aggregated_output": "", "exit_code": 0,
+                                                         "status": "completed"}}))
 if os.environ.get("FAKE_ERROR_EVENT"):       # an `error` event with this message (the run still ends normally)
     print(json.dumps({"type": "error", "message": os.environ["FAKE_ERROR_EVENT"]}))
 if os.environ.get("FAKE_ERROR_ITEM"):        # an item.completed of type error with this message

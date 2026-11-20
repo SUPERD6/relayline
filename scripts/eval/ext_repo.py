@@ -21,6 +21,7 @@ from __future__ import annotations
 import io
 import json
 import os
+import re
 import shutil
 import stat
 import subprocess
@@ -49,8 +50,39 @@ def _rmtree(p: Path) -> None:
         shutil.rmtree(p, onerror=onerror)
 
 
+def cache_key(repo: str) -> str:
+    """The cache folder stem of a repository (#400). `owner/name` becomes `<owner>__<name>`, case-folded, with every
+    character outside `[a-z0-9._-]` (Windows rejects `:*?"<>|`) and a trailing dot or space replaced by `_`, so
+    `a/utils` and `b/utils` never share a clone. A plain name (a frozen task's `repo`, e.g. `polyglot`) is unchanged.
+    The old bare-name folder of an owner/name repository is never looked at: that is how two owners would share it.
+
+    Distinct repositories get distinct keys only because a GitHub owner name never contains `_`: the first `__` is
+    always the owner/name boundary. Were an owner `a__b` possible, `a__b/c` and `a/b__c` would both give `a__b__c`.
+    Exactly two parts are accepted when there is a `/` (`/utils`, `a/` and `host/o/n` raise ValueError), so a key is
+    never an absolute path or a nested one."""
+    text = str(repo).strip()
+    if "/" not in text:
+        return text
+    parts = text.split("/")
+    if len(parts) != 2 or not all(parts):
+        raise ValueError(f"repository must be `owner/name` or a plain name, got {repo!r}")
+    safe = []
+    for p in parts:
+        p = re.sub(r"[^a-z0-9._-]", "_", p.casefold())
+        safe.append(p[:-1] + "_" if p.endswith(".") else p)
+    return "__".join(safe)
+
+
+def repo_name(repo: str | None) -> str:
+    """The repository name without its owner, `.git` and case/`-_.` differences (PEP 503 style, like
+    round2_tasks.norm_name): `mahmoud/boltons` and a frozen task's `boltons` are the same repository here (#400)."""
+    name = str(repo or "").strip().rstrip("/").split("/")[-1]
+    name = name[:-4] if name.lower().endswith(".git") else name
+    return re.sub(r"[-_.]+", "-", name).lower()
+
+
 def cache_path(cache: Path, name: str) -> Path:
-    return Path(cache) / f"{name}.git"
+    return Path(cache) / f"{cache_key(name)}.git"
 
 
 def fetch(name: str, spec: dict, cache: Path, source: Path | None = None) -> Path:
@@ -61,10 +93,13 @@ def fetch(name: str, spec: dict, cache: Path, source: Path | None = None) -> Pat
         return dest
     origin = spec["url"]
     if source is not None:
-        cands = [Path(source) / name, Path(source) / f"{name}.git"]
+        key = cache_key(name)
+        cands = [Path(source) / key, Path(source) / f"{key}.git"]
         local = next((c for c in cands if c.exists()), None)
         if local is None:
-            raise FileNotFoundError(f"--ext-cache has no copy of {name} (looked for {', '.join(map(str, cands))})")
+            raise FileNotFoundError(f"--ext-cache has no copy of {name} (looked for {', '.join(map(str, cands))}); "
+                                    "a cache made before #400 (named by the bare repository name) has to be "
+                                    "prepared again with the current code")
         origin = str(local)
     Path(cache).mkdir(parents=True, exist_ok=True)
     tmp = dest.with_name(dest.name + ".part")
@@ -87,14 +122,24 @@ def pin(cache_repo: Path, sha: str) -> str:
     return parents[1]
 
 
+def version_stub(version: str | None = None) -> str:
+    """The stub's text: VERSION_STUB, or the same with `version` (digits and dots, e.g. a round-2 task's tag version,
+    #424) and its numeric tuple."""
+    if not version:
+        return VERSION_STUB
+    parts = ", ".join(str(int(p)) for p in version.split("."))
+    return f'__version__ = version = "{version}"\n__version_tuple__ = version_tuple = ({parts},)\n'
+
+
 def write_stubs(dest: Path, spec: dict) -> list[str]:
-    """Files the build backend would write at install time; written only when missing."""
+    """Files the build backend would write at install time; written only when missing. `stub_version` in the spec
+    sets the version they report (default 0.0)."""
     out = []
     for rel in spec.get("stubs") or ():
         f = Path(dest) / rel
         if not f.exists():
             f.parent.mkdir(parents=True, exist_ok=True)
-            f.write_text(VERSION_STUB, encoding="utf-8")
+            f.write_text(version_stub(spec.get("stub_version")), encoding="utf-8")
             out.append(rel)
     return out
 
