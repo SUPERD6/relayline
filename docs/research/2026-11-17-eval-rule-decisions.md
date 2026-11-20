@@ -17,9 +17,9 @@ forward, and none re-judges an old result.
 
 | # | Decision in one line | From when |
 |---|---|---|
-| 1 | Quota-scenario claims use **lead-vendor spend** as the primary cost metric; total spend becomes a "not much dearer" guardrail | The first preregistration of a quota-scenario claim committed after this is approved; not round 2 |
-| 2 | The ordinary `ok` receipt false-positive bar is **point estimate ≤ 2% and one-sided 95% Clopper-Pearson upper bound ≤ 5%** | Every receipt false-positive verdict written after approval (round 2: see section 2) |
-| 3 | "Work does not stop when quota runs out" is judged on **naturally occurring limit events**, with fixed, mostly machine-checkable definitions of an event, a success and a failure, and at least 5 counted events | Events from the approval date on |
+| 1 | Quota-scenario claims use **lead-vendor spend** as the primary cost metric; total spend becomes a "not much dearer" guardrail | The first preregistration of a quota-scenario claim committed after confirmation (2026-11-19); not round 2 |
+| 2 | The ordinary `ok` receipt false-positive bar is **point estimate ≤ 2% and one-sided 95% Clopper-Pearson upper bound ≤ 5%** | Every receipt false-positive verdict written after confirmation (2026-11-19) (round 2: see section 2) |
+| 3 | "Work does not stop when quota runs out" is judged on **naturally occurring limit events**, with fixed, mostly machine-checkable definitions of an event, a success and a failure, and at least 5 counted events | Events from confirmation (2026-11-19) on |
 
 ---
 
@@ -62,8 +62,8 @@ forward, and none re-judges an old result.
 - **G4 stays Fail.** It is not re-judged with the new metric; its 24% is the reason to ask the question, not
   evidence for the answer (8 used tasks, one run each, diagnostic).
 - **Round 2 is unchanged.** Group C keeps its registered verdict (total cost ≤ 1.0, lead-vendor spend secondary,
-  diagnostic, no default change), whether or not it has run when this is approved.
-- The new metric applies only to a preregistration committed after approval, on **new tasks not used before**
+  diagnostic, no default change), whether or not it has run at confirmation (2026-11-19).
+- The new metric applies only to a preregistration committed after confirmation (2026-11-19), on **new tasks not used before**
   (planned: about 60 new long tasks from real upstream commits). The thresholds are written into that
   preregistration before any run and do not change afterwards.
 
@@ -82,7 +82,7 @@ forward, and none re-judges an old result.
 - New: the next quota-scenario preregistration (primary metric and guardrails); a later control with another
   vendor leading.
 - Unchanged: the round-2 preregistration and its group C, the unified G1–G4 report, every non-quota claim.
-- After approval, a follow-up docs PR adds a "lead-vendor spend" row to the metric table in
+- After confirmation (2026-11-19), a follow-up docs PR adds a "lead-vendor spend" row to the metric table in
   `docs/engineering-standards.md` (not in this PR).
 
 ### Rollback
@@ -106,7 +106,7 @@ verdict (no switching during a run); the revert applies only to preregistrations
   are not judged against this bar.
 - Which rows are pooled into one `n` (for example the delegating arms of several groups on one pin) is written down
   before the receipt numbers are computed, and only rows from one pin and one receipt rule are pooled.
-- **Round 2:** if round 2 has not started when this is approved, its report's receipt analysis uses this bar. If it
+- **Round 2:** if round 2 has not started at confirmation (2026-11-19), its report's receipt analysis uses this bar. If it
   has already started, the report keeps the old wording ("≤ 2%"), says so, and may show this bar next to it only as
   a labelled extra. Either way the receipt analysis is not a gate of any round-2 group.
 
@@ -152,9 +152,9 @@ so this bar is not applied to it.
 
 ### What it affects
 
-- Every receipt false-positive verdict written after approval (round 2 as stated above). The rule only adds a
+- Every receipt false-positive verdict written after confirmation (2026-11-19) (round 2 as stated above). The rule only adds a
   condition to the "≤ 2%" wording it clarifies, so it cannot turn a Fail into a Pass.
-- Follow-ups after approval (separate issue and PR each): `receipt_fp.py` gets a field for this bar next to
+- Follow-ups after confirmation (2026-11-19) (separate issue and PR each): `receipt_fp.py` gets a field for this bar next to
   `below_2pct` (existing fields keep their meaning); the "Receipt false positive" row in engineering standards cites
   the bar. Not in this PR.
 - Unchanged: STATUS, measured, the hc2 and audit reports.
@@ -220,7 +220,7 @@ task. **Any event that loses uncommitted work fails the whole claim**, whatever 
 **Not attempted**: the person chose to wait for the reset and wrote so in the daily log at the time. Listed with
 counts and excluded from the ratio (confirmed by the maintainer, 2026-11-19).
 
-**When to conclude**: at least **5 counted events**, success ≥ **80%** (so 4 of 5, 8 of 10). Fewer than 5 is Unknown.
+**When to conclude**: at least **5 counted events**, success ≥ **80%** (so 4 of 5, 8 of 10). Fewer than 5 is Unknown. Lead and sub-agent events are pooled in the count and also reported by role.
 The report gives successes / counted events, the one-sided 95% Clopper-Pearson lower bound (4/5 gives about 34%, so
 this is weak evidence and is labelled so), and a split by role (lead / sub-agent) and by vendor pair. Quoting a number
 publicly needs two separate windows of at least 5 events each, both ≥ 80% (the standards' two-round rule).
