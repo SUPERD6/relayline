@@ -34,6 +34,9 @@ PATTERNS = [
     # .claude/projects/<drive>--<folder>-<name>-proj: Claude Code's memory and transcript folder, for a project on
     # any drive and in any folder; the first word after the drive is checked (a placeholder like C--someone-else passes)
     re.compile(r"\.claude[\\/]+projects[\\/]+[A-Za-z]--" + SLUG_NAME, re.IGNORECASE),
+    # pytest-of-<name>: pytest's temp folder (<tmp>/pytest-of-<login>/pytest-N) is named after the OS login, so it
+    # leaks through error lines and logs; the name after "pytest-of-" is checked (<USER>, someone, runner pass)
+    re.compile(r"(?<![\w-])pytest-of-" + NAME, re.IGNORECASE),
 ]
 # In scrubbed evaluation data (docs/research/data/) no absolute drive path belongs at all, whatever its folders are
 # called: the scrubber writes ~ or <scratch>. In JSON a backslash path is written with doubled backslashes.
@@ -44,7 +47,7 @@ DRIVE_PATH = re.compile(r"(?<![\w])[A-Za-z]:(?:\\\\|/)[\w.-]+")
 PLACEHOLDERS = {
     "you", "your", "yourname", "your-name", "user", "username", "user-name", "me", "name", "someone", "somebody",
     "example", "example-user", "alice", "bob", "carol", "jane", "john", "johndoe", "foo", "bar", "test", "tester",
-    "runner", "runneradmin", "public", "default", "shared", "all", "all users", "hub", "x", "a", "b", "u",
+    "runner", "runneradmin", "root", "public", "default", "shared", "all", "all users", "hub", "x", "a", "b", "u",
 }
 
 
@@ -155,6 +158,8 @@ _N = "jdoe42"      # spelled through a variable so this file does not trip its o
     f"C--Users-{_N}-proj", f"c--users-{_N}", "~/AppData/Local/Temp/" + f"claude/D--Work-{_N}-proj/abc/scratchpad",
     f"\\\\?\\C:\\Users\\{_N}", f"C:\\\\Users\\\\{_N}\\\\x",
     "~/.claude/" + f"projects/D--Work-{_N}-proj/memory", "c:/x/.claude/" + "projects/E--Code-shop/x.jsonl",
+    f"/tmp/pytest-of-{_N}/pytest-0/x", f"C:\\Temp\\pytest-of-{_N}\\pytest-3", f"PYTEST-OF-{_N}",
+    f"WinError 32: 'pytest-of-{_N}/pytest-1/a.db'",
 ])
 def test_detects_home_folders(text):
     assert find_personal_paths(text)
@@ -183,6 +188,8 @@ def test_drive_paths_in_scrubbed_data():
     "$HOME/.agents", "%USERPROFILE%\\.codex", "C:\\Users\\All Users\\x", "c:\\users\\…\\x", "C--Users-you-proj",
     "Temp/claude/<project>/x", "/tmp/claude/x/scratchpad", "~/.claude/projects/<project-slug>/x",
     "/h/.claude/projects/C--someone-else/memory/", "/h/.claude/projects/-w-1-t-ccx/memory/",
+    "/tmp/pytest-of-<USER>/pytest-0", "pytest-of-USER", "pytest-of-someone", "pytest-of-SomeOne/pytest-1",
+    "pytest-of-runner", "pytest-of-user", "pytest-of-root", "pytest-of-[^\\\\/\\s]+", "pytest-of-<you>", "pytest-of-",
 ])
 def test_allows_placeholders(text):
     assert not find_personal_paths(text)
