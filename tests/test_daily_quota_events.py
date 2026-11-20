@@ -168,6 +168,14 @@ class TestQuotaEvents(test_daily.TestDaily):
         e = self.ev(self.q(workspaces=[self.work]), self.PID)
         self.assertEqual(e["verdict"], "success")
 
+    def test_postprocess_error_continue_is_unknown_not_failure_487(self):
+        self.packet(self.PID)
+        self.cont(self.PID, state="postprocess_error", error="RuntimeError: boom", ended_at=iso(self.T0 + 2 * H))
+        self.notes({"kind": "done", "id": self.PID, "ts": self.T0 + 2 * H + 60})
+        e = self.ev(self.q(now_h=40, workspaces=[self.work]), self.PID)
+        self.assertEqual(e["verdict"], "unknown")
+        self.assertIn("后处理", e["reason"])
+
     def test_continue_end_falls_back_to_mtime_without_ended_at(self):
         self.packet(self.PID)
         self.cont(self.PID, end=self.T0 + 30 * H)                                    # old record: mtime is the end

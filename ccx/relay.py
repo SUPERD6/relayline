@@ -169,22 +169,32 @@ def _launch(cwd, packet_id, target, budget, path, packet, current, prompt, argv,
         if child is None:
             claim.unlink(missing_ok=True)
         raise
-    out["quota_signal"] = quota_signals.identify(run_path.with_suffix(".stdout.log").read_text(encoding="utf-8", errors="replace"))
-    if out["quota_signal"]["kind"] in ("quota", "rate_limit_unconfirmed"):
-        out["state"] = ("quota_stopped" if out["quota_signal"]["kind"] == "quota" else "rate_limit_unconfirmed")
-        next_path, next_packet = state.capture(cwd, target, "Unknown", out["quota_signal"], packet,
-                                               command_timeout=out["git_timeout_seconds"],
-                                               total_timeout=4 * out["git_timeout_seconds"])
-        state.atomic_json(next_path.with_suffix(".notification.json"), state.notice(next_packet))
-        out["handoff_packet"] = next_packet["id"]
-    after = state.snapshot(cwd, command_timeout=out["git_timeout_seconds"], total_timeout=4 * out["git_timeout_seconds"])
-    out["changes_observed"] = ("Unknown" if after.get("snapshot_status") or current.get("snapshot_status")
-                               or after.get("content_fingerprint") == "Unknown" or current.get("content_fingerprint") == "Unknown"
-                               else after != current)
-    if out["state"] == "exited" and out["exit_code"] == 0 and out["changes_observed"] is not True:
-        out["state"] = "changes_unknown" if out["changes_observed"] == "Unknown" else "no_changes"
-        if out["state"] == "changes_unknown":
-            out["message"] = "Workspace change detection is Unknown; inspect git status and review the workspace manually."
+    try:
+        out["quota_signal"] = quota_signals.identify(run_path.with_suffix(".stdout.log").read_text(encoding="utf-8", errors="replace"))
+        if out["quota_signal"]["kind"] in ("quota", "rate_limit_unconfirmed"):
+            out["state"] = ("quota_stopped" if out["quota_signal"]["kind"] == "quota" else "rate_limit_unconfirmed")
+            next_path, next_packet = state.capture(cwd, target, "Unknown", out["quota_signal"], packet,
+                                                   command_timeout=out["git_timeout_seconds"],
+                                                   total_timeout=4 * out["git_timeout_seconds"])
+            state.atomic_json(next_path.with_suffix(".notification.json"), state.notice(next_packet))
+            out["handoff_packet"] = next_packet["id"]
+        after = state.snapshot(cwd, command_timeout=out["git_timeout_seconds"], total_timeout=4 * out["git_timeout_seconds"])
+        out["changes_observed"] = ("Unknown" if after.get("snapshot_status") or current.get("snapshot_status")
+                                   or after.get("content_fingerprint") == "Unknown" or current.get("content_fingerprint") == "Unknown"
+                                   else after != current)
+        if out["state"] == "exited" and out["exit_code"] == 0 and out["changes_observed"] is not True:
+            out["state"] = "changes_unknown" if out["changes_observed"] == "Unknown" else "no_changes"
+            if out["state"] == "changes_unknown":
+                out["message"] = "Workspace change detection is Unknown; inspect git status and review the workspace manually."
+    except BaseException as exc:
+        # The child already ended; without this the record would stay "running" with no ended_at (#487).
+        # Keep the child's exit_code, add a short error, then re-raise so the traceback and exit status stay visible.
+        out.update(state="postprocess_error", error=f"{type(exc).__name__}: {exc}"[:300], ended_at=state.utc_now())
+        try:
+            state.atomic_json(run_path, out)
+        except Exception:
+            pass        # do not mask the original exception
+        raise
     out["ended_at"] = state.utc_now()      # same format as started_at; only final-state writes carry it
     state.atomic_json(run_path, out)
     out["record"] = str(run_path)
