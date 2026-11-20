@@ -200,3 +200,46 @@ def test_cli_fails_cleanly_on_missing_input(tmp_path):
     p = subprocess.run([sys.executable, str(EVAL / "receipt_fp.py"), str(tmp_path / "missing")], cwd=tmp_path,
                        capture_output=True, text=True, encoding="utf-8", timeout=60)
     assert p.returncode == 2 and "Traceback" not in p.stderr
+
+
+# ---- decision 2 of #411: Pass only when point <= 2% and upper95 <= 5% (issue #478) ----
+
+@pytest.mark.parametrize("k,n", [(0, 59), (1, 93), (2, 124), (4, 200)])
+def test_smallest_passing_samples_pass_and_one_fewer_is_not_pass(k, n):
+    assert R.bar_verdict(k, n) == "Pass"
+    # one receipt fewer (same failures) is not a Pass: Unknown (bound > 5%), or Fail when that tips the point
+    # estimate over 2% (4/199 = 2.01%)
+    assert R.bar_verdict(k, n - 1) == ("Fail" if k * 50 > n - 1 else "Unknown")
+
+
+@pytest.mark.parametrize("k,n,verdict", [
+    (0, 58, "Unknown"), (0, 59, "Pass"), (0, 0, "Unknown"), (0, 19, "Unknown"),
+    (1, 50, "Unknown"),      # point estimate exactly 2%, bound far above 5%
+    (2, 50, "Fail"),         # 4% > 2%
+    (1, 49, "Fail"),         # 1/49 = 2.04% > 2%
+    (3, 100, "Fail"), (1, 7, "Fail"), (7, 7, "Fail"),
+])
+def test_bar_verdict_cases(k, n, verdict):
+    assert R.bar_verdict(k, n) == verdict
+
+
+def test_summary_carries_verdict_bar_n_and_failures_and_keeps_old_fields():
+    t = R.summarize([row("ok") for _ in range(59)])["types"]["ok"]
+    assert t["verdict"] == "Pass" and (t["failures"], t["n"]) == (0, 59)
+    assert t["bar"] == {"point_max": 0.02, "upper95_max": 0.05}
+    assert t["upper95"] <= 0.05
+    assert t["below_2pct"] is False and t["status"] == "not shown below 2%"   # old reading unchanged
+    fail = R.summarize([row("ok") for _ in range(48)] + [row("ok", ok=False), row("ok", ok=False)])["types"]["ok"]
+    assert fail["verdict"] == "Fail"
+    assert R.summarize([])["types"]["ok"]["verdict"] == "Unknown"
+    assert R.summarize([row("ok") for _ in range(58)])["types"]["ok"]["verdict"] == "Unknown"
+
+
+def test_all_claims_has_no_verdict():
+    out = R.summarize([row("ok") for _ in range(100)])["types"]
+    assert "verdict" not in out["all_claims"]
+
+
+def test_text_report_shows_verdict():
+    out = R.text_report(R.summarize([row("ok") for _ in range(59)]))
+    assert "verdict" in out and "Pass" in out

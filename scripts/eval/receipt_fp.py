@@ -2,7 +2,10 @@
 
 For every scorable result row whose ccx receipt claims success, count how often the hidden test (the row's `ok`,
 bool) still failed. Reported per receipt type, as failures / n with a one-sided 95% upper bound
-(Clopper-Pearson, exact binomial; docs/engineering-standards.md "Receipt false positive": ordinary `ok` <= 2%).
+(Clopper-Pearson, exact binomial; docs/engineering-standards.md "Receipt false positive"). Each type also gets a
+`verdict` by the bar of docs/research/2026-11-17-eval-rule-decisions.md section 2 (#411, decision 2): Pass when the
+point estimate is <= 2% and the upper bound is <= 5%; Fail when the point estimate is > 2%; otherwise Unknown
+(smallest passing samples 0/59, 1/93, 2/124, 4/200). `below_2pct` keeps its old meaning (upper bound <= 2%).
 
 Receipt type, from the receipt's own fields (a row's `kind` and `status`, the ccx ledger's slim fields):
 - ok               kind == "ok": the ordinary receipt the 2% bar is about.
@@ -38,6 +41,8 @@ FAIL_KINDS = ("check_failed", "check_broken", "check_baseline_failed")
 HEADLINE_TYPE = {"DONE": "done", "SELF_CHECKED": "ok_self_checked", "UNVERIFIED": "UNVERIFIED"}
 METHOD = "Clopper-Pearson one-sided 95% upper bound (exact binomial)"
 ALPHA = 0.05
+POINT_MAX_PCT = 2     # bar: point estimate <= 2 %
+UPPER_MAX = 0.05      # bar: one-sided 95% upper bound <= 5 %
 
 
 def cp_upper(k: int, n: int, alpha: float = ALPHA) -> float:
@@ -99,10 +104,24 @@ def _receipt_of(row: dict, ledger: dict[str, dict] | None) -> dict | None:
     return {**last, "status": "not_ok"} if last.get("ok") is False else last
 
 
+def bar_verdict(failures: int, n: int) -> str:
+    """The receipt false-positive bar (#411 decision 2): Pass when the point estimate is <= 2% and the one-sided
+    95% Clopper-Pearson upper bound is <= 5%; Fail when the point estimate is > 2%; otherwise (too few receipts,
+    or n = 0) Unknown. Smallest passing samples: 0/59, 1/93, 2/124, 4/200."""
+    if n == 0:
+        return "Unknown"
+    if failures * 100 > n * POINT_MAX_PCT:       # integer compare: 1/50 is exactly 2%, not above it
+        return "Fail"
+    return "Pass" if cp_upper(failures, n) <= UPPER_MAX else "Unknown"
+
+
 def _bound(failures: int, n: int, bar: bool = True) -> dict:
     upper = cp_upper(failures, n)
     out = {"failures": failures, "n": n, "rate": failures / n if n else None, "upper95": upper,
            "upper95_method": METHOD, "below_2pct": bool(n) and upper <= 0.02}
+    if bar:
+        out["verdict"] = bar_verdict(failures, n)
+        out["bar"] = {"point_max": POINT_MAX_PCT / 100, "upper95_max": UPPER_MAX}
     if not bar:      # all_claims mixes types: the 2% bar is only about ordinary ok
         out.pop("below_2pct")
         out["status"] = "descriptive" if n else "Unknown"
@@ -158,13 +177,16 @@ def _fmt(value) -> str:
 
 def text_report(result: dict) -> str:
     def block(res: dict) -> list[str]:
-        lines = [U.table(["type", "failures/n", "rate", "upper95", "status"],
-                         [[t, f"{b['failures']}/{b['n']}", _fmt(b["rate"]), _fmt(b["upper95"]), b["status"]]
+        lines = [U.table(["type", "failures/n", "rate", "upper95", "status", "verdict"],
+                         [[t, f"{b['failures']}/{b['n']}", _fmt(b["rate"]), _fmt(b["upper95"]), b["status"],
+                           b.get("verdict", "-")]
                           for t, b in res["types"].items()]),
                  f"rows {res['rows']}: unscorable {res['unscorable']}, no ok claim {res['no_ok_claim']} "
                  f"(hidden pass {res['no_ok_claim_hidden_pass']}), no receipt {res['no_receipt']}"]
         return lines
-    lines = ["false positive = " + result["definition"], "upper95 = " + METHOD + "; n = 0 -> 1.0, Unknown", *block(result)]
+    lines = ["false positive = " + result["definition"], "upper95 = " + METHOD + "; n = 0 -> 1.0, Unknown",
+             "verdict: Pass = point <= 2% and upper95 <= 5%; Fail = point > 2%; otherwise Unknown (#411 decision 2)",
+             *block(result)]
     for value, res in result.get("groups", {}).items():
         lines += ["", f"{result['by']} = {value}", *block(res)]
     return "\n".join(lines)
