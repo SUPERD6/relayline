@@ -1,4 +1,116 @@
 {
+  "command": "python scripts/eval/round2_tasks.py leak --tasks <tasks file> --exclude docs/research/data/round2-bc/b-dev.json docs/research/data/round2-bc/b-dev-check.json docs/research/data/round2-bc/b-dev-native.json docs/research/data/round2-bc/b-dev-leak.json docs/research/data/round2-bc/b-formal-cronlite-build.json docs/research/data/round2-bc/b-formal-cronlite-check.json docs/research/data/round2-bc/b-formal-cronlite-native.json docs/research/data/round2-bc/b-formal-cronlite-leak.json --out <out>",
+  "tasks_file": "the 8 entries of r2b-cronlite-1..8 from build.py build, followed by the 4 development tasks (r2bd-cronlite-1/2, r2bd-tabula-1/2), as {\"tasks\": [...]}; every task is compared with every later one, so each final task is compared with all development tasks",
+  "exclude": [
+    "docs/research/data/round2-bc/b-dev.json",
+    "docs/research/data/round2-bc/b-dev-check.json",
+    "docs/research/data/round2-bc/b-dev-native.json",
+    "docs/research/data/round2-bc/b-dev-leak.json",
+    "docs/research/data/round2-bc/b-formal-cronlite-build.json",
+    "docs/research/data/round2-bc/b-formal-cronlite-check.json",
+    "docs/research/data/round2-bc/b-formal-cronlite-native.json",
+    "docs/research/data/round2-bc/b-formal-cronlite-leak.json"
+  ],
+  "why_exclude": "the b-dev files hold the same authored repository round2-authored/cronlite and the development tasks' own ids and commits, so without excluding them every task reports 'repository used before' (the same round's development tasks, not an earlier evaluation); their briefs are in the tasks file. The b-formal-cronlite files are this check's own outputs.",
+  "not_compared": "upstream B briefs (not written yet) and the tabula final tasks (written in parallel): rerun on the whole set when freezing",
+  "highest_ratio": [
+    {
+      "id": "r2b-cronlite-1",
+      "vs_earlier": {
+        "ratio": 0.2221,
+        "source": "scripts/eval/tasks_holdout.py",
+        "id": "leads-from-adapters"
+      },
+      "vs_new_and_dev": {
+        "ratio": 0.2795,
+        "id": "r2b-cronlite-8"
+      }
+    },
+    {
+      "id": "r2b-cronlite-2",
+      "vs_earlier": {
+        "ratio": 0.2403,
+        "source": "scripts/eval/tasks_holdout.py",
+        "id": "ledger-repair"
+      },
+      "vs_new_and_dev": {
+        "ratio": 0.2784,
+        "id": "r2b-cronlite-1"
+      }
+    },
+    {
+      "id": "r2b-cronlite-3",
+      "vs_earlier": {
+        "ratio": 0.2311,
+        "source": "scripts/eval/tasks_r5.py",
+        "id": "dsh-archive"
+      },
+      "vs_new_and_dev": {
+        "ratio": 0.3004,
+        "id": "r2bd-cronlite-2"
+      }
+    },
+    {
+      "id": "r2b-cronlite-4",
+      "vs_earlier": {
+        "ratio": 0.2016,
+        "source": "scripts/eval/tasks_r5.py",
+        "id": "brief-words"
+      },
+      "vs_new_and_dev": {
+        "ratio": 0.2518,
+        "id": "r2b-cronlite-6"
+      }
+    },
+    {
+      "id": "r2b-cronlite-5",
+      "vs_earlier": {
+        "ratio": 0.2449,
+        "source": "scripts/eval/tasks_holdout.py",
+        "id": "leads-from-adapters"
+      },
+      "vs_new_and_dev": {
+        "ratio": 0.296,
+        "id": "r2b-cronlite-6"
+      }
+    },
+    {
+      "id": "r2b-cronlite-6",
+      "vs_earlier": {
+        "ratio": 0.2102,
+        "source": "scripts/eval/tasks_holdout.py",
+        "id": "discuss-auto-tier"
+      },
+      "vs_new_and_dev": {
+        "ratio": 0.2775,
+        "id": "r2b-cronlite-5"
+      }
+    },
+    {
+      "id": "r2b-cronlite-7",
+      "vs_earlier": {
+        "ratio": 0.1876,
+        "source": "scripts/eval/tasks_holdout.py",
+        "id": "doctor-codex-sandbox"
+      },
+      "vs_new_and_dev": {
+        "ratio": 0.2617,
+        "id": "r2bd-tabula-1"
+      }
+    },
+    {
+      "id": "r2b-cronlite-8",
+      "vs_earlier": {
+        "ratio": 0.205,
+        "source": "scripts/eval/tasks_r5.py",
+        "id": "q-killed-spend"
+      },
+      "vs_new_and_dev": {
+        "ratio": 0.2759,
+        "id": "r2b-cronlite-1"
+      }
+    }
+  ],
   "rule": "same id, same repository, same commit (or earlier short SHA prefix), or normalized brief SequenceMatcher ratio >= 0.6; candidates above 0.4 listed",
   "corpus": {
     "files": 119,

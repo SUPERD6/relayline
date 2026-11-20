@@ -12,7 +12,7 @@
       },
       "start": {
         "rc": 1,
-        "summary": "13 failed, 5 passed in 0.15s",
+        "summary": "13 failed, 5 passed in 0.16s",
         "errors": [
           "E       TypeError: Job.__init__() got an unexpected keyword argument 'tags'",
           "E       TypeError: Job.__init__() got an unexpected keyword argument 'tags'",
@@ -35,7 +35,7 @@
       },
       "reference_full": {
         "rc": 0,
-        "summary": "74 passed in 0.14s",
+        "summary": "74 passed in 0.15s",
         "errors": []
       },
       "reference_failed": [],
@@ -125,10 +125,10 @@
         "errors": []
       },
       "reference_failed": [],
-      "assertions": 25,
+      "assertions": 27,
       "literal_overlap": [
         {
-          "assertion": "tests/test_last_day.py::test_lint_last_day_exists_in_every_month#3",
+          "assertion": "tests/test_last_day.py::test_lint_last_day_exists_in_every_month#4",
           "literal": "missing-days"
         },
         {
@@ -159,7 +159,7 @@
       "problems": [],
       "valid": true,
       "review": [
-        "literal 'missing-days' of tests/test_last_day.py::test_lint_last_day_exists_in_every_month#3 appears in the brief",
+        "literal 'missing-days' of tests/test_last_day.py::test_lint_last_day_exists_in_every_month#4 appears in the brief",
         "literal 'duplicate' of tests/test_last_day.py::test_duplicates_tell_last_day_apart#2 appears in the brief",
         "literal 'duplicate' of tests/test_last_day.py::test_duplicates_tell_last_day_apart#2 appears in the brief",
         "literal 'name' of tests/test_last_day.py:16 (outside an assert) appears in the brief",
@@ -364,7 +364,7 @@
       },
       "reference": {
         "rc": 0,
-        "summary": "8 passed in 0.06s",
+        "summary": "8 passed in 0.05s",
         "errors": []
       },
       "reference_full": {
@@ -767,16 +767,16 @@
       },
       "reference": {
         "rc": 0,
-        "summary": "8 passed in 0.06s",
+        "summary": "9 passed in 0.06s",
         "errors": []
       },
       "reference_full": {
         "rc": 0,
-        "summary": "64 passed in 0.17s",
+        "summary": "65 passed in 0.17s",
         "errors": []
       },
       "reference_failed": [],
-      "assertions": 25,
+      "assertions": 27,
       "literal_overlap": [
         {
           "assertion": "tests/test_load_policies.py::test_policy_options_are_checked#1",

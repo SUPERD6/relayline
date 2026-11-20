@@ -74,6 +74,14 @@ def test_policy_report():
         dropped_runs([queue], END, START)
 
 
+def test_queue_chain_across_midnight():
+    chain = CronExpr.parse("30,35,40 23 31 12 *")
+    jobs = [JobLoad("x", chain, 15, policy="queue", max_queue=2)]
+    occ = sorted(occupancy(jobs, START, END))
+    assert occ[0] == datetime(2026, 1, 1, 0, 1) and occ[-1] == datetime(2026, 1, 1, 0, 14) and len(occ) == 14
+    assert busy_minutes(jobs, datetime(2026, 1, 1, 12)) == {"x": 15}
+
+
 def test_run_still_going_when_the_window_opens():
     late = CronExpr.parse("50,55 23 31 12 *")
     jobs = [JobLoad("x", late, 15, policy="queue")]

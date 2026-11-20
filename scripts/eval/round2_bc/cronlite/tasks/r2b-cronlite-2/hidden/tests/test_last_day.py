@@ -46,6 +46,8 @@ def test_canonical_text():
     assert canonical("0 0 L,5 * *") == "0 0 5,L * *"
     assert canonical("0 0 l * *") == "0 0 L * *"
     assert equivalent("0 0 L * *", "0 0 l * *") and not equivalent("0 0 L * *", "0 0 31 * *")
+    every_number = ",".join(str(d) for d in range(1, 32))
+    assert canonical(f"0 0 {every_number},L * *") == "0 0 * * *"
 
 
 def test_describe_last_day():
@@ -57,6 +59,7 @@ def test_describe_last_day():
 def test_lint_last_day_exists_in_every_month():
     assert lint("0 0 L * *") == []
     assert lint("0 0 L 2 *") == []
+    assert lint("0 0 29,L 2 *") == []
     assert [w.code for w in lint("0 0 31,L 4 *")] == ["missing-days"]
 
 
