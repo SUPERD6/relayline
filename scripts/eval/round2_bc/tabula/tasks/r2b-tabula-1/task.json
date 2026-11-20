@@ -1,0 +1,31 @@
+{
+ "id": "r2b-tabula-1",
+ "subject": "Query language: list membership and inclusive ranges",
+ "author_model": "claude-opus-5-5",
+ "brief": "Extend the row filter language in the tabula query module with list membership and ranges.\n\n1. `x in (v1, v2, ...)` is true when the value of x equals one of the listed values. A list is written in parentheses with the values separated by commas, and it holds one or more literal values only: numbers, quoted strings, null, true or false. Writing null in the list makes the test match rows where the value is missing (None).\n2. `x not in (...)` is true when the value is present and equals none of the listed values. Edge case: for a missing value it is always false, so it is not the same as the plain negation `not x in (...)`, which is true for a missing value that is not listed.\n3. `x between low and high` is true when low <= x <= high (both ends included). The bounds are never swapped: when the lower bound is greater than the upper one, no row matches. A missing value, or values that cannot be compared with each other (text against a number), make the test false instead of raising. The `and` that separates the two bounds belongs to between, so `a between 1 and 2 and b == 3` is the range test combined with the second comparison. null is not allowed as an operand of between.\n4. The new words in and between (and not when it comes right before in) are keywords and, like the existing keywords, case-insensitive.\n5. Mistakes raise QueryError carrying the position of the offending token: no opening parenthesis after in (the position is that of the token found there instead), an empty list, a list element that is not a literal (for example a column name; the position is that of the element), two elements without a comma between them, a between without its `and` part, and a not after a value that is not followed by in.\n\nAll behavior that the existing tests check must keep working.",
+ "hidden_tests": [
+  "tests/test_query_lists.py"
+ ],
+ "trace_by_test": {
+  "test_in_matches_any_listed_value": "`x in (v1, v2, ...)` is true when the value of x equals one of the listed values.",
+  "test_listed_null_matches_missing_values": "Writing null in the list makes the test match rows where the value is missing (None).",
+  "test_not_in_is_never_true_for_a_missing_value": [
+   "`x not in (...)` is true when the value is present and equals none of the listed values.",
+   "Edge case: for a missing value it is always false, so it is not the same as the plain negation `not x in (...)`, which is true for a missing value that is not listed."
+  ],
+  "test_between_is_inclusive_and_owns_its_and": [
+   "`x between low and high` is true when low <= x <= high (both ends included).",
+   "The `and` that separates the two bounds belongs to between, so `a between 1 and 2 and b == 3` is the range test combined with the second comparison.",
+   "The bounds are never swapped: when the lower bound is greater than the upper one, no row matches."
+  ],
+  "test_between_is_false_for_missing_or_mixed_values": "A missing value, or values that cannot be compared with each other (text against a number), make the test false instead of raising.",
+  "test_new_keywords_ignore_case": "The new words in and between (and not when it comes right before in) are keywords and, like the existing keywords, case-insensitive.",
+  "test_list_errors_carry_position": [
+   "no opening parenthesis after in (the position is that of the token found there instead)",
+   "no opening parenthesis after in (the position is that of the token found there instead)",
+   "a list element that is not a literal (for example a column name; the position is that of the element)",
+   "a list element that is not a literal (for example a column name; the position is that of the element)"
+  ],
+  "test_malformed_lists_and_ranges_are_rejected": "Mistakes raise QueryError carrying the position of the offending token: no opening parenthesis after in (the position is that of the token found there instead), an empty list, a list element that is not a literal (for example a column name; the position is that of the element), two elements without a comma between them, a between without its `and` part, and a not after a value that is not followed by in."
+ }
+}

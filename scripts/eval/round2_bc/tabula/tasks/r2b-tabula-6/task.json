@@ -1,0 +1,36 @@
+{
+ "id": "r2b-tabula-6",
+ "subject": "Window functions per group and a shift function",
+ "author_model": "claude-opus-5-5",
+ "brief": "Add grouping to the window functions of the tabula window module, and a new shift function.\n\n1. `rolling_mean`, `rank`, `difference` and `share` take a new keyword `by`: one column name or a list of names. With it, the function is computed separately within each group of rows that share the same values in those columns, as if each group were its own table in its original row order: the rolling window and the lag of difference never reach into another group, ranks (with either ranking method and in either direction) are positions inside the group, and a share is relative to the group's total. A None in a `by` column forms a group of its own. The result column keeps the table's original row order; rows are not regrouped or reordered. Edge case: a group whose total is 0 gets None for all its shares, without affecting other groups. Without `by` everything behaves as before. An unknown `by` column raises KeyError, an empty list raises ValueError.\n2. A new function `shift(table, column, periods=1, name=None, fill=None, by=None)` in the window module adds a column with the value from `periods` rows earlier; a negative `periods` takes the value from that many rows later instead. Where no such row exists (inside the group, when `by` is given), the new cell is `fill`. A None that is actually found in the source row is copied as None, not replaced by `fill`. The default name is the column name followed by `_shift` and the periods number as str() writes it (so a negative number keeps its minus sign). periods must be a non-zero whole number, otherwise ValueError; a name that already exists raises ValueError, as in the other window functions.\n\nAll behavior that the existing tests check must keep working.",
+ "hidden_tests": [
+  "tests/test_window_groups.py"
+ ],
+ "trace_by_test": {
+  "test_rolling_mean_per_group_keeps_row_order": [
+   "With it, the function is computed separately within each group of rows that share the same values in those columns, as if each group were its own table in its original row order: the rolling window and the lag of difference never reach into another group",
+   "The result column keeps the table's original row order; rows are not regrouped or reordered."
+  ],
+  "test_rank_per_group": "ranks (with either ranking method and in either direction) are positions inside the group",
+  "test_difference_restarts_in_each_group": [
+   "the rolling window and the lag of difference never reach into another group",
+   "`rolling_mean`, `rank`, `difference` and `share` take a new keyword `by`: one column name or a list of names."
+  ],
+  "test_share_of_group_total": [
+   "a share is relative to the group's total. A None in a `by` column forms a group of its own.",
+   "Edge case: a group whose total is 0 gets None for all its shares, without affecting other groups."
+  ],
+  "test_shift_back_and_ahead": [
+   "A new function `shift(table, column, periods=1, name=None, fill=None, by=None)` in the window module adds a column with the value from `periods` rows earlier",
+   "a negative `periods` takes the value from that many rows later instead. Where no such row exists (inside the group, when `by` is given), the new cell is `fill`. A None that is actually found in the source row is copied as None, not replaced by `fill`.",
+   "The default name is the column name followed by `_shift` and the periods number as str() writes it (so a negative number keeps its minus sign).",
+   "A new function `shift(table, column, periods=1, name=None, fill=None, by=None)` in the window module adds a column with the value from `periods` rows earlier"
+  ],
+  "test_bad_arguments": [
+   "An unknown `by` column raises KeyError, an empty list raises ValueError.",
+   "An unknown `by` column raises KeyError, an empty list raises ValueError.",
+   "periods must be a non-zero whole number, otherwise ValueError",
+   "a name that already exists raises ValueError, as in the other window functions."
+  ]
+ }
+}

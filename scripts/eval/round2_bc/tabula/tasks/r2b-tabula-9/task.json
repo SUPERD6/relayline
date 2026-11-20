@@ -1,0 +1,32 @@
+{
+ "id": "r2b-tabula-9",
+ "subject": "Missing values: backward fill, interpolation and a per-run limit",
+ "author_model": "claude-opus-5-5",
+ "brief": "Give `fill_missing` in the tabula clean module two more methods and a limit.\n\n1. Method `backward`: each None takes the next value that is not None in the same column; None values after the last present value stay None.\n2. Method `interpolate`: within a run of consecutive None values that has a number on both sides, the missing values are spread evenly on a straight line between those two numbers according to row position (one missing value between 2 and 4 becomes 3). Interpolated values are always floats, even when they are whole. Runs at the start or end of the column (with no number on one side) stay None. Booleans do not count as numbers: when a value next to such a run is not a number, raise TypeError. Only the columns selected by `columns` are touched; the others stay as they are.\n3. A new keyword `limit` (default None, meaning no limit) caps how many values of each run of consecutive None are filled. For `value` and `forward` these are the first values of the run, for `backward` the last ones (those closest to the value that is copied). Edge case: `interpolate` never fills only part of a run: a run longer than the limit stays entirely None. A limit must be a whole number of at least 1, otherwise raise ValueError.\n4. Any other method name still raises ValueError.\n\nAll behavior that the existing tests check must keep working.",
+ "hidden_tests": [
+  "tests/test_fill_methods.py"
+ ],
+ "trace_by_test": {
+  "test_backward_takes_the_next_value": "Method `backward`: each None takes the next value that is not None in the same column; None values after the last present value stay None.",
+  "test_interpolate_between_numbers": [
+   "Method `interpolate`: within a run of consecutive None values that has a number on both sides, the missing values are spread evenly on a straight line between those two numbers according to row position (one missing value between 2 and 4 becomes 3).",
+   "Interpolated values are always floats, even when they are whole."
+  ],
+  "test_limit_per_run": [
+   "A new keyword `limit` (default None, meaning no limit) caps how many values of each run of consecutive None are filled. For `value` and `forward` these are the first values of the run",
+   "for `backward` the last ones (those closest to the value that is copied).",
+   "for `backward` the last ones (those closest to the value that is copied).",
+   "For `value` and `forward` these are the first values of the run"
+  ],
+  "test_interpolate_leaves_long_runs_whole": "Edge case: `interpolate` never fills only part of a run: a run longer than the limit stays entirely None.",
+  "test_interpolate_needs_numbers_on_both_sides": [
+   "Booleans do not count as numbers: when a value next to such a run is not a number, raise TypeError.",
+   "Booleans do not count as numbers: when a value next to such a run is not a number, raise TypeError.",
+   "Only the columns selected by `columns` are touched; the others stay as they are."
+  ],
+  "test_bad_method_or_limit": [
+   "Any other method name still raises ValueError.",
+   "A limit must be a whole number of at least 1, otherwise raise ValueError."
+  ]
+ }
+}

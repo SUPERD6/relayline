@@ -1,0 +1,39 @@
+{
+ "id": "r2b-tabula-2",
+ "subject": "Joins: differently named keys, key uniqueness checks and an origin column",
+ "author_model": "claude-opus-5-5",
+ "brief": "Three additions to joins in the tabula package.\n\n1. Keys with different names. `join`, `semi_join` and `anti_join` also accept `on` as a dict that maps a key column name of the left table to the matching key column name of the right table (several pairs for a multi-column key). The result keeps one copy of each key column, named as in the left table, in the first positions; the right key columns do not appear. For `right` and `outer` joins, a right row without a match puts its key values into those left-named key columns. If a non-key column of the right table has the same name as a left key column, the result names would collide, which raises ValueError.\n2. `join(..., indicator=name)` adds one more column, placed last and called by that name. It says where each row came from: `both` for a matched pair, `left` for an unmatched left row, `right` for an unmatched right row. Without the argument no such column is added. A name that is already one of the result's columns raises ValueError.\n3. `join(..., validate=rule)` checks that keys are unique before joining. Rules: `1:1` (both tables), `1:m` (left table), `m:1` (right table); any other value raises ValueError. A violation raises a new exception `JoinError`, a subclass of TabulaError exported by the package, with attributes `side` (the string left or right) and `key` (the repeated key as a tuple: the first key found repeating, in row order). For `1:1` the left table is checked first. The check covers every row, including keys that would not match anything in the other table, with one exception (edge case): keys that contain None never match, so they are skipped and several rows may have them.\n\nAll behavior that the existing tests check must keep working.",
+ "hidden_tests": [
+  "tests/test_join_checks.py"
+ ],
+ "trace_by_test": {
+  "test_keys_with_different_names": [
+   "The result keeps one copy of each key column, named as in the left table, in the first positions; the right key columns do not appear.",
+   "`join`, `semi_join` and `anti_join` also accept `on` as a dict that maps a key column name of the left table to the matching key column name of the right table (several pairs for a multi-column key)."
+  ],
+  "test_unmatched_right_rows_fill_the_left_key_column": "For `right` and `outer` joins, a right row without a match puts its key values into those left-named key columns.",
+  "test_semi_and_anti_accept_a_mapping": "`join`, `semi_join` and `anti_join` also accept `on` as a dict that maps a key column name of the left table to the matching key column name of the right table (several pairs for a multi-column key).",
+  "test_right_column_named_like_a_left_key_collides": "If a non-key column of the right table has the same name as a left key column, the result names would collide, which raises ValueError.",
+  "test_indicator_column": [
+   "`join(..., indicator=name)` adds one more column, placed last and called by that name.",
+   "It says where each row came from: `both` for a matched pair, `left` for an unmatched left row, `right` for an unmatched right row.",
+   "It says where each row came from: `both` for a matched pair, `left` for an unmatched left row, `right` for an unmatched right row.",
+   "Without the argument no such column is added."
+  ],
+  "test_indicator_name_must_be_free": "A name that is already one of the result's columns raises ValueError.",
+  "test_validate_reports_side_and_key": [
+   "Rules: `1:1` (both tables), `1:m` (left table), `m:1` (right table); any other value raises ValueError.",
+   "A violation raises a new exception `JoinError`, a subclass of TabulaError exported by the package, with attributes `side` (the string left or right) and `key` (the repeated key as a tuple: the first key found repeating, in row order).",
+   "A violation raises a new exception `JoinError`, a subclass of TabulaError exported by the package, with attributes `side` (the string left or right) and `key` (the repeated key as a tuple: the first key found repeating, in row order).",
+   "A violation raises a new exception `JoinError`, a subclass of TabulaError exported by the package, with attributes `side` (the string left or right) and `key` (the repeated key as a tuple: the first key found repeating, in row order)."
+  ],
+  "test_validate_ignores_missing_keys": "with one exception (edge case): keys that contain None never match, so they are skipped and several rows may have them.",
+  "test_one_to_one_checks_left_first_and_unmatched_keys_too": [
+   "For `1:1` the left table is checked first.",
+   "For `1:1` the left table is checked first.",
+   "The check covers every row, including keys that would not match anything in the other table",
+   "A violation raises a new exception `JoinError`, a subclass of TabulaError exported by the package, with attributes `side` (the string left or right) and `key` (the repeated key as a tuple: the first key found repeating, in row order)."
+  ],
+  "test_unknown_validate_rule": "Rules: `1:1` (both tables), `1:m` (left table), `m:1` (right table); any other value raises ValueError."
+ }
+}

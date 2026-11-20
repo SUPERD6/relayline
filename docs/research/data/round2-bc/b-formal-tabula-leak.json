@@ -1,0 +1,194 @@
+{
+  "rule": "same id, same repository, same commit (or earlier short SHA prefix), or normalized brief SequenceMatcher ratio >= 0.6; candidates above 0.4 listed",
+  "corpus": {
+    "files": 119,
+    "briefs": 710,
+    "ids": 366,
+    "repos": [
+      "boltons",
+      "exercism-python",
+      "humanize",
+      "itsdangerous",
+      "more-itertools",
+      "pluggy",
+      "polyglot",
+      "polyglot-benchmark",
+      "python"
+    ],
+    "errors": []
+  },
+  "tasks": [
+    {
+      "id": "r2b-tabula-1",
+      "findings": [],
+      "listed_above_0.4": [],
+      "clean": true
+    },
+    {
+      "id": "r2b-tabula-2",
+      "findings": [],
+      "listed_above_0.4": [],
+      "clean": true
+    },
+    {
+      "id": "r2b-tabula-3",
+      "findings": [],
+      "listed_above_0.4": [],
+      "clean": true
+    },
+    {
+      "id": "r2b-tabula-4",
+      "findings": [],
+      "listed_above_0.4": [],
+      "clean": true
+    },
+    {
+      "id": "r2b-tabula-5",
+      "findings": [],
+      "listed_above_0.4": [],
+      "clean": true
+    },
+    {
+      "id": "r2b-tabula-6",
+      "findings": [],
+      "listed_above_0.4": [],
+      "clean": true
+    },
+    {
+      "id": "r2b-tabula-7",
+      "findings": [],
+      "listed_above_0.4": [],
+      "clean": true
+    },
+    {
+      "id": "r2b-tabula-8",
+      "findings": [],
+      "listed_above_0.4": [],
+      "clean": true
+    },
+    {
+      "id": "r2b-tabula-9",
+      "findings": [],
+      "listed_above_0.4": [],
+      "clean": true
+    },
+    {
+      "id": "r2bd-cronlite-1",
+      "findings": [],
+      "listed_above_0.4": [],
+      "clean": true
+    },
+    {
+      "id": "r2bd-cronlite-2",
+      "findings": [],
+      "listed_above_0.4": [],
+      "clean": true
+    },
+    {
+      "id": "r2bd-tabula-1",
+      "findings": [],
+      "listed_above_0.4": [],
+      "clean": true
+    },
+    {
+      "id": "r2bd-tabula-2",
+      "findings": [],
+      "listed_above_0.4": [],
+      "clean": true
+    }
+  ],
+  "clean": true,
+  "about": "round2_tasks.py leak on the 9 tabula final tasks followed by the 4 development tasks (every pair compared). Excluded from the corpus: b-dev.json, b-dev-check.json, b-dev-leak.json, b-dev-native.json, which hold the development tasks themselves (same ids, same repositories by design). The upstream B selection is not on main and is not in this corpus.",
+  "highest_ratios": {
+    "r2b-tabula-1": {
+      "max_new_or_dev": [
+        0.29,
+        "r2b-tabula-3"
+      ],
+      "max_earlier": [
+        0.2536,
+        "scripts/eval/tasks_holdout.py:doctor-codex-sandbox"
+      ]
+    },
+    "r2b-tabula-2": {
+      "max_new_or_dev": [
+        0.3346,
+        "r2b-tabula-3"
+      ],
+      "max_earlier": [
+        0.2334,
+        "scripts/eval/tasks_r2.py:par10"
+      ]
+    },
+    "r2b-tabula-3": {
+      "max_new_or_dev": [
+        0.2838,
+        "r2bd-tabula-2"
+      ],
+      "max_earlier": [
+        0.2128,
+        "scripts/eval/tasks_r5.py:q-resume-session"
+      ]
+    },
+    "r2b-tabula-4": {
+      "max_new_or_dev": [
+        0.2663,
+        "r2b-tabula-3"
+      ],
+      "max_earlier": [
+        0.2324,
+        "scripts/eval/tasks_holdout.py:discuss-auto-tier"
+      ]
+    },
+    "r2b-tabula-5": {
+      "max_new_or_dev": [
+        0.2997,
+        "r2b-tabula-8"
+      ],
+      "max_earlier": [
+        0.2286,
+        "scripts/eval/tasks_r5.py:q-resume-session"
+      ]
+    },
+    "r2b-tabula-6": {
+      "max_new_or_dev": [
+        0.2997,
+        "r2b-tabula-2"
+      ],
+      "max_earlier": [
+        0.2323,
+        "scripts/eval/tasks_holdout.py:its-timed-fallback-signers"
+      ]
+    },
+    "r2b-tabula-7": {
+      "max_new_or_dev": [
+        0.265,
+        "r2b-tabula-1"
+      ],
+      "max_earlier": [
+        0.2202,
+        "scripts/eval/tasks_r5.py:brief-words"
+      ]
+    },
+    "r2b-tabula-8": {
+      "max_new_or_dev": [
+        0.2981,
+        "r2b-tabula-5"
+      ],
+      "max_earlier": [
+        0.2292,
+        "scripts/eval/tasks_long.py:long-boltons-mapping-updates"
+      ]
+    },
+    "r2b-tabula-9": {
+      "max_new_or_dev": [
+        0.2765,
+        "r2bd-tabula-2"
+      ],
+      "max_earlier": [
+        0.2764,
+        "scripts/eval/tasks_holdout.py:send-busy-guard"
+      ]
+    }
+  }
+}

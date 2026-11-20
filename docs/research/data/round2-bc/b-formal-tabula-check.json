@@ -1,0 +1,584 @@
+{
+  "about": "build.py check (round2_tasks.check_authored, #463 full suite on the reference) for the 9 tabula final tasks; the same run checked the 4 development tasks, all valid as well.",
+  "run_all_valid": true,
+  "models_called": false,
+  "tasks": [
+    {
+      "id": "r2b-tabula-1",
+      "pythonutf8": true,
+      "existing": {
+        "rc": 0,
+        "summary": "93 passed in 0.13s",
+        "errors": []
+      },
+      "start": {
+        "rc": 1,
+        "summary": "7 failed, 5 passed in 0.14s",
+        "errors": [
+          "E           tabula.query.QueryError: at 12: unexpected character ','",
+          "E           tabula.query.QueryError: at 12: unexpected character ','",
+          "E           tabula.query.QueryError: at 4: unexpected 'not'",
+          "E           tabula.query.QueryError: at 4: unexpected 'between'",
+          "E           tabula.query.QueryError: at 5: unexpected 'between'",
+          "E           tabula.query.QueryError: at 4: unexpected 'IN'",
+          "E       assert 4 == 7",
+          "E        +  where 4 = QueryError(\"at 4: unexpected 'in'\").position",
+          "E        +    where QueryError(\"at 4: unexpected 'in'\") = <ExceptionInfo QueryError(\"at 4: unexpected 'in'\") tblen=3>.value",
+          "FAILED tests/test_query_lists.py::test_in_matches_any_listed_value - tabula.q...",
+          "FAILED tests/test_query_lists.py::test_listed_null_matches_missing_values - t...",
+          "FAILED tests/test_query_lists.py::test_not_in_is_never_true_for_a_missing_value"
+        ]
+      },
+      "reference": {
+        "rc": 0,
+        "summary": "12 passed in 0.04s",
+        "errors": []
+      },
+      "reference_full": {
+        "rc": 0,
+        "summary": "105 passed in 0.14s",
+        "errors": []
+      },
+      "reference_failed": [],
+      "assertions": 17,
+      "literal_overlap": [],
+      "unmapped": [],
+      "unknown_in_trace": [],
+      "sentence_not_in_brief": [],
+      "trace_complete": true,
+      "problems": [],
+      "valid": true,
+      "review": [],
+      "lib": "tabula",
+      "dev": false
+    },
+    {
+      "id": "r2b-tabula-2",
+      "pythonutf8": true,
+      "existing": {
+        "rc": 0,
+        "summary": "93 passed in 0.12s",
+        "errors": []
+      },
+      "start": {
+        "rc": 2,
+        "summary": "1 error in 0.14s",
+        "errors": [
+          "E   ImportError: cannot import name 'JoinError' from 'tabula' (<tree>\\tabula\\__init__.py)",
+          "ERROR tests/test_join_checks.py"
+        ]
+      },
+      "reference": {
+        "rc": 0,
+        "summary": "10 passed in 0.04s",
+        "errors": []
+      },
+      "reference_full": {
+        "rc": 0,
+        "summary": "103 passed in 0.13s",
+        "errors": []
+      },
+      "reference_failed": [],
+      "assertions": 21,
+      "literal_overlap": [
+        {
+          "assertion": "tests/test_join_checks.py::test_indicator_column#2",
+          "literal": "both"
+        },
+        {
+          "assertion": "tests/test_join_checks.py::test_indicator_column#2",
+          "literal": "left"
+        },
+        {
+          "assertion": "tests/test_join_checks.py::test_indicator_column#2",
+          "literal": "both"
+        },
+        {
+          "assertion": "tests/test_join_checks.py::test_indicator_column#2",
+          "literal": "left"
+        },
+        {
+          "assertion": "tests/test_join_checks.py::test_indicator_column#2",
+          "literal": "right"
+        },
+        {
+          "assertion": "tests/test_join_checks.py::test_indicator_column#2",
+          "literal": "right"
+        },
+        {
+          "assertion": "tests/test_join_checks.py::test_indicator_column#3",
+          "literal": "both"
+        },
+        {
+          "assertion": "tests/test_join_checks.py::test_indicator_column#3",
+          "literal": "both"
+        },
+        {
+          "assertion": "tests/test_join_checks.py::test_validate_reports_side_and_key#3",
+          "literal": "left"
+        },
+        {
+          "assertion": "tests/test_join_checks.py::test_one_to_one_checks_left_first_and_unmatched_keys_too#2",
+          "literal": "left"
+        },
+        {
+          "assertion": "tests/test_join_checks.py::test_one_to_one_checks_left_first_and_unmatched_keys_too#4",
+          "literal": "right"
+        },
+        {
+          "assertion": "tests/test_join_checks.py:33 (outside an assert)",
+          "literal": "outer"
+        }
+      ],
+      "unmapped": [],
+      "unknown_in_trace": [],
+      "sentence_not_in_brief": [],
+      "trace_complete": true,
+      "problems": [],
+      "valid": true,
+      "review": [
+        "literal 'both' of tests/test_join_checks.py::test_indicator_column#2 appears in the brief",
+        "literal 'left' of tests/test_join_checks.py::test_indicator_column#2 appears in the brief",
+        "literal 'both' of tests/test_join_checks.py::test_indicator_column#2 appears in the brief",
+        "literal 'left' of tests/test_join_checks.py::test_indicator_column#2 appears in the brief",
+        "literal 'right' of tests/test_join_checks.py::test_indicator_column#2 appears in the brief",
+        "literal 'right' of tests/test_join_checks.py::test_indicator_column#2 appears in the brief",
+        "literal 'both' of tests/test_join_checks.py::test_indicator_column#3 appears in the brief",
+        "literal 'both' of tests/test_join_checks.py::test_indicator_column#3 appears in the brief",
+        "literal 'left' of tests/test_join_checks.py::test_validate_reports_side_and_key#3 appears in the brief",
+        "literal 'left' of tests/test_join_checks.py::test_one_to_one_checks_left_first_and_unmatched_keys_too#2 appears in the brief",
+        "literal 'right' of tests/test_join_checks.py::test_one_to_one_checks_left_first_and_unmatched_keys_too#4 appears in the brief",
+        "literal 'outer' of tests/test_join_checks.py:33 (outside an assert) appears in the brief"
+      ],
+      "lib": "tabula",
+      "dev": false
+    },
+    {
+      "id": "r2b-tabula-3",
+      "pythonutf8": true,
+      "existing": {
+        "rc": 0,
+        "summary": "93 passed in 0.12s",
+        "errors": []
+      },
+      "start": {
+        "rc": 1,
+        "summary": "12 failed, 1 passed in 0.13s",
+        "errors": [
+          "E       TypeError: read_rows() got an unexpected keyword argument 'comment'",
+          "E       TypeError: read_rows() got an unexpected keyword argument 'comment'",
+          "E       TypeError: read_rows() got an unexpected keyword argument 'comment'",
+          "E           TypeError: read_table() got an unexpected keyword argument 'comment'",
+          "E           TypeError: read_rows() got an unexpected keyword argument 'comment'",
+          "E           TypeError: read_rows() got an unexpected keyword argument 'comment'",
+          "E           TypeError: read_rows() got an unexpected keyword argument 'comment'",
+          "E           TypeError: read_rows() got an unexpected keyword argument 'comment'",
+          "E       TypeError: write_table() got an unexpected keyword argument 'comment'",
+          "E           TypeError: write_table() got an unexpected keyword argument 'preamble'",
+          "E       TypeError: write_table() got an unexpected keyword argument 'comment'",
+          "E           TypeError: write_rows() got an unexpected keyword argument 'comment'"
+        ]
+      },
+      "reference": {
+        "rc": 0,
+        "summary": "13 passed in 0.04s",
+        "errors": []
+      },
+      "reference_full": {
+        "rc": 0,
+        "summary": "106 passed in 0.13s",
+        "errors": []
+      },
+      "reference_failed": [],
+      "assertions": 20,
+      "literal_overlap": [
+        {
+          "assertion": "tests/test_comment_lines.py:63 (outside an assert)",
+          "literal": "none"
+        }
+      ],
+      "unmapped": [],
+      "unknown_in_trace": [],
+      "sentence_not_in_brief": [],
+      "trace_complete": true,
+      "problems": [],
+      "valid": true,
+      "review": [
+        "literal 'none' of tests/test_comment_lines.py:63 (outside an assert) appears in the brief"
+      ],
+      "lib": "tabula",
+      "dev": false
+    },
+    {
+      "id": "r2b-tabula-4",
+      "pythonutf8": true,
+      "existing": {
+        "rc": 0,
+        "summary": "93 passed in 0.12s",
+        "errors": []
+      },
+      "start": {
+        "rc": 2,
+        "summary": "1 error in 0.13s",
+        "errors": [
+          "E   ImportError: cannot import name 'top_n' from 'tabula.aggregate' (<tree>\\tabula\\aggregate.py)",
+          "ERROR tests/test_group_extras.py"
+        ]
+      },
+      "reference": {
+        "rc": 0,
+        "summary": "15 passed in 0.04s",
+        "errors": []
+      },
+      "reference_full": {
+        "rc": 0,
+        "summary": "108 passed in 0.14s",
+        "errors": []
+      },
+      "reference_failed": [],
+      "assertions": 18,
+      "literal_overlap": [
+        {
+          "assertion": "tests/test_group_extras.py::test_common_value_tie_goes_to_first_seen#1",
+          "literal": "common"
+        },
+        {
+          "assertion": "tests/test_group_extras.py::test_common_value_tie_goes_to_first_seen#2",
+          "literal": "common"
+        },
+        {
+          "assertion": "tests/test_group_extras.py::test_pivot_takes_new_names#3",
+          "literal": "common"
+        }
+      ],
+      "unmapped": [],
+      "unknown_in_trace": [],
+      "sentence_not_in_brief": [],
+      "trace_complete": true,
+      "problems": [],
+      "valid": true,
+      "review": [
+        "literal 'common' of tests/test_group_extras.py::test_common_value_tie_goes_to_first_seen#1 appears in the brief",
+        "literal 'common' of tests/test_group_extras.py::test_common_value_tie_goes_to_first_seen#2 appears in the brief",
+        "literal 'common' of tests/test_group_extras.py::test_pivot_takes_new_names#3 appears in the brief"
+      ],
+      "lib": "tabula",
+      "dev": false
+    },
+    {
+      "id": "r2b-tabula-5",
+      "pythonutf8": true,
+      "existing": {
+        "rc": 0,
+        "summary": "93 passed in 0.12s",
+        "errors": []
+      },
+      "start": {
+        "rc": 1,
+        "summary": "8 failed in 0.12s",
+        "errors": [
+          "E       AssertionError: assert [{'qty': (1.5...': (0, None)}] == [{'ok': (True...': (0, None)}]",
+          "E         ",
+          "E         At index 0 diff: {'qty': (1.5, 1.52), 'note': ('b', 'B')} != {'ok': (True, 1)}",
+          "E         Right contains one more item: {'qty': (0, None)}",
+          "E         Use -v to get more diff",
+          "E       TypeError: diff() got an unexpected keyword argument 'tolerance'",
+          "E       TypeError: diff() got an unexpected keyword argument 'tolerance'",
+          "E       TypeError: diff() got an unexpected keyword argument 'ignore'",
+          "E           TypeError: diff() got an unexpected keyword argument 'ignore'",
+          "E       AttributeError: 'TableDiff' object has no attribute 'column_counts'",
+          "E       TypeError: render_diff() got an unexpected keyword argument 'limit'",
+          "E       TypeError: diff() got an unexpected keyword argument 'ignore'"
+        ]
+      },
+      "reference": {
+        "rc": 0,
+        "summary": "8 passed in 0.03s",
+        "errors": []
+      },
+      "reference_full": {
+        "rc": 0,
+        "summary": "101 passed in 0.13s",
+        "errors": []
+      },
+      "reference_failed": [],
+      "assertions": 21,
+      "literal_overlap": [],
+      "unmapped": [],
+      "unknown_in_trace": [],
+      "sentence_not_in_brief": [],
+      "trace_complete": true,
+      "problems": [],
+      "valid": true,
+      "review": [],
+      "lib": "tabula",
+      "dev": false
+    },
+    {
+      "id": "r2b-tabula-6",
+      "pythonutf8": true,
+      "existing": {
+        "rc": 0,
+        "summary": "93 passed in 0.12s",
+        "errors": []
+      },
+      "start": {
+        "rc": 2,
+        "summary": "1 error in 0.13s",
+        "errors": [
+          "E   ImportError: cannot import name 'shift' from 'tabula.window' (<tree>\\tabula\\window.py)",
+          "ERROR tests/test_window_groups.py"
+        ]
+      },
+      "reference": {
+        "rc": 0,
+        "summary": "6 passed in 0.04s",
+        "errors": []
+      },
+      "reference_full": {
+        "rc": 0,
+        "summary": "99 passed in 0.13s",
+        "errors": []
+      },
+      "reference_failed": [],
+      "assertions": 17,
+      "literal_overlap": [],
+      "unmapped": [],
+      "unknown_in_trace": [],
+      "sentence_not_in_brief": [],
+      "trace_complete": true,
+      "problems": [],
+      "valid": true,
+      "review": [],
+      "lib": "tabula",
+      "dev": false
+    },
+    {
+      "id": "r2b-tabula-7",
+      "pythonutf8": true,
+      "existing": {
+        "rc": 0,
+        "summary": "93 passed in 0.12s",
+        "errors": []
+      },
+      "start": {
+        "rc": 1,
+        "summary": "7 failed in 0.13s",
+        "errors": [
+          "E           ValueError: unknown kind(s): date",
+          "E           ValueError: unknown kind(s): date",
+          "E       TypeError: infer_kind() got an unexpected keyword argument 'dates'",
+          "E       TypeError: infer_schema() got an unexpected keyword argument 'dates'",
+          "E       TypeError: Object of type date is not JSON serializable",
+          "E       TypeError: from_jsonl() got an unexpected keyword argument 'dates'",
+          "E           TypeError: from_jsonl() got an unexpected keyword argument 'dates'",
+          "FAILED tests/test_date_kind.py::test_schema_reads_dates_and_datetimes - Value...",
+          "FAILED tests/test_date_kind.py::test_impossible_day_is_a_coercion_error - Val...",
+          "FAILED tests/test_date_kind.py::test_inference_finds_dates_only_when_asked - ...",
+          "FAILED tests/test_date_kind.py::test_infer_schema_with_dates - TypeError: inf...",
+          "FAILED tests/test_date_kind.py::test_jsonl_writes_iso_text - TypeError: Objec..."
+        ]
+      },
+      "reference": {
+        "rc": 0,
+        "summary": "7 passed in 0.04s",
+        "errors": []
+      },
+      "reference_full": {
+        "rc": 0,
+        "summary": "100 passed in 0.14s",
+        "errors": []
+      },
+      "reference_failed": [],
+      "assertions": 19,
+      "literal_overlap": [
+        {
+          "assertion": "tests/test_date_kind.py::test_impossible_day_is_a_coercion_error#2",
+          "literal": "date"
+        },
+        {
+          "assertion": "tests/test_date_kind.py::test_inference_finds_dates_only_when_asked#2",
+          "literal": "date"
+        },
+        {
+          "assertion": "tests/test_date_kind.py::test_inference_finds_dates_only_when_asked#5",
+          "literal": "date"
+        },
+        {
+          "assertion": "tests/test_date_kind.py::test_infer_schema_with_dates#1",
+          "literal": "date"
+        },
+        {
+          "assertion": "tests/test_date_kind.py::test_infer_schema_with_dates#3",
+          "literal": "float"
+        },
+        {
+          "assertion": "tests/test_date_kind.py::test_jsonl_date_errors#2",
+          "literal": "date"
+        }
+      ],
+      "unmapped": [],
+      "unknown_in_trace": [],
+      "sentence_not_in_brief": [],
+      "trace_complete": true,
+      "problems": [],
+      "valid": true,
+      "review": [
+        "literal 'date' of tests/test_date_kind.py::test_impossible_day_is_a_coercion_error#2 appears in the brief",
+        "literal 'date' of tests/test_date_kind.py::test_inference_finds_dates_only_when_asked#2 appears in the brief",
+        "literal 'date' of tests/test_date_kind.py::test_inference_finds_dates_only_when_asked#5 appears in the brief",
+        "literal 'date' of tests/test_date_kind.py::test_infer_schema_with_dates#1 appears in the brief",
+        "literal 'float' of tests/test_date_kind.py::test_infer_schema_with_dates#3 appears in the brief",
+        "literal 'date' of tests/test_date_kind.py::test_jsonl_date_errors#2 appears in the brief"
+      ],
+      "lib": "tabula",
+      "dev": false
+    },
+    {
+      "id": "r2b-tabula-8",
+      "pythonutf8": true,
+      "existing": {
+        "rc": 0,
+        "summary": "93 passed in 0.13s",
+        "errors": []
+      },
+      "start": {
+        "rc": 1,
+        "summary": "9 failed in 0.13s",
+        "errors": [
+          "E       TypeError: from_records() got an unexpected keyword argument 'flatten'",
+          "E       TypeError: from_records() got an unexpected keyword argument 'flatten'",
+          "E       TypeError: from_records() got an unexpected keyword argument 'flatten'",
+          "E           TypeError: from_records() got an unexpected keyword argument 'flatten'",
+          "E       TypeError: from_records() got an unexpected keyword argument 'flatten'",
+          "E       TypeError: from_records() got an unexpected keyword argument 'flatten'",
+          "E           TypeError: to_records() got an unexpected keyword argument 'nest'",
+          "E       TypeError: from_records() got an unexpected keyword argument 'flatten'",
+          "E           TypeError: from_records() got an unexpected keyword argument 'flatten'",
+          "FAILED tests/test_nested_records.py::test_flatten_nested_dicts_into_path_columns",
+          "FAILED tests/test_nested_records.py::test_flatten_with_another_separator_and_explicit_columns",
+          "FAILED tests/test_nested_records.py::test_empty_nested_dict_is_a_plain_value"
+        ]
+      },
+      "reference": {
+        "rc": 0,
+        "summary": "9 passed in 0.04s",
+        "errors": []
+      },
+      "reference_full": {
+        "rc": 0,
+        "summary": "102 passed in 0.14s",
+        "errors": []
+      },
+      "reference_failed": [],
+      "assertions": 18,
+      "literal_overlap": [],
+      "unmapped": [],
+      "unknown_in_trace": [],
+      "sentence_not_in_brief": [],
+      "trace_complete": true,
+      "problems": [],
+      "valid": true,
+      "review": [],
+      "lib": "tabula",
+      "dev": false
+    },
+    {
+      "id": "r2b-tabula-9",
+      "pythonutf8": true,
+      "existing": {
+        "rc": 0,
+        "summary": "93 passed in 0.13s",
+        "errors": []
+      },
+      "start": {
+        "rc": 1,
+        "summary": "6 failed in 0.13s",
+        "errors": [
+          "E           ValueError: method must be 'value' or 'forward'",
+          "E           ValueError: method must be 'value' or 'forward'",
+          "E       TypeError: fill_missing() got an unexpected keyword argument 'limit'",
+          "E       TypeError: fill_missing() got an unexpected keyword argument 'limit'",
+          "E           ValueError: method must be 'value' or 'forward'",
+          "E       TypeError: fill_missing() got an unexpected keyword argument 'limit'",
+          "FAILED tests/test_fill_methods.py::test_backward_takes_the_next_value - Value...",
+          "FAILED tests/test_fill_methods.py::test_interpolate_between_numbers - ValueEr...",
+          "FAILED tests/test_fill_methods.py::test_limit_per_run - TypeError: fill_missi...",
+          "FAILED tests/test_fill_methods.py::test_interpolate_leaves_long_runs_whole - ...",
+          "FAILED tests/test_fill_methods.py::test_interpolate_needs_numbers_on_both_sides",
+          "FAILED tests/test_fill_methods.py::test_bad_method_or_limit - TypeError: fill..."
+        ]
+      },
+      "reference": {
+        "rc": 0,
+        "summary": "6 passed in 0.04s",
+        "errors": []
+      },
+      "reference_full": {
+        "rc": 0,
+        "summary": "99 passed in 0.14s",
+        "errors": []
+      },
+      "reference_failed": [],
+      "assertions": 14,
+      "literal_overlap": [
+        {
+          "assertion": "tests/test_fill_methods.py::test_backward_takes_the_next_value#1",
+          "literal": "backward"
+        },
+        {
+          "assertion": "tests/test_fill_methods.py::test_interpolate_between_numbers#1",
+          "literal": "interpolate"
+        },
+        {
+          "assertion": "tests/test_fill_methods.py::test_limit_per_run#1",
+          "literal": "forward"
+        },
+        {
+          "assertion": "tests/test_fill_methods.py::test_limit_per_run#2",
+          "literal": "backward"
+        },
+        {
+          "assertion": "tests/test_fill_methods.py::test_limit_per_run#3",
+          "literal": "backward"
+        },
+        {
+          "assertion": "tests/test_fill_methods.py::test_limit_per_run#4",
+          "literal": "value"
+        },
+        {
+          "assertion": "tests/test_fill_methods.py::test_interpolate_leaves_long_runs_whole#1",
+          "literal": "interpolate"
+        },
+        {
+          "assertion": "tests/test_fill_methods.py::test_interpolate_leaves_long_runs_whole#2",
+          "literal": "interpolate"
+        },
+        {
+          "assertion": "tests/test_fill_methods.py::test_interpolate_needs_numbers_on_both_sides#3",
+          "literal": "interpolate"
+        }
+      ],
+      "unmapped": [],
+      "unknown_in_trace": [],
+      "sentence_not_in_brief": [],
+      "trace_complete": true,
+      "problems": [],
+      "valid": true,
+      "review": [
+        "literal 'backward' of tests/test_fill_methods.py::test_backward_takes_the_next_value#1 appears in the brief",
+        "literal 'interpolate' of tests/test_fill_methods.py::test_interpolate_between_numbers#1 appears in the brief",
+        "literal 'forward' of tests/test_fill_methods.py::test_limit_per_run#1 appears in the brief",
+        "literal 'backward' of tests/test_fill_methods.py::test_limit_per_run#2 appears in the brief",
+        "literal 'backward' of tests/test_fill_methods.py::test_limit_per_run#3 appears in the brief",
+        "literal 'value' of tests/test_fill_methods.py::test_limit_per_run#4 appears in the brief",
+        "literal 'interpolate' of tests/test_fill_methods.py::test_interpolate_leaves_long_runs_whole#1 appears in the brief",
+        "literal 'interpolate' of tests/test_fill_methods.py::test_interpolate_leaves_long_runs_whole#2 appears in the brief",
+        "literal 'interpolate' of tests/test_fill_methods.py::test_interpolate_needs_numbers_on_both_sides#3 appears in the brief"
+      ],
+      "lib": "tabula",
+      "dev": false
+    }
+  ],
+  "valid": true
+}

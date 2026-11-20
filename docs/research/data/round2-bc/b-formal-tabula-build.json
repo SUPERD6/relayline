@@ -1,0 +1,93 @@
+{
+  "about": "Round 2 B final authored tasks on tabula (#375): scripts/eval/round2_bc/build.py build run twice into two fresh caches; the two task files were byte-identical. Development task commits unchanged (same as b-dev.json). Sizes are build.py's code_lines (added + removed lines of code files, long_candidates.is_code).",
+  "builds_identical": true,
+  "dev_commits_unchanged": true,
+  "tasks": [
+    {
+      "id": "r2b-tabula-1",
+      "repo": "round2-authored/tabula",
+      "commit": "300c6a4e93ead643266345456f5b9c0342bee71e",
+      "code_lines": 87,
+      "code": [
+        "tabula/query.py"
+      ]
+    },
+    {
+      "id": "r2b-tabula-2",
+      "repo": "round2-authored/tabula",
+      "commit": "c43aa64bb9253bb26abbd6e8adceb39c1e094a03",
+      "code_lines": 100,
+      "code": [
+        "tabula/__init__.py",
+        "tabula/errors.py",
+        "tabula/join.py"
+      ]
+    },
+    {
+      "id": "r2b-tabula-3",
+      "repo": "round2-authored/tabula",
+      "commit": "294f8950b142596c0b964fd7cd4cd061bc1aba2a",
+      "code_lines": 101,
+      "code": [
+        "tabula/reader.py",
+        "tabula/writer.py"
+      ]
+    },
+    {
+      "id": "r2b-tabula-4",
+      "repo": "round2-authored/tabula",
+      "commit": "2bdedea1535347c6c2309946de5dbeefd90b29b2",
+      "code_lines": 68,
+      "code": [
+        "tabula/aggregate.py"
+      ]
+    },
+    {
+      "id": "r2b-tabula-5",
+      "repo": "round2-authored/tabula",
+      "commit": "e3d8152be6d5d45bc05c3aa6a503a1f0e1445981",
+      "code_lines": 73,
+      "code": [
+        "tabula/diff.py"
+      ]
+    },
+    {
+      "id": "r2b-tabula-6",
+      "repo": "round2-authored/tabula",
+      "commit": "adbbbc98728a244111fa16ecc946264863e8bb4c",
+      "code_lines": 107,
+      "code": [
+        "tabula/window.py"
+      ]
+    },
+    {
+      "id": "r2b-tabula-7",
+      "repo": "round2-authored/tabula",
+      "commit": "50385ce82d603fdb1f722b9793d1699ad1c212f3",
+      "code_lines": 70,
+      "code": [
+        "tabula/infer.py",
+        "tabula/records.py",
+        "tabula/schema.py"
+      ]
+    },
+    {
+      "id": "r2b-tabula-8",
+      "repo": "round2-authored/tabula",
+      "commit": "706aa4a65a6873f732735df1790dd12e40fb0e53",
+      "code_lines": 71,
+      "code": [
+        "tabula/records.py"
+      ]
+    },
+    {
+      "id": "r2b-tabula-9",
+      "repo": "round2-authored/tabula",
+      "commit": "a9bb703b114ffe6691a3ef9eb42d26cbdd935901",
+      "code_lines": 83,
+      "code": [
+        "tabula/clean.py"
+      ]
+    }
+  ]
+}
