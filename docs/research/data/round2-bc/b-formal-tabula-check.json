@@ -1,5 +1,5 @@
 {
-  "about": "build.py check (round2_tasks.check_authored, #463 full suite on the reference) for the 9 tabula final tasks; the same run checked the 4 development tasks, all valid as well.",
+  "about": "build.py check (round2_tasks.check_authored, #463 full suite on the reference) for the 10 tabula final tasks; the same run checked the 4 development tasks, all valid as well.",
   "run_all_valid": true,
   "models_called": false,
   "tasks": [
@@ -8,7 +8,7 @@
       "pythonutf8": true,
       "existing": {
         "rc": 0,
-        "summary": "93 passed in 0.13s",
+        "summary": "93 passed in 0.12s",
         "errors": []
       },
       "start": {
@@ -53,11 +53,102 @@
       "dev": false
     },
     {
-      "id": "r2b-tabula-2",
+      "id": "r2b-tabula-10",
       "pythonutf8": true,
       "existing": {
         "rc": 0,
         "summary": "93 passed in 0.12s",
+        "errors": []
+      },
+      "start": {
+        "rc": 1,
+        "summary": "15 failed in 0.13s",
+        "errors": [
+          "E       TypeError: read_rows() got an unexpected keyword argument 'quoting'",
+          "E       TypeError: read_rows() got an unexpected keyword argument 'quoting'",
+          "E       TypeError: read_rows() got an unexpected keyword argument 'quoting'",
+          "E           TypeError: read_rows() got an unexpected keyword argument 'quoting'",
+          "E           TypeError: read_rows() got an unexpected keyword argument 'quoting'",
+          "E           TypeError: read_rows() got an unexpected keyword argument 'quoting'",
+          "E           TypeError: read_rows() got an unexpected keyword argument 'quoting'",
+          "E           TypeError: read_rows() got an unexpected keyword argument 'quoting'",
+          "E           TypeError: read_rows() got an unexpected keyword argument 'quoting'",
+          "E           TypeError: read_rows() got an unexpected keyword argument 'quoting'",
+          "E           TypeError: read_rows() got an unexpected keyword argument 'quoting'",
+          "E           TypeError: read_rows() got an unexpected keyword argument 'quoting'"
+        ]
+      },
+      "reference": {
+        "rc": 0,
+        "summary": "15 passed in 0.04s",
+        "errors": []
+      },
+      "reference_full": {
+        "rc": 0,
+        "summary": "108 passed in 0.13s",
+        "errors": []
+      },
+      "reference_failed": [],
+      "assertions": 15,
+      "literal_overlap": [
+        {
+          "assertion": "tests/test_typed_fields.py::test_quoting_decides_the_type#1",
+          "literal": "nonnumeric"
+        },
+        {
+          "assertion": "tests/test_typed_fields.py::test_quoted_empty_text_is_not_missing#1",
+          "literal": "nonnumeric"
+        },
+        {
+          "assertion": "tests/test_typed_fields.py::test_boolean_words#1",
+          "literal": "nonnumeric"
+        },
+        {
+          "assertion": "tests/test_typed_fields.py::test_boolean_words#1",
+          "literal": "true"
+        },
+        {
+          "assertion": "tests/test_typed_fields.py::test_boolean_words#2",
+          "literal": "nonnumeric"
+        },
+        {
+          "assertion": "tests/test_typed_fields.py::test_writer_round_trip#2",
+          "literal": "nonnumeric"
+        },
+        {
+          "assertion": "tests/test_typed_fields.py::test_writer_round_trip#3",
+          "literal": "nonnumeric"
+        },
+        {
+          "assertion": "tests/test_typed_fields.py:26 (outside an assert)",
+          "literal": "True"
+        }
+      ],
+      "unmapped": [],
+      "unknown_in_trace": [],
+      "sentence_not_in_brief": [],
+      "trace_complete": true,
+      "problems": [],
+      "valid": true,
+      "review": [
+        "literal 'nonnumeric' of tests/test_typed_fields.py::test_quoting_decides_the_type#1 appears in the brief",
+        "literal 'nonnumeric' of tests/test_typed_fields.py::test_quoted_empty_text_is_not_missing#1 appears in the brief",
+        "literal 'nonnumeric' of tests/test_typed_fields.py::test_boolean_words#1 appears in the brief",
+        "literal 'true' of tests/test_typed_fields.py::test_boolean_words#1 appears in the brief",
+        "literal 'nonnumeric' of tests/test_typed_fields.py::test_boolean_words#2 appears in the brief",
+        "literal 'nonnumeric' of tests/test_typed_fields.py::test_writer_round_trip#2 appears in the brief",
+        "literal 'nonnumeric' of tests/test_typed_fields.py::test_writer_round_trip#3 appears in the brief",
+        "literal 'True' of tests/test_typed_fields.py:26 (outside an assert) appears in the brief"
+      ],
+      "lib": "tabula",
+      "dev": false
+    },
+    {
+      "id": "r2b-tabula-2",
+      "pythonutf8": true,
+      "existing": {
+        "rc": 0,
+        "summary": "93 passed in 0.14s",
         "errors": []
       },
       "start": {
@@ -163,7 +254,7 @@
       },
       "start": {
         "rc": 1,
-        "summary": "12 failed, 1 passed in 0.13s",
+        "summary": "12 failed, 1 passed in 0.12s",
         "errors": [
           "E       TypeError: read_rows() got an unexpected keyword argument 'comment'",
           "E       TypeError: read_rows() got an unexpected keyword argument 'comment'",
@@ -219,7 +310,7 @@
       },
       "start": {
         "rc": 2,
-        "summary": "1 error in 0.13s",
+        "summary": "1 error in 0.14s",
         "errors": [
           "E   ImportError: cannot import name 'top_n' from 'tabula.aggregate' (<tree>\\tabula\\aggregate.py)",
           "ERROR tests/test_group_extras.py"
@@ -227,16 +318,16 @@
       },
       "reference": {
         "rc": 0,
-        "summary": "15 passed in 0.04s",
+        "summary": "16 passed in 0.04s",
         "errors": []
       },
       "reference_full": {
         "rc": 0,
-        "summary": "108 passed in 0.14s",
+        "summary": "109 passed in 0.13s",
         "errors": []
       },
       "reference_failed": [],
-      "assertions": 18,
+      "assertions": 20,
       "literal_overlap": [
         {
           "assertion": "tests/test_group_extras.py::test_common_value_tie_goes_to_first_seen#1",
@@ -293,7 +384,7 @@
       },
       "reference": {
         "rc": 0,
-        "summary": "8 passed in 0.03s",
+        "summary": "8 passed in 0.04s",
         "errors": []
       },
       "reference_full": {
@@ -326,30 +417,37 @@
         "rc": 2,
         "summary": "1 error in 0.13s",
         "errors": [
-          "E   ImportError: cannot import name 'shift' from 'tabula.window' (<tree>\\tabula\\window.py)",
-          "ERROR tests/test_window_groups.py"
+          "E   ImportError: cannot import name 'apportion' from 'tabula.stats' (<tree>\\tabula\\stats.py)",
+          "ERROR tests/test_apportioned_shares.py"
         ]
       },
       "reference": {
         "rc": 0,
-        "summary": "6 passed in 0.04s",
+        "summary": "9 passed in 0.04s",
         "errors": []
       },
       "reference_full": {
         "rc": 0,
-        "summary": "99 passed in 0.13s",
+        "summary": "102 passed in 0.13s",
         "errors": []
       },
       "reference_failed": [],
-      "assertions": 17,
-      "literal_overlap": [],
+      "assertions": 22,
+      "literal_overlap": [
+        {
+          "assertion": "tests/test_apportioned_shares.py::test_pivot_row_shares#3",
+          "literal": "rows"
+        }
+      ],
       "unmapped": [],
       "unknown_in_trace": [],
       "sentence_not_in_brief": [],
       "trace_complete": true,
       "problems": [],
       "valid": true,
-      "review": [],
+      "review": [
+        "literal 'rows' of tests/test_apportioned_shares.py::test_pivot_row_shares#3 appears in the brief"
+      ],
       "lib": "tabula",
       "dev": false
     },
@@ -358,12 +456,12 @@
       "pythonutf8": true,
       "existing": {
         "rc": 0,
-        "summary": "93 passed in 0.12s",
+        "summary": "93 passed in 0.13s",
         "errors": []
       },
       "start": {
         "rc": 1,
-        "summary": "7 failed in 0.13s",
+        "summary": "7 failed in 0.12s",
         "errors": [
           "E           ValueError: unknown kind(s): date",
           "E           ValueError: unknown kind(s): date",
@@ -386,7 +484,7 @@
       },
       "reference_full": {
         "rc": 0,
-        "summary": "100 passed in 0.14s",
+        "summary": "100 passed in 0.13s",
         "errors": []
       },
       "reference_failed": [],
@@ -439,12 +537,12 @@
       "pythonutf8": true,
       "existing": {
         "rc": 0,
-        "summary": "93 passed in 0.13s",
+        "summary": "93 passed in 0.12s",
         "errors": []
       },
       "start": {
         "rc": 1,
-        "summary": "9 failed in 0.13s",
+        "summary": "9 failed in 0.12s",
         "errors": [
           "E       TypeError: from_records() got an unexpected keyword argument 'flatten'",
           "E       TypeError: from_records() got an unexpected keyword argument 'flatten'",
@@ -462,12 +560,12 @@
       },
       "reference": {
         "rc": 0,
-        "summary": "9 passed in 0.04s",
+        "summary": "9 passed in 0.03s",
         "errors": []
       },
       "reference_full": {
         "rc": 0,
-        "summary": "102 passed in 0.14s",
+        "summary": "102 passed in 0.13s",
         "errors": []
       },
       "reference_failed": [],
@@ -488,39 +586,39 @@
       "pythonutf8": true,
       "existing": {
         "rc": 0,
-        "summary": "93 passed in 0.13s",
+        "summary": "93 passed in 0.12s",
         "errors": []
       },
       "start": {
         "rc": 1,
-        "summary": "6 failed in 0.13s",
+        "summary": "7 failed in 0.12s",
         "errors": [
           "E           ValueError: method must be 'value' or 'forward'",
           "E           ValueError: method must be 'value' or 'forward'",
           "E       TypeError: fill_missing() got an unexpected keyword argument 'limit'",
           "E       TypeError: fill_missing() got an unexpected keyword argument 'limit'",
           "E           ValueError: method must be 'value' or 'forward'",
+          "E           ValueError: method must be 'value' or 'forward'",
           "E       TypeError: fill_missing() got an unexpected keyword argument 'limit'",
           "FAILED tests/test_fill_methods.py::test_backward_takes_the_next_value - Value...",
           "FAILED tests/test_fill_methods.py::test_interpolate_between_numbers - ValueEr...",
           "FAILED tests/test_fill_methods.py::test_limit_per_run - TypeError: fill_missi...",
           "FAILED tests/test_fill_methods.py::test_interpolate_leaves_long_runs_whole - ...",
-          "FAILED tests/test_fill_methods.py::test_interpolate_needs_numbers_on_both_sides",
-          "FAILED tests/test_fill_methods.py::test_bad_method_or_limit - TypeError: fill..."
+          "FAILED tests/test_fill_methods.py::test_interpolate_needs_numbers_on_both_sides"
         ]
       },
       "reference": {
         "rc": 0,
-        "summary": "6 passed in 0.04s",
+        "summary": "7 passed in 0.03s",
         "errors": []
       },
       "reference_full": {
         "rc": 0,
-        "summary": "99 passed in 0.14s",
+        "summary": "100 passed in 0.13s",
         "errors": []
       },
       "reference_failed": [],
-      "assertions": 14,
+      "assertions": 16,
       "literal_overlap": [
         {
           "assertion": "tests/test_fill_methods.py::test_backward_takes_the_next_value#1",
@@ -557,6 +655,14 @@
         {
           "assertion": "tests/test_fill_methods.py::test_interpolate_needs_numbers_on_both_sides#3",
           "literal": "interpolate"
+        },
+        {
+          "assertion": "tests/test_fill_methods.py::test_open_ended_runs_ignore_their_neighbour#1",
+          "literal": "interpolate"
+        },
+        {
+          "assertion": "tests/test_fill_methods.py::test_open_ended_runs_ignore_their_neighbour#2",
+          "literal": "interpolate"
         }
       ],
       "unmapped": [],
@@ -574,7 +680,9 @@
         "literal 'value' of tests/test_fill_methods.py::test_limit_per_run#4 appears in the brief",
         "literal 'interpolate' of tests/test_fill_methods.py::test_interpolate_leaves_long_runs_whole#1 appears in the brief",
         "literal 'interpolate' of tests/test_fill_methods.py::test_interpolate_leaves_long_runs_whole#2 appears in the brief",
-        "literal 'interpolate' of tests/test_fill_methods.py::test_interpolate_needs_numbers_on_both_sides#3 appears in the brief"
+        "literal 'interpolate' of tests/test_fill_methods.py::test_interpolate_needs_numbers_on_both_sides#3 appears in the brief",
+        "literal 'interpolate' of tests/test_fill_methods.py::test_open_ended_runs_ignore_their_neighbour#1 appears in the brief",
+        "literal 'interpolate' of tests/test_fill_methods.py::test_open_ended_runs_ignore_their_neighbour#2 appears in the brief"
       ],
       "lib": "tabula",
       "dev": false

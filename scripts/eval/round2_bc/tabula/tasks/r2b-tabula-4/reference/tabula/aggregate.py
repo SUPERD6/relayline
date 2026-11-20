@@ -5,7 +5,6 @@ import math
 import re
 from typing import Any, Callable, Iterable
 
-from .stats import quantile
 from .table import Table
 
 _PERCENTILE = re.compile(r"p(0|[1-9][0-9]?|100)")
@@ -89,9 +88,15 @@ def agg_common(values: list):
     return next(v for v, c in counts.items() if c == best)
 
 
-def _percentile(q: float) -> Callable[[list], Any]:
+def _percentile(n: int) -> Callable[[list], Any]:
+    """Nearest rank, not interpolation: the value at 1-based position ceil(n/100 * count) of the sorted present
+    values (at least position 1), so the result is always one of the group's own values."""
     def agg(values: list):
-        return quantile([v for v in values if v is not None], q)
+        present = sorted(_present(values))
+        if not present:
+            return None
+        rank = max(1, -(-n * len(present) // 100))
+        return present[rank - 1]
     return agg
 
 
@@ -104,15 +109,15 @@ AGGREGATES: dict[str, Callable[[list], Any]] = {
 
 def _resolve(spec) -> tuple[str, Callable[[list], Any]]:
     """(column, function) from ('column', 'name') or ('column', callable). Besides the names in AGGREGATES, `pN`
-    (N a whole number from 0 to 100 without leading zeros) is the N-th percentile, interpolated like
-    `stats.quantile`."""
+    (N a whole number from 0 to 100 without leading zeros) is the N-th nearest-rank percentile (unlike
+    `stats.quantile`, which interpolates)."""
     if not (isinstance(spec, tuple) and len(spec) == 2):
         raise TypeError("an aggregate is a (column, function) pair")
     column, func = spec
     if isinstance(func, str):
         m = _PERCENTILE.fullmatch(func)
         if m:
-            func = _percentile(int(m.group(1)) / 100)
+            func = _percentile(int(m.group(1)))
         elif func not in AGGREGATES:
             raise ValueError(f"unknown aggregate {func!r}")
         else:

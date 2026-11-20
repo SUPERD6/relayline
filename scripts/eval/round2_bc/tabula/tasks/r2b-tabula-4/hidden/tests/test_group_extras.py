@@ -16,7 +16,15 @@ def test_common_value_tie_goes_to_first_seen():
 def test_percentile_names():
     t = Table(["g", "v"], [("a", 1), ("a", 2), ("a", 3), ("a", 4), ("a", None), ("b", 8), ("c", None)])
     out = group_by(t, "g", lo=("v", "p0"), q=("v", "p25"), m=("v", "p50"), hi=("v", "p100"))
-    assert out.rows == [("a", 1, 1.75, 2.5, 4), ("b", 8, 8, 8, 8), ("c", None, None, None, None)]
+    assert out.rows == [("a", 1, 1, 2, 4), ("b", 8, 8, 8, 8), ("c", None, None, None, None)]
+    out = group_by(t, "g", x=("v", "p30"), y=("v", "p51"), z=("v", "p99"))
+    assert out.rows[0] == ("a", 2, 3, 4)
+
+
+def test_percentile_is_always_a_value_of_the_group():
+    t = Table(["g", "v"], [("a", 20), ("a", None), ("a", 10)])
+    out = group_by(t, "g", m=("v", "p50"), u=("v", "p75"), w=("v", "p1"))
+    assert out.rows == [("a", 10, 20, 10)]
 
 
 @pytest.mark.parametrize("bad", ["p101", "p", "p05", "p2.5", "q50", "P50", "p-1"])

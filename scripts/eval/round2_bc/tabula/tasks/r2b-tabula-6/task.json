@@ -1,36 +1,43 @@
 {
  "id": "r2b-tabula-6",
- "subject": "Window functions per group and a shift function",
+ "subject": "Rounded shares that add up to one: apportion in stats, used by share and pivot",
  "author_model": "claude-opus-5-5",
- "brief": "Add grouping to the window functions of the tabula window module, and a new shift function.\n\n1. `rolling_mean`, `rank`, `difference` and `share` take a new keyword `by`: one column name or a list of names. With it, the function is computed separately within each group of rows that share the same values in those columns, as if each group were its own table in its original row order: the rolling window and the lag of difference never reach into another group, ranks (with either ranking method and in either direction) are positions inside the group, and a share is relative to the group's total. A None in a `by` column forms a group of its own. The result column keeps the table's original row order; rows are not regrouped or reordered. Edge case: a group whose total is 0 gets None for all its shares, without affecting other groups. Without `by` everything behaves as before. An unknown `by` column raises KeyError, an empty list raises ValueError.\n2. A new function `shift(table, column, periods=1, name=None, fill=None, by=None)` in the window module adds a column with the value from `periods` rows earlier; a negative `periods` takes the value from that many rows later instead. Where no such row exists (inside the group, when `by` is given), the new cell is `fill`. A None that is actually found in the source row is copied as None, not replaced by `fill`. The default name is the column name followed by `_shift` and the periods number as str() writes it (so a negative number keeps its minus sign). periods must be a non-zero whole number, otherwise ValueError; a name that already exists raises ValueError, as in the other window functions.\n\nAll behavior that the existing tests check must keep working.",
+ "brief": "Make rounded shares in tabula add up, in three places that follow one rule.\n\n1. A new function `apportion(values, digits)` in the stats module: each value's share of the total, rounded to `digits` decimal places so that the rounded shares add up to exactly 1. Rounding each share on its own is not acceptable (three equal values would each be rounded down and add up to less than 1). The rule is largest remainder: first cut every share down to `digits` decimals; the units of the last decimal place still missing to reach 1 are then given out one each to the shares that lost the most in that cut; when two shares lost the same amount, the one at the earlier position gets the unit. Compute this exactly, so that floating-point error never decides a tie, and return each share as a float rounded to `digits`. None stays None in its place and counts as 0. Edge case: when the total is 0, every position is None. Every other value must be a number of at least 0 (booleans are not numbers); anything else raises ValueError, as does a `digits` that is not a whole number of at least 0.\n2. `share` in the window module uses this rule whenever `digits` is given (without digits nothing changes, negative values included). It also takes `by` (one column name or a list): shares are then relative to the total of the rows with the same `by` values, the results stay in the table's row order, and with digits each group's shares add up to 1. An empty `by` list raises ValueError, an unknown column KeyError.\n3. `pivot` takes `normalize` (None by default, `rows` or `all`) and `digits`. With `rows` every cell becomes its share of its own row's total; with `all`, its share of the total of all cells, apportioned over the cells in row-major order (so ties go to the earlier row, then to the earlier column). Cells whose aggregate is None count as 0 and stay None; cells that have no matching rows count as 0 and keep `fill`. With digits the rounding follows apportion; without it the shares are plain divisions. Any other normalize value raises ValueError, and so does digits without normalize.\n\nAll behavior that the existing tests check must keep working.",
  "hidden_tests": [
-  "tests/test_window_groups.py"
+  "tests/test_apportioned_shares.py"
  ],
  "trace_by_test": {
-  "test_rolling_mean_per_group_keeps_row_order": [
-   "With it, the function is computed separately within each group of rows that share the same values in those columns, as if each group were its own table in its original row order: the rolling window and the lag of difference never reach into another group",
-   "The result column keeps the table's original row order; rows are not regrouped or reordered."
+  "test_rounded_parts_add_up_to_one": "A new function `apportion(values, digits)` in the stats module: each value's share of the total, rounded to `digits` decimal places so that the rounded shares add up to exactly 1. Rounding each share on its own is not acceptable (three equal values would each be rounded down and add up to less than 1).",
+  "test_largest_remainder_gets_the_unit_and_ties_go_first": [
+   "the units of the last decimal place still missing to reach 1 are then given out one each to the shares that lost the most in that cut",
+   "when two shares lost the same amount, the one at the earlier position gets the unit. Compute this exactly, so that floating-point error never decides a tie, and return each share as a float rounded to `digits`. None stays None in its place and counts as 0.",
+   "when two shares lost the same amount, the one at the earlier position gets the unit."
   ],
-  "test_rank_per_group": "ranks (with either ranking method and in either direction) are positions inside the group",
-  "test_difference_restarts_in_each_group": [
-   "the rolling window and the lag of difference never reach into another group",
-   "`rolling_mean`, `rank`, `difference` and `share` take a new keyword `by`: one column name or a list of names."
+  "test_zero_total_and_bad_values": [
+   "Edge case: when the total is 0, every position is None.",
+   "Every other value must be a number of at least 0 (booleans are not numbers); anything else raises ValueError",
+   "as does a `digits` that is not a whole number of at least 0."
   ],
-  "test_share_of_group_total": [
-   "a share is relative to the group's total. A None in a `by` column forms a group of its own.",
-   "Edge case: a group whose total is 0 gets None for all its shares, without affecting other groups."
+  "test_share_digits_apportions_the_column": "`share` in the window module uses this rule whenever `digits` is given",
+  "test_share_per_group": [
+   "It also takes `by` (one column name or a list): shares are then relative to the total of the rows with the same `by` values, the results stay in the table's row order, and with digits each group's shares add up to 1.",
+   "shares are then relative to the total of the rows with the same `by` values"
   ],
-  "test_shift_back_and_ahead": [
-   "A new function `shift(table, column, periods=1, name=None, fill=None, by=None)` in the window module adds a column with the value from `periods` rows earlier",
-   "a negative `periods` takes the value from that many rows later instead. Where no such row exists (inside the group, when `by` is given), the new cell is `fill`. A None that is actually found in the source row is copied as None, not replaced by `fill`.",
-   "The default name is the column name followed by `_shift` and the periods number as str() writes it (so a negative number keeps its minus sign).",
-   "A new function `shift(table, column, periods=1, name=None, fill=None, by=None)` in the window module adds a column with the value from `periods` rows earlier"
+  "test_share_arguments": [
+   "Every other value must be a number of at least 0 (booleans are not numbers); anything else raises ValueError",
+   "(without digits nothing changes, negative values included)",
+   "An empty `by` list raises ValueError, an unknown column KeyError.",
+   "An empty `by` list raises ValueError, an unknown column KeyError."
   ],
-  "test_bad_arguments": [
-   "An unknown `by` column raises KeyError, an empty list raises ValueError.",
-   "An unknown `by` column raises KeyError, an empty list raises ValueError.",
-   "periods must be a non-zero whole number, otherwise ValueError",
-   "a name that already exists raises ValueError, as in the other window functions."
+  "test_pivot_row_shares": [
+   "`pivot` takes `normalize` (None by default, `rows` or `all`) and `digits`.",
+   "With `rows` every cell becomes its share of its own row's total",
+   "Cells whose aggregate is None count as 0 and stay None; cells that have no matching rows count as 0 and keep `fill`. With digits the rounding follows apportion; without it the shares are plain divisions."
+  ],
+  "test_pivot_table_shares_in_row_major_order": "with `all`, its share of the total of all cells, apportioned over the cells in row-major order (so ties go to the earlier row, then to the earlier column).",
+  "test_pivot_arguments": [
+   "Any other normalize value raises ValueError, and so does digits without normalize.",
+   "Any other normalize value raises ValueError, and so does digits without normalize."
   ]
  }
 }

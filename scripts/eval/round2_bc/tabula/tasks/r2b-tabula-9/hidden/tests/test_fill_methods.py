@@ -40,6 +40,11 @@ def test_interpolate_needs_numbers_on_both_sides():
     assert fill_missing(t, columns=["v"], method="interpolate").rows == [("x", 1), (None, 2.0), ("y", 3)]
 
 
+def test_open_ended_runs_ignore_their_neighbour():
+    assert fill_missing(Table(["v"], [("x",), (None,)]), method="interpolate").column("v") == ["x", None]
+    assert fill_missing(Table(["v"], [(None,), (True,)]), method="interpolate").column("v") == [None, True]
+
+
 def test_bad_method_or_limit():
     with pytest.raises(ValueError):
         filled(method="linear")

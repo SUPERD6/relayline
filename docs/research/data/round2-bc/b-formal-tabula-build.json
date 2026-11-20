@@ -13,9 +13,19 @@
       ]
     },
     {
+      "id": "r2b-tabula-10",
+      "repo": "round2-authored/tabula",
+      "commit": "cd4d91ef2e18d4bc7a85c3f0d2b570b9d97e2157",
+      "code_lines": 91,
+      "code": [
+        "tabula/reader.py",
+        "tabula/writer.py"
+      ]
+    },
+    {
       "id": "r2b-tabula-2",
       "repo": "round2-authored/tabula",
-      "commit": "c43aa64bb9253bb26abbd6e8adceb39c1e094a03",
+      "commit": "8fa63b0eb18c9ccebe6b35e0c6dcf5dca71db608",
       "code_lines": 100,
       "code": [
         "tabula/__init__.py",
@@ -26,7 +36,7 @@
     {
       "id": "r2b-tabula-3",
       "repo": "round2-authored/tabula",
-      "commit": "294f8950b142596c0b964fd7cd4cd061bc1aba2a",
+      "commit": "99b475917cb12b2b534a8d629dfe2b9d1b482a49",
       "code_lines": 101,
       "code": [
         "tabula/reader.py",
@@ -36,8 +46,8 @@
     {
       "id": "r2b-tabula-4",
       "repo": "round2-authored/tabula",
-      "commit": "2bdedea1535347c6c2309946de5dbeefd90b29b2",
-      "code_lines": 68,
+      "commit": "58dd82e93202833f03bca3d5ee05d5b92504efc2",
+      "code_lines": 73,
       "code": [
         "tabula/aggregate.py"
       ]
@@ -45,7 +55,7 @@
     {
       "id": "r2b-tabula-5",
       "repo": "round2-authored/tabula",
-      "commit": "e3d8152be6d5d45bc05c3aa6a503a1f0e1445981",
+      "commit": "5c3f16147496046c9cf95e1bd16aa935b0c4ac8a",
       "code_lines": 73,
       "code": [
         "tabula/diff.py"
@@ -54,16 +64,18 @@
     {
       "id": "r2b-tabula-6",
       "repo": "round2-authored/tabula",
-      "commit": "adbbbc98728a244111fa16ecc946264863e8bb4c",
-      "code_lines": 107,
+      "commit": "7a2f82f96ae301174485a9c9783dd5cb41dbf2b8",
+      "code_lines": 90,
       "code": [
+        "tabula/aggregate.py",
+        "tabula/stats.py",
         "tabula/window.py"
       ]
     },
     {
       "id": "r2b-tabula-7",
       "repo": "round2-authored/tabula",
-      "commit": "50385ce82d603fdb1f722b9793d1699ad1c212f3",
+      "commit": "f4a54fc14fc9451013bccc1e91d890a90e4b4442",
       "code_lines": 70,
       "code": [
         "tabula/infer.py",
@@ -74,7 +86,7 @@
     {
       "id": "r2b-tabula-8",
       "repo": "round2-authored/tabula",
-      "commit": "706aa4a65a6873f732735df1790dd12e40fb0e53",
+      "commit": "b3beeffdf5acc7960c012b44bb0581ddb16dd88f",
       "code_lines": 71,
       "code": [
         "tabula/records.py"
@@ -83,7 +95,7 @@
     {
       "id": "r2b-tabula-9",
       "repo": "round2-authored/tabula",
-      "commit": "a9bb703b114ffe6691a3ef9eb42d26cbdd935901",
+      "commit": "dda795d4f0f687b2be07adc19e03cc886853daa7",
       "code_lines": 83,
       "code": [
         "tabula/clean.py"
