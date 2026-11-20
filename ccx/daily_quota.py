@@ -119,6 +119,14 @@ def _raw_hit(rec: dict) -> bool:
     return bool(_own_hit(rec) or rec.get("quota_fallback"))
 
 
+def _vend(*names) -> list[str]:
+    out: list[str] = []
+    for n in names:
+        if n and (not out or out[-1] != n):
+            out.append(n)
+    return out
+
+
 def _quota_agent(rec: dict, row: dict) -> str:
     qs = rec.get("quota_stop") if isinstance(rec.get("quota_stop"), dict) else {}
     fb = rec.get("quota_fallback") if isinstance(rec.get("quota_fallback"), dict) else {}
@@ -171,8 +179,9 @@ def _sub_verdict(p: Paths, row: dict, rec: dict, ctx: dict, depth: int = 0) -> d
     fb = rec.get("quota_fallback") if isinstance(rec.get("quota_fallback"), dict) else None
     to = str((fb or {}).get("to") or row.get("to") or "?")
     day = _day(t0, ctx["tz"])
-    mk = lambda v, why, mach=(), hum=(), **kw: _ev("sub_agent", "run.json", rid, t0, day, frm, to, v, why,  # noqa: E731
-                                                  list(mach), list(hum), chain=[rid], **kw)
+    mk = lambda v, why, mach=(), hum=(), to_=None, **kw: _ev(  # noqa: E731
+        "sub_agent", "run.json", rid, t0, day, frm, to_ or to, v, why, list(mach), list(hum), chain=[rid],
+        vendors=_vend(frm, to_ or to), **kw)
     if _notes(notes, "lost", rid):
         return mk("failure", "人工记录：丢了未提交的改动", hum=["lost"], claim_fail=True)
     waited = [n for n in _notes(notes, "wait", rid) if n["_ts"] and t0 <= n["_ts"] <= t0 + _N]
@@ -181,16 +190,17 @@ def _sub_verdict(p: Paths, row: dict, rec: dict, ctx: dict, depth: int = 0) -> d
 
     def finish(cont_row: dict, why: str, mach: list[str]) -> dict:
         crid = cont_row.get("run_id")
+        to = str(cont_row.get("to") or "?") if crid != rid else None       # the vendor that finished the work
         if crid != rid and _notes(notes, "lost", crid or ""):
-            return mk("failure", "人工记录：接续运行丢了未提交的改动", mach, ["lost"], claim_fail=True, continued_by=crid)
+            return mk("failure", "人工记录：接续运行丢了未提交的改动", mach, ["lost"], claim_fail=True, continued_by=crid, to_=to)
         if cont_row.get("status") == "running" or cont_row.get("state") == "running":
-            return mk("unknown", "接续运行还没结束", mach, continued_by=crid)
+            return mk("unknown", "接续运行还没结束", mach, continued_by=crid, to_=to)
         v = hard.get(crid or "")
         if v is not None and not v.get("ok"):
-            return mk("failure", "接续运行被 ccx verify 判为错", mach + ["verify"], continued_by=crid)
+            return mk("failure", "接续运行被 ccx verify 判为错", mach + ["verify"], continued_by=crid, to_=to)
         if cont_row.get("ok") and cont_row.get("status") == "done":
-            return mk("success", why, mach + ["ok"], continued_by=crid)
-        return mk("failure", "接续运行没有以 ok 结束（活没做完）", mach, continued_by=crid)
+            return mk("success", why, mach + ["ok"], continued_by=crid, to_=to)
+        return mk("failure", "接续运行没有以 ok 结束（活没做完）", mach, continued_by=crid, to_=to)
 
     if fb and fb.get("to") and fb.get("to") != fb.get("from"):
         return finish(row, "同一个运行经 quota_fallback 改派到别家并做完", ["quota_fallback"])
@@ -216,6 +226,7 @@ def _sub_verdict(p: Paths, row: dict, rec: dict, ctx: dict, depth: int = 0) -> d
             v = _sub_verdict(p, cont, crec, ctx, depth + 1)
             v.update(id=rid, ts=t0, day=day, chain=[rid] + v["chain"])
             v["from"] = frm
+            v["vendors"] = _vend(frm, *v["vendors"])          # every vendor the chain went through; `to` is the one that finished
             v["judged_by"]["machine"] = ["resumed_from"] + v["judged_by"]["machine"]
             return v
         return finish(cont, "在别家或别的模型接续并做完", ["resumed_from"])
@@ -303,28 +314,46 @@ def _cap(path: Path, pk: dict) -> float:
     return _t(pk.get("captured_at")) or _mtime(path) or 0
 
 
-def _members(pks: list[tuple[Path, dict]], convs: dict) -> set[str]:
-    """Packets that belong to an earlier packet's chain (one original task is one event): the packet a continuation
-    wrote when it hit the limit itself, and a packet of the same known session captured between the earlier packet
-    and its continuation's start."""
+_CHAIN_STATES = ("quota_stopped", "rate_limit_unconfirmed")
+
+
+def _chains(pks: list[tuple[Path, dict]], convs: dict) -> list[list[str]]:
+    """One original task is one event. Packets are grouped into chains (head first, then by time):
+    - the packet a continuation wrote when it hit a limit itself (`handoff_packet`; unconfirmed ones too);
+    - a same-session `quota_stopped` packet that was itself continued, captured between the earlier packet and its
+      continuation's start (the earlier one then counts as having switched to it: a failure);
+    - a same-session `quota_stopped` packet that was never continued (a duplicate), captured within 4 hours before that
+      continuation's start, joins the earliest-continued packet."""
     by_id = {pk["id"]: pk for _, pk in pks}
     caps = {pk["id"]: _cap(path, pk) for path, pk in pks}
-    out: set[str] = set()
-    for _, a in pks:
-        real = _real(convs[a["id"]])
-        if not real:
+    parent: dict[str, str] = {}
+    heads = [(real[0]["_start"] or 0, a["id"], real[0]) for _, a in pks if (real := _real(convs[a["id"]]))]
+    for start, aid, c in sorted(heads, key=lambda x: (x[0], x[1])):
+        h = c.get("handoff_packet")
+        if h in by_id and h != aid and by_id[h].get("state") in _CHAIN_STATES:
+            parent.setdefault(h, aid)
+        sess = by_id[aid].get("source_session")
+        if sess in (None, "", "Unknown") or not c["_start"]:
             continue
-        h = real[0].get("handoff_packet")
-        if h in by_id and by_id[h].get("state") == "quota_stopped":
-            out.add(h)
-        sess = a.get("source_session")
-        if sess in (None, "", "Unknown") or not real[0]["_start"]:
-            continue
-        for _, b in pks:
-            if b is not a and b.get("source_session") == sess and b.get("state") == "quota_stopped" \
-                    and caps[a["id"]] < caps[b["id"]] <= real[0]["_start"]:
-                out.add(b["id"])
-    return out
+        for bid, b in by_id.items():
+            if bid == aid or b.get("source_session") != sess or b.get("state") != "quota_stopped":
+                continue
+            if _real(convs[bid]):
+                if caps[aid] < caps[bid] <= c["_start"]:
+                    parent.setdefault(bid, aid)
+            elif caps[aid] - _N <= caps[bid] <= c["_start"]:
+                parent.setdefault(bid, aid)
+
+    def top(i: str) -> str:
+        for _ in range(30):
+            if i not in parent:
+                break
+            i = parent[i]
+        return i
+    groups: dict[str, list[str]] = {}
+    for i in by_id:
+        groups.setdefault(top(i), []).append(i)
+    return [sorted(ids, key=lambda i: caps[i]) for ids in groups.values()]
 
 
 def _lead_verdict(path: Path, pk: dict, ctx: dict, via: str, depth: int = 0) -> dict:
@@ -340,7 +369,7 @@ def _lead_verdict(path: Path, pk: dict, ctx: dict, via: str, depth: int = 0) -> 
         to = str(real[0].get("to") or to)
     mach = ["relay packet"] + (["continue record"] if real else [])
     mk = lambda v, why, mach=mach, hum=(), **kw: _ev("lead", via, pid, cap, day, frm, to, v, why,  # noqa: E731
-                                                    list(mach), list(hum), chain=[pid], **kw)
+                                                    list(mach), list(hum), chain=[pid], vendors=_vend(frm, to), **kw)
     if _notes(notes, "lost", pid):
         return mk("failure", "人工记录：丢了未提交的改动", hum=["lost"], claim_fail=True)
     if [n for n in _notes(notes, "wait", pid) if n["_ts"] and cap <= n["_ts"] <= cap + _N]:
@@ -351,6 +380,7 @@ def _lead_verdict(path: Path, pk: dict, ctx: dict, via: str, depth: int = 0) -> 
     sess = pk.get("source_session")
     if real and real[0]["_start"] and sess not in (None, "", "Unknown"):
         sib = [o for o, (pth, op) in byid.items() if o != pid and op.get("source_session") == sess
+               and op.get("state") == "quota_stopped" and _real(ctx["convs"][o])       # it must have been continued itself
                and cap < _cap(pth, op) <= real[0]["_start"]]
         if sib:
             return mk("failure", "同一会话在接续开始前又出了另一个 packet，改用它接续（不算接着做）", siblings=sib)
@@ -367,10 +397,11 @@ def _lead_verdict(path: Path, pk: dict, ctx: dict, via: str, depth: int = 0) -> 
     if c.get("state") in _RUNNING_STATES:
         return mk("unknown", "接续还在运行")
     h = c.get("handoff_packet")
-    if h in byid and byid[h][1].get("state") == "quota_stopped" and depth < 10:     # the continuation hit the limit too
+    if h in byid and h != pid and byid[h][1].get("state") in _CHAIN_STATES and depth < 10:   # it hit a limit too
         v = _lead_verdict(byid[h][0], byid[h][1], ctx, via, depth + 1)
         v.update(id=pid, ts=cap, day=day, chain=[pid] + v["chain"])
         v["from"] = frm
+        v["vendors"] = _vend(frm, *v["vendors"])
         return v
     if c.get("state") != "exited" or c.get("exit_code") != 0:
         return mk("failure", f"接续以 {c.get('state')} 结束（退出码 {c.get('exit_code')}），活没做完")
@@ -511,46 +542,72 @@ def build(p: Paths, day: str, tz, now: float, workspaces=(), split: str | None =
             capacity += 1
         if not _raw_hit(rec) or not _is_new_root(p, rec):
             continue
-        if _notes(notes, "exclude", r["run_id"]):
+        ev = _sub_verdict(p, r, rec, ctx)
+        gone = [i for i in ev["chain"] if _notes(notes, "exclude", i)]
+        if gone:                                         # an exclude note on any run of the chain excludes the chain
             excluded += 1
-            lost_excluded = lost_excluded or bool(_notes(notes, "lost", r["run_id"]))
+            lost_excluded = lost_excluded or any(_notes(notes, "lost", i) for i in ev["chain"])
             continue
-        events.append(_sub_verdict(p, r, rec, ctx))
-    unconfirmed = 0
+        events.append(ev)
+    unconfirmed = chain_gone = 0
     roots = _roots(plain, workspaces)
     for root in roots:
         pks, bad = _packets(root)
         bad_files += bad
         convs = {pk["id"]: _continuations(root / ".ccx" / "relay", pk["id"]) for _, pk in pks}
         ctx["convs"], ctx["byid"] = convs, {pk["id"]: (path, pk) for path, pk in pks}
-        member = _members(pks, convs)
-        for path, pk in pks:
+
+        def status(pid: str) -> str:
+            path, pk = ctx["byid"][pid]
             sig = pk.get("quota_signal") if isinstance(pk.get("quota_signal"), dict) else {}
             cap = _t(pk.get("captured_at")) or _mtime(path)
-            if cap is None or not (RULE_START <= _day(cap, tz) <= day) or pk["id"] in member:
-                continue
             unconf = pk.get("state") == "rate_limit_unconfirmed" or sig.get("kind") == "rate_limit_unconfirmed"
             sure = pk.get("state") == "quota_stopped" or (sig.get("kind") == "quota" and not unconf)
-            if not sure:
-                if not unconf:
-                    continue
-                if not _confirmed(pk, cap, notes, convs[pk["id"]]):
+            if cap is None or not (RULE_START <= _day(cap, tz) <= day) or not (sure or unconf):
+                return "out"
+            if _notes(notes, "exclude", pid):
+                return "excluded"
+            if not sure and not _confirmed(pk, cap, notes, convs[pid]):
+                return "unconfirmed"
+            return "sure" if sure else "confirmed"
+        for chain in _chains(pks, convs):
+            sts = {i: status(i) for i in chain}
+            for i in chain:                               # a lost note on any packet fails the claim, counted or not
+                if sts[i] != "out" and _notes(notes, "lost", i):
+                    lost_excluded = True
+            ok = [i for i in chain if sts[i] in ("sure", "confirmed")]
+            if not ok:                                    # the first countable member would be promoted; none is
+                if len(chain) > 1 and any(v != "out" for v in sts.values()):
+                    chain_gone += 1
+                elif sts[chain[0]] == "unconfirmed":
                     unconfirmed += 1
-                    continue
-            if _notes(notes, "exclude", pk["id"]):
-                excluded += 1
-                lost_excluded = lost_excluded or bool(_notes(notes, "lost", pk["id"]))
+                elif sts[chain[0]] == "excluded":
+                    excluded += 1
                 continue
-            ev = _lead_verdict(path, pk, ctx, "relay packet" if sure else "relay packet + 人工确认")
-            if not sure:
+            # judged from the first countable member that was continued (a never-continued duplicate joins it); a chain
+            # whose head is not countable starts at the first member that is
+            continued = sorted((i for i in ok if _real(convs[i])), key=lambda i: _real(convs[i])[0]["_start"] or 0)
+            head = continued[0] if continued else ok[0]
+            path, pk = ctx["byid"][head]
+            ev = _lead_verdict(path, pk, ctx, "relay packet" if sts[head] == "sure" else "relay packet + 人工确认")
+            if sts[head] == "confirmed":
                 ev["judged_by"]["human"].append("confirm")
+            ev["members"] = chain
+            if ev["verdict"] != "not_attempted":
+                for i in chain:                           # a wait note on any member makes the whole chain not attempted
+                    pth, op = ctx["byid"][i]
+                    c0 = _cap(pth, op)
+                    if [n for n in _notes(notes, "wait", i) if n["_ts"] and c0 <= n["_ts"] <= c0 + _N]:
+                        ev.update(verdict="not_attempted", reason="用户选择等额度重置（写在链中的一个 packet 上）")
+                        ev["judged_by"]["human"].append("wait")
+                        break
             events.append(ev)
     events.sort(key=lambda e: (e["ts"], e["id"]))
     waiting = [{"id": e["id"], "role": e["role"], "awaiting": e["awaiting"]} for e in events if e.get("awaiting_human")]
     return {"rule": "docs/research/2026-11-17-eval-rule-decisions.md 决定 3", "rule_start": RULE_START,
             "n_hours": N_HOURS, "through": day, "now": now, "events": events, "awaiting_human_record": waiting,
             "not_counted": {"unconfirmed_packets": unconfirmed, "excluded_by_note": excluded,
-                            "capacity_recovery_runs": capacity, "eval_hub_events": eval_events,
+                            "capacity_recovery_runs": capacity, "eval_hub_events": eval_events, "chains_without_countable_member": chain_gone,
                             "unreadable_note_or_packet_files": bad_files},
             "relay_workspaces": [str(r) for r in roots], "notes_file": str(notes_path(p)),
             "summary": summarize(events, split, day, lost_excluded)}
@@ -583,7 +640,7 @@ def render(q: dict) -> list[str]:
     nc = q["not_counted"]
     L.append(f"- 不计入但列出：没有人工确认的 rate_limit_unconfirmed packet {nc['unconfirmed_packets']} 个；"
              f"capacity_recovery（模型忙，不是额度）的运行 {nc['capacity_recovery_runs']} 个；评测 hub 里的撞限 {nc['eval_hub_events']} 个；"
-             f"人工记录排除（模拟、回放、故意制造）{nc['excluded_by_note']} 个；读不了的记录/packet 文件 {nc['unreadable_note_or_packet_files']} 个")
+             f"人工记录排除（模拟、回放、故意制造）{nc['excluded_by_note']} 个；没有可计入成员的 packet 链 {nc['chains_without_countable_member']} 条；读不了的记录/packet 文件 {nc['unreadable_note_or_packet_files']} 个")
     if q["awaiting_human_record"]:
         L += ["", "还在窗口内、等人工补记录的事件："] + [f"- {w['id']}（{w['role']}）：{'、'.join(w['awaiting'])}"
                                                     for w in q["awaiting_human_record"]]

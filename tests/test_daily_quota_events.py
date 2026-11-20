@@ -211,12 +211,12 @@ class TestQuotaEvents(test_daily.TestDaily):
 
     def test_lead_failures(self):
         a, b, c, d = "a" * 32, "b" * 32, "c" * 32, "d" * 32
-        self.packet(a)                                                  # no continue record at all
-        self.packet(b)
+        self.packet(a, session="sa")                                    # no continue record at all
+        self.packet(b, session="sb")
         self.cont(b, state="prepared")                                  # prepared is no continuation
-        self.packet(c)
+        self.packet(c, session="sc")
         self.cont(c, state="no_changes", changes_observed=False)        # continued but nothing was done
-        self.packet(d, git={"head": "Unknown", "snapshot_status": "Unknown"})   # cannot be continued
+        self.packet(d, session="sd", git={"head": "Unknown", "snapshot_status": "Unknown"})   # cannot be continued
         q = self.q(now_h=9, workspaces=[self.work])
         for pid in (a, b, c, d):
             self.assertEqual(self.ev(q, pid)["verdict"], "failure", pid)
@@ -267,8 +267,9 @@ class TestQuotaEvents(test_daily.TestDaily):
 
     # ---- review round 1 (#482)
     def test_runs_without_a_label_are_never_a_redo(self):
-        self.put(run("a", day=DAY, hh=10, label=""), run("c", day=DAY, hh=11, label=""),
-                 runs={"a": {"quota_stop": {"agent": "codex"}}, "c": {}})
+        a, c = run("a", day=DAY, hh=10), run("c", day=DAY, hh=11)
+        a["label"] = c["label"] = ""                                    # the helper would turn "" into the run id
+        self.put(a, c, runs={"a": {"quota_stop": {"agent": "codex"}}, "c": {}})
         e = self.ev(self.q(), "a")
         self.assertNotIn("重做", e["reason"])
 
@@ -376,6 +377,104 @@ class TestQuotaEvents(test_daily.TestDaily):
             self.q(quota_split="soon")
         r = self.ccx("report", "--daily", DAY, "--tz", "UTC", "--quota-events", "--quota-split", "11/20")
         self.assertNotEqual(r.returncode, 0)
+
+    # ---- review round 2 (#482)
+    def test_same_session_duplicate_packets_are_one_event_whichever_one_was_continued(self):
+        p1, p2 = "1" * 32, "2" * 32
+        for continued in (p1, p2):
+            for f in (self.work / ".ccx" / "relay").glob("*") if (self.work / ".ccx").exists() else []:
+                f.unlink()
+            self.packet(p1, session="s5")
+            self.packet(p2, session="s5", at=self.T0 + 300)
+            self.cont(continued)
+            self.notes({"kind": "done", "id": continued, "ts": self.T0 + 2 * H + 60})
+            q = self.q(workspaces=[self.work])
+            self.assertEqual(len(q["events"]), 1, continued)
+            self.assertEqual(q["events"][0]["verdict"], "success", continued)
+
+    def test_a_captured_state_packet_does_not_change_the_verdict(self):
+        a, b = "a" * 32, "b" * 32
+        self.packet(a, session="s5")
+        self.cont(a)
+        self.packet(b, state="captured", session="s5", at=self.T0 + 300, kind="none")
+        self.notes({"kind": "done", "id": a, "ts": self.T0 + 2 * H + 60})
+        q = self.q(workspaces=[self.work])
+        self.assertEqual([(e["id"], e["verdict"]) for e in q["events"]], [(a, "success")])
+
+    def test_sibling_that_was_not_continued_is_not_a_switch(self):
+        a, b = "a" * 32, "b" * 32
+        self.packet(a, session="s5")
+        self.packet(b, session="s5", at=self.T0 + 300)
+        self.cont(a)
+        self.notes({"kind": "done", "id": a, "ts": self.T0 + 2 * H + 60})
+        self.assertEqual(self.q(workspaces=[self.work])["events"][0]["verdict"], "success")
+
+    def test_hand_off_through_an_unconfirmed_packet_keeps_the_chain(self):
+        a, b = "a" * 32, "b" * 32
+        self.packet(a, session="s1")
+        self.cont(a, state="rate_limit_unconfirmed", handoff_packet=b)
+        self.packet(b, state="rate_limit_unconfirmed", session="Unknown", at=self.T0 + 2 * H)
+        self.cont(b, start=self.T0 + 2 * H + 600, end=self.T0 + 3 * H)
+        self.notes({"kind": "done", "id": b, "ts": self.T0 + 3 * H + 60})
+        q = self.q(workspaces=[self.work])
+        self.assertEqual([(e["id"], e["verdict"], e["chain"]) for e in q["events"]], [(a, "success", [a, b])])
+
+    def test_unconfirmed_head_without_confirm_promotes_the_first_countable_member(self):
+        a, b = "a" * 32, "b" * 32
+        self.packet(a, state="rate_limit_unconfirmed", session="s1")
+        self.cont(a, state="quota_stopped", handoff_packet=b)
+        self.packet(b, session="Unknown", at=self.T0 + 2 * H)                 # quota_stopped: countable
+        q = self.q(now_h=3, workspaces=[self.work])
+        self.assertEqual([e["id"] for e in q["events"]], [b])
+        self.assertEqual(q["not_counted"]["unconfirmed_packets"], 0)
+
+    def test_chain_with_no_countable_member_is_listed_not_silently_dropped(self):
+        a, b = "a" * 32, "b" * 32
+        self.packet(a, state="rate_limit_unconfirmed", session="s1")
+        self.cont(a, state="rate_limit_unconfirmed", handoff_packet=b)
+        self.packet(b, state="rate_limit_unconfirmed", session="Unknown", at=self.T0 + 2 * H)
+        q = self.q(workspaces=[self.work])
+        self.assertEqual(q["events"], [])
+        self.assertEqual(q["not_counted"]["chains_without_countable_member"], 1)
+
+    def test_excluded_head_promotes_the_next_member_and_exclude_mid_chain_applies(self):
+        a, b = "a" * 32, "b" * 32
+        self.packet(a, session="s1")
+        self.cont(a, state="quota_stopped", handoff_packet=b)
+        self.packet(b, session="Unknown", at=self.T0 + 2 * H)
+        self.notes({"kind": "exclude", "id": a, "ts": self.T0})
+        self.assertEqual([e["id"] for e in self.q(now_h=3, workspaces=[self.work])["events"]], [b])
+        self.notes({"kind": "exclude", "id": a, "ts": self.T0}, {"kind": "exclude", "id": b, "ts": self.T0})
+        q = self.q(workspaces=[self.work])
+        self.assertEqual(q["events"], [])
+        self.assertEqual(q["not_counted"]["chains_without_countable_member"], 1)
+
+    def test_subagent_pair_reports_the_vendor_that_finished_and_the_ones_passed_through(self):
+        self.put(run("a", day=DAY, hh=10, secs=60),
+                 run("b", day=DAY, hh=11, to="claude", rungs=["claude:m:low"]),
+                 run("c", day=DAY, hh=12, to="codex", rungs=["codex:n:low"]),
+                 runs={"a": {"quota_stop": {"agent": "codex"}},
+                       "b": {"resumed_from": "a", "quota_stop": {"agent": "claude"}}, "c": {"resumed_from": "b"}})
+        e = self.q()["events"][0]
+        self.assertEqual((e["from"], e["to"], e["vendors"]), ("codex", "codex", ["codex", "claude", "codex"]))
+        self.put(run("a", day=DAY, hh=10, secs=60), run("b", day=DAY, hh=11, to="claude", rungs=["claude:m:low"]),
+                 runs={"a": {"quota_stop": {"agent": "codex"}}, "b": {"resumed_from": "a"}})
+        e = self.q()["events"][0]
+        self.assertEqual((e["from"], e["to"], e["vendors"]), ("codex", "claude", ["codex", "claude"]))
+
+    def test_wait_note_in_the_middle_of_a_chain_makes_the_whole_chain_not_attempted(self):
+        self.put(run("a", day=DAY, hh=10, secs=60), run("b", day=DAY, hh=11, to="claude", rungs=["claude:m:low"], secs=60),
+                 runs={"a": {"quota_stop": {"agent": "codex"}},
+                       "b": {"resumed_from": "a", "quota_stop": {"agent": "claude"}}})
+        self.notes({"kind": "wait", "id": "b", "ts": self.T0 + H + 300})
+        self.assertEqual(self.q(now_h=9)["events"][0]["verdict"], "not_attempted")
+
+    def test_exclude_note_on_a_middle_run_excludes_the_sub_agent_chain(self):
+        self.put(run("a", day=DAY, hh=10, secs=60), run("b", day=DAY, hh=11, to="claude", rungs=["claude:m:low"]),
+                 runs={"a": {"quota_stop": {"agent": "codex"}}, "b": {"resumed_from": "a", "quota_stop": {"agent": "claude"}}})
+        self.notes({"kind": "exclude", "id": "b", "ts": self.T0})
+        q = self.q()
+        self.assertEqual((q["events"], q["not_counted"]["excluded_by_note"]), ([], 1))
 
     # ---- summary
     def test_summary_thresholds_roles_and_lower_bound(self):
