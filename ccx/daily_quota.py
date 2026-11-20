@@ -301,7 +301,8 @@ def _continuations(folder: Path, pid: str) -> list[dict]:
         d = _load_json(f)
         if d is not None:
             d["_start"] = _t(d.get("started_at")) or _mtime(f)       # records carry started_at; mtime is the fallback
-            d["_end"] = _mtime(f)                                    # the record is written last: its mtime is the end
+            # newer records carry ended_at (#483); older ones fall back to mtime (the record is written last)
+            d["_end"] = _t(d.get("ended_at")) or _mtime(f)
             out.append(d)
     return sorted(out, key=lambda c: c["_start"] or 0)
 
