@@ -430,5 +430,6 @@
     "docs/research/data/round2-bc/selection-env/repos-resume51.json",
     "docs/research/data/round2-bc/selection-env/repos-v3.json",
     "docs/research/data/round2-bc/selection-env/top-pypi-packages-30-days.min.json"
-  ]
+  ],
+  "note": "b-leak-input.json was a temporary file holding b.json's accepted and dev tasks as {\"tasks\": [...]} (round2_tasks.py leak does not read {\"accepted\": ...}); it was deleted after the run. b.json itself is excluded from the corpus so the tasks are not compared with themselves."
 }

@@ -59,7 +59,7 @@
     },
     {
       "path": "docs/research/data/round2-bc/b-leak.json",
-      "sha256": "a3dc74b63a194ab1cc5811d4f96ced3121cf4ddd5d0fa61893bc8a442eb1365b"
+      "sha256": "027563d1d3e24f9537be46a77b08b626a5cce3f62f0eee4440f4e02dbe7259c1"
     },
     {
       "path": "docs/research/data/round2-bc/b-trace.json",
@@ -75,7 +75,7 @@
     },
     {
       "path": "docs/research/data/round2-bc/selection-b.json",
-      "sha256": "7737590f800d6b81d27c8558af56fea53d6a3b03e74e0fc6450fb91814955232"
+      "sha256": "53e4c8e4b254b67b20a6068277723dec94e128863dd79920f89505f965651c4d"
     },
     {
       "path": "docs/research/data/round2-bc/selection-env/pip-list-v3.json",
@@ -427,7 +427,7 @@
     },
     {
       "path": "scripts/eval/round2_bc/freeze.py",
-      "sha256": "b7fb0ec92c93897d02bf2c68510b81df588aa2a1540cd20d09404fed76d4c655"
+      "sha256": "8a60d071ed43dc6c259d26cae7d32e4c0434387be4f6b58b550999a799d5e156"
     },
     {
       "path": "scripts/eval/round2_bc/tabula/base/tabula/__init__.py",
@@ -766,5 +766,5 @@
       "sha256": "916e30deb494b9fed4dd4da12ffa2e279f2b7a445df2c728d7ef1d65a05e5a07"
     }
   ],
-  "sha256": "82a5a147898a9f3a636e5f6e0db55aabd062d1570908d40dfc1c8625964a07d3"
+  "sha256": "a522a2cf61c161d19f6afdc5ca0b311045f0d8b3678a7cf1624fd74b03f9a0de"
 }

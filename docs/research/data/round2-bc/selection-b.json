@@ -1806,6 +1806,7 @@
   }
  ],
  "b_shortfall": 17,
+ "b_shortfall_after_exclusion": 18,
  "exclusions": [
   {
    "repo": "boto/boto3",
@@ -42624,7 +42625,7 @@
   {
    "repo": "pallets/werkzeug",
    "commit": "6950811f03f188b5815420870c336de9bf36e272",
-   "reason": "PermissionError: [WinError 32] 另一个程序正在使用此文件，进程无法访问。: '<TEMP>\\\\p5-native-g8vzimpt\\\\repo\\\\.ccx-eval-tmp-acceptance\\\\pytest-of-Hongyu\\\\pytest-0\\\\test_reloader_sys_path_stat_0\\\\log.txt'",
+   "reason": "PermissionError: [WinError 32] 另一个程序正在使用此文件，进程无法访问。: '<TEMP>\\\\p5-native-g8vzimpt\\\\repo\\\\.ccx-eval-tmp-acceptance\\\\pytest-of-<USER>\\\\pytest-0\\\\test_reloader_sys_path_stat_0\\\\log.txt'",
    "run": "selection-v4 (full select, 2026-11-18)"
   },
   {
@@ -42636,7 +42637,7 @@
   {
    "repo": "pallets/werkzeug",
    "commit": "e7090bf4a8ee0f00c55e5d3f85f11890be4c8f30",
-   "reason": "PermissionError: [WinError 32] 另一个程序正在使用此文件，进程无法访问。: '<TEMP>\\\\p5-native-oezosg9d\\\\repo\\\\.ccx-eval-tmp-acceptance\\\\pytest-of-Hongyu\\\\pytest-0\\\\test_reloader_sys_path_stat_0\\\\log.txt'",
+   "reason": "PermissionError: [WinError 32] 另一个程序正在使用此文件，进程无法访问。: '<TEMP>\\\\p5-native-oezosg9d\\\\repo\\\\.ccx-eval-tmp-acceptance\\\\pytest-of-<USER>\\\\pytest-0\\\\test_reloader_sys_path_stat_0\\\\log.txt'",
    "run": "selection-v4 (full select, 2026-11-18)"
   },
   {
@@ -42726,13 +42727,13 @@
   {
    "repo": "pallets/werkzeug",
    "commit": "c2bc20f67343e8997c6582c57a0cc6c5f4f45556",
-   "reason": "PermissionError: [WinError 32] 另一个程序正在使用此文件，进程无法访问。: '<TEMP>\\\\p5-native-u5nfrtyq\\\\repo\\\\.ccx-eval-tmp-acceptance\\\\pytest-of-Hongyu\\\\pytest-0\\\\test_reloader_sys_path_stat_0\\\\log.txt'",
+   "reason": "PermissionError: [WinError 32] 另一个程序正在使用此文件，进程无法访问。: '<TEMP>\\\\p5-native-u5nfrtyq\\\\repo\\\\.ccx-eval-tmp-acceptance\\\\pytest-of-<USER>\\\\pytest-0\\\\test_reloader_sys_path_stat_0\\\\log.txt'",
    "run": "selection-v4 (full select, 2026-11-18)"
   },
   {
    "repo": "pallets/werkzeug",
    "commit": "5cc9af729ff838790b6729c5d6a23a37345165a7",
-   "reason": "PermissionError: [WinError 32] 另一个程序正在使用此文件，进程无法访问。: '<TEMP>\\\\p5-native-lsrdnpgc\\\\repo\\\\.ccx-eval-tmp-acceptance\\\\pytest-of-Hongyu\\\\pytest-0\\\\test_reloader_sys_path_stat_0\\\\log.txt'",
+   "reason": "PermissionError: [WinError 32] 另一个程序正在使用此文件，进程无法访问。: '<TEMP>\\\\p5-native-lsrdnpgc\\\\repo\\\\.ccx-eval-tmp-acceptance\\\\pytest-of-<USER>\\\\pytest-0\\\\test_reloader_sys_path_stat_0\\\\log.txt'",
    "run": "selection-v4 (full select, 2026-11-18)"
   },
   {
@@ -42750,7 +42751,7 @@
   {
    "repo": "pallets/werkzeug",
    "commit": "5b68c736ff07163c84454d305d67d9e1f473481f",
-   "reason": "PermissionError: [WinError 32] 另一个程序正在使用此文件，进程无法访问。: '<TEMP>\\\\p5-native-nxlh5efn\\\\repo\\\\.ccx-eval-tmp-acceptance\\\\pytest-of-Hongyu\\\\pytest-0\\\\test_reloader_sys_path_stat_0\\\\log.txt'",
+   "reason": "PermissionError: [WinError 32] 另一个程序正在使用此文件，进程无法访问。: '<TEMP>\\\\p5-native-nxlh5efn\\\\repo\\\\.ccx-eval-tmp-acceptance\\\\pytest-of-<USER>\\\\pytest-0\\\\test_reloader_sys_path_stat_0\\\\log.txt'",
    "run": "selection-v4 (full select, 2026-11-18)"
   },
   {
@@ -42762,7 +42763,7 @@
   {
    "repo": "pallets/werkzeug",
    "commit": "864cde89a2f5ad2ae2f03453ec1c8b41a434f44f",
-   "reason": "PermissionError: [WinError 32] 另一个程序正在使用此文件，进程无法访问。: '<TEMP>\\\\p5-native-olqy3yg3\\\\repo\\\\.ccx-eval-tmp-acceptance\\\\pytest-of-Hongyu\\\\pytest-0\\\\test_reloader_sys_path_stat_0\\\\log.txt'",
+   "reason": "PermissionError: [WinError 32] 另一个程序正在使用此文件，进程无法访问。: '<TEMP>\\\\p5-native-olqy3yg3\\\\repo\\\\.ccx-eval-tmp-acceptance\\\\pytest-of-<USER>\\\\pytest-0\\\\test_reloader_sys_path_stat_0\\\\log.txt'",
    "run": "selection-v4 (full select, 2026-11-18)"
   },
   {
@@ -42798,7 +42799,7 @@
   {
    "repo": "pallets/werkzeug",
    "commit": "3d27209c27b14cf2a2b0796767cb34f1a4c3e94e",
-   "reason": "PermissionError: [WinError 32] 另一个程序正在使用此文件，进程无法访问。: '<TEMP>\\\\p5-native-zo8vrvc7\\\\repo\\\\.ccx-eval-tmp-acceptance\\\\pytest-of-Hongyu\\\\pytest-0\\\\test_reloader_sys_path_stat_0\\\\log.txt'",
+   "reason": "PermissionError: [WinError 32] 另一个程序正在使用此文件，进程无法访问。: '<TEMP>\\\\p5-native-zo8vrvc7\\\\repo\\\\.ccx-eval-tmp-acceptance\\\\pytest-of-<USER>\\\\pytest-0\\\\test_reloader_sys_path_stat_0\\\\log.txt'",
    "run": "selection-v4 (full select, 2026-11-18)"
   },
   {
@@ -42900,7 +42901,7 @@
   {
    "repo": "pallets/werkzeug",
    "commit": "411ba540d7c59b20b172970ed1d844d6e19fc26a",
-   "reason": "PermissionError: [WinError 32] 另一个程序正在使用此文件，进程无法访问。: '<TEMP>\\\\p5-native-3ls0gzmp\\\\repo\\\\.ccx-eval-tmp-acceptance\\\\pytest-of-Hongyu\\\\pytest-0\\\\test_reloader_sys_path_stat_0\\\\log.txt'",
+   "reason": "PermissionError: [WinError 32] 另一个程序正在使用此文件，进程无法访问。: '<TEMP>\\\\p5-native-3ls0gzmp\\\\repo\\\\.ccx-eval-tmp-acceptance\\\\pytest-of-<USER>\\\\pytest-0\\\\test_reloader_sys_path_stat_0\\\\log.txt'",
    "run": "selection-v4 (full select, 2026-11-18)"
   },
   {
@@ -42918,7 +42919,7 @@
   {
    "repo": "pallets/werkzeug",
    "commit": "5b0e3209ad5d81b0015c277c0521d6d956d7f688",
-   "reason": "PermissionError: [WinError 32] 另一个程序正在使用此文件，进程无法访问。: '<TEMP>\\\\p5-native-si3zv3ny\\\\repo\\\\.ccx-eval-tmp-acceptance\\\\pytest-of-Hongyu\\\\pytest-0\\\\test_reloader_sys_path_stat_0\\\\log.txt'",
+   "reason": "PermissionError: [WinError 32] 另一个程序正在使用此文件，进程无法访问。: '<TEMP>\\\\p5-native-si3zv3ny\\\\repo\\\\.ccx-eval-tmp-acceptance\\\\pytest-of-<USER>\\\\pytest-0\\\\test_reloader_sys_path_stat_0\\\\log.txt'",
    "run": "selection-v4 (full select, 2026-11-18)"
   },
   {
@@ -42948,13 +42949,13 @@
   {
    "repo": "pallets/werkzeug",
    "commit": "0743179b5d010eb851c66e40d69c52244ed99aea",
-   "reason": "PermissionError: [WinError 32] 另一个程序正在使用此文件，进程无法访问。: '<TEMP>\\\\p5-native-w2ric76n\\\\repo\\\\.ccx-eval-tmp-acceptance\\\\pytest-of-Hongyu\\\\pytest-0\\\\test_reloader_sys_path_stat_0\\\\log.txt'",
+   "reason": "PermissionError: [WinError 32] 另一个程序正在使用此文件，进程无法访问。: '<TEMP>\\\\p5-native-w2ric76n\\\\repo\\\\.ccx-eval-tmp-acceptance\\\\pytest-of-<USER>\\\\pytest-0\\\\test_reloader_sys_path_stat_0\\\\log.txt'",
    "run": "selection-v4 (full select, 2026-11-18)"
   },
   {
    "repo": "pallets/werkzeug",
    "commit": "4576839553881c3ff45a0ac7376b470d758aacec",
-   "reason": "PermissionError: [WinError 32] 另一个程序正在使用此文件，进程无法访问。: '<TEMP>\\\\p5-native-23ypr4js\\\\repo\\\\.ccx-eval-tmp-acceptance\\\\pytest-of-Hongyu\\\\pytest-0\\\\test_reloader_sys_path_stat_0\\\\log.txt'",
+   "reason": "PermissionError: [WinError 32] 另一个程序正在使用此文件，进程无法访问。: '<TEMP>\\\\p5-native-23ypr4js\\\\repo\\\\.ccx-eval-tmp-acceptance\\\\pytest-of-<USER>\\\\pytest-0\\\\test_reloader_sys_path_stat_0\\\\log.txt'",
    "run": "selection-v4 (full select, 2026-11-18)"
   },
   {
@@ -42966,13 +42967,13 @@
   {
    "repo": "pallets/werkzeug",
    "commit": "f359a67ed75112cb8633d8edf589a1e58d035d37",
-   "reason": "PermissionError: [WinError 32] 另一个程序正在使用此文件，进程无法访问。: '<TEMP>\\\\p5-native-au0fsxhv\\\\repo\\\\.ccx-eval-tmp-acceptance\\\\pytest-of-Hongyu\\\\pytest-0\\\\test_reloader_sys_path_stat_0\\\\log.txt'",
+   "reason": "PermissionError: [WinError 32] 另一个程序正在使用此文件，进程无法访问。: '<TEMP>\\\\p5-native-au0fsxhv\\\\repo\\\\.ccx-eval-tmp-acceptance\\\\pytest-of-<USER>\\\\pytest-0\\\\test_reloader_sys_path_stat_0\\\\log.txt'",
    "run": "selection-v4 (full select, 2026-11-18)"
   },
   {
    "repo": "pallets/werkzeug",
    "commit": "4aa0024efc288742911787d59939c9f7d8c8a035",
-   "reason": "PermissionError: [WinError 32] 另一个程序正在使用此文件，进程无法访问。: '<TEMP>\\\\p5-native-w13ug18b\\\\repo\\\\.ccx-eval-tmp-acceptance\\\\pytest-of-Hongyu\\\\pytest-0\\\\test_reloader_sys_path_stat_0\\\\log.txt'",
+   "reason": "PermissionError: [WinError 32] 另一个程序正在使用此文件，进程无法访问。: '<TEMP>\\\\p5-native-w13ug18b\\\\repo\\\\.ccx-eval-tmp-acceptance\\\\pytest-of-<USER>\\\\pytest-0\\\\test_reloader_sys_path_stat_0\\\\log.txt'",
    "run": "selection-v4 (full select, 2026-11-18)"
   },
   {
@@ -42990,7 +42991,7 @@
   {
    "repo": "pallets/werkzeug",
    "commit": "2f60c2039d67868bbd98e32f9e006ea40806ddc3",
-   "reason": "PermissionError: [WinError 32] 另一个程序正在使用此文件，进程无法访问。: '<TEMP>\\\\p5-native-2byf5fhn\\\\repo\\\\.ccx-eval-tmp-acceptance\\\\pytest-of-Hongyu\\\\pytest-0\\\\test_reloader_sys_path_stat_0\\\\log.txt'",
+   "reason": "PermissionError: [WinError 32] 另一个程序正在使用此文件，进程无法访问。: '<TEMP>\\\\p5-native-2byf5fhn\\\\repo\\\\.ccx-eval-tmp-acceptance\\\\pytest-of-<USER>\\\\pytest-0\\\\test_reloader_sys_path_stat_0\\\\log.txt'",
    "run": "selection-v4 (full select, 2026-11-18)"
   },
   {
@@ -43020,7 +43021,7 @@
   {
    "repo": "pallets/werkzeug",
    "commit": "34e4c1c3cc6732dee9e04f46a0eca9ac006e49b0",
-   "reason": "PermissionError: [WinError 32] 另一个程序正在使用此文件，进程无法访问。: '<TEMP>\\\\p5-native-_ucv5ok5\\\\repo\\\\.ccx-eval-tmp-acceptance\\\\pytest-of-Hongyu\\\\pytest-0\\\\test_reloader_sys_path_stat_0\\\\log.txt'",
+   "reason": "PermissionError: [WinError 32] 另一个程序正在使用此文件，进程无法访问。: '<TEMP>\\\\p5-native-_ucv5ok5\\\\repo\\\\.ccx-eval-tmp-acceptance\\\\pytest-of-<USER>\\\\pytest-0\\\\test_reloader_sys_path_stat_0\\\\log.txt'",
    "run": "selection-v4 (full select, 2026-11-18)"
   },
   {
@@ -43038,7 +43039,7 @@
   {
    "repo": "pallets/werkzeug",
    "commit": "d441b0c73b4baad5a07e9d1c564beaf54e2a2753",
-   "reason": "PermissionError: [WinError 32] 另一个程序正在使用此文件，进程无法访问。: '<TEMP>\\\\p5-native-eir6c7zs\\\\repo\\\\.ccx-eval-tmp-acceptance\\\\pytest-of-Hongyu\\\\pytest-0\\\\test_reloader_sys_path_stat_0\\\\log.txt'",
+   "reason": "PermissionError: [WinError 32] 另一个程序正在使用此文件，进程无法访问。: '<TEMP>\\\\p5-native-eir6c7zs\\\\repo\\\\.ccx-eval-tmp-acceptance\\\\pytest-of-<USER>\\\\pytest-0\\\\test_reloader_sys_path_stat_0\\\\log.txt'",
    "run": "selection-v4 (full select, 2026-11-18)"
   },
   {
@@ -43056,7 +43057,7 @@
   {
    "repo": "pallets/werkzeug",
    "commit": "4a7ead7be5fc3c35ea81c7348daea5831288c350",
-   "reason": "PermissionError: [WinError 32] 另一个程序正在使用此文件，进程无法访问。: '<TEMP>\\\\p5-native-h0j5kuz8\\\\repo\\\\.ccx-eval-tmp-acceptance\\\\pytest-of-Hongyu\\\\pytest-0\\\\test_reloader_sys_path_stat_0\\\\log.txt'",
+   "reason": "PermissionError: [WinError 32] 另一个程序正在使用此文件，进程无法访问。: '<TEMP>\\\\p5-native-h0j5kuz8\\\\repo\\\\.ccx-eval-tmp-acceptance\\\\pytest-of-<USER>\\\\pytest-0\\\\test_reloader_sys_path_stat_0\\\\log.txt'",
    "run": "selection-v4 (full select, 2026-11-18)"
   },
   {
@@ -43068,7 +43069,7 @@
   {
    "repo": "pallets/werkzeug",
    "commit": "7b3559ec202a300a6b7033bb737bad5e6e452de8",
-   "reason": "PermissionError: [WinError 32] 另一个程序正在使用此文件，进程无法访问。: '<TEMP>\\\\p5-native-l4cyohzp\\\\repo\\\\.ccx-eval-tmp-acceptance\\\\pytest-of-Hongyu\\\\pytest-0\\\\test_reloader_sys_path_stat_0\\\\log.txt'",
+   "reason": "PermissionError: [WinError 32] 另一个程序正在使用此文件，进程无法访问。: '<TEMP>\\\\p5-native-l4cyohzp\\\\repo\\\\.ccx-eval-tmp-acceptance\\\\pytest-of-<USER>\\\\pytest-0\\\\test_reloader_sys_path_stat_0\\\\log.txt'",
    "run": "selection-v4 (full select, 2026-11-18)"
   },
   {
@@ -43086,7 +43087,7 @@
   {
    "repo": "pallets/werkzeug",
    "commit": "2c453bf3f307b13cc2e3025458743d3812fa50e6",
-   "reason": "PermissionError: [WinError 32] 另一个程序正在使用此文件，进程无法访问。: '<TEMP>\\\\p5-native-6acn_dz0\\\\repo\\\\.ccx-eval-tmp-acceptance\\\\pytest-of-Hongyu\\\\pytest-0\\\\test_reloader_sys_path_stat_0\\\\log.txt'",
+   "reason": "PermissionError: [WinError 32] 另一个程序正在使用此文件，进程无法访问。: '<TEMP>\\\\p5-native-6acn_dz0\\\\repo\\\\.ccx-eval-tmp-acceptance\\\\pytest-of-<USER>\\\\pytest-0\\\\test_reloader_sys_path_stat_0\\\\log.txt'",
    "run": "selection-v4 (full select, 2026-11-18)"
   },
   {
@@ -43098,13 +43099,13 @@
   {
    "repo": "pallets/werkzeug",
    "commit": "fa8e8b84c74e5dc81d9a01104c1d72db0ba1f4a1",
-   "reason": "PermissionError: [WinError 32] 另一个程序正在使用此文件，进程无法访问。: '<TEMP>\\\\p5-native-k4rwyhtv\\\\repo\\\\.ccx-eval-tmp-acceptance\\\\pytest-of-Hongyu\\\\pytest-0\\\\test_reloader_sys_path_stat_0\\\\log.txt'",
+   "reason": "PermissionError: [WinError 32] 另一个程序正在使用此文件，进程无法访问。: '<TEMP>\\\\p5-native-k4rwyhtv\\\\repo\\\\.ccx-eval-tmp-acceptance\\\\pytest-of-<USER>\\\\pytest-0\\\\test_reloader_sys_path_stat_0\\\\log.txt'",
    "run": "selection-v4 (full select, 2026-11-18)"
   },
   {
    "repo": "pallets/werkzeug",
    "commit": "0e1701828a0f9209c968fca2f3ff428c99f97611",
-   "reason": "PermissionError: [WinError 32] 另一个程序正在使用此文件，进程无法访问。: '<TEMP>\\\\p5-native-i4rqbatw\\\\repo\\\\.ccx-eval-tmp-acceptance\\\\pytest-of-Hongyu\\\\pytest-0\\\\test_reloader_sys_path_stat_0\\\\log.txt'",
+   "reason": "PermissionError: [WinError 32] 另一个程序正在使用此文件，进程无法访问。: '<TEMP>\\\\p5-native-i4rqbatw\\\\repo\\\\.ccx-eval-tmp-acceptance\\\\pytest-of-<USER>\\\\pytest-0\\\\test_reloader_sys_path_stat_0\\\\log.txt'",
    "run": "selection-v4 (full select, 2026-11-18)"
   },
   {
@@ -43128,13 +43129,13 @@
   {
    "repo": "pallets/werkzeug",
    "commit": "01ff541b12763934057941937f0fbd8fa46db21c",
-   "reason": "PermissionError: [WinError 32] 另一个程序正在使用此文件，进程无法访问。: '<TEMP>\\\\p5-native-8lb8vihf\\\\repo\\\\.ccx-eval-tmp-acceptance\\\\pytest-of-Hongyu\\\\pytest-0\\\\test_reloader_sys_path_stat_0\\\\log.txt'",
+   "reason": "PermissionError: [WinError 32] 另一个程序正在使用此文件，进程无法访问。: '<TEMP>\\\\p5-native-8lb8vihf\\\\repo\\\\.ccx-eval-tmp-acceptance\\\\pytest-of-<USER>\\\\pytest-0\\\\test_reloader_sys_path_stat_0\\\\log.txt'",
    "run": "selection-v4 (full select, 2026-11-18)"
   },
   {
    "repo": "pallets/werkzeug",
    "commit": "c44a19af54fb33cd5cbb4e654ffa28b824923449",
-   "reason": "PermissionError: [WinError 32] 另一个程序正在使用此文件，进程无法访问。: '<TEMP>\\\\p5-native-2763rvfr\\\\repo\\\\.ccx-eval-tmp-acceptance\\\\pytest-of-Hongyu\\\\pytest-0\\\\test_reloader_sys_path_stat_0\\\\log.txt'",
+   "reason": "PermissionError: [WinError 32] 另一个程序正在使用此文件，进程无法访问。: '<TEMP>\\\\p5-native-2763rvfr\\\\repo\\\\.ccx-eval-tmp-acceptance\\\\pytest-of-<USER>\\\\pytest-0\\\\test_reloader_sys_path_stat_0\\\\log.txt'",
    "run": "selection-v4 (full select, 2026-11-18)"
   },
   {
@@ -43218,7 +43219,7 @@
   {
    "repo": "pallets/werkzeug",
    "commit": "63a800cacf9492b421c4fc29a66104894f802937",
-   "reason": "PermissionError: [WinError 32] 另一个程序正在使用此文件，进程无法访问。: '<TEMP>\\\\p5-native-uq7t5501\\\\repo\\\\.ccx-eval-tmp-acceptance\\\\pytest-of-Hongyu\\\\pytest-0\\\\test_reloader_sys_path_stat_0\\\\log.txt'",
+   "reason": "PermissionError: [WinError 32] 另一个程序正在使用此文件，进程无法访问。: '<TEMP>\\\\p5-native-uq7t5501\\\\repo\\\\.ccx-eval-tmp-acceptance\\\\pytest-of-<USER>\\\\pytest-0\\\\test_reloader_sys_path_stat_0\\\\log.txt'",
    "run": "selection-v4 (full select, 2026-11-18)"
   },
   {
@@ -43236,7 +43237,7 @@
   {
    "repo": "pallets/werkzeug",
    "commit": "ad8533c647d8469f71ec428be1bc28a74b20b3a4",
-   "reason": "PermissionError: [WinError 32] 另一个程序正在使用此文件，进程无法访问。: '<TEMP>\\\\p5-native-qwo9tzuo\\\\repo\\\\.ccx-eval-tmp-acceptance\\\\pytest-of-Hongyu\\\\pytest-0\\\\test_reloader_sys_path_stat_0\\\\log.txt'",
+   "reason": "PermissionError: [WinError 32] 另一个程序正在使用此文件，进程无法访问。: '<TEMP>\\\\p5-native-qwo9tzuo\\\\repo\\\\.ccx-eval-tmp-acceptance\\\\pytest-of-<USER>\\\\pytest-0\\\\test_reloader_sys_path_stat_0\\\\log.txt'",
    "run": "selection-v4 (full select, 2026-11-18)"
   },
   {
@@ -43248,7 +43249,7 @@
   {
    "repo": "pallets/werkzeug",
    "commit": "e31501bc3b61dd2766176fef5f7f3922e4a9b63f",
-   "reason": "PermissionError: [WinError 32] 另一个程序正在使用此文件，进程无法访问。: '<TEMP>\\\\p5-native-b31ud2_p\\\\repo\\\\.ccx-eval-tmp-acceptance\\\\pytest-of-Hongyu\\\\pytest-0\\\\test_reloader_sys_path_stat_0\\\\log.txt'",
+   "reason": "PermissionError: [WinError 32] 另一个程序正在使用此文件，进程无法访问。: '<TEMP>\\\\p5-native-b31ud2_p\\\\repo\\\\.ccx-eval-tmp-acceptance\\\\pytest-of-<USER>\\\\pytest-0\\\\test_reloader_sys_path_stat_0\\\\log.txt'",
    "run": "selection-v4 (full select, 2026-11-18)"
   },
   {
@@ -43290,7 +43291,7 @@
   {
    "repo": "pallets/werkzeug",
    "commit": "5c7420b70061eb9a113897e7a5bd680c60387b76",
-   "reason": "PermissionError: [WinError 32] 另一个程序正在使用此文件，进程无法访问。: '<TEMP>\\\\p5-native-tddmf9ao\\\\repo\\\\.ccx-eval-tmp-acceptance\\\\pytest-of-Hongyu\\\\pytest-0\\\\test_reloader_sys_path_stat_0\\\\log.txt'",
+   "reason": "PermissionError: [WinError 32] 另一个程序正在使用此文件，进程无法访问。: '<TEMP>\\\\p5-native-tddmf9ao\\\\repo\\\\.ccx-eval-tmp-acceptance\\\\pytest-of-<USER>\\\\pytest-0\\\\test_reloader_sys_path_stat_0\\\\log.txt'",
    "run": "selection-v4 (full select, 2026-11-18)"
   },
   {
@@ -43338,7 +43339,7 @@
   {
    "repo": "pallets/werkzeug",
    "commit": "ecb07329b88ac024cdca897c86f28cd718011aff",
-   "reason": "PermissionError: [WinError 32] 另一个程序正在使用此文件，进程无法访问。: '<TEMP>\\\\p5-native-byk0qu6p\\\\repo\\\\.ccx-eval-tmp-acceptance\\\\pytest-of-Hongyu\\\\pytest-0\\\\test_reloader_sys_path_stat_0\\\\log.txt'",
+   "reason": "PermissionError: [WinError 32] 另一个程序正在使用此文件，进程无法访问。: '<TEMP>\\\\p5-native-byk0qu6p\\\\repo\\\\.ccx-eval-tmp-acceptance\\\\pytest-of-<USER>\\\\pytest-0\\\\test_reloader_sys_path_stat_0\\\\log.txt'",
    "run": "selection-v4 (full select, 2026-11-18)"
   },
   {
@@ -43392,19 +43393,19 @@
   {
    "repo": "pallets/werkzeug",
    "commit": "2f2625fefdaead837c5433e44d5fe86972d013dd",
-   "reason": "PermissionError: [WinError 32] 另一个程序正在使用此文件，进程无法访问。: '<TEMP>\\\\p5-native-yppp_bra\\\\repo\\\\.ccx-eval-tmp-acceptance\\\\pytest-of-Hongyu\\\\pytest-0\\\\test_reloader_sys_path_stat_0\\\\log.txt'",
+   "reason": "PermissionError: [WinError 32] 另一个程序正在使用此文件，进程无法访问。: '<TEMP>\\\\p5-native-yppp_bra\\\\repo\\\\.ccx-eval-tmp-acceptance\\\\pytest-of-<USER>\\\\pytest-0\\\\test_reloader_sys_path_stat_0\\\\log.txt'",
    "run": "selection-v4 (full select, 2026-11-18)"
   },
   {
    "repo": "pallets/werkzeug",
    "commit": "50bf1e92af0b1acbc00aacd044e4f6b10b7787bf",
-   "reason": "PermissionError: [WinError 32] 另一个程序正在使用此文件，进程无法访问。: '<TEMP>\\\\p5-native-idd8hvtv\\\\repo\\\\.ccx-eval-tmp-acceptance\\\\pytest-of-Hongyu\\\\pytest-0\\\\test_reloader_sys_path_stat_0\\\\log.txt'",
+   "reason": "PermissionError: [WinError 32] 另一个程序正在使用此文件，进程无法访问。: '<TEMP>\\\\p5-native-idd8hvtv\\\\repo\\\\.ccx-eval-tmp-acceptance\\\\pytest-of-<USER>\\\\pytest-0\\\\test_reloader_sys_path_stat_0\\\\log.txt'",
    "run": "selection-v4 (full select, 2026-11-18)"
   },
   {
    "repo": "pallets/werkzeug",
    "commit": "aca1f56ea64a22b0f081ac852c20a0dae019910f",
-   "reason": "PermissionError: [WinError 32] 另一个程序正在使用此文件，进程无法访问。: '<TEMP>\\\\p5-native-x1zbn27g\\\\repo\\\\.ccx-eval-tmp-acceptance\\\\pytest-of-Hongyu\\\\pytest-0\\\\test_reloader_sys_path_stat_0\\\\log.txt'",
+   "reason": "PermissionError: [WinError 32] 另一个程序正在使用此文件，进程无法访问。: '<TEMP>\\\\p5-native-x1zbn27g\\\\repo\\\\.ccx-eval-tmp-acceptance\\\\pytest-of-<USER>\\\\pytest-0\\\\test_reloader_sys_path_stat_0\\\\log.txt'",
    "run": "selection-v4 (full select, 2026-11-18)"
   },
   {
@@ -43428,7 +43429,7 @@
   {
    "repo": "pallets/werkzeug",
    "commit": "286c46ffcaa94479929d1527fba335b14a4f05e5",
-   "reason": "PermissionError: [WinError 32] 另一个程序正在使用此文件，进程无法访问。: '<TEMP>\\\\p5-native-lwrh1ndz\\\\repo\\\\.ccx-eval-tmp-acceptance\\\\pytest-of-Hongyu\\\\pytest-0\\\\test_reloader_sys_path_stat_0\\\\log.txt'",
+   "reason": "PermissionError: [WinError 32] 另一个程序正在使用此文件，进程无法访问。: '<TEMP>\\\\p5-native-lwrh1ndz\\\\repo\\\\.ccx-eval-tmp-acceptance\\\\pytest-of-<USER>\\\\pytest-0\\\\test_reloader_sys_path_stat_0\\\\log.txt'",
    "run": "selection-v4 (full select, 2026-11-18)"
   },
   {
@@ -43440,19 +43441,19 @@
   {
    "repo": "pallets/werkzeug",
    "commit": "f29e6812f071154fe36b286c71a81699efe16948",
-   "reason": "PermissionError: [WinError 32] 另一个程序正在使用此文件，进程无法访问。: '<TEMP>\\\\p5-native-6b3iuwum\\\\repo\\\\.ccx-eval-tmp-acceptance\\\\pytest-of-Hongyu\\\\pytest-0\\\\test_reloader_sys_path_stat_0\\\\log.txt'",
+   "reason": "PermissionError: [WinError 32] 另一个程序正在使用此文件，进程无法访问。: '<TEMP>\\\\p5-native-6b3iuwum\\\\repo\\\\.ccx-eval-tmp-acceptance\\\\pytest-of-<USER>\\\\pytest-0\\\\test_reloader_sys_path_stat_0\\\\log.txt'",
    "run": "selection-v4 (full select, 2026-11-18)"
   },
   {
    "repo": "pallets/werkzeug",
    "commit": "09b823614be40b7ec7f12fbb3fb1364ded172829",
-   "reason": "PermissionError: [WinError 32] 另一个程序正在使用此文件，进程无法访问。: '<TEMP>\\\\p5-native-egdffip6\\\\repo\\\\.ccx-eval-tmp-acceptance\\\\pytest-of-Hongyu\\\\pytest-0\\\\test_reloader_sys_path_stat_0\\\\log.txt'",
+   "reason": "PermissionError: [WinError 32] 另一个程序正在使用此文件，进程无法访问。: '<TEMP>\\\\p5-native-egdffip6\\\\repo\\\\.ccx-eval-tmp-acceptance\\\\pytest-of-<USER>\\\\pytest-0\\\\test_reloader_sys_path_stat_0\\\\log.txt'",
    "run": "selection-v4 (full select, 2026-11-18)"
   },
   {
    "repo": "pallets/werkzeug",
    "commit": "b0becc395cce6963dc9b7b5fc599854854b5e78c",
-   "reason": "PermissionError: [WinError 32] 另一个程序正在使用此文件，进程无法访问。: '<TEMP>\\\\p5-native-5vtl8hz6\\\\repo\\\\.ccx-eval-tmp-acceptance\\\\pytest-of-Hongyu\\\\pytest-0\\\\test_reloader_sys_path_stat_0\\\\log.txt'",
+   "reason": "PermissionError: [WinError 32] 另一个程序正在使用此文件，进程无法访问。: '<TEMP>\\\\p5-native-5vtl8hz6\\\\repo\\\\.ccx-eval-tmp-acceptance\\\\pytest-of-<USER>\\\\pytest-0\\\\test_reloader_sys_path_stat_0\\\\log.txt'",
    "run": "selection-v4 (full select, 2026-11-18)"
   },
   {
@@ -43494,7 +43495,7 @@
   {
    "repo": "pallets/werkzeug",
    "commit": "46b89c914747175638cc575e7f467e6b7e3a7b1d",
-   "reason": "PermissionError: [WinError 32] 另一个程序正在使用此文件，进程无法访问。: '<TEMP>\\\\p5-native-2yxm2nzp\\\\repo\\\\.ccx-eval-tmp-acceptance\\\\pytest-of-Hongyu\\\\pytest-0\\\\test_reloader_sys_path_stat_0\\\\log.txt'",
+   "reason": "PermissionError: [WinError 32] 另一个程序正在使用此文件，进程无法访问。: '<TEMP>\\\\p5-native-2yxm2nzp\\\\repo\\\\.ccx-eval-tmp-acceptance\\\\pytest-of-<USER>\\\\pytest-0\\\\test_reloader_sys_path_stat_0\\\\log.txt'",
    "run": "selection-v4 (full select, 2026-11-18)"
   },
   {
@@ -43548,7 +43549,7 @@
   {
    "repo": "pallets/werkzeug",
    "commit": "c678a2310328d2ecd082f0c77a514eb738bbe9d2",
-   "reason": "PermissionError: [WinError 32] 另一个程序正在使用此文件，进程无法访问。: '<TEMP>\\\\p5-native-vribraxc\\\\repo\\\\.ccx-eval-tmp-acceptance\\\\pytest-of-Hongyu\\\\pytest-0\\\\test_reloader_sys_path_stat_0\\\\log.txt'",
+   "reason": "PermissionError: [WinError 32] 另一个程序正在使用此文件，进程无法访问。: '<TEMP>\\\\p5-native-vribraxc\\\\repo\\\\.ccx-eval-tmp-acceptance\\\\pytest-of-<USER>\\\\pytest-0\\\\test_reloader_sys_path_stat_0\\\\log.txt'",
    "run": "selection-v4 (full select, 2026-11-18)"
   },
   {
@@ -43578,7 +43579,7 @@
   {
    "repo": "pallets/werkzeug",
    "commit": "5b0dc6d64c32554a11906560486d59103ae8fd11",
-   "reason": "PermissionError: [WinError 32] 另一个程序正在使用此文件，进程无法访问。: '<TEMP>\\\\p5-native-yb6lh5lu\\\\repo\\\\.ccx-eval-tmp-acceptance\\\\pytest-of-Hongyu\\\\pytest-0\\\\test_reloader_sys_path_stat_0\\\\log.txt'",
+   "reason": "PermissionError: [WinError 32] 另一个程序正在使用此文件，进程无法访问。: '<TEMP>\\\\p5-native-yb6lh5lu\\\\repo\\\\.ccx-eval-tmp-acceptance\\\\pytest-of-<USER>\\\\pytest-0\\\\test_reloader_sys_path_stat_0\\\\log.txt'",
    "run": "selection-v4 (full select, 2026-11-18)"
   },
   {
@@ -43596,7 +43597,7 @@
   {
    "repo": "pallets/werkzeug",
    "commit": "6efb81984709805e16167ab52727e484086cde57",
-   "reason": "PermissionError: [WinError 32] 另一个程序正在使用此文件，进程无法访问。: '<TEMP>\\\\p5-native-__dg_n2j\\\\repo\\\\.ccx-eval-tmp-acceptance\\\\pytest-of-Hongyu\\\\pytest-0\\\\test_reloader_sys_path_stat_0\\\\log.txt'",
+   "reason": "PermissionError: [WinError 32] 另一个程序正在使用此文件，进程无法访问。: '<TEMP>\\\\p5-native-__dg_n2j\\\\repo\\\\.ccx-eval-tmp-acceptance\\\\pytest-of-<USER>\\\\pytest-0\\\\test_reloader_sys_path_stat_0\\\\log.txt'",
    "run": "selection-v4 (full select, 2026-11-18)"
   },
   {
@@ -119993,7 +119994,7 @@
    "commit": "6950811f03f188b5815420870c336de9bf36e272",
    "group": "B",
    "valid": false,
-   "error": "PermissionError: [WinError 32] 另一个程序正在使用此文件，进程无法访问。: '<TEMP>\\\\p5-native-g8vzimpt\\\\repo\\\\.ccx-eval-tmp-acceptance\\\\pytest-of-Hongyu\\\\pytest-0\\\\test_reloader_sys_path_stat_0\\\\log.txt'",
+   "error": "PermissionError: [WinError 32] 另一个程序正在使用此文件，进程无法访问。: '<TEMP>\\\\p5-native-g8vzimpt\\\\repo\\\\.ccx-eval-tmp-acceptance\\\\pytest-of-<USER>\\\\pytest-0\\\\test_reloader_sys_path_stat_0\\\\log.txt'",
    "baseline": null,
    "parent": null,
    "reference": null,
@@ -120005,7 +120006,7 @@
    "commit": "e7090bf4a8ee0f00c55e5d3f85f11890be4c8f30",
    "group": "B",
    "valid": false,
-   "error": "PermissionError: [WinError 32] 另一个程序正在使用此文件，进程无法访问。: '<TEMP>\\\\p5-native-oezosg9d\\\\repo\\\\.ccx-eval-tmp-acceptance\\\\pytest-of-Hongyu\\\\pytest-0\\\\test_reloader_sys_path_stat_0\\\\log.txt'",
+   "error": "PermissionError: [WinError 32] 另一个程序正在使用此文件，进程无法访问。: '<TEMP>\\\\p5-native-oezosg9d\\\\repo\\\\.ccx-eval-tmp-acceptance\\\\pytest-of-<USER>\\\\pytest-0\\\\test_reloader_sys_path_stat_0\\\\log.txt'",
    "baseline": null,
    "parent": null,
    "reference": null,
@@ -120017,7 +120018,7 @@
    "commit": "c2bc20f67343e8997c6582c57a0cc6c5f4f45556",
    "group": "B",
    "valid": false,
-   "error": "PermissionError: [WinError 32] 另一个程序正在使用此文件，进程无法访问。: '<TEMP>\\\\p5-native-u5nfrtyq\\\\repo\\\\.ccx-eval-tmp-acceptance\\\\pytest-of-Hongyu\\\\pytest-0\\\\test_reloader_sys_path_stat_0\\\\log.txt'",
+   "error": "PermissionError: [WinError 32] 另一个程序正在使用此文件，进程无法访问。: '<TEMP>\\\\p5-native-u5nfrtyq\\\\repo\\\\.ccx-eval-tmp-acceptance\\\\pytest-of-<USER>\\\\pytest-0\\\\test_reloader_sys_path_stat_0\\\\log.txt'",
    "baseline": null,
    "parent": null,
    "reference": null,
@@ -120029,7 +120030,7 @@
    "commit": "5cc9af729ff838790b6729c5d6a23a37345165a7",
    "group": "B",
    "valid": false,
-   "error": "PermissionError: [WinError 32] 另一个程序正在使用此文件，进程无法访问。: '<TEMP>\\\\p5-native-lsrdnpgc\\\\repo\\\\.ccx-eval-tmp-acceptance\\\\pytest-of-Hongyu\\\\pytest-0\\\\test_reloader_sys_path_stat_0\\\\log.txt'",
+   "error": "PermissionError: [WinError 32] 另一个程序正在使用此文件，进程无法访问。: '<TEMP>\\\\p5-native-lsrdnpgc\\\\repo\\\\.ccx-eval-tmp-acceptance\\\\pytest-of-<USER>\\\\pytest-0\\\\test_reloader_sys_path_stat_0\\\\log.txt'",
    "baseline": null,
    "parent": null,
    "reference": null,
@@ -120041,7 +120042,7 @@
    "commit": "5b68c736ff07163c84454d305d67d9e1f473481f",
    "group": "B",
    "valid": false,
-   "error": "PermissionError: [WinError 32] 另一个程序正在使用此文件，进程无法访问。: '<TEMP>\\\\p5-native-nxlh5efn\\\\repo\\\\.ccx-eval-tmp-acceptance\\\\pytest-of-Hongyu\\\\pytest-0\\\\test_reloader_sys_path_stat_0\\\\log.txt'",
+   "error": "PermissionError: [WinError 32] 另一个程序正在使用此文件，进程无法访问。: '<TEMP>\\\\p5-native-nxlh5efn\\\\repo\\\\.ccx-eval-tmp-acceptance\\\\pytest-of-<USER>\\\\pytest-0\\\\test_reloader_sys_path_stat_0\\\\log.txt'",
    "baseline": null,
    "parent": null,
    "reference": null,
@@ -120053,7 +120054,7 @@
    "commit": "864cde89a2f5ad2ae2f03453ec1c8b41a434f44f",
    "group": "B",
    "valid": false,
-   "error": "PermissionError: [WinError 32] 另一个程序正在使用此文件，进程无法访问。: '<TEMP>\\\\p5-native-olqy3yg3\\\\repo\\\\.ccx-eval-tmp-acceptance\\\\pytest-of-Hongyu\\\\pytest-0\\\\test_reloader_sys_path_stat_0\\\\log.txt'",
+   "error": "PermissionError: [WinError 32] 另一个程序正在使用此文件，进程无法访问。: '<TEMP>\\\\p5-native-olqy3yg3\\\\repo\\\\.ccx-eval-tmp-acceptance\\\\pytest-of-<USER>\\\\pytest-0\\\\test_reloader_sys_path_stat_0\\\\log.txt'",
    "baseline": null,
    "parent": null,
    "reference": null,
@@ -120065,7 +120066,7 @@
    "commit": "3d27209c27b14cf2a2b0796767cb34f1a4c3e94e",
    "group": "B",
    "valid": false,
-   "error": "PermissionError: [WinError 32] 另一个程序正在使用此文件，进程无法访问。: '<TEMP>\\\\p5-native-zo8vrvc7\\\\repo\\\\.ccx-eval-tmp-acceptance\\\\pytest-of-Hongyu\\\\pytest-0\\\\test_reloader_sys_path_stat_0\\\\log.txt'",
+   "error": "PermissionError: [WinError 32] 另一个程序正在使用此文件，进程无法访问。: '<TEMP>\\\\p5-native-zo8vrvc7\\\\repo\\\\.ccx-eval-tmp-acceptance\\\\pytest-of-<USER>\\\\pytest-0\\\\test_reloader_sys_path_stat_0\\\\log.txt'",
    "baseline": null,
    "parent": null,
    "reference": null,
@@ -120077,7 +120078,7 @@
    "commit": "411ba540d7c59b20b172970ed1d844d6e19fc26a",
    "group": "B",
    "valid": false,
-   "error": "PermissionError: [WinError 32] 另一个程序正在使用此文件，进程无法访问。: '<TEMP>\\\\p5-native-3ls0gzmp\\\\repo\\\\.ccx-eval-tmp-acceptance\\\\pytest-of-Hongyu\\\\pytest-0\\\\test_reloader_sys_path_stat_0\\\\log.txt'",
+   "error": "PermissionError: [WinError 32] 另一个程序正在使用此文件，进程无法访问。: '<TEMP>\\\\p5-native-3ls0gzmp\\\\repo\\\\.ccx-eval-tmp-acceptance\\\\pytest-of-<USER>\\\\pytest-0\\\\test_reloader_sys_path_stat_0\\\\log.txt'",
    "baseline": null,
    "parent": null,
    "reference": null,
@@ -120089,7 +120090,7 @@
    "commit": "5b0e3209ad5d81b0015c277c0521d6d956d7f688",
    "group": "B",
    "valid": false,
-   "error": "PermissionError: [WinError 32] 另一个程序正在使用此文件，进程无法访问。: '<TEMP>\\\\p5-native-si3zv3ny\\\\repo\\\\.ccx-eval-tmp-acceptance\\\\pytest-of-Hongyu\\\\pytest-0\\\\test_reloader_sys_path_stat_0\\\\log.txt'",
+   "error": "PermissionError: [WinError 32] 另一个程序正在使用此文件，进程无法访问。: '<TEMP>\\\\p5-native-si3zv3ny\\\\repo\\\\.ccx-eval-tmp-acceptance\\\\pytest-of-<USER>\\\\pytest-0\\\\test_reloader_sys_path_stat_0\\\\log.txt'",
    "baseline": null,
    "parent": null,
    "reference": null,
@@ -120101,7 +120102,7 @@
    "commit": "0743179b5d010eb851c66e40d69c52244ed99aea",
    "group": "B",
    "valid": false,
-   "error": "PermissionError: [WinError 32] 另一个程序正在使用此文件，进程无法访问。: '<TEMP>\\\\p5-native-w2ric76n\\\\repo\\\\.ccx-eval-tmp-acceptance\\\\pytest-of-Hongyu\\\\pytest-0\\\\test_reloader_sys_path_stat_0\\\\log.txt'",
+   "error": "PermissionError: [WinError 32] 另一个程序正在使用此文件，进程无法访问。: '<TEMP>\\\\p5-native-w2ric76n\\\\repo\\\\.ccx-eval-tmp-acceptance\\\\pytest-of-<USER>\\\\pytest-0\\\\test_reloader_sys_path_stat_0\\\\log.txt'",
    "baseline": null,
    "parent": null,
    "reference": null,
@@ -120113,7 +120114,7 @@
    "commit": "4576839553881c3ff45a0ac7376b470d758aacec",
    "group": "B",
    "valid": false,
-   "error": "PermissionError: [WinError 32] 另一个程序正在使用此文件，进程无法访问。: '<TEMP>\\\\p5-native-23ypr4js\\\\repo\\\\.ccx-eval-tmp-acceptance\\\\pytest-of-Hongyu\\\\pytest-0\\\\test_reloader_sys_path_stat_0\\\\log.txt'",
+   "error": "PermissionError: [WinError 32] 另一个程序正在使用此文件，进程无法访问。: '<TEMP>\\\\p5-native-23ypr4js\\\\repo\\\\.ccx-eval-tmp-acceptance\\\\pytest-of-<USER>\\\\pytest-0\\\\test_reloader_sys_path_stat_0\\\\log.txt'",
    "baseline": null,
    "parent": null,
    "reference": null,
@@ -120125,7 +120126,7 @@
    "commit": "f359a67ed75112cb8633d8edf589a1e58d035d37",
    "group": "B",
    "valid": false,
-   "error": "PermissionError: [WinError 32] 另一个程序正在使用此文件，进程无法访问。: '<TEMP>\\\\p5-native-au0fsxhv\\\\repo\\\\.ccx-eval-tmp-acceptance\\\\pytest-of-Hongyu\\\\pytest-0\\\\test_reloader_sys_path_stat_0\\\\log.txt'",
+   "error": "PermissionError: [WinError 32] 另一个程序正在使用此文件，进程无法访问。: '<TEMP>\\\\p5-native-au0fsxhv\\\\repo\\\\.ccx-eval-tmp-acceptance\\\\pytest-of-<USER>\\\\pytest-0\\\\test_reloader_sys_path_stat_0\\\\log.txt'",
    "baseline": null,
    "parent": null,
    "reference": null,
@@ -120137,7 +120138,7 @@
    "commit": "4aa0024efc288742911787d59939c9f7d8c8a035",
    "group": "B",
    "valid": false,
-   "error": "PermissionError: [WinError 32] 另一个程序正在使用此文件，进程无法访问。: '<TEMP>\\\\p5-native-w13ug18b\\\\repo\\\\.ccx-eval-tmp-acceptance\\\\pytest-of-Hongyu\\\\pytest-0\\\\test_reloader_sys_path_stat_0\\\\log.txt'",
+   "error": "PermissionError: [WinError 32] 另一个程序正在使用此文件，进程无法访问。: '<TEMP>\\\\p5-native-w13ug18b\\\\repo\\\\.ccx-eval-tmp-acceptance\\\\pytest-of-<USER>\\\\pytest-0\\\\test_reloader_sys_path_stat_0\\\\log.txt'",
    "baseline": null,
    "parent": null,
    "reference": null,
@@ -120149,7 +120150,7 @@
    "commit": "2f60c2039d67868bbd98e32f9e006ea40806ddc3",
    "group": "B",
    "valid": false,
-   "error": "PermissionError: [WinError 32] 另一个程序正在使用此文件，进程无法访问。: '<TEMP>\\\\p5-native-2byf5fhn\\\\repo\\\\.ccx-eval-tmp-acceptance\\\\pytest-of-Hongyu\\\\pytest-0\\\\test_reloader_sys_path_stat_0\\\\log.txt'",
+   "error": "PermissionError: [WinError 32] 另一个程序正在使用此文件，进程无法访问。: '<TEMP>\\\\p5-native-2byf5fhn\\\\repo\\\\.ccx-eval-tmp-acceptance\\\\pytest-of-<USER>\\\\pytest-0\\\\test_reloader_sys_path_stat_0\\\\log.txt'",
    "baseline": null,
    "parent": null,
    "reference": null,
@@ -120161,7 +120162,7 @@
    "commit": "34e4c1c3cc6732dee9e04f46a0eca9ac006e49b0",
    "group": "B",
    "valid": false,
-   "error": "PermissionError: [WinError 32] 另一个程序正在使用此文件，进程无法访问。: '<TEMP>\\\\p5-native-_ucv5ok5\\\\repo\\\\.ccx-eval-tmp-acceptance\\\\pytest-of-Hongyu\\\\pytest-0\\\\test_reloader_sys_path_stat_0\\\\log.txt'",
+   "error": "PermissionError: [WinError 32] 另一个程序正在使用此文件，进程无法访问。: '<TEMP>\\\\p5-native-_ucv5ok5\\\\repo\\\\.ccx-eval-tmp-acceptance\\\\pytest-of-<USER>\\\\pytest-0\\\\test_reloader_sys_path_stat_0\\\\log.txt'",
    "baseline": null,
    "parent": null,
    "reference": null,
@@ -120173,7 +120174,7 @@
    "commit": "d441b0c73b4baad5a07e9d1c564beaf54e2a2753",
    "group": "B",
    "valid": false,
-   "error": "PermissionError: [WinError 32] 另一个程序正在使用此文件，进程无法访问。: '<TEMP>\\\\p5-native-eir6c7zs\\\\repo\\\\.ccx-eval-tmp-acceptance\\\\pytest-of-Hongyu\\\\pytest-0\\\\test_reloader_sys_path_stat_0\\\\log.txt'",
+   "error": "PermissionError: [WinError 32] 另一个程序正在使用此文件，进程无法访问。: '<TEMP>\\\\p5-native-eir6c7zs\\\\repo\\\\.ccx-eval-tmp-acceptance\\\\pytest-of-<USER>\\\\pytest-0\\\\test_reloader_sys_path_stat_0\\\\log.txt'",
    "baseline": null,
    "parent": null,
    "reference": null,
@@ -120185,7 +120186,7 @@
    "commit": "4a7ead7be5fc3c35ea81c7348daea5831288c350",
    "group": "B",
    "valid": false,
-   "error": "PermissionError: [WinError 32] 另一个程序正在使用此文件，进程无法访问。: '<TEMP>\\\\p5-native-h0j5kuz8\\\\repo\\\\.ccx-eval-tmp-acceptance\\\\pytest-of-Hongyu\\\\pytest-0\\\\test_reloader_sys_path_stat_0\\\\log.txt'",
+   "error": "PermissionError: [WinError 32] 另一个程序正在使用此文件，进程无法访问。: '<TEMP>\\\\p5-native-h0j5kuz8\\\\repo\\\\.ccx-eval-tmp-acceptance\\\\pytest-of-<USER>\\\\pytest-0\\\\test_reloader_sys_path_stat_0\\\\log.txt'",
    "baseline": null,
    "parent": null,
    "reference": null,
@@ -120197,7 +120198,7 @@
    "commit": "7b3559ec202a300a6b7033bb737bad5e6e452de8",
    "group": "B",
    "valid": false,
-   "error": "PermissionError: [WinError 32] 另一个程序正在使用此文件，进程无法访问。: '<TEMP>\\\\p5-native-l4cyohzp\\\\repo\\\\.ccx-eval-tmp-acceptance\\\\pytest-of-Hongyu\\\\pytest-0\\\\test_reloader_sys_path_stat_0\\\\log.txt'",
+   "error": "PermissionError: [WinError 32] 另一个程序正在使用此文件，进程无法访问。: '<TEMP>\\\\p5-native-l4cyohzp\\\\repo\\\\.ccx-eval-tmp-acceptance\\\\pytest-of-<USER>\\\\pytest-0\\\\test_reloader_sys_path_stat_0\\\\log.txt'",
    "baseline": null,
    "parent": null,
    "reference": null,
@@ -120209,7 +120210,7 @@
    "commit": "2c453bf3f307b13cc2e3025458743d3812fa50e6",
    "group": "B",
    "valid": false,
-   "error": "PermissionError: [WinError 32] 另一个程序正在使用此文件，进程无法访问。: '<TEMP>\\\\p5-native-6acn_dz0\\\\repo\\\\.ccx-eval-tmp-acceptance\\\\pytest-of-Hongyu\\\\pytest-0\\\\test_reloader_sys_path_stat_0\\\\log.txt'",
+   "error": "PermissionError: [WinError 32] 另一个程序正在使用此文件，进程无法访问。: '<TEMP>\\\\p5-native-6acn_dz0\\\\repo\\\\.ccx-eval-tmp-acceptance\\\\pytest-of-<USER>\\\\pytest-0\\\\test_reloader_sys_path_stat_0\\\\log.txt'",
    "baseline": null,
    "parent": null,
    "reference": null,
@@ -120221,7 +120222,7 @@
    "commit": "fa8e8b84c74e5dc81d9a01104c1d72db0ba1f4a1",
    "group": "B",
    "valid": false,
-   "error": "PermissionError: [WinError 32] 另一个程序正在使用此文件，进程无法访问。: '<TEMP>\\\\p5-native-k4rwyhtv\\\\repo\\\\.ccx-eval-tmp-acceptance\\\\pytest-of-Hongyu\\\\pytest-0\\\\test_reloader_sys_path_stat_0\\\\log.txt'",
+   "error": "PermissionError: [WinError 32] 另一个程序正在使用此文件，进程无法访问。: '<TEMP>\\\\p5-native-k4rwyhtv\\\\repo\\\\.ccx-eval-tmp-acceptance\\\\pytest-of-<USER>\\\\pytest-0\\\\test_reloader_sys_path_stat_0\\\\log.txt'",
    "baseline": null,
    "parent": null,
    "reference": null,
@@ -120233,7 +120234,7 @@
    "commit": "0e1701828a0f9209c968fca2f3ff428c99f97611",
    "group": "B",
    "valid": false,
-   "error": "PermissionError: [WinError 32] 另一个程序正在使用此文件，进程无法访问。: '<TEMP>\\\\p5-native-i4rqbatw\\\\repo\\\\.ccx-eval-tmp-acceptance\\\\pytest-of-Hongyu\\\\pytest-0\\\\test_reloader_sys_path_stat_0\\\\log.txt'",
+   "error": "PermissionError: [WinError 32] 另一个程序正在使用此文件，进程无法访问。: '<TEMP>\\\\p5-native-i4rqbatw\\\\repo\\\\.ccx-eval-tmp-acceptance\\\\pytest-of-<USER>\\\\pytest-0\\\\test_reloader_sys_path_stat_0\\\\log.txt'",
    "baseline": null,
    "parent": null,
    "reference": null,
@@ -120245,7 +120246,7 @@
    "commit": "01ff541b12763934057941937f0fbd8fa46db21c",
    "group": "B",
    "valid": false,
-   "error": "PermissionError: [WinError 32] 另一个程序正在使用此文件，进程无法访问。: '<TEMP>\\\\p5-native-8lb8vihf\\\\repo\\\\.ccx-eval-tmp-acceptance\\\\pytest-of-Hongyu\\\\pytest-0\\\\test_reloader_sys_path_stat_0\\\\log.txt'",
+   "error": "PermissionError: [WinError 32] 另一个程序正在使用此文件，进程无法访问。: '<TEMP>\\\\p5-native-8lb8vihf\\\\repo\\\\.ccx-eval-tmp-acceptance\\\\pytest-of-<USER>\\\\pytest-0\\\\test_reloader_sys_path_stat_0\\\\log.txt'",
    "baseline": null,
    "parent": null,
    "reference": null,
@@ -120257,7 +120258,7 @@
    "commit": "c44a19af54fb33cd5cbb4e654ffa28b824923449",
    "group": "B",
    "valid": false,
-   "error": "PermissionError: [WinError 32] 另一个程序正在使用此文件，进程无法访问。: '<TEMP>\\\\p5-native-2763rvfr\\\\repo\\\\.ccx-eval-tmp-acceptance\\\\pytest-of-Hongyu\\\\pytest-0\\\\test_reloader_sys_path_stat_0\\\\log.txt'",
+   "error": "PermissionError: [WinError 32] 另一个程序正在使用此文件，进程无法访问。: '<TEMP>\\\\p5-native-2763rvfr\\\\repo\\\\.ccx-eval-tmp-acceptance\\\\pytest-of-<USER>\\\\pytest-0\\\\test_reloader_sys_path_stat_0\\\\log.txt'",
    "baseline": null,
    "parent": null,
    "reference": null,
@@ -120269,7 +120270,7 @@
    "commit": "63a800cacf9492b421c4fc29a66104894f802937",
    "group": "B",
    "valid": false,
-   "error": "PermissionError: [WinError 32] 另一个程序正在使用此文件，进程无法访问。: '<TEMP>\\\\p5-native-uq7t5501\\\\repo\\\\.ccx-eval-tmp-acceptance\\\\pytest-of-Hongyu\\\\pytest-0\\\\test_reloader_sys_path_stat_0\\\\log.txt'",
+   "error": "PermissionError: [WinError 32] 另一个程序正在使用此文件，进程无法访问。: '<TEMP>\\\\p5-native-uq7t5501\\\\repo\\\\.ccx-eval-tmp-acceptance\\\\pytest-of-<USER>\\\\pytest-0\\\\test_reloader_sys_path_stat_0\\\\log.txt'",
    "baseline": null,
    "parent": null,
    "reference": null,
@@ -120281,7 +120282,7 @@
    "commit": "ad8533c647d8469f71ec428be1bc28a74b20b3a4",
    "group": "B",
    "valid": false,
-   "error": "PermissionError: [WinError 32] 另一个程序正在使用此文件，进程无法访问。: '<TEMP>\\\\p5-native-qwo9tzuo\\\\repo\\\\.ccx-eval-tmp-acceptance\\\\pytest-of-Hongyu\\\\pytest-0\\\\test_reloader_sys_path_stat_0\\\\log.txt'",
+   "error": "PermissionError: [WinError 32] 另一个程序正在使用此文件，进程无法访问。: '<TEMP>\\\\p5-native-qwo9tzuo\\\\repo\\\\.ccx-eval-tmp-acceptance\\\\pytest-of-<USER>\\\\pytest-0\\\\test_reloader_sys_path_stat_0\\\\log.txt'",
    "baseline": null,
    "parent": null,
    "reference": null,
@@ -120293,7 +120294,7 @@
    "commit": "e31501bc3b61dd2766176fef5f7f3922e4a9b63f",
    "group": "B",
    "valid": false,
-   "error": "PermissionError: [WinError 32] 另一个程序正在使用此文件，进程无法访问。: '<TEMP>\\\\p5-native-b31ud2_p\\\\repo\\\\.ccx-eval-tmp-acceptance\\\\pytest-of-Hongyu\\\\pytest-0\\\\test_reloader_sys_path_stat_0\\\\log.txt'",
+   "error": "PermissionError: [WinError 32] 另一个程序正在使用此文件，进程无法访问。: '<TEMP>\\\\p5-native-b31ud2_p\\\\repo\\\\.ccx-eval-tmp-acceptance\\\\pytest-of-<USER>\\\\pytest-0\\\\test_reloader_sys_path_stat_0\\\\log.txt'",
    "baseline": null,
    "parent": null,
    "reference": null,
@@ -120305,7 +120306,7 @@
    "commit": "5c7420b70061eb9a113897e7a5bd680c60387b76",
    "group": "B",
    "valid": false,
-   "error": "PermissionError: [WinError 32] 另一个程序正在使用此文件，进程无法访问。: '<TEMP>\\\\p5-native-tddmf9ao\\\\repo\\\\.ccx-eval-tmp-acceptance\\\\pytest-of-Hongyu\\\\pytest-0\\\\test_reloader_sys_path_stat_0\\\\log.txt'",
+   "error": "PermissionError: [WinError 32] 另一个程序正在使用此文件，进程无法访问。: '<TEMP>\\\\p5-native-tddmf9ao\\\\repo\\\\.ccx-eval-tmp-acceptance\\\\pytest-of-<USER>\\\\pytest-0\\\\test_reloader_sys_path_stat_0\\\\log.txt'",
    "baseline": null,
    "parent": null,
    "reference": null,
@@ -120317,7 +120318,7 @@
    "commit": "ecb07329b88ac024cdca897c86f28cd718011aff",
    "group": "B",
    "valid": false,
-   "error": "PermissionError: [WinError 32] 另一个程序正在使用此文件，进程无法访问。: '<TEMP>\\\\p5-native-byk0qu6p\\\\repo\\\\.ccx-eval-tmp-acceptance\\\\pytest-of-Hongyu\\\\pytest-0\\\\test_reloader_sys_path_stat_0\\\\log.txt'",
+   "error": "PermissionError: [WinError 32] 另一个程序正在使用此文件，进程无法访问。: '<TEMP>\\\\p5-native-byk0qu6p\\\\repo\\\\.ccx-eval-tmp-acceptance\\\\pytest-of-<USER>\\\\pytest-0\\\\test_reloader_sys_path_stat_0\\\\log.txt'",
    "baseline": null,
    "parent": null,
    "reference": null,
@@ -120329,7 +120330,7 @@
    "commit": "2f2625fefdaead837c5433e44d5fe86972d013dd",
    "group": "B",
    "valid": false,
-   "error": "PermissionError: [WinError 32] 另一个程序正在使用此文件，进程无法访问。: '<TEMP>\\\\p5-native-yppp_bra\\\\repo\\\\.ccx-eval-tmp-acceptance\\\\pytest-of-Hongyu\\\\pytest-0\\\\test_reloader_sys_path_stat_0\\\\log.txt'",
+   "error": "PermissionError: [WinError 32] 另一个程序正在使用此文件，进程无法访问。: '<TEMP>\\\\p5-native-yppp_bra\\\\repo\\\\.ccx-eval-tmp-acceptance\\\\pytest-of-<USER>\\\\pytest-0\\\\test_reloader_sys_path_stat_0\\\\log.txt'",
    "baseline": null,
    "parent": null,
    "reference": null,
@@ -120341,7 +120342,7 @@
    "commit": "50bf1e92af0b1acbc00aacd044e4f6b10b7787bf",
    "group": "B",
    "valid": false,
-   "error": "PermissionError: [WinError 32] 另一个程序正在使用此文件，进程无法访问。: '<TEMP>\\\\p5-native-idd8hvtv\\\\repo\\\\.ccx-eval-tmp-acceptance\\\\pytest-of-Hongyu\\\\pytest-0\\\\test_reloader_sys_path_stat_0\\\\log.txt'",
+   "error": "PermissionError: [WinError 32] 另一个程序正在使用此文件，进程无法访问。: '<TEMP>\\\\p5-native-idd8hvtv\\\\repo\\\\.ccx-eval-tmp-acceptance\\\\pytest-of-<USER>\\\\pytest-0\\\\test_reloader_sys_path_stat_0\\\\log.txt'",
    "baseline": null,
    "parent": null,
    "reference": null,
@@ -120353,7 +120354,7 @@
    "commit": "aca1f56ea64a22b0f081ac852c20a0dae019910f",
    "group": "B",
    "valid": false,
-   "error": "PermissionError: [WinError 32] 另一个程序正在使用此文件，进程无法访问。: '<TEMP>\\\\p5-native-x1zbn27g\\\\repo\\\\.ccx-eval-tmp-acceptance\\\\pytest-of-Hongyu\\\\pytest-0\\\\test_reloader_sys_path_stat_0\\\\log.txt'",
+   "error": "PermissionError: [WinError 32] 另一个程序正在使用此文件，进程无法访问。: '<TEMP>\\\\p5-native-x1zbn27g\\\\repo\\\\.ccx-eval-tmp-acceptance\\\\pytest-of-<USER>\\\\pytest-0\\\\test_reloader_sys_path_stat_0\\\\log.txt'",
    "baseline": null,
    "parent": null,
    "reference": null,
@@ -120365,7 +120366,7 @@
    "commit": "286c46ffcaa94479929d1527fba335b14a4f05e5",
    "group": "B",
    "valid": false,
-   "error": "PermissionError: [WinError 32] 另一个程序正在使用此文件，进程无法访问。: '<TEMP>\\\\p5-native-lwrh1ndz\\\\repo\\\\.ccx-eval-tmp-acceptance\\\\pytest-of-Hongyu\\\\pytest-0\\\\test_reloader_sys_path_stat_0\\\\log.txt'",
+   "error": "PermissionError: [WinError 32] 另一个程序正在使用此文件，进程无法访问。: '<TEMP>\\\\p5-native-lwrh1ndz\\\\repo\\\\.ccx-eval-tmp-acceptance\\\\pytest-of-<USER>\\\\pytest-0\\\\test_reloader_sys_path_stat_0\\\\log.txt'",
    "baseline": null,
    "parent": null,
    "reference": null,
@@ -120377,7 +120378,7 @@
    "commit": "f29e6812f071154fe36b286c71a81699efe16948",
    "group": "B",
    "valid": false,
-   "error": "PermissionError: [WinError 32] 另一个程序正在使用此文件，进程无法访问。: '<TEMP>\\\\p5-native-6b3iuwum\\\\repo\\\\.ccx-eval-tmp-acceptance\\\\pytest-of-Hongyu\\\\pytest-0\\\\test_reloader_sys_path_stat_0\\\\log.txt'",
+   "error": "PermissionError: [WinError 32] 另一个程序正在使用此文件，进程无法访问。: '<TEMP>\\\\p5-native-6b3iuwum\\\\repo\\\\.ccx-eval-tmp-acceptance\\\\pytest-of-<USER>\\\\pytest-0\\\\test_reloader_sys_path_stat_0\\\\log.txt'",
    "baseline": null,
    "parent": null,
    "reference": null,
@@ -120389,7 +120390,7 @@
    "commit": "09b823614be40b7ec7f12fbb3fb1364ded172829",
    "group": "B",
    "valid": false,
-   "error": "PermissionError: [WinError 32] 另一个程序正在使用此文件，进程无法访问。: '<TEMP>\\\\p5-native-egdffip6\\\\repo\\\\.ccx-eval-tmp-acceptance\\\\pytest-of-Hongyu\\\\pytest-0\\\\test_reloader_sys_path_stat_0\\\\log.txt'",
+   "error": "PermissionError: [WinError 32] 另一个程序正在使用此文件，进程无法访问。: '<TEMP>\\\\p5-native-egdffip6\\\\repo\\\\.ccx-eval-tmp-acceptance\\\\pytest-of-<USER>\\\\pytest-0\\\\test_reloader_sys_path_stat_0\\\\log.txt'",
    "baseline": null,
    "parent": null,
    "reference": null,
@@ -120401,7 +120402,7 @@
    "commit": "b0becc395cce6963dc9b7b5fc599854854b5e78c",
    "group": "B",
    "valid": false,
-   "error": "PermissionError: [WinError 32] 另一个程序正在使用此文件，进程无法访问。: '<TEMP>\\\\p5-native-5vtl8hz6\\\\repo\\\\.ccx-eval-tmp-acceptance\\\\pytest-of-Hongyu\\\\pytest-0\\\\test_reloader_sys_path_stat_0\\\\log.txt'",
+   "error": "PermissionError: [WinError 32] 另一个程序正在使用此文件，进程无法访问。: '<TEMP>\\\\p5-native-5vtl8hz6\\\\repo\\\\.ccx-eval-tmp-acceptance\\\\pytest-of-<USER>\\\\pytest-0\\\\test_reloader_sys_path_stat_0\\\\log.txt'",
    "baseline": null,
    "parent": null,
    "reference": null,
@@ -120413,7 +120414,7 @@
    "commit": "46b89c914747175638cc575e7f467e6b7e3a7b1d",
    "group": "B",
    "valid": false,
-   "error": "PermissionError: [WinError 32] 另一个程序正在使用此文件，进程无法访问。: '<TEMP>\\\\p5-native-2yxm2nzp\\\\repo\\\\.ccx-eval-tmp-acceptance\\\\pytest-of-Hongyu\\\\pytest-0\\\\test_reloader_sys_path_stat_0\\\\log.txt'",
+   "error": "PermissionError: [WinError 32] 另一个程序正在使用此文件，进程无法访问。: '<TEMP>\\\\p5-native-2yxm2nzp\\\\repo\\\\.ccx-eval-tmp-acceptance\\\\pytest-of-<USER>\\\\pytest-0\\\\test_reloader_sys_path_stat_0\\\\log.txt'",
    "baseline": null,
    "parent": null,
    "reference": null,
@@ -120425,7 +120426,7 @@
    "commit": "c678a2310328d2ecd082f0c77a514eb738bbe9d2",
    "group": "B",
    "valid": false,
-   "error": "PermissionError: [WinError 32] 另一个程序正在使用此文件，进程无法访问。: '<TEMP>\\\\p5-native-vribraxc\\\\repo\\\\.ccx-eval-tmp-acceptance\\\\pytest-of-Hongyu\\\\pytest-0\\\\test_reloader_sys_path_stat_0\\\\log.txt'",
+   "error": "PermissionError: [WinError 32] 另一个程序正在使用此文件，进程无法访问。: '<TEMP>\\\\p5-native-vribraxc\\\\repo\\\\.ccx-eval-tmp-acceptance\\\\pytest-of-<USER>\\\\pytest-0\\\\test_reloader_sys_path_stat_0\\\\log.txt'",
    "baseline": null,
    "parent": null,
    "reference": null,
@@ -120437,7 +120438,7 @@
    "commit": "5b0dc6d64c32554a11906560486d59103ae8fd11",
    "group": "B",
    "valid": false,
-   "error": "PermissionError: [WinError 32] 另一个程序正在使用此文件，进程无法访问。: '<TEMP>\\\\p5-native-yb6lh5lu\\\\repo\\\\.ccx-eval-tmp-acceptance\\\\pytest-of-Hongyu\\\\pytest-0\\\\test_reloader_sys_path_stat_0\\\\log.txt'",
+   "error": "PermissionError: [WinError 32] 另一个程序正在使用此文件，进程无法访问。: '<TEMP>\\\\p5-native-yb6lh5lu\\\\repo\\\\.ccx-eval-tmp-acceptance\\\\pytest-of-<USER>\\\\pytest-0\\\\test_reloader_sys_path_stat_0\\\\log.txt'",
    "baseline": null,
    "parent": null,
    "reference": null,
@@ -120449,7 +120450,7 @@
    "commit": "6efb81984709805e16167ab52727e484086cde57",
    "group": "B",
    "valid": false,
-   "error": "PermissionError: [WinError 32] 另一个程序正在使用此文件，进程无法访问。: '<TEMP>\\\\p5-native-__dg_n2j\\\\repo\\\\.ccx-eval-tmp-acceptance\\\\pytest-of-Hongyu\\\\pytest-0\\\\test_reloader_sys_path_stat_0\\\\log.txt'",
+   "error": "PermissionError: [WinError 32] 另一个程序正在使用此文件，进程无法访问。: '<TEMP>\\\\p5-native-__dg_n2j\\\\repo\\\\.ccx-eval-tmp-acceptance\\\\pytest-of-<USER>\\\\pytest-0\\\\test_reloader_sys_path_stat_0\\\\log.txt'",
    "baseline": null,
    "parent": null,
    "reference": null,

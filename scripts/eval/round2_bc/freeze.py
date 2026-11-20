@@ -12,7 +12,8 @@ Writes into --out-dir:
                     `excluded` with the reason; exclusions and checked candidates of both runs (checked candidates
                     reduced to exit codes, summaries and raw-output hashes; the full outputs' SHA-256 is recorded);
                     the resume wrapper scripts' text. Machine-specific path prefixes in error lines (the temp and
-                    home folders) are replaced by <TEMP> and <HOME> in all three files.
+                    home folders) are replaced by <TEMP> and <HOME>, and the login name (pytest's
+                    `pytest-of-<user>` folder and any other occurrence, any case) by <USER>, in all three files.
   b.json            {"accepted": [60 tasks], "dev": [4 tasks]}: the 42 upstream tasks (source "upstream", brief
                     from the briefs file) followed by the 18 authored ones (source "authored"), as p4_long_session reads.
   b-trace.json      per upstream task: the per-assertion trace rows and the brief check (round2_tasks.brief_checks).
@@ -21,7 +22,9 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import getpass
 import json
+import re
 import tempfile
 from pathlib import Path
 
@@ -55,27 +58,30 @@ def slim_checked(entry: dict, run: str) -> dict:
     return out
 
 
-def _local_prefixes() -> list[tuple[str, str]]:
+def _local_prefixes(temp: str | None = None, home: str | None = None) -> list[tuple[str, str]]:
     """Machine-specific path prefixes (temp folder, then home folder) and their placeholders, in every spelling
     that appears in the outputs: plain, with doubled backslashes (repr), with forward slashes."""
     out = []
-    for path, name in ((Path(tempfile.gettempdir()), "<TEMP>"), (Path.home(), "<HOME>")):
-        text = str(path)
+    for text, name in ((temp or str(Path(tempfile.gettempdir())), "<TEMP>"), (home or str(Path.home()), "<HOME>")):
         for spelling in (text.replace("\\", "\\\\"), text, text.replace("\\", "/")):
             out.append((spelling, name))
     return out
 
 
-def scrub(obj, prefixes):
-    """Replace machine-specific path prefixes in every string (pytest error lines quote local paths)."""
+def scrub(obj, prefixes, user: str | None = None):
+    """Replace machine-specific path prefixes in every string (pytest error lines quote local paths), then the
+    login name: pytest's `pytest-of-<user>` folder and any other occurrence, in any letter case, become <USER>."""
     if isinstance(obj, str):
         for old, new in prefixes:
             obj = obj.replace(old, new)
+        if user:
+            obj = re.sub("pytest-of-" + re.escape(user), "pytest-of-<USER>", obj, flags=re.IGNORECASE)
+            obj = re.sub(re.escape(user), "<USER>", obj, flags=re.IGNORECASE)
         return obj
     if isinstance(obj, list):
-        return [scrub(v, prefixes) for v in obj]
+        return [scrub(v, prefixes, user) for v in obj]
     if isinstance(obj, dict):
-        return {k: scrub(v, prefixes) for k, v in obj.items()}
+        return {scrub(k, prefixes, user): scrub(v, prefixes, user) for k, v in obj.items()}
     return obj
 
 
@@ -131,7 +137,10 @@ def main(argv=None) -> int:
         "B": b,
         "B_final_upstream": [t["id"] for t in kept],
         "excluded_after_selection": [{"id": tid, "reason": why} for tid, why in excluded.items()],
+        # against the 60 B tasks: selected upstream tasks, then those kept after the exclusions above (the
+        # authored tasks make up the rest)
         "b_shortfall": 60 - len(b),
+        "b_shortfall_after_exclusion": 60 - len(kept),
         "exclusions": ([dict(e, run=FULL_RUN) for e in full["exclusions"]]
                        + [dict(e, run=RESUME_RUN) for e in resume["exclusions"]]),
         "checked": ([slim_checked(e, FULL_RUN) for e in full["checked"]]
@@ -162,10 +171,10 @@ def main(argv=None) -> int:
                        **({"note": briefs[t["id"]]["note"]} if briefs[t["id"]].get("note") else {})}
              for t in kept}
     a.out_dir.mkdir(parents=True, exist_ok=True)
-    prefixes = _local_prefixes()
-    write(a.out_dir / "selection-b.json", scrub(selection, prefixes))
-    write(a.out_dir / "b.json", scrub(tasks, prefixes))
-    write(a.out_dir / "b-trace.json", scrub(trace, prefixes))
+    prefixes, user = _local_prefixes(), getpass.getuser()
+    write(a.out_dir / "selection-b.json", scrub(selection, prefixes, user))
+    write(a.out_dir / "b.json", scrub(tasks, prefixes, user))
+    write(a.out_dir / "b-trace.json", scrub(trace, prefixes, user))
     print(f"B selected {len(b)}, kept upstream {len(upstream)}, authored {len(final_authored)}, dev {len(dev)}")
     return 0
 
