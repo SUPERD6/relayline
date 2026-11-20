@@ -568,6 +568,25 @@ UI 数据原有 `quota` 数组补充 `freshness`、`projected_at_reset`，用量
 打开 UI 不会调用探针，页面本身未改。真实限额后的恢复与刷新费用，待统筹下次实际限额时验证；
 这里没有测出任务成功率或节省幅度。
 
+### 每日页里的额度事件（`ccx report --daily --quota-events`，#480）
+
+默认关闭；不加这个选项，页面和 JSON 都不变。它把[评测规则决定](research/2026-11-17-eval-rule-decisions.zh.md)里的决定 3
+（"额度用完不断工"，维护者 2026-11-19 确认）用到真实使用上，只看 2026-11-19 起的事件，只读。JSON 多一个 `quota_events`，页面多一节：事件列表、
+每个事件的判定（`success` / `failure` / `not_attempted` / `unknown`，带原因，并标明每个字段是机器判的还是来自人工记录）、汇总（合并与按角色、按厂商组合、
+单侧 95% Clopper-Pearson 下界、是否至少 5 次计入事件且成功率 ≥ 80%、对外引用的两时段条件：`--quota-split 日期` 把事件分成这天之前和这天起两段）。
+计入事件 = 除 `not_attempted` 外的全部事件；不到 5 次或还有没判出的事件，结论是 Unknown；任何一次丢了未提交的改动，整个主张判 Fail。没有计入的主导事件时，页面写明主导一侧是 Unknown。
+
+- 子 agent 事件（机器）：`run.json` 有 `quota_stop`、`quota_fallback`，或某次尝试 `kind == "quota"`；只继承了前一次运行字段的续跑不算新事件。成功要求 4 小时内在
+  别家或别的模型接着做（同一个运行经 `quota_fallback`，或 `resumed_from` 指向它的运行）、以 `ok` 结束、之后没被 `ccx verify` 判错，并且中间没有同标签从头另起的运行。
+  只有 `quota_stop`、4 小时内既没改派也没接续是失败（4 小时没过完时先是 `unknown`）。
+- 主导事件（机器）：`<工作区>/.ccx/relay/` 里 `state = quota_stopped` 的 packet，按它的 `.continue-*.json` 判。工作区取账本里运行的目录，再加每个 `--quota-workspace DIR`。
+  时间取 packet 的 `captured_at` 和接续记录的 `started_at`（缺字段才用文件修改时间）。`rate_limit_unconfirmed` 的 packet 只列出，有下面的 `confirm` 记录才计入。
+  Codex 当主导没有额度钩子，这类事件除非手工记录，否则是 Unknown。
+- 人工记录文件 `<hub>/ccx/daily/quota-notes.jsonl`，一行一个 JSON，手写；`ts` 是 epoch 秒或 ISO 8601，`id` 是运行 id 或 packet id：
+  `{"kind":"wait"}`（用户选择等重置，写在事件后 4 小时内：未尝试，不计入）、`{"kind":"confirm","basis":"window_full"|"reset_ge_1h"}`（用量读数或重置时间，
+  写在 packet 之后 1 小时内、接续开始之前）、`{"kind":"intact"}`（核对过没丢未提交的改动；`workspace_changed` 不是 false 或指纹 Unknown 时需要）、
+  `{"kind":"done"}`（接续的主导工作做完，写在接续结束后 4 小时内）、`{"kind":"lost"}`（丢了未提交的改动：主张 Fail）、`{"kind":"exclude"}`（模拟、回放或故意制造：不计入）。
+
 ## 安全边界
 
 - 子智能体默认**可以改文件**（Codex `workspace-write` 沙箱；Claude `acceptEdits` 加工具白名单，只放行 git/python/pytest/npm/node 命令）。只想让它分析时加 `--mode read`。多个并行写任务自动放进不同 git worktree。
