@@ -34,9 +34,6 @@ PATTERNS = [
     # .claude/projects/<drive>--<folder>-<name>-proj: Claude Code's memory and transcript folder, for a project on
     # any drive and in any folder; the first word after the drive is checked (a placeholder like C--someone-else passes)
     re.compile(r"\.claude[\\/]+projects[\\/]+[A-Za-z]--" + SLUG_NAME, re.IGNORECASE),
-    # pytest-of-<name>: pytest's temp folder (<tmp>/pytest-of-<login>/pytest-N) is named after the OS login, so it
-    # leaks through error lines and logs; the name after "pytest-of-" is checked (<USER>, someone, runner pass)
-    re.compile(r"(?<![\w-])pytest-of-" + NAME, re.IGNORECASE),
 ]
 # In scrubbed evaluation data (docs/research/data/) no absolute drive path belongs at all, whatever its folders are
 # called: the scrubber writes ~ or <scratch>. In JSON a backslash path is written with doubled backslashes.
@@ -47,7 +44,7 @@ DRIVE_PATH = re.compile(r"(?<![\w])[A-Za-z]:(?:\\\\|/)[\w.-]+")
 PLACEHOLDERS = {
     "you", "your", "yourname", "your-name", "user", "username", "user-name", "me", "name", "someone", "somebody",
     "example", "example-user", "alice", "bob", "carol", "jane", "john", "johndoe", "foo", "bar", "test", "tester",
-    "runner", "runneradmin", "root", "public", "default", "shared", "all", "all users", "hub", "x", "a", "b", "u",
+    "runner", "runneradmin", "public", "default", "shared", "all", "all users", "hub", "x", "a", "b", "u",
 }
 
 
@@ -60,12 +57,22 @@ def _allowed(name: str) -> bool:
     return n.startswith("runner")               # RUNNER~1, the 8.3 name of a CI runner's home
 
 
+# pytest-of-<name>: pytest's temp folder (<tmp>/pytest-of-<login>/pytest-N) is named after the OS login, so it leaks
+# through error lines and logs; the name after "pytest-of-" is checked (<USER>, someone, runner pass). Its own allow
+# list: root is fine here (a Docker run), while a home folder named root stays flagged by the shared rules above.
+PYTEST_OF = re.compile(r"(?<![\w-])pytest-of-" + NAME, re.IGNORECASE)
+PYTEST_OF_OK = {"root"}
+
+
 def find_personal_paths(text: str) -> list[str]:
     hits = []
     for pat in PATTERNS:
         for m in pat.finditer(text):
             if not _allowed(m.group(1)):
                 hits.append(m.group(0))
+    for m in PYTEST_OF.finditer(text):
+        if not _allowed(m.group(1)) and m.group(1).lower() not in PYTEST_OF_OK:
+            hits.append(m.group(0))
     return hits
 
 
@@ -159,7 +166,7 @@ _N = "jdoe42"      # spelled through a variable so this file does not trip its o
     f"\\\\?\\C:\\Users\\{_N}", f"C:\\\\Users\\\\{_N}\\\\x",
     "~/.claude/" + f"projects/D--Work-{_N}-proj/memory", "c:/x/.claude/" + "projects/E--Code-shop/x.jsonl",
     f"/tmp/pytest-of-{_N}/pytest-0/x", f"C:\\Temp\\pytest-of-{_N}\\pytest-3", f"PYTEST-OF-{_N}",
-    f"WinError 32: 'pytest-of-{_N}/pytest-1/a.db'",
+    f"WinError 32: 'pytest-of-{_N}/pytest-1/a.db'", f"C:\\\\Temp\\\\pytest-of-{_N}\\\\pytest-3",
 ])
 def test_detects_home_folders(text):
     assert find_personal_paths(text)
@@ -246,3 +253,18 @@ def test_local_state_allows_project_files(path):
 def test_binary_and_utf16_files_are_scanned(data, hit):
     found = [h for line in _lines_of(data) for h in find_personal_data(line)]
     assert bool(found) is hit
+
+
+_R = "ro" + "ot"      # spelled in two parts so this file does not trip its own scan
+
+
+@pytest.mark.parametrize("text", [f"/home/{_R}/x", f"C:\\Users\\{_R}\\x", f"/Users/{_R}/x"])
+def test_root_home_folder_is_still_flagged(text):
+    assert find_personal_paths(text)
+
+
+@pytest.mark.parametrize("text", [
+    f"C%3A%5CTemp%5Cpytest-of-{_N}%5Cpytest-3", f"/tmp/pytest-of-{_N}%2Fpytest-0",
+])
+def test_detects_url_encoded_pytest_of(text):
+    assert find_personal_data(text)
