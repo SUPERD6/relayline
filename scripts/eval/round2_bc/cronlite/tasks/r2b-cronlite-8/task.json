@@ -1,0 +1,54 @@
+{
+ "id": "r2b-cronlite-8",
+ "subject": "Load estimates follow each job's overlap policy",
+ "author_model": "claude-opus-5-5",
+ "brief": "cronlite's load estimates (the load module) assume every due run starts on time, even while the previous run of the same job is still going. Let each job follow one of the overlap policies that the overlap module already simulates, and base every load figure on the runs that policy actually starts.\n\n1. `JobLoad` gets two new fields with defaults: `policy` (one of the overlap module's policy names, default `allow`, which keeps today's numbers exactly) and `max_queue` (default 1, the number of runs that may wait under the queue policy, as in `simulate`). An unknown policy or a negative `max_queue` raises CronError. `max_queue` only means something for the queue policy: giving any other value than the default together with another policy raises CronError (zero is a valid queue length).\n2. A job's runs are planned the way `simulate` plans them, with the job's run length: under `skip` a run due while the previous one is still going does not happen, under `queue` it starts when the running one ends, or is dropped when the queue is full. `occupancy` (and so `peak`, `utilization` and `overloaded`) counts each run from the minute it really starts, for its length; dropped runs occupy nothing. Runs due in the 24 hours before the window are planned too, so a run that was due before the window but is still going, or was delayed into it, shows up. That includes a whole queue chain crossing midnight: when several runs due before midnight wait behind each other, the last of them may start well after the window opens, long after the run length has passed since it was due, and it must still be counted.\n3. `busy_minutes` counts a run on the calendar day it actually starts: a run due late in the evening that waits until after midnight belongs to the next day, and a dropped run counts nowhere.\n4. Add `dropped_runs(jobs, start, end)` to the load module and export it from the package: for each job name, how many of its runs due after `start` up to `end` inclusive its policy drops (a run due exactly at `start` is outside, as everywhere in this module). Add `policy_report(jobs, start, end)`, also exported: for each job name, the dict `summarize` from the overlap module gives for that job's runs due after `start` up to `end` inclusive, as planned above; a queued run due inside the window counts with its delay even when it only starts after `end`. Both new functions raise CronError when the window does not end after it starts.\n\nAll behavior that the existing tests check must keep working.",
+ "hidden_tests": [
+  "tests/test_load_policies.py"
+ ],
+ "trace_by_test": {
+  "test_policy_options_are_checked": [
+   "`JobLoad` gets two new fields with defaults: `policy` (one of the overlap module's policy names, default `allow`, which keeps today's numbers exactly) and `max_queue` (default 1, the number of runs that may wait under the queue policy, as in `simulate`). An unknown policy or a negative `max_queue` raises CronError.",
+   "`JobLoad` gets two new fields with defaults: `policy` (one of the overlap module's policy names, default `allow`, which keeps today's numbers exactly) and `max_queue` (default 1, the number of runs that may wait under the queue policy, as in `simulate`). An unknown policy or a negative `max_queue` raises CronError.",
+   "`JobLoad` gets two new fields with defaults: `policy` (one of the overlap module's policy names, default `allow`, which keeps today's numbers exactly) and `max_queue` (default 1, the number of runs that may wait under the queue policy, as in `simulate`). An unknown policy or a negative `max_queue` raises CronError.",
+   "`max_queue` only means something for the queue policy: giving any other value than the default together with another policy raises CronError (zero is a valid queue length).",
+   "`max_queue` only means something for the queue policy: giving any other value than the default together with another policy raises CronError (zero is a valid queue length)."
+  ],
+  "test_allow_keeps_todays_numbers": [
+   "`JobLoad` gets two new fields with defaults: `policy` (one of the overlap module's policy names, default `allow`, which keeps today's numbers exactly) and `max_queue` (default 1, the number of runs that may wait under the queue policy, as in `simulate`). An unknown policy or a negative `max_queue` raises CronError.",
+   "Add `dropped_runs(jobs, start, end)` to the load module and export it from the package: for each job name, how many of its runs due after `start` up to `end` inclusive its policy drops (a run due exactly at `start` is outside, as everywhere in this module)."
+  ],
+  "test_skip_drops_overlapping_runs": [
+   "A job's runs are planned the way `simulate` plans them, with the job's run length: under `skip` a run due while the previous one is still going does not happen, under `queue` it starts when the running one ends, or is dropped when the queue is full.",
+   "`occupancy` (and so `peak`, `utilization` and `overloaded`) counts each run from the minute it really starts, for its length; dropped runs occupy nothing.",
+   "`occupancy` (and so `peak`, `utilization` and `overloaded`) counts each run from the minute it really starts, for its length; dropped runs occupy nothing.",
+   "Add `dropped_runs(jobs, start, end)` to the load module and export it from the package: for each job name, how many of its runs due after `start` up to `end` inclusive its policy drops (a run due exactly at `start` is outside, as everywhere in this module)."
+  ],
+  "test_queue_delays_runs": [
+   "A job's runs are planned the way `simulate` plans them, with the job's run length: under `skip` a run due while the previous one is still going does not happen, under `queue` it starts when the running one ends, or is dropped when the queue is full.",
+   "`occupancy` (and so `peak`, `utilization` and `overloaded`) counts each run from the minute it really starts, for its length; dropped runs occupy nothing."
+  ],
+  "test_queue_limit_and_dropped_count": [
+   "Add `dropped_runs(jobs, start, end)` to the load module and export it from the package: for each job name, how many of its runs due after `start` up to `end` inclusive its policy drops (a run due exactly at `start` is outside, as everywhere in this module).",
+   "`JobLoad` gets two new fields with defaults: `policy` (one of the overlap module's policy names, default `allow`, which keeps today's numbers exactly) and `max_queue` (default 1, the number of runs that may wait under the queue policy, as in `simulate`). An unknown policy or a negative `max_queue` raises CronError.",
+   "A job's runs are planned the way `simulate` plans them, with the job's run length: under `skip` a run due while the previous one is still going does not happen, under `queue` it starts when the running one ends, or is dropped when the queue is full."
+  ],
+  "test_busy_minutes_count_the_day_a_run_starts": [
+   "`JobLoad` gets two new fields with defaults: `policy` (one of the overlap module's policy names, default `allow`, which keeps today's numbers exactly) and `max_queue` (default 1, the number of runs that may wait under the queue policy, as in `simulate`). An unknown policy or a negative `max_queue` raises CronError.",
+   "`busy_minutes` counts a run on the calendar day it actually starts: a run due late in the evening that waits until after midnight belongs to the next day, and a dropped run counts nowhere.",
+   "`busy_minutes` counts a run on the calendar day it actually starts: a run due late in the evening that waits until after midnight belongs to the next day, and a dropped run counts nowhere."
+  ],
+  "test_policy_report": [
+   "Add `policy_report(jobs, start, end)`, also exported: for each job name, the dict `summarize` from the overlap module gives for that job's runs due after `start` up to `end` inclusive, as planned above; a queued run due inside the window counts with its delay even when it only starts after `end`.",
+   "Add `policy_report(jobs, start, end)`, also exported: for each job name, the dict `summarize` from the overlap module gives for that job's runs due after `start` up to `end` inclusive, as planned above; a queued run due inside the window counts with its delay even when it only starts after `end`.",
+   "Add `policy_report(jobs, start, end)`, also exported: for each job name, the dict `summarize` from the overlap module gives for that job's runs due after `start` up to `end` inclusive, as planned above; a queued run due inside the window counts with its delay even when it only starts after `end`.",
+   "Both new functions raise CronError when the window does not end after it starts.",
+   "Both new functions raise CronError when the window does not end after it starts."
+  ],
+  "test_queue_chain_across_midnight": [
+   "That includes a whole queue chain crossing midnight: when several runs due before midnight wait behind each other, the last of them may start well after the window opens, long after the run length has passed since it was due, and it must still be counted.",
+   "`busy_minutes` counts a run on the calendar day it actually starts: a run due late in the evening that waits until after midnight belongs to the next day, and a dropped run counts nowhere."
+  ],
+  "test_run_still_going_when_the_window_opens": "Runs due in the 24 hours before the window are planned too, so a run that was due before the window but is still going, or was delayed into it, shows up."
+ }
+}

@@ -1,0 +1,44 @@
+{
+ "id": "r2b-cronlite-5",
+ "subject": "UTC calendar export with blackout days, and an ical command",
+ "author_model": "claude-opus-5-5",
+ "brief": "Let cronlite export calendars in UTC for schedules written at a fixed UTC offset, leave out blackout days, and offer the export on the command line.\n\n1. `calendar(jobs, start, count, duration, tz=None, closed=None)` (and `events`, which it uses) take two new optional arguments. With `tz` (a fixed-offset timezone, as `parse_offset` returns), each expression is local wall time in `tz`, while `start` is a UTC time and every written time is UTC: DTSTART, DTEND and DTSTAMP values, and the time stamp inside UID, carry a trailing `Z` (RFC 5545 UTC form). Without `tz` the output is exactly as before (floating times, no `Z`).\n2. With `closed` (a BlackoutCalendar), runs that fall on a closed day get no event, and they do not count towards `count`: each job still gets `count` events, taken from the following open days. When `tz` is given, whether a day is closed is decided by the local date of the run, not by its UTC date; a late-evening local run whose UTC time is already on the next day belongs to the earlier day.\n3. `next_after_in(expr, utc_when, tz, calendar=None)` in the zones module takes the same optional calendar and skips firings on closed days, judged by the local date.\n4. Add a command `ical NAME EXPR` to `python -m cronlite` (the `run` function in the cli module): it writes the calendar text for one job named NAME, exactly as `calendar` produces it (CRLF line ends included). Options: `--from ISO` (the start; with `--offset` it is a UTC time), `--count N` (events, default ten), `--offset TEXT` (any text `parse_offset` accepts; enables the UTC output above), and `--closed FILE`, a blackout calendar file in the format `parse_calendar` reads, UTF-8. A count below 1, an offset that does not parse, a calendar file that cannot be read or does not parse all make the command print an error to stderr and return exit code 2, like the other commands.\n\nAll behavior that the existing tests check must keep working.",
+ "hidden_tests": [
+  "tests/test_ical_utc.py"
+ ],
+ "trace_by_test": {
+  "test_utc_events_with_offset": [
+   "`calendar(jobs, start, count, duration, tz=None, closed=None)` (and `events`, which it uses) take two new optional arguments. With `tz` (a fixed-offset timezone, as `parse_offset` returns), each expression is local wall time in `tz`, while `start` is a UTC time and every written time is UTC: DTSTART, DTEND and DTSTAMP values, and the time stamp inside UID, carry a trailing `Z` (RFC 5545 UTC form).",
+   "`calendar(jobs, start, count, duration, tz=None, closed=None)` (and `events`, which it uses) take two new optional arguments. With `tz` (a fixed-offset timezone, as `parse_offset` returns), each expression is local wall time in `tz`, while `start` is a UTC time and every written time is UTC: DTSTART, DTEND and DTSTAMP values, and the time stamp inside UID, carry a trailing `Z` (RFC 5545 UTC form).",
+   "`calendar(jobs, start, count, duration, tz=None, closed=None)` (and `events`, which it uses) take two new optional arguments. With `tz` (a fixed-offset timezone, as `parse_offset` returns), each expression is local wall time in `tz`, while `start` is a UTC time and every written time is UTC: DTSTART, DTEND and DTSTAMP values, and the time stamp inside UID, carry a trailing `Z` (RFC 5545 UTC form)."
+  ],
+  "test_closed_days_follow_the_local_date": "When `tz` is given, whether a day is closed is decided by the local date of the run, not by its UTC date; a late-evening local run whose UTC time is already on the next day belongs to the earlier day.",
+  "test_floating_times_with_closed_days": [
+   "With `closed` (a BlackoutCalendar), runs that fall on a closed day get no event, and they do not count towards `count`: each job still gets `count` events, taken from the following open days.",
+   "Without `tz` the output is exactly as before (floating times, no `Z`)."
+  ],
+  "test_next_after_in_with_calendar": [
+   "`next_after_in(expr, utc_when, tz, calendar=None)` in the zones module takes the same optional calendar and skips firings on closed days, judged by the local date.",
+   "`next_after_in(expr, utc_when, tz, calendar=None)` in the zones module takes the same optional calendar and skips firings on closed days, judged by the local date."
+  ],
+  "test_cli_ical_with_offset": [
+   "Add a command `ical NAME EXPR` to `python -m cronlite` (the `run` function in the cli module): it writes the calendar text for one job named NAME, exactly as `calendar` produces it (CRLF line ends included).",
+   "Add a command `ical NAME EXPR` to `python -m cronlite` (the `run` function in the cli module): it writes the calendar text for one job named NAME, exactly as `calendar` produces it (CRLF line ends included).",
+   "Options: `--from ISO` (the start; with `--offset` it is a UTC time), `--count N` (events, default ten), `--offset TEXT` (any text `parse_offset` accepts; enables the UTC output above), and `--closed FILE`, a blackout calendar file in the format `parse_calendar` reads, UTF-8."
+  ],
+  "test_cli_ical_closed_file": [
+   "Options: `--from ISO` (the start; with `--offset` it is a UTC time), `--count N` (events, default ten), `--offset TEXT` (any text `parse_offset` accepts; enables the UTC output above), and `--closed FILE`, a blackout calendar file in the format `parse_calendar` reads, UTF-8.",
+   "Options: `--from ISO` (the start; with `--offset` it is a UTC time), `--count N` (events, default ten), `--offset TEXT` (any text `parse_offset` accepts; enables the UTC output above), and `--closed FILE`, a blackout calendar file in the format `parse_calendar` reads, UTF-8."
+  ],
+  "test_cli_ical_default_count_is_ten": [
+   "Add a command `ical NAME EXPR` to `python -m cronlite` (the `run` function in the cli module): it writes the calendar text for one job named NAME, exactly as `calendar` produces it (CRLF line ends included).",
+   "Options: `--from ISO` (the start; with `--offset` it is a UTC time), `--count N` (events, default ten), `--offset TEXT` (any text `parse_offset` accepts; enables the UTC output above), and `--closed FILE`, a blackout calendar file in the format `parse_calendar` reads, UTF-8."
+  ],
+  "test_cli_ical_errors": [
+   "A count below 1, an offset that does not parse, a calendar file that cannot be read or does not parse all make the command print an error to stderr and return exit code 2, like the other commands.",
+   "A count below 1, an offset that does not parse, a calendar file that cannot be read or does not parse all make the command print an error to stderr and return exit code 2, like the other commands.",
+   "A count below 1, an offset that does not parse, a calendar file that cannot be read or does not parse all make the command print an error to stderr and return exit code 2, like the other commands.",
+   "A count below 1, an offset that does not parse, a calendar file that cannot be read or does not parse all make the command print an error to stderr and return exit code 2, like the other commands."
+  ]
+ }
+}
