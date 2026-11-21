@@ -238,13 +238,25 @@ def _qualname(tree):
                     yield f"{node.name}::{sub.name}", sub
 
 
+# Checks that are not spelled assert*: pytest and unittest context managers, and the nose/SQLAlchemy-style
+# helpers (eq_, ok_ ...). _CHECK_ANY may be called as f(...) or x.f(...); _CHECK_BARE only as f(...), because
+# x.in_(...) / x.is_(...) are SQLAlchemy column operators, not checks (#491).
+_CHECK_ANY = frozenset({
+    "raises", "warns", "deprecated_call", "expect_warnings", "expect_deprecated", "expect_raises",
+    "expect_raises_message", "expect_raises_with_proxy_cause", "expect_deprecated_20", "expect_warnings_on",
+    "eq_", "ne_", "ok_", "nok_", "eq_ignore_whitespace", "eq_regex", "is_true", "is_false", "is_none",
+    "is_not_none", "is_instance_of", "gt_", "lt_", "ge_", "le_", "startswith_", "endswith_"})
+_CHECK_BARE = frozenset({"is_", "is_not", "is_not_", "in_", "not_in", "not_in_"})
+
+
 def _is_check(node) -> bool:
     if isinstance(node, ast.Assert):
         return True
     if isinstance(node, ast.Call):
         f = node.func
         name = f.attr if isinstance(f, ast.Attribute) else f.id if isinstance(f, ast.Name) else ""
-        return name.startswith("assert") or name in ("raises", "warns")
+        return (name.startswith("assert") or name in _CHECK_ANY
+                or (isinstance(f, ast.Name) and name in _CHECK_BARE))
     return False
 
 
