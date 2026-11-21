@@ -25,7 +25,7 @@ python scripts/eval/strength_retest.py execute memory --run --budget 3 --out FRE
 ```
 
 `execute` 默认只估价。付费执行必须同时给出 `--run`、有限正数 `--budget` 和全新输出目录；
-context 上限 $4，memory 上限 $3。dry-run 分别显示本次预算与任务上限，估价超过本次预算时退出 2；
+不带 `--tasks` 时 context 上限 $4、memory 上限 $3，带 `--tasks` 时上限是 min($10, 单元数 × $0.15)。dry-run 分别显示本次预算与任务上限，估价超过本次预算时退出 2；
 冻结清单在开跑前记录实际总预算和单元预留。复用 `seven_func` 的 ccx 命令与隔离 hub，每个单元有全新的
 repo、客户端 home 和配置，不寻找或复制凭据。有 Codex 单元时必须给 `--codex-home EVAL_CODEX_HOME`：
 一个你自己登录过一次的专用目录（`CODEX_HOME=<dir> codex login`），检查方式同 `p4_long_session.py`
