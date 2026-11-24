@@ -1271,11 +1271,13 @@ def _pad(a: tuple[int, ...], n: int) -> tuple[int, ...]:
 
 
 def python_compatible(spec: str | None, python: tuple[int, ...]) -> bool:
-    """Whether a requires_python value admits `python` (PEP 440 for plain release versions, the only kind Python
-    has). Missing or empty: compatible. A clause that does not parse makes the whole value count as compatible, as
-    pip ignores an invalid Requires-Python (#446)."""
+    """Whether a requires_python value admits `python` (PEP 440 for plain release versions such as 3.12 or 3.9.0).
+    Missing or empty: compatible. If any clause does not parse, wherever it stands, the whole value counts as
+    compatible, as pip ignores an invalid Requires-Python (#446). A version with a pre-release or other suffix in a
+    clause (">=3.12.0rc1") is not parsed either, so such a value also counts as compatible; it is rare on PyPI."""
     if not spec or not spec.strip():
         return True
+    clauses = []  # parse every clause first, so an unparseable one anywhere makes the whole value compatible
     for clause in spec.split(","):
         clause = clause.strip()
         if not clause:
@@ -1285,13 +1287,18 @@ def python_compatible(spec: str | None, python: tuple[int, ...]) -> bool:
             return True
         op, raw = m.groups()
         if op == "===":
-            if raw != ".".join(map(str, python)):
-                return False
+            clauses.append((op, raw, False, None))
             continue
         wild = op in ("==", "!=") and raw.endswith(".*")
         want = _release(raw[:-2] if wild else raw)
         if want is None or (op == "~=" and len(want) < 2):
             return True
+        clauses.append((op, raw, wild, want))
+    for op, raw, wild, want in clauses:
+        if op == "===":
+            if raw != ".".join(map(str, python)):
+                return False
+            continue
         n = max(len(want), len(python))
         have, want_p = _pad(python, n), _pad(want, n)
         if wild:
@@ -1322,7 +1329,10 @@ def pinned_version(meta: dict | None, before_ts: int, python: tuple[int, ...] | 
     rule. Dates alone do not prove it lacks a task's change (a fix can be released from a maintenance branch before
     its commit lands on main), so select also compares the installed files with each commit (installed_overlap).
     With `python` (--ext-python's version), only releases with a non-yanked file whose requires_python admits it
-    count (#446): otherwise pip finds no file for it. A file without requires_python counts as compatible."""
+    count (#446): otherwise pip finds no file for it. A file without requires_python counts as compatible. Wheel
+    platform tags are not checked; a release whose only fitting file is for another platform still fails its download
+    and is recorded as not installed. Yanked files never count (stricter than pip, which installs a yanked
+    release asked for with ==)."""
     best = None
     for version, files in ((meta or {}).get("releases") or {}).items():
         key = _version_key(version)
@@ -1452,7 +1462,9 @@ def prepare(repos: list[dict], cache: Path, wheels: Path, python: str, run=subpr
                     f"a pin pinned the same way; never pinned: {', '.join(NEVER_PIN)}; test extras of each project's "
                     f"latest release plus the [dependency-groups] {'/'.join(DEP_GROUPS)} of the clone's HEAD "
                     f"pyproject.toml",
-            "ext_python_version": py_text,
+            # "3.11.9", the version pins were checked against (None: unread, or nothing to pin); not select's
+            # environment.ext_python_version, which is the whole sys.version string
+            "ext_python_release": py_text,
             "repos": rows, "pins": pins, "pip_list": frozen,
             # the test runner must actually import (pip list is only the record; a pin installed without its
             # dependencies is listed but does not import) (#442)
@@ -1547,6 +1559,9 @@ def main(argv=None) -> int:
         except ValueError as exc:
             ap.error(str(exc))
         write_json(a.out, data)
+        if data["pins"] and not data.get("ext_python_release"):
+            print("warning: --ext-python's version could not be read; pins were chosen without checking "
+                  "requires_python (#446)", file=sys.stderr)
         unpinned = sorted(k for k, v in data["pins"].items() if not v.get("installed"))
         print(f"prepared {len(data['repos'])} repositories; pinned {len(data['pins'])} kept dependencies"
               + (f"; not installed: {', '.join(unpinned)}" if unpinned else ""))

@@ -560,6 +560,9 @@ def test_python_compatible_parses_common_requires_python_values():
     assert ok(">3.10", (3, 10, 1)) and not ok("<=3.10", (3, 10, 1)) and ok(" >= 3.8 ", (3, 11, 0))
     # missing, empty or unparseable: compatible (pip ignores an invalid Requires-Python)
     assert ok(None, (3, 11, 0)) and ok("", (3, 11, 0)) and ok(">=3.x", (3, 11, 0)) and ok("python3", (3, 11, 0))
+    # wherever the unparseable clause stands (pip ignores the whole value)
+    assert ok(">=3.12, bogus", (3, 11, 0)) and ok("bogus, >=3.12", (3, 11, 0)) and ok(">=3.12,~=3", (3, 11, 0))
+    assert ok("===3.11.9", (3, 11, 9)) and not ok("===3.11", (3, 11, 9))
 
 
 def test_pinned_version_skips_releases_that_need_a_newer_python():
@@ -581,7 +584,7 @@ def test_pinned_version_skips_releases_that_need_a_newer_python():
     assert R.pinned_version(meta, before, (3, 11, 9)) == "2.5.0"
 
 
-def test_prepare_pins_with_the_ext_python_version(tmp_path, monkeypatch):
+def test_prepare_pins_with_the_ext_python_version(tmp_path, monkeypatch, capsys):
     """#446: prepare reads --ext-python's version once and pins releases that admit it, kept dependencies too."""
     monkeypatch.setattr(R.E, "fetch", lambda name, spec, cache: cache / name)
     calls = []
@@ -589,8 +592,8 @@ def test_prepare_pins_with_the_ext_python_version(tmp_path, monkeypatch):
           "numpy==2.4.3": ["numpy-2.4.3-py3-none-any.whl"]}
     def run(cmd, **kw):
         calls.append(cmd)
-        if cmd[1:] == ["-c", R.PY_VERSION]:
-            return subprocess.CompletedProcess(cmd, 0, "3.11.9\n", "")
+        if R.PY_VERSION in cmd:
+            return subprocess.CompletedProcess(cmd, 0, version, "")
         if "download" in cmd:
             d = Path(cmd[cmd.index("-d") + 1])
             d.mkdir(parents=True, exist_ok=True)
@@ -607,13 +610,24 @@ def test_prepare_pins_with_the_ext_python_version(tmp_path, monkeypatch):
             ("newpy", rel("1.0", "2026-05-01T00:00:00Z", ">=3.12"))):
         (meta / f"{name}.json").write_text(json.dumps({"releases": releases}), encoding="utf-8")
     repos = [{"repo": n, "project": n, "url": "u"} for n in ("pytest", "numpy", "newpy")]
+    version = "3.11.9\n"
     data = R.prepare(repos, tmp_path / "c", tmp_path / "w", "py", run, meta_dir=meta)
-    assert data["ext_python_version"] == "3.11.9" and R.REQUIRES_PYTHON_RULE in data["rule"]
+    assert data["ext_python_release"] == "3.11.9" and R.REQUIRES_PYTHON_RULE in data["rule"]
     assert {k: v["version"] for k, v in data["pins"].items()} == {"pytest": "8.4", "numpy": "2.4.3", "newpy": None}
     assert data["pins"]["numpy"]["installed"] is True
     assert data["pins"]["newpy"]["reason"] == ("no final release before 2026-07-01 compatible with Python 3.11.9 "
                                                "in the PyPI metadata")
-    assert sum(c[1:] == ["-c", R.PY_VERSION] for c in calls) == 1
+    assert sum(R.PY_VERSION in c for c in calls) == 1
+    # version unreadable: dates only, as before #446, and the rule says requires_python was not checked
+    version = ""
+    data = R.prepare(repos, tmp_path / "c", tmp_path / "w2", "py", run, meta_dir=meta)
+    assert data["ext_python_release"] is None and R.REQUIRES_PYTHON_RULE not in data["rule"]
+    assert "requires_python not checked" in data["rule"] and data["pins"]["pytest"]["version"] == "9.0"
+    (tmp_path / "repos.json").write_text(json.dumps({"kept": []}), encoding="utf-8")
+    monkeypatch.setattr(R, "prepare", lambda *a, **k: data)
+    R.main(["prepare", "--repos-json", str(tmp_path / "repos.json"), "--ext-cache", str(tmp_path / "c"),
+            "--wheels", str(tmp_path / "w"), "--ext-python", "py", "--out", str(tmp_path / "p.json")])
+    assert "requires_python" in capsys.readouterr().err
     assert R.python_version("no-such-python-here") is None
     assert R.python_version("py", lambda *a, **k: subprocess.CompletedProcess(a, 0, "garbage", "")) is None
 
