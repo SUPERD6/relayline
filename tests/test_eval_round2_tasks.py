@@ -250,11 +250,14 @@ def test_cli_select_skip_c(tmp_path, monkeypatch, capsys):
     assert "C 1/1" in capsys.readouterr().out
     data = json.loads(out.read_text(encoding="utf-8"))
     assert [x["commit"][0] for x in data["C"]] == ["c"] and "skip_c" not in data["rule"]
+    # a B-dev shortfall with --skip-c names B only, never a C development task
+    monkeypatch.setattr(R, "B_DEV_TAKE", 3)
+    assert R.main(args + ["--skip-c"]) == 0
+    printed = capsys.readouterr().out
+    assert "author 1 B development task(s)" in printed and "C development" not in printed
     # the help text names the pre-registration change log
-    try:
+    with pytest.raises(SystemExit):
         R.main(["select", "-h"])
-    except SystemExit:
-        pass
     assert "2026-11-18" in capsys.readouterr().out
 
 

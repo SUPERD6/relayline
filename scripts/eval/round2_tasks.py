@@ -1108,9 +1108,9 @@ def select_upstream(cache: Path, repos: list[dict], python: str, used: set[str],
                      "hidden": "commit's added/changed test files: parent fails (rc 1/2), commit passes, "
                                "parent's existing suite passes",
                      # only with --skip-c, so the default output is unchanged (#449)
-                     **({"skip_c": f"--skip-c: B's {B_TAKE} final tasks, then B's {B_DEV_TAKE} development tasks in the same order; "
-                                   "no C and no C development task (pre-registration change log 2026-11-18, "
-                                   "#447/#448; #449)"} if skip_c else {})},
+                     **({"skip_c": f"--skip-c: B's {B_TAKE} final tasks, then B's {B_DEV_TAKE} development tasks "
+                                   "in the same order; no C and no C development task (pre-registration change "
+                                   "log 2026-11-18, #447/#448; #449)"} if skip_c else {})},
             "models_called": False, "B": b, "C": c, "b_shortfall": B_TAKE - len(b),
             "c_shortfall": 0 if skip_c else C_TAKE - len(c),
             "dev": {"B": b_dev, "C": c_dev},
@@ -1517,7 +1517,10 @@ def main(argv=None) -> int:
         else:
             print(f"B {len(data['B'])}/{B_TAKE}, C {len(data['C'])}/{C_TAKE}; "
                   f"dev B {len(dev['B'])}/{B_DEV_TAKE}, C {len(dev['C'])}/{C_DEV_TAKE}")
-        if short["B"] or short["C"]:
+        if a.skip_c and short["B"]:
+            print(f"development shortfall: author {short['B']} B development task(s) before any final authored task "
+                  "(pre-registration, section 2; C skipped)")
+        elif not a.skip_c and (short["B"] or short["C"]):
             print(f"development shortfall: author {short['B']} B and {short['C']} C development task(s) before "
                   "any final authored task (pre-registration, section 2)")
         return 0 if not data["b_shortfall"] and not data["c_shortfall"] else 1
