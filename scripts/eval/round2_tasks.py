@@ -1252,17 +1252,103 @@ def _version_key(version: str):
     return (tuple(int(x) for x in m.group(1).split(".")), int(m.group(2) or 0)) if m else None
 
 
-def pinned_version(meta: dict | None, before_ts: int) -> str | None:
+PY_VERSION = "import sys; print('%d.%d.%d' % sys.version_info[:3])"
+REQUIRES_PYTHON_RULE = ("only releases with a non-yanked file whose requires_python admits --ext-python's version; "
+                        "a file without requires_python (or with one that does not parse, as pip does) counts as "
+                        "compatible (#446)")
+
+
+def python_version(python: str, run=subprocess.run) -> tuple[int, ...] | None:
+    """(major, minor, micro) of `python`, or None when it cannot be read."""
+    try:
+        r = run([python, "-c", PY_VERSION], capture_output=True, text=True, encoding="utf-8", errors="replace",
+                timeout=60)
+    except (OSError, subprocess.SubprocessError):
+        return None
+    m = re.fullmatch(r"(\d+)\.(\d+)\.(\d+)", (r.stdout or "").strip()) if r.returncode == 0 else None
+    return tuple(int(x) for x in m.groups()) if m else None
+
+
+def _release(text: str) -> tuple[int, ...] | None:
+    """The release numbers of a version in a specifier ("3.12", "3.9.0", "3"); None for anything else."""
+    return tuple(int(x) for x in text.split(".")) if re.fullmatch(r"\d+(?:\.\d+)*", text) else None
+
+
+def _pad(a: tuple[int, ...], n: int) -> tuple[int, ...]:
+    return a + (0,) * (n - len(a))
+
+
+def python_compatible(spec: str | None, python: tuple[int, ...]) -> bool:
+    """Whether a requires_python value admits `python` (PEP 440 for plain release versions such as 3.12 or 3.9.0).
+    Missing or empty: compatible. If any clause does not parse, wherever it stands, the whole value counts as
+    compatible, as pip ignores an invalid Requires-Python (#446). A version with a pre-release or other suffix in a
+    clause (">=3.12.0rc1") is not parsed either, so such a value also counts as compatible; it is rare on PyPI."""
+    if not spec or not spec.strip():
+        return True
+    clauses = []  # parse every clause first, so an unparseable one anywhere makes the whole value compatible
+    for clause in spec.split(","):
+        clause = clause.strip()
+        if not clause:
+            continue
+        m = re.fullmatch(r"(~=|===|==|!=|<=|>=|<|>)\s*(\S+)", clause)
+        if not m:
+            return True
+        op, raw = m.groups()
+        if op == "===":
+            clauses.append((op, raw, False, None))
+            continue
+        wild = op in ("==", "!=") and raw.endswith(".*")
+        want = _release(raw[:-2] if wild else raw)
+        if want is None or (op == "~=" and len(want) < 2):
+            return True
+        clauses.append((op, raw, wild, want))
+    for op, raw, wild, want in clauses:
+        if op == "===":
+            if raw != ".".join(map(str, python)):
+                return False
+            continue
+        n = max(len(want), len(python))
+        have, want_p = _pad(python, n), _pad(want, n)
+        if wild:
+            ok = _pad(python, len(want))[:len(want)] == want
+            ok = ok if op == "==" else not ok
+        elif op == "==":
+            ok = have == want_p
+        elif op == "!=":
+            ok = have != want_p
+        elif op == ">=":
+            ok = have >= want_p
+        elif op == "<=":
+            ok = have <= want_p
+        elif op == ">":
+            ok = have > want_p
+        elif op == "<":
+            ok = have < want_p
+        else:  # ~=X.Y[.Z]: >= X.Y[.Z] and the same release up to the last given number
+            ok = have >= want_p and python[:len(want) - 1] == want[:-1]
+        if not ok:
+            return False
+    return True
+
+
+def pinned_version(meta: dict | None, before_ts: int, python: tuple[int, ...] | None = None) -> str | None:
     """The highest final release (no pre-release or dev, not wholly yanked) first uploaded before `before_ts` (#415).
     With before_ts = the selection date limit, it was released before every candidate commit, which is env-check's
     rule. Dates alone do not prove it lacks a task's change (a fix can be released from a maintenance branch before
-    its commit lands on main), so select also compares the installed files with each commit (installed_overlap)."""
+    its commit lands on main), so select also compares the installed files with each commit (installed_overlap).
+    With `python` (--ext-python's version), only releases with a non-yanked file whose requires_python admits it
+    count (#446): otherwise pip finds no file for it. A file without requires_python counts as compatible. Wheel
+    platform tags are not checked; a release whose only fitting file is for another platform still fails its download
+    and is recorded as not installed. Yanked files never count (stricter than pip, which installs a yanked
+    release asked for with ==)."""
     best = None
     for version, files in ((meta or {}).get("releases") or {}).items():
         key = _version_key(version)
         live = [f for f in files or () if not f.get("yanked")]
         released = _upload_ts({"releases": {version: live}}, version) if live else None
-        if key is not None and released is not None and released < before_ts and (best is None or key > best[0]):
+        fits = python is None or any(python_compatible(f.get("requires_python"), python) for f in live)
+        if (key is not None and released is not None and released < before_ts and fits
+                and (best is None or key > best[0])):
             best = (key, version)
     return best[1] if best else None
 
@@ -1341,13 +1427,17 @@ def prepare(repos: list[dict], cache: Path, wheels: Path, python: str, run=subpr
         raise ValueError("kept packages are needed as dependencies (" + ", ".join(sorted(needed)) + "); pass "
                          "--pypi-meta (the meta step's folder) to pin them")
     pins, todo, before = {}, sorted(needed), _since_ts(since)
+    # --ext-python's version, so a pin is a release pip can install there (#446); None (unreadable): no filter
+    py = python_version(python, run) if todo else None
+    py_text = ".".join(map(str, py)) if py else None
     while todo:  # kept dependencies of the pinned packages are pinned the same way
         name = todo.pop(0)
         path = Path(meta_dir) / f"{name}.json"
-        version = pinned_version(read_json(path) if path.is_file() else None, before)
+        version = pinned_version(read_json(path) if path.is_file() else None, before, py)
         pin = pins[name] = {"version": version}
         if version is None:
-            pin["reason"] = f"no final release before {since} in the PyPI metadata"
+            pin["reason"] = (f"no final release before {since}"
+                             + (f" compatible with Python {py_text}" if py else "") + " in the PyPI metadata")
             continue
         target = wheels / "_pins" / f"{name}-{version}"
         pin["downloaded"] = _download(run, python, target, f"{name}=={version}")
@@ -1373,10 +1463,16 @@ def prepare(repos: list[dict], cache: Path, wheels: Path, python: str, run=subpr
     except (ValueError, TypeError, KeyError):
         frozen = None
     return {"rule": f"kept packages never installed at their latest release; a kept dependency (and "
-                    f"{', '.join(RUNNER)}) at its highest final release uploaded before {since}, kept dependencies of "
+                    f"{', '.join(RUNNER)}) at its highest final release uploaded before {since} ("
+                    + (REQUIRES_PYTHON_RULE if py or not pins else
+                       "--ext-python's version could not be read: requires_python not checked")
+                    + f"), kept dependencies of "
                     f"a pin pinned the same way; never pinned: {', '.join(NEVER_PIN)}; test extras of each project's "
                     f"latest release plus the [dependency-groups] {'/'.join(DEP_GROUPS)} of the clone's HEAD "
                     f"pyproject.toml",
+            # "3.11.9", the version pins were checked against (None: unread, or nothing to pin); not select's
+            # environment.ext_python_version, which is the whole sys.version string
+            "ext_python_release": py_text,
             "repos": rows, "pins": pins, "pip_list": frozen,
             # the test runner must actually import (pip list is only the record; a pin installed without its
             # dependencies is listed but does not import) (#442)
@@ -1475,6 +1571,9 @@ def main(argv=None) -> int:
         except ValueError as exc:
             ap.error(str(exc))
         write_json(a.out, data)
+        if data["pins"] and not data.get("ext_python_release"):
+            print("warning: --ext-python's version could not be read; pins were chosen without checking "
+                  "requires_python (#446)", file=sys.stderr)
         unpinned = sorted(k for k, v in data["pins"].items() if not v.get("installed"))
         print(f"prepared {len(data['repos'])} repositories; pinned {len(data['pins'])} kept dependencies"
               + (f"; not installed: {', '.join(unpinned)}" if unpinned else ""))
