@@ -2,12 +2,19 @@
 itself (tests built on test_ccx.Env set their own on top). A test that forgot to would otherwise read or write the
 real ~/.ccx hub, ~/.codex, ~/.claude or ~/.dsh of the machine it runs on, and tests would share state with each
 other. No test finds a real agent CLI on its own either (e.g. a desktop app's bundled dsh from the registry):
-CCX_NO_LOCATE is set before any test, so the ccx processes the tests start inherit it."""
+CCX_NO_LOCATE is set before any test, so the ccx processes the tests start inherit it.
+Nor does a test write into the checkout's own .ccx/ (tests/_ccx_repo_outputs.py, issue #506)."""
 import os
 
 import pytest
 
 os.environ["CCX_NO_LOCATE"] = "1"
+
+try:    # the eval scripts copy this file alone into a task's repo (scripts/eval/r5.py CONFTEST): it then runs without
+    from _ccx_repo_outputs import _repo_ccx_to_tmp, pytest_sessionfinish, pytest_sessionstart  # noqa: F401
+except ModuleNotFoundError as e:
+    if e.name != "_ccx_repo_outputs":     # a broken helper must not switch the guard off unseen
+        raise
 
 
 @pytest.fixture(autouse=True)
