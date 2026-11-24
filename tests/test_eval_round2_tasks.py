@@ -547,6 +547,77 @@ def test_pinned_version_is_the_highest_final_release_before_the_date_limit():
     assert R.pinned_version(None, R._since_ts("2026-07-01")) is None
 
 
+def test_python_compatible_parses_common_requires_python_values():
+    """#446: requires_python is read with the standard library only."""
+    ok = R.python_compatible
+    assert ok(">=3.12", (3, 12, 0)) and ok(">=3.12", (3, 13, 1)) and not ok(">=3.12", (3, 11, 9))
+    assert ok(">=3.9,<3.13", (3, 12, 7)) and ok(">=3.9,<3.13", (3, 9, 0))
+    assert not ok(">=3.9,<3.13", (3, 13, 0)) and not ok(">=3.9,<3.13", (3, 8, 18))
+    assert not ok("!=3.11.*", (3, 11, 4)) and ok("!=3.11.*", (3, 12, 0)) and ok("!=3.11.*", (3, 1, 1))
+    assert ok(">=3.8, !=3.9.0", (3, 9, 1)) and not ok(">=3.8, !=3.9.0", (3, 9, 0)) and ok(">=3.8, !=3.9.0", (3, 11, 2))
+    assert ok("==3.11.*", (3, 11, 9)) and not ok("==3.11.*", (3, 12, 0)) and ok("==3", (3, 0, 0))
+    assert ok("~=3.10", (3, 11, 0)) and not ok("~=3.10", (4, 0, 0)) and not ok("~=3.10.2", (3, 11, 0))
+    assert ok(">3.10", (3, 10, 1)) and not ok("<=3.10", (3, 10, 1)) and ok(" >= 3.8 ", (3, 11, 0))
+    # missing, empty or unparseable: compatible (pip ignores an invalid Requires-Python)
+    assert ok(None, (3, 11, 0)) and ok("", (3, 11, 0)) and ok(">=3.x", (3, 11, 0)) and ok("python3", (3, 11, 0))
+
+
+def test_pinned_version_skips_releases_that_need_a_newer_python():
+    """#446: numpy 2.5.0 needs Python >= 3.12, so on 3.11 the pin falls back to the highest compatible release."""
+    meta = {"releases": {
+        "2.5.0": [{"upload_time_iso_8601": "2026-06-10T00:00:00Z", "requires_python": ">=3.12"}],
+        "2.4.3": [{"upload_time_iso_8601": "2026-05-01T00:00:00Z", "requires_python": ">=3.11"},
+                  {"upload_time_iso_8601": "2026-05-01T00:00:00Z", "requires_python": ">=3.11"}],
+        "2.4.4": [{"upload_time_iso_8601": "2026-06-01T00:00:00Z", "requires_python": ">=3.12"},
+                  {"upload_time_iso_8601": "2026-06-01T00:00:00Z", "requires_python": ">=3.11", "yanked": True}],
+        "2.3.0": [{"upload_time_iso_8601": "2026-01-01T00:00:00Z", "requires_python": ">=3.10"}]}}
+    before = R._since_ts("2026-07-01")
+    assert R.pinned_version(meta, before, (3, 11, 9)) == "2.4.3"   # a yanked compatible file does not count
+    assert R.pinned_version(meta, before, (3, 12, 0)) == "2.5.0"
+    assert R.pinned_version(meta, before) == "2.5.0"               # no version known: dates only, as before
+    assert R.pinned_version(meta, before, (3, 9, 0)) is None
+    # one compatible file is enough; a file without requires_python counts as compatible
+    meta["releases"]["2.5.0"].append({"upload_time_iso_8601": "2026-06-10T00:00:00Z"})
+    assert R.pinned_version(meta, before, (3, 11, 9)) == "2.5.0"
+
+
+def test_prepare_pins_with_the_ext_python_version(tmp_path, monkeypatch):
+    """#446: prepare reads --ext-python's version once and pins releases that admit it, kept dependencies too."""
+    monkeypatch.setattr(R.E, "fetch", lambda name, spec, cache: cache / name)
+    calls = []
+    dl = {"pytest==8.4": ["pytest-8.4-py3-none-any.whl", "numpy-2.5.0-py3-none-any.whl", "newpy-1.0-py3-none-any.whl"],
+          "numpy==2.4.3": ["numpy-2.4.3-py3-none-any.whl"]}
+    def run(cmd, **kw):
+        calls.append(cmd)
+        if cmd[1:] == ["-c", R.PY_VERSION]:
+            return subprocess.CompletedProcess(cmd, 0, "3.11.9\n", "")
+        if "download" in cmd:
+            d = Path(cmd[cmd.index("-d") + 1])
+            d.mkdir(parents=True, exist_ok=True)
+            for name in dl.get(cmd[-1].split("[")[0], []):
+                (d / name).write_bytes(b"")
+        return subprocess.CompletedProcess(cmd, 0, "", "")
+    meta = tmp_path / "meta"
+    meta.mkdir()
+    rel = lambda v, when, req: {v: [{"upload_time_iso_8601": when, "requires_python": req}]}
+    for name, releases in (
+            ("pytest", {**rel("9.0", "2026-06-01T00:00:00Z", ">=3.12"), **rel("8.4", "2026-03-01T00:00:00Z", ">=3.9")}),
+            ("numpy", {**rel("2.5.0", "2026-06-10T00:00:00Z", ">=3.12"),
+                       **rel("2.4.3", "2026-05-01T00:00:00Z", ">=3.11")}),
+            ("newpy", rel("1.0", "2026-05-01T00:00:00Z", ">=3.12"))):
+        (meta / f"{name}.json").write_text(json.dumps({"releases": releases}), encoding="utf-8")
+    repos = [{"repo": n, "project": n, "url": "u"} for n in ("pytest", "numpy", "newpy")]
+    data = R.prepare(repos, tmp_path / "c", tmp_path / "w", "py", run, meta_dir=meta)
+    assert data["ext_python_version"] == "3.11.9" and R.REQUIRES_PYTHON_RULE in data["rule"]
+    assert {k: v["version"] for k, v in data["pins"].items()} == {"pytest": "8.4", "numpy": "2.4.3", "newpy": None}
+    assert data["pins"]["numpy"]["installed"] is True
+    assert data["pins"]["newpy"]["reason"] == ("no final release before 2026-07-01 compatible with Python 3.11.9 "
+                                               "in the PyPI metadata")
+    assert sum(c[1:] == ["-c", R.PY_VERSION] for c in calls) == 1
+    assert R.python_version("no-such-python-here") is None
+    assert R.python_version("py", lambda *a, **k: subprocess.CompletedProcess(a, 0, "garbage", "")) is None
+
+
 def test_prepare_pins_kept_dependencies_and_the_runner_before_the_date_limit(tmp_path, monkeypatch):
     calls = []
     monkeypatch.setattr(R.E, "fetch", lambda name, spec, cache: cache / name)
