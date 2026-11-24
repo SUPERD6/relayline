@@ -222,8 +222,11 @@ def render(srv, route, tmp_path, ready=(), deadline=120.0, browser=None):
 
     #500: one --dump-dom can come back before the script has drawn (only the `…` placeholder), so the page counts
     as rendered only on an explicit signal: <main> no longer holds index.html's placeholder and every string in
-    `ready` shows. Until then it is dumped again with a doubled --virtual-time-budget, up to `deadline` seconds in
-    all; a page still not rendered by then fails as a render timeout, saying what was still missing."""
+    `ready` shows. Until then it is dumped again, up to `deadline` seconds in all (each browser run still gets at
+    least 10 s, so a slow start is not cut short); a page still not rendered by then fails as a render timeout,
+    saying what was still missing. The retry is the fix; doubling --virtual-time-budget (virtual, not wall-clock
+    time) on each try is only a cheap hedge."""
+    import html
     import re
     # Linux runners (Ubuntu 24.04) refuse Chrome's own sandbox to an unprivileged user (the page is ours, on
     # 127.0.0.1) and have no keyring; macOS would ask the keychain for a new profile
@@ -231,7 +234,9 @@ def render(srv, route, tmp_path, ready=(), deadline=120.0, browser=None):
              ["--use-mock-keychain"] if sys.platform == "darwin" else [])
     named = bool(os.environ.get("CCX_TEST_BROWSER"))      # a browser named for the test must work: no skip
     argv0 = list(browser) if browser else [_browser()]
-    placeholder, start, budget, attempt = _placeholder(), time.monotonic(), 10000, 0
+    def bare(h):                                            # tags out, entities decoded, spaces folded
+        return html.unescape(re.sub(r"\s+", " ", re.sub(r"<[^>]+>", " ", h))).strip()
+    placeholder, start, budget, attempt = bare(_placeholder()), time.monotonic(), 10000, 0
     while True:
         attempt += 1
         left = deadline - (time.monotonic() - start)
@@ -242,22 +247,23 @@ def render(srv, route, tmp_path, ready=(), deadline=120.0, browser=None):
                                 f"--virtual-time-budget={budget}", "--dump-dom",
                                 f"http://127.0.0.1:{srv.port}/#k={srv.token}&{route}"],
                                capture_output=True, text=True, encoding="utf-8", errors="replace",
-                               timeout=max(1.0, min(90.0, left)))
+                               timeout=max(10.0, min(90.0, left)))
         except subprocess.TimeoutExpired:
             if attempt > 1:                                 # it did start before: the page is what is slow
                 pytest.fail(f"render timeout: {route} not rendered within {deadline:.0f} s "
                             f"({attempt} attempts; the last browser run was cut off)")
             if named:
                 raise
-            pytest.skip("headless browser did not finish in 90 s")
+            pytest.skip(f"headless browser did not finish in {max(10.0, min(90.0, left)):.0f} s")
         if r.returncode != 0 and "<main" not in r.stdout:  # the browser itself did not start: not the page's fault
             if named:
                 pytest.fail(f"CCX_TEST_BROWSER did not start: {r.stderr[-300:]}")
             pytest.skip(f"headless browser did not start: {r.stderr[-300:]}")
-        main = r.stdout[r.stdout.find("<main"):]
-        inner = re.sub(r"^<main[^>]*>|</main>.*$", "", main, flags=re.S).strip()
-        text = re.sub(r"\s+", " ", re.sub(r"<[^>]+>", " ", main)).replace("&amp;", "&")
-        missing = ["(the page still shows its placeholder)"] if inner == placeholder else []
+        main = r.stdout[r.stdout.find("<main"):] if "<main" in r.stdout else ""
+        inner = bare(re.sub(r"^<main[^>]*>|</main>.*$", "", main, flags=re.S))
+        text = " " + bare(main) + " " if main else ""
+        missing = (["(no <main> in the dump)"] if not main else
+                   ["(the page still shows its placeholder)"] if inner == placeholder else [])
         missing += [w for w in ready if w not in text]
         if not missing:
             return text
@@ -337,7 +343,7 @@ def test_render_that_never_draws_fails_as_a_render_timeout(tmp_path, monkeypatch
     t0 = time.monotonic()
     with pytest.raises(pytest.fail.Exception, match=r"render timeout: / not rendered within 2 s") as e:
         render(srv, "/", tmp_path, deadline=2, browser=fake)
-    assert "placeholder" in str(e.value) and time.monotonic() - t0 < 60
+    assert "placeholder" in str(e.value) and time.monotonic() - t0 < 30   # one run's 10 s floor, plus slack
     assert len(state.read_text(encoding="utf-8").splitlines()) >= 1
 
 
