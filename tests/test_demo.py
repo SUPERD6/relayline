@@ -210,31 +210,67 @@ def _browser() -> str | None:
     return None
 
 
-def render(srv, route, tmp_path):
-    """The page as a headless browser leaves it after its scripts ran (--dump-dom), in English, as text."""
+def _placeholder() -> str:
+    """What <main> holds before the page's script has drawn anything, as index.html ships it (`…`)."""
     import re
-    prof = tmp_path / f"profile-{abs(hash(route))}"
+    html = (REPO / "ccx" / "ui_static" / "index.html").read_text(encoding="utf-8")
+    return re.search(r'<main id="main">(.*?)</main>', html, re.S).group(1).strip()
+
+
+def render(srv, route, tmp_path, ready=(), deadline=120.0, browser=None):
+    """The page as a headless browser leaves it after its scripts ran (--dump-dom), in English, as text.
+
+    #500: one --dump-dom can come back before the script has drawn (only the `…` placeholder), so the page counts
+    as rendered only on an explicit signal: <main> no longer holds index.html's placeholder and every string in
+    `ready` shows. Until then it is dumped again, up to `deadline` seconds in all (each browser run still gets at
+    least 10 s, so a slow start is not cut short); a page still not rendered by then fails as a render timeout,
+    saying what was still missing. The retry is the fix; doubling --virtual-time-budget (virtual, not wall-clock
+    time) on each try is only a cheap hedge."""
+    import html
+    import re
     # Linux runners (Ubuntu 24.04) refuse Chrome's own sandbox to an unprivileged user (the page is ours, on
     # 127.0.0.1) and have no keyring; macOS would ask the keychain for a new profile
     extra = (["--no-sandbox", "--password-store=basic"] if sys.platform.startswith("linux") else
              ["--use-mock-keychain"] if sys.platform == "darwin" else [])
     named = bool(os.environ.get("CCX_TEST_BROWSER"))      # a browser named for the test must work: no skip
-    try:
-        r = subprocess.run([_browser(), "--headless=new", "--disable-gpu", "--no-first-run",
-                            "--no-default-browser-check", *extra, f"--user-data-dir={prof}", "--lang=en-US",
-                            "--virtual-time-budget=10000", "--dump-dom",
-                            f"http://127.0.0.1:{srv.port}/#k={srv.token}&{route}"],
-                           capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=90)
-    except subprocess.TimeoutExpired:
-        if named:
-            raise
-        pytest.skip("headless browser did not finish in 90 s")
-    if r.returncode != 0 and "<main" not in r.stdout:      # the browser itself did not start: not the page's fault
-        if named:
-            pytest.fail(f"CCX_TEST_BROWSER did not start: {r.stderr[-300:]}")
-        pytest.skip(f"headless browser did not start: {r.stderr[-300:]}")
-    main = r.stdout[r.stdout.find("<main"):]
-    return re.sub(r"\s+", " ", re.sub(r"<[^>]+>", " ", main)).replace("&amp;", "&")
+    argv0 = list(browser) if browser else [_browser()]
+    def bare(h):                                            # tags out, entities decoded, spaces folded
+        return html.unescape(re.sub(r"\s+", " ", re.sub(r"<[^>]+>", " ", h))).strip()
+    placeholder, start, budget, attempt = bare(_placeholder()), time.monotonic(), 10000, 0
+    while True:
+        attempt += 1
+        left = deadline - (time.monotonic() - start)
+        prof = tmp_path / f"profile-{abs(hash(route))}-{attempt}"   # a fresh profile: no lock left by the last try
+        try:
+            r = subprocess.run([*argv0, "--headless=new", "--disable-gpu", "--no-first-run",
+                                "--no-default-browser-check", *extra, f"--user-data-dir={prof}", "--lang=en-US",
+                                f"--virtual-time-budget={budget}", "--dump-dom",
+                                f"http://127.0.0.1:{srv.port}/#k={srv.token}&{route}"],
+                               capture_output=True, text=True, encoding="utf-8", errors="replace",
+                               timeout=max(10.0, min(90.0, left)))
+        except subprocess.TimeoutExpired:
+            if attempt > 1:                                 # it did start before: the page is what is slow
+                pytest.fail(f"render timeout: {route} not rendered within {deadline:.0f} s "
+                            f"({attempt} attempts; the last browser run was cut off)")
+            if named:
+                raise
+            pytest.skip(f"headless browser did not finish in {max(10.0, min(90.0, left)):.0f} s")
+        if r.returncode != 0 and "<main" not in r.stdout:  # the browser itself did not start: not the page's fault
+            if named:
+                pytest.fail(f"CCX_TEST_BROWSER did not start: {r.stderr[-300:]}")
+            pytest.skip(f"headless browser did not start: {r.stderr[-300:]}")
+        main = r.stdout[r.stdout.find("<main"):] if "<main" in r.stdout else ""
+        inner = bare(re.sub(r"^<main[^>]*>|</main>.*$", "", main, flags=re.S))
+        text = " " + bare(main) + " " if main else ""
+        missing = (["(no <main> in the dump)"] if not main else
+                   ["(the page still shows its placeholder)"] if inner == placeholder else [])
+        missing += [w for w in ready if w not in text]
+        if not missing:
+            return text
+        if time.monotonic() - start >= deadline:
+            pytest.fail(f"render timeout: {route} not rendered within {deadline:.0f} s ({attempt} attempts, last "
+                        f"--virtual-time-budget={budget}); still missing {missing[:5]}; page text: {text[:300]!r}")
+        budget = min(budget * 2, 60000)
 
 
 @pytest.mark.skipif(_browser() is None, reason="no Chrome / Chromium / Edge to render the page")
@@ -265,12 +301,50 @@ def test_headless_browser_renders_the_demo(server, tmp_path):
                                                    "health.py", "haiku", "$0.0051"],
     }
     for route, want in pages.items():
-        text = render(srv, route, tmp_path)
+        text = render(srv, route, tmp_path, ready=want)
         for w in want:
             assert w in text, (route, w, text[:600])
         for bad in ("undefined", "NaN", "[object Object]"):
             assert bad not in text, (route, bad)
         assert not re.search(r"\{[a-z_]+\}", text), (route, re.search(r"\{[a-z_]+\}", text))
+
+
+def _slow_browser(tmp_path, monkeypatch, slow):
+    """#500: the fake browser whose first `slow` dumps come back before the page has drawn."""
+    state = tmp_path / "fake-browser-500.jsonl"
+    monkeypatch.setenv("FAKE_BROWSER_STATE", str(state))
+    monkeypatch.setenv("FAKE_BROWSER_SLOW", str(slow))
+    srv = mock.Mock(port=1, token="t")
+    return srv, state, [sys.executable, str(REPO / "tests" / "fakes" / "fake_slow_browser.py")]
+
+
+def test_render_waits_until_a_slow_page_has_drawn(tmp_path, monkeypatch):
+    """#500: a dump that only holds the `…` placeholder is not taken as the page; it is dumped again, with a
+    longer virtual-time budget, until the content shows."""
+    srv, state, fake = _slow_browser(tmp_path, monkeypatch, slow=2)
+    text = render(srv, "/", tmp_path, ready=["shop-api: one map"], browser=fake)
+    assert "shop-api: one map" in text and "…" not in text
+    calls = [json.loads(x) for x in state.read_text(encoding="utf-8").splitlines()]
+    budgets = [next(a for a in c if a.startswith("--virtual-time-budget=")) for c in calls]
+    assert budgets == ["--virtual-time-budget=10000", "--virtual-time-budget=20000", "--virtual-time-budget=40000"]
+    assert len({next(a for a in c if a.startswith("--user-data-dir=")) for c in calls}) == 3
+
+
+def test_render_waits_for_the_strings_it_was_told_to_wait_for(tmp_path, monkeypatch):
+    srv, state, fake = _slow_browser(tmp_path, monkeypatch, slow=0)
+    text = render(srv, "/", tmp_path, ready=["Receipts"], browser=fake)
+    assert "Receipts" in text and len(state.read_text(encoding="utf-8").splitlines()) == 1
+
+
+def test_render_that_never_draws_fails_as_a_render_timeout(tmp_path, monkeypatch):
+    """#500: a page that never gets past its placeholder fails within the deadline, saying it is a render timeout
+    (not a missing-string assertion on ' … ')."""
+    srv, state, fake = _slow_browser(tmp_path, monkeypatch, slow=10 ** 6)
+    t0 = time.monotonic()
+    with pytest.raises(pytest.fail.Exception, match=r"render timeout: / not rendered within 2 s") as e:
+        render(srv, "/", tmp_path, deadline=2, browser=fake)
+    assert "placeholder" in str(e.value) and time.monotonic() - t0 < 30   # one run's 10 s floor, plus slack
+    assert len(state.read_text(encoding="utf-8").splitlines()) >= 1
 
 
 def test_snapshot_keeps_board_text_as_escaped_data(built, tmp_path):
