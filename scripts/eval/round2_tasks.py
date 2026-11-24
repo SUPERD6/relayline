@@ -7,7 +7,8 @@ The rules come from docs/research/prereg/2026-11-16-round2.md, section 2, and ar
     prepare   clone kept repositories into --ext-cache, download wheels, install dependencies (not the package
               itself) into --ext-python                                       (network: GitHub, PyPI)
     select    upstream commits for B (first 60) and C (next 24), then in the same order the development tasks
-              (B: next 4, C: next 2; #371), every exclusion with its reason (offline)
+              (B: next 4, C: next 2; #371), every exclusion with its reason (offline); --skip-c: B (first 60)
+              then B-dev (next 4), no C and no C-dev (pre-registration change log 2026-11-18, #447/#448; #449)
     authored  validate authored tasks: hidden fails on start, passes on reference, existing suite passes
     brief     brief checks only: literal overlap with hidden asserts, trace table coverage
     leak      task ids, repository + commit and normalized briefs against every earlier task
@@ -954,22 +955,24 @@ def _why_invalid(result: dict) -> str:
     return f"hidden tests do not all pass on the commit (rc={result['reference']['rc']})"
 
 
-def _phase(b, c, b_dev, c_dev):
+def _phase(b, c, b_dev, c_dev, skip_c=False):
     """The group the next qualifying commit goes to, in the pre-registered order B, C, B-dev, C-dev, as
-    (group, dev); (None, None) when all four are full."""
+    (group, dev); (None, None) when all four are full. With skip_c the order is B, B-dev and C is never
+    taken: the pre-registration change log of 2026-11-18 (#447/#448) moved group C to round 3 (#449)."""
     if len(b) < B_TAKE:
         return "B", False
-    if len(c) < C_TAKE:
+    if not skip_c and len(c) < C_TAKE:
         return "C", False
     if len(b_dev) < B_DEV_TAKE:
         return "B", True
-    if len(c_dev) < C_DEV_TAKE:
+    if not skip_c and len(c_dev) < C_DEV_TAKE:
         return "C", True
     return None, None
 
 
 def select_upstream(cache: Path, repos: list[dict], python: str, used: set[str], since: str = SINCE,
-                    raw_dir: Path | None = None, validator=None, overlap=None, registered=None) -> dict:
+                    raw_dir: Path | None = None, validator=None, overlap=None, registered=None,
+                    skip_c: bool = False) -> dict:
     overlap = overlap or installed_overlap  # `overlap` and `registered` are for tests (a fake --ext-python)
     validator = validator or _validate
     # pytest11 entry points of --ext-python, listed once up front so a broken interpreter fails at once (#424)
@@ -982,7 +985,7 @@ def select_upstream(cache: Path, repos: list[dict], python: str, used: set[str],
     visited = set()
     for spec in repos:
         repo = spec["repo"]
-        if _phase(b, c, b_dev, c_dev)[0] is None:
+        if _phase(b, c, b_dev, c_dev, skip_c)[0] is None:
             break
         if repo_key(spec) in visited:  # a repository is walked once, at its first rank (#397)
             exclusions.append({"repo": repo, "project": spec.get("project", repo),
@@ -1005,7 +1008,7 @@ def select_upstream(cache: Path, repos: list[dict], python: str, used: set[str],
         if old:
             exclusions.append({"repo": repo, "reason": f"commit before {since}", "count": len(old)})
         for row in (r for r in history if r["timestamp"] >= since_ts):
-            group, dev = _phase(b, c, b_dev, c_dev)
+            group, dev = _phase(b, c, b_dev, c_dev, skip_c)
             if group is None:
                 break
             reason = None
@@ -1103,10 +1106,15 @@ def select_upstream(cache: Path, repos: list[dict], python: str, used: set[str],
                                "'[0-9]*'`), else 0.0 (task `stub_version`) (#424)"],
                      "installed_overlap": OVERLAP_RULE,
                      "hidden": "commit's added/changed test files: parent fails (rc 1/2), commit passes, "
-                               "parent's existing suite passes"},
-            "models_called": False, "B": b, "C": c, "b_shortfall": B_TAKE - len(b), "c_shortfall": C_TAKE - len(c),
+                               "parent's existing suite passes",
+                     # only with --skip-c, so the default output is unchanged (#449)
+                     **({"skip_c": f"--skip-c: B's {B_TAKE} final tasks, then B's {B_DEV_TAKE} development tasks in the same order; "
+                                   "no C and no C development task (pre-registration change log 2026-11-18, "
+                                   "#447/#448; #449)"} if skip_c else {})},
+            "models_called": False, "B": b, "C": c, "b_shortfall": B_TAKE - len(b),
+            "c_shortfall": 0 if skip_c else C_TAKE - len(c),
             "dev": {"B": b_dev, "C": c_dev},
-            "dev_shortfall": {"B": B_DEV_TAKE - len(b_dev), "C": C_DEV_TAKE - len(c_dev)},
+            "dev_shortfall": {"B": B_DEV_TAKE - len(b_dev), "C": 0 if skip_c else C_DEV_TAKE - len(c_dev)},
             "exclusions": exclusions, "checked": checked,
             # for review before freezing: every selected task's loaded plugins, and how often each plugin is loaded
             "pytest_plugins_loaded": {"by_task": {t["id"]: t.get("pytest_plugins") or []
@@ -1434,6 +1442,10 @@ def main(argv=None) -> int:
     s.add_argument("--ext-cache", type=Path, required=True); s.add_argument("--ext-python", required=True)
     s.add_argument("--out", type=Path, required=True); s.add_argument("--raw-dir", type=Path)
     s.add_argument("--prepare-json", type=Path, help="prepare's output; its SHA-256 is recorded in the selection")
+    s.add_argument("--skip-c", action="store_true",
+                   help="take no C and no C development task: B-dev follows right after B's 60 final tasks "
+                        "(pre-registration change log 2026-11-18, #447/#448: group C moved to round 3; #449). "
+                        "Default off: B, C, B-dev, C-dev as pre-registered")
     s = sub.add_parser("authored"); s.add_argument("task_dirs", type=Path, nargs="+")
     s.add_argument("--python", default=sys.executable); s.add_argument("--out", type=Path, required=True)
     s = sub.add_parser("brief"); s.add_argument("--task-json", type=Path, required=True)
@@ -1489,7 +1501,7 @@ def main(argv=None) -> int:
             return 1
         data = select_upstream(a.ext_cache, read_json(a.repos_json)["kept"], a.ext_python,
                                corpus(exclude=[a.out, a.repos_json])["repos"],
-                               raw_dir=a.raw_dir)
+                               raw_dir=a.raw_dir, skip_c=a.skip_c)
         try:
             version = subprocess.run([a.ext_python, "-c", "import sys; print(sys.version)"], capture_output=True,
                                      text=True, encoding="utf-8", errors="replace", timeout=60).stdout
@@ -1500,8 +1512,11 @@ def main(argv=None) -> int:
                                if a.prepare_json else None}
         write_json(a.out, data)
         dev, short = data["dev"], data["dev_shortfall"]
-        print(f"B {len(data['B'])}/{B_TAKE}, C {len(data['C'])}/{C_TAKE}; "
-              f"dev B {len(dev['B'])}/{B_DEV_TAKE}, C {len(dev['C'])}/{C_DEV_TAKE}")
+        if a.skip_c:
+            print(f"B {len(data['B'])}/{B_TAKE}, C skipped (--skip-c); dev B {len(dev['B'])}/{B_DEV_TAKE}, C skipped")
+        else:
+            print(f"B {len(data['B'])}/{B_TAKE}, C {len(data['C'])}/{C_TAKE}; "
+                  f"dev B {len(dev['B'])}/{B_DEV_TAKE}, C {len(dev['C'])}/{C_DEV_TAKE}")
         if short["B"] or short["C"]:
             print(f"development shortfall: author {short['B']} B and {short['C']} C development task(s) before "
                   "any final authored task (pre-registration, section 2)")

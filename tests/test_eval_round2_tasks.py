@@ -196,6 +196,68 @@ def test_no_dev_tasks_when_final_groups_are_short(monkeypatch):
     assert out["dev_shortfall"] == {"B": 4, "C": 2}
 
 
+def test_skip_c_takes_b_dev_right_after_b_and_no_c(monkeypatch):
+    # pre-registration change log 2026-11-18 (#447/#448): C moved to round 3; B-dev follows B's final tasks (#449)
+    t = 2_000_000_000
+    hist = {"r1": [_row("a", t, 80), _row("c", t - 1, 160), _row("d", t - 2, 80), _row("e", t - 3, 160),
+                   _row("f", t - 4, 80), _row("g", t - 5, 160)]}
+    _dev_setup(monkeypatch, hist, b_dev=2, c_dev=1, b_cap=6, c_cap=4)
+    default = _select(["r1"])
+    # default unchanged: c goes to C, d and e are B-dev, f is too small for C-dev, g is C-dev
+    assert [x["commit"][0] for x in default["C"]] == ["c"]
+    assert [x["commit"][0] for x in default["dev"]["B"]] == ["d", "e"]
+    assert [x["commit"][0] for x in default["dev"]["C"]] == ["g"]
+    assert "skip_c" not in default["rule"]
+    skipped = R.select_upstream(Path("x"), [{"repo": "r1"}], "py", set(), validator=lambda *a: {"valid": True},
+                                skip_c=True)
+    assert [x["commit"][0] for x in skipped["B"]] == ["a"]
+    # c (C size, also B size) is the next B-size commit after B's final task, so it is B-dev
+    assert [x["commit"][0] for x in skipped["dev"]["B"]] == ["c", "d"]
+    assert skipped["C"] == [] and skipped["dev"]["C"] == []
+    assert skipped["c_shortfall"] == 0 and skipped["dev_shortfall"] == {"B": 0, "C": 0}
+    assert all(x["group"] == "B" and x["dev"] is True for x in skipped["dev"]["B"])
+    assert {c["commit"][0] for c in skipped["checked"]} == {"a", "c", "d"}  # stops once B-dev is full
+    assert "2026-11-18" in skipped["rule"]["skip_c"]
+
+
+def test_skip_c_with_b_short_takes_nothing_else(monkeypatch):
+    t = 2_000_000_000
+    _dev_setup(monkeypatch, {"r1": [_row("a", t, 80)]}, b_dev=4, c_dev=2, b_cap=6, c_cap=4)
+    monkeypatch.setattr(R, "B_TAKE", 2)
+    out = R.select_upstream(Path("x"), [{"repo": "r1"}], "py", set(), validator=lambda *a: {"valid": True},
+                            skip_c=True)
+    assert out["b_shortfall"] == 1 and out["c_shortfall"] == 0
+    assert out["dev"] == {"B": [], "C": []} and out["dev_shortfall"] == {"B": 4, "C": 0}
+
+
+def test_cli_select_skip_c(tmp_path, monkeypatch, capsys):
+    t = 2_000_000_000
+    _dev_setup(monkeypatch, {"r1": [_row("a", t, 80), _row("c", t - 1, 160), _row("d", t - 2, 80)]},
+               b_dev=2, c_dev=1, b_cap=6, c_cap=4)
+    monkeypatch.setattr(R, "_validate", lambda *a: {"valid": True})
+    monkeypatch.setattr(R, "runner_missing", lambda python: [])
+    monkeypatch.setattr(R, "corpus", lambda **k: {"repos": set()})
+    (tmp_path / "cache").mkdir()
+    (tmp_path / "repos.json").write_text(json.dumps({"kept": [{"repo": "r1"}]}), encoding="utf-8")
+    out = tmp_path / "sel.json"
+    args = ["select", "--repos-json", str(tmp_path / "repos.json"), "--ext-cache", str(tmp_path / "cache"),
+            "--ext-python", "py", "--out", str(out)]
+    assert R.main(args + ["--skip-c"]) == 0  # C is not taken, so no C shortfall fails the command
+    assert "C skipped" in capsys.readouterr().out
+    data = json.loads(out.read_text(encoding="utf-8"))
+    assert data["C"] == [] and [x["commit"][0] for x in data["dev"]["B"]] == ["c", "d"]
+    assert R.main(args) == 0  # default: c is C, d is B-dev
+    assert "C 1/1" in capsys.readouterr().out
+    data = json.loads(out.read_text(encoding="utf-8"))
+    assert [x["commit"][0] for x in data["C"]] == ["c"] and "skip_c" not in data["rule"]
+    # the help text names the pre-registration change log
+    try:
+        R.main(["select", "-h"])
+    except SystemExit:
+        pass
+    assert "2026-11-18" in capsys.readouterr().out
+
+
 def test_cli_select_reports_dev_and_downstream_includes_dev(tmp_path, monkeypatch, capsys):
     t = 2_000_000_000
     _dev_setup(monkeypatch, {"r1": [_row("a", t, 80), _row("c", t - 1, 160), _row("d", t - 2, 80)]},
