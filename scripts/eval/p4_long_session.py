@@ -347,7 +347,7 @@ def env_failure(fin: dict, err: str, rc: int, records: list[dict]) -> str | None
     texts = []
     if fin.get("is_error") or str(fin.get("subtype") or "").startswith("error") and fin.get("subtype") != "error_max_budget_usd":
         texts.append(str(fin.get("result") or ""))
-    if not fin and rc != 0 or fin.get("is_error"):
+    if not fin and rc not in (0, -9) or fin.get("is_error"):     # -9: our own timeout kill
         texts.append(err or "")
     for text in texts:
         if R.match_hint(text, _AUTH_TEXT):
@@ -355,8 +355,9 @@ def env_failure(fin: dict, err: str, rc: int, records: list[dict]) -> str | None
         if R.match_hint(text, _QUOTA_TEXT):
             return "quota"
     for rec in records:
-        kinds = [rec.get("kind"), (rec.get("result") or {}).get("kind"),
-                 *[a.get("kind") for a in rec.get("attempts") or []]]
+        # The last attempt's kind only: an earlier rung that hit quota may be followed by one that ran fine.
+        attempts = rec.get("attempts") or []
+        kinds = [rec.get("kind"), (rec.get("result") or {}).get("kind"), attempts[-1].get("kind") if attempts else None]
         if (rec.get("result") or {}).get("status", "done") == "error" or rec.get("kind") in ENV_STOP_KINDS:
             for k in ENV_STOP_KINDS:
                 if k in kinds:
@@ -1199,6 +1200,8 @@ def plan_settings(a, arms) -> dict:
 
 def invalid_reason(row: dict) -> str | None:
     """Round-2 invalid rows (#346): kept and counted; the group continues until a limit is passed."""
+    if row.get("env_stop"):
+        return "environment_error"      # #509: login/quota stop, whichever receipt also failed
     if row.get("receipt_error"):
         return "receipt_error"
     if not row.get("cost_complete"):

@@ -526,6 +526,10 @@ def test_env_failure_reads_only_failed_results_and_receipts():
     assert P.env_failure({"is_error": True, "result": "You've hit your usage limit"}, "", 1, []) == "quota"
     assert P.env_failure(ok, "", 0, [{"result": {"status": "error"}, "attempts": [{"kind": "auth"}]}]) == "auth"
     assert P.env_failure(ok, "", 0, [{"result": {"status": "done"}, "attempts": [{"kind": "auth"}]}]) is None
+    later_ok = {"result": {"status": "error"}, "attempts": [{"kind": "quota"}, {"kind": "error"}]}
+    assert P.env_failure(ok, "", 0, [later_ok]) is None      # a later rung ran: not an environment stop
+    assert P.env_failure({}, "Failed to authenticate", -9, []) is None   # our own timeout kill
+    assert P.invalid_reason({"env_stop": "auth", "receipt_error": True, "cost_complete": True}) == "environment_error"
     assert P.env_failure({"subtype": "error_max_budget_usd", "is_error": False, "result": ""}, "", 1, []) is None
 
 
