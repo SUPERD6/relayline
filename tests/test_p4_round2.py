@@ -5,6 +5,7 @@ import os
 from pathlib import Path
 import subprocess
 import sys
+from types import SimpleNamespace
 
 import pytest
 
@@ -489,3 +490,61 @@ def test_src_layout_prompt_only_changes_the_pythonpath():
         assert src == flat.replace("PYTHONPATH=.", f"PYTHONPATH='src{os.pathsep}.'") and src != flat
     odd = {**task, "brief": "Keep PYTHONPATH=. in docs.", "src_layout": True}
     assert "Keep PYTHONPATH=. in docs." in P.prompt(odd, "self", 1.0)   # the brief itself is not rewritten
+
+
+def _auth_lead(monkeypatch):
+    fake = P.ROOT / "tests" / "fakes" / "p4_lead_auth.py"
+    monkeypatch.setattr(P.r5.r3, "lead_argv", lambda *a, **k: [sys.executable, str(fake)])
+
+
+def test_auth_failure_stops_on_the_first_row_at_its_real_cost(fake_engine, monkeypatch, tmp_path):
+    """#509: an expired login is an environment error: charged what it cost (nothing), not the reservation, the
+    group stops at once, and the stop reason is auth, not budget."""
+    a, ts, log = _r2_engine(fake_engine, monkeypatch, tmp_path, _ledger())
+    _auth_lead(monkeypatch)
+    assert P.run_experiment(a, ts, P.schedule(ts, 1, ("self", D.ARM2))) == 2
+    rows = P.read_jsonl(a.out)
+    assert len(rows) == 1
+    assert rows[0]["environment_error"] is True and rows[0]["env_stop"] == "auth"
+    assert rows[0]["usd"] == 0 and rows[0]["cost_complete"] is True and rows[0]["invalid_reason"] == "environment_error"
+    event = P.read_jsonl(a.out.with_suffix(".events.jsonl"))[-1]
+    assert event["reason"] == "auth" and event["spent_known_usd"] == 0 and event["cost_unknown"] is False
+
+
+def test_auth_failure_stops_the_round1_rules_too(fake_engine, monkeypatch, tmp_path):
+    a, ts, log = _r2_engine(fake_engine, monkeypatch, tmp_path, _ledger())
+    a.max_invalid_rows, a.split = None, "dev"
+    _auth_lead(monkeypatch)
+    assert P.run_experiment(a, ts, P.schedule(ts, 1, ("self", D.ARM2))) == 2
+    assert len(P.read_jsonl(a.out)) == 1
+    assert P.read_jsonl(a.out.with_suffix(".events.jsonl"))[-1]["reason"] == "auth"
+
+
+def test_env_failure_reads_only_failed_results_and_receipts():
+    ok = {"subtype": "success", "result": "I saw a 401 in the logs and fixed it"}
+    assert P.env_failure(ok, "", 0, []) is None
+    assert P.env_failure({}, "Failed to authenticate", 1, []) == "auth"
+    assert P.env_failure({"is_error": True, "result": "You've hit your usage limit"}, "", 1, []) == "quota"
+    assert P.env_failure(ok, "", 0, [{"result": {"status": "error"}, "attempts": [{"kind": "auth"}]}]) == "auth"
+    assert P.env_failure(ok, "", 0, [{"result": {"status": "done"}, "attempts": [{"kind": "auth"}]}]) is None
+    later_ok = {"result": {"status": "error"}, "attempts": [{"kind": "quota"}, {"kind": "error"}]}
+    assert P.env_failure(ok, "", 0, [later_ok]) is None      # a later rung ran: not an environment stop
+    assert P.env_failure({}, "Failed to authenticate", -9, []) is None   # our own timeout kill
+    assert P.invalid_reason({"env_stop": "auth", "receipt_error": True, "cost_complete": True}) == "environment_error"
+    assert P.env_failure({"subtype": "error_max_budget_usd", "is_error": False, "result": ""}, "", 1, []) is None
+
+
+def test_check_login_reads_only_auth_status(monkeypatch, tmp_path):
+    seen = []
+
+    def fake_run(argv, **kw):
+        seen.append(argv[1:])
+        return SimpleNamespace(stdout=json.dumps({"loggedIn": False, "authMethod": "none"}))
+    monkeypatch.setattr(P.subprocess, "run", fake_run)
+    monkeypatch.setenv("CCX_CLAUDE_BIN", "claude")
+    a = SimpleNamespace(claude_isolation="flags")
+    assert "not logged in" in P.login_problem(a)
+    assert seen == [["auth", "status"]]
+    monkeypatch.setattr(P.subprocess, "run", lambda *x, **k: SimpleNamespace(stdout=json.dumps({"loggedIn": True})))
+    assert P.login_problem(a) is None
+    assert P.login_problem(SimpleNamespace(claude_isolation="ccx-home")) is None
