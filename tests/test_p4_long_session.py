@@ -270,3 +270,53 @@ def test_real_preflight_audit_allows_private_wrapper_and_flags_other_arm(tmp_pat
     assert P.PF.path_hits([foreign_command], u) == [foreign_command]
     fetch = "curl https://github.com/more-itertools/more-itertools"
     assert P.PF.path_hits([fetch], u) == [fetch]
+
+
+def _between_hit_at(n, problem="busy: pid 515 python.exe -m pytest"):
+    """A fake between-units check that is clean until the n-th call, then reports `problem`."""
+    calls = []
+
+    def check(*a, **k):
+        calls.append(1)
+        return [problem] if len(calls) == n else []
+    return check
+
+
+@pytest.mark.parametrize("episode_size", [4, 1])
+def test_interference_marks_only_the_unit_it_overlaps(fake_engine, monkeypatch, episode_size):
+    # #515: an outside pytest seen after the 6th unit stops the run (unchanged) and marks that row only; rows that
+    # had finished before it, in the same episode or another one, keep env_clean true.
+    a, ts, log = fake_engine
+    monkeypatch.setattr(P.PF, "between_units", _between_hit_at(6))
+    assert P.run_experiment(a, ts, P.schedule(ts, episode_size=episode_size)) == 2
+    rows = P.read_jsonl(a.out)
+    assert len(rows) == 6
+    assert [r["env_clean"] for r in rows] == [True] * 5 + [False]
+    assert [r["between_units"] for r in rows] == [[]] * 5 + [["busy: pid 515 python.exe -m pytest"]]
+    last = rows[-1]
+    same_episode = [r for r in rows[:-1] if (r["round"], r["episode"], r["arm"]) ==
+                    (last["round"], last["episode"], last["arm"])]
+    assert all(r["env_clean"] for r in same_episode)
+    if episode_size == 4:
+        assert same_episode        # earlier turns of the interrupted episode are kept clean too
+    events = [json.loads(x) for x in a.out.with_suffix(".events.jsonl").read_text().splitlines()]
+    assert events[-1]["event"] == "stop" and events[-1]["reason"] == "environment"
+
+
+def test_a_row_whose_between_check_never_ran_is_not_clean(fake_engine, monkeypatch):
+    # #515: the run breaks inside the check after the 3rd unit; that row has no check of its own and is not
+    # counted clean, the two rows checked before it stay clean.
+    a, ts, log = fake_engine
+    calls = []
+
+    def check(*a, **k):
+        calls.append(1)
+        if len(calls) == 3:
+            raise RuntimeError("check broke")
+        return []
+    monkeypatch.setattr(P.PF, "between_units", check)
+    with pytest.raises(RuntimeError):
+        P.run_experiment(a, ts, P.schedule(ts))
+    rows = P.read_jsonl(a.out)
+    assert [r["env_clean"] for r in rows] == [True, True, False]
+    assert rows[-1]["between_units"] == [P.BETWEEN_NOT_CHECKED]
