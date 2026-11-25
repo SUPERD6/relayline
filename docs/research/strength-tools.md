@@ -225,3 +225,17 @@ makes cost per success null. Lead/sub/review components must be complete; whole-
 include repairs. Fallback models are grouped as a composite, not credited only to the final model.
 With any `env_clean=false`, report both all rows and explicitly clean rows with their own denominators.
 Every n < 10 group says **样本少**. This is historical description, not a current controlled ranking.
+
+## Group A and `--check` (scaffold default)
+
+In the A groups (`strength_retest.py`), ccx is run with `--check "python -m pytest -q"`. This is not an A-group
+design choice: `scripts/eval/seven_func.py` fixes it for all its callers (since 2026-10-25, round 1 as well). The A
+tasks have no visible tests, so the check collects nothing (pytest exit code 4 or 5) and ccx records `check_broken`
+for almost every unit. `check_broken` does not trigger a retry or an escalation, is excluded from automatic
+learning, and the runner already fixes `--no-escalate --no-fallback --no-subagents --review off`; the same
+acceptance sentence is in the prompt of both arms. Correctness comes from the hidden tests only.
+
+Reading rules: do not use `kind` or `rc` of the A groups in an analysis (`rc` only reflects the receipt's exit
+code), and do not count `check_broken` as a claim of success. After a formal run, check that every unit has one
+ledger line and one attempt. Recorded in the round-2 pre-registration change log (2026-11-25, #511). Engineering
+check on 48 development rows only; it says nothing about model quality.
