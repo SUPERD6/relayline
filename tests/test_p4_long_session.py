@@ -320,3 +320,28 @@ def test_a_row_whose_between_check_never_ran_is_not_clean(fake_engine, monkeypat
     rows = P.read_jsonl(a.out)
     assert [r["env_clean"] for r in rows] == [True, True, False]
     assert rows[-1]["between_units"] == [P.BETWEEN_NOT_CHECKED]
+
+
+def test_round2_mode_failed_step_row_keeps_its_own_check(fake_engine, monkeypatch):
+    # #515, round-2 rules (--max-invalid-rows): the 2nd unit's step fails (invalid row, group goes on) and still gets
+    # its own, empty check; only the unit the interference overlaps (the 6th) is marked by it.
+    a, ts, log = fake_engine
+    a.max_invalid_rows = 3
+    monkeypatch.setattr(P.PF, "between_units", _between_hit_at(6))
+    original, calls = P.Episode.step, []
+
+    def step(self, *args, **kw):
+        calls.append(1)
+        if len(calls) == 2:
+            raise RuntimeError("lead broke")
+        return original(self, *args, **kw)
+    monkeypatch.setattr(P.Episode, "step", step)
+    assert P.run_experiment(a, ts, P.schedule(ts)) == 2
+    rows = P.read_jsonl(a.out)
+    assert len(rows) == 6 and rows[1]["error"] == "RuntimeError"
+    assert [r["between_units"] for r in rows] == [[]] * 5 + [["busy: pid 515 python.exe -m pytest"]]
+    # The failed episode's later turns resume a failed session (environment_error, unchanged rule) and are not clean
+    # for that reason; the other episode, untouched by the failure and the interference, stays clean throughout.
+    assert all(r["env_clean"] is (not r["environment_error"] and not r["between_units"]) for r in rows)
+    other = [r for r in rows if r["arm"] != rows[1]["arm"]]
+    assert other and all(r["env_clean"] for r in other)
