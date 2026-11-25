@@ -48,6 +48,9 @@ WEB_TOOLS = ("WebFetch", "WebSearch")
 # as before). The lead and every ccx Claude sub-agent inherit it from the episode's environment.
 # Since #514 preflight.prepare() sets it for every unit; the episode env and the plan keep it here too (same value).
 CLAUDE_WEB_ENV = dict(PF.CLAUDE_WEB_ENV)
+# #515: what a row records when the run broke before the between-units check after its unit could run. It is a
+# marker, not an observed interference: count interferences without it.
+BETWEEN_NOT_CHECKED = "between-units check did not run after this unit"
 LIMITATION = "Delegation and one-line acceptance change together; their effects are not separated."
 USAGE_COUNTERS = {"input_tokens": "inputTokens", "output_tokens": "outputTokens",
                   "cache_read_input_tokens": "cacheReadInputTokens",
@@ -755,7 +758,7 @@ class Episode:
         (dest / "hidden.txt").write_text(redactor.text(sc["output"]), encoding="utf-8", newline="")
         return row
 
-    def close(self, rep: dict, between: list[str]) -> None:
+    def close(self, rep: dict) -> None:
         # An interrupted lead can leave completed host checks before step() exports them.
         for row in self.rows:
             if "checks" not in row:
@@ -767,8 +770,11 @@ class Episode:
                     row["checks"] = {"status": "Unknown", "error": type(exc).__name__}
         cleanup = PF.after_unit(self.iso, self.before, self.job, [self.sid], keep_repo=False)
         for row in self.rows:
+            # #515: each row keeps the between-units check made right after its own unit. A row whose check never
+            # ran (the run broke in between) is not counted clean.
+            row.setdefault("between_units", [BETWEEN_NOT_CHECKED])
             row.update({"leftovers": cleanup, "hub": {"memory_empty": self.memory_empty},
-                        "between_units": between, "fingerprint": PF.fingerprint(rep, self.iso, self.env),
+                        "fingerprint": PF.fingerprint(rep, self.iso, self.env),
                         "pinned_commit": rep["commit"]})
             row["env_clean"] = PF.env_clean(row, rep) and not row.get("environment_error", False)
         for stream, _ in self.streams:
@@ -1361,6 +1367,9 @@ def run_experiment(a, tasks: list[dict], units: list[dict]) -> int:
             # into the session, ccx verify, shared memory, or the live repo.
             append_jsonl(a.out.with_suffix(".pending.jsonl"), row)
             between = PF.between_units(rep, True, ours=[str(a.work)], seen=watcher.take())
+            # #515: the check after this unit belongs to this row only (as in r5, batch and p13); close() no
+            # longer stamps the last check onto every earlier, already finished row.
+            row["between_units"] = between
             if stopped or between or budget.unknown or budget.spent >= a.budget:
                 stopped = stopped or ("environment" if between else "budget_unknown" if budget.unknown else "budget")
                 break
@@ -1368,7 +1377,7 @@ def run_experiment(a, tasks: list[dict], units: list[dict]) -> int:
         watcher.close()
         for session in sessions.values():
             try:
-                session.close(rep, between)
+                session.close(rep)
             except Exception as exc:
                 for row in session.rows:
                     row.update({"env_clean": False, "cleanup_error": type(exc).__name__})
