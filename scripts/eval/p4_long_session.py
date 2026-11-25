@@ -46,15 +46,11 @@ WEB_TOOLS = ("WebFetch", "WebSearch")
 # with a deny rule `Agent(web-fetch)` (docs say so, and checked on 2.1.316), so the audit marks every row unclean.
 # This variable removes the agent and the WebFetch tool (checked on 2.1.316: init lists every other built-in agent
 # as before). The lead and every ccx Claude sub-agent inherit it from the episode's environment.
-<<<<<<< HEAD
 # Since #514 preflight.prepare() sets it for every unit; the episode env and the plan keep it here too (same value).
 CLAUDE_WEB_ENV = dict(PF.CLAUDE_WEB_ENV)
-=======
-CLAUDE_WEB_ENV = {"CLAUDE_CODE_DISABLE_WEB_FETCH": "1"}
 # #515: what a row records when the run broke before the between-units check after its unit could run. It is a
 # marker, not an observed interference: count interferences without it.
 BETWEEN_NOT_CHECKED = "between-units check did not run after this unit"
->>>>>>> 9ce7c24 (fix(eval): P4 每行 env_clean 只看自己单元之后的单元间检查（#515）)
 LIMITATION = "Delegation and one-line acceptance change together; their effects are not separated."
 USAGE_COUNTERS = {"input_tokens": "inputTokens", "output_tokens": "outputTokens",
                   "cache_read_input_tokens": "cacheReadInputTokens",
