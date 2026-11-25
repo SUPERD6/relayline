@@ -97,6 +97,17 @@ def test_fake_resume_reset_and_hidden_grade_never_return_to_lead(fake_engine):
     assert all(not (s / "tests/test_hidden.py").exists() for s in a.work.glob("repo-*"))
 
 
+def test_lead_gets_disable_web_fetch_env(fake_engine, monkeypatch):
+    # #510: every lead turn (and, through its environment, every ccx Claude sub-agent) starts with Claude Code's
+    # built-in web-fetch agent switched off, so the init event no longer lists it and the audit can pass
+    monkeypatch.delenv("CLAUDE_CODE_DISABLE_WEB_FETCH", raising=False)
+    a, ts, log = fake_engine
+    assert P.run_experiment(a, ts, P.schedule(ts)) == 0
+    entries = [json.loads(line) for line in log.read_text().splitlines()]
+    assert entries and all(e["disable_web_fetch"] == "1" for e in entries)
+    assert P.CLAUDE_WEB_ENV == {"CLAUDE_CODE_DISABLE_WEB_FETCH": "1"}
+
+
 def test_budget_reservation_stops_before_next_cli(fake_engine):
     a, ts, log = fake_engine
     a.budget = 1.15

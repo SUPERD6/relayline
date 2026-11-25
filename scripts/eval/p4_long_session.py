@@ -39,6 +39,12 @@ N = 4
 ROUND2 = ("r2b", "r2c")
 TASK_FIELDS = ("repo", "commit", "brief", "tests", "code")
 WEB_TOOLS = ("WebFetch", "WebSearch")
+# Claude Code's built-in `web-fetch` agent (#510). The deny rules above already cover the pages it fetches (it calls
+# WebFetch; docs: tools-reference "The web-fetch subagent"), but its name stays in the init event's agent list, even
+# with a deny rule `Agent(web-fetch)` (docs say so, and checked on 2.1.316), so the audit marks every row unclean.
+# This variable removes the agent and the WebFetch tool (checked on 2.1.316: init lists every other built-in agent
+# as before). The lead and every ccx Claude sub-agent inherit it from the episode's environment.
+CLAUDE_WEB_ENV = {"CLAUDE_CODE_DISABLE_WEB_FETCH": "1"}
 LIMITATION = "Delegation and one-line acceptance change together; their effects are not separated."
 USAGE_COUNTERS = {"input_tokens": "inputTokens", "output_tokens": "outputTokens",
                   "cache_read_input_tokens": "cacheReadInputTokens",
@@ -526,7 +532,8 @@ class Episode:
         # Claude's projects/<slug(repo)>/<sid>.jsonl, outside the reset repo.
         # step() preserves this cwd and home; close() performs session cleanup.
         self.env = {**PF.prepare(self.iso), **E.run_env({"pythonpath": "."}),
-                    "CCX_LEAD_VIEW": "line", "PYTEST_DISABLE_PLUGIN_AUTOLOAD": "1", "CCX_P4_ROOT": str(ROOT)}
+                    "CCX_LEAD_VIEW": "line", "PYTEST_DISABLE_PLUGIN_AUTOLOAD": "1", "CCX_P4_ROOT": str(ROOT),
+                    **CLAUDE_WEB_ENV}
         self.base_utf8 = self.env.get("PYTHONUTF8")  # restored for a task without pythonutf8 (#415)
         if getattr(a, "focused_retry", False):
             # Only this disposable episode's hub; never modify shipped/user defaults.
@@ -1118,6 +1125,9 @@ def plan_settings(a, arms) -> dict:
     web = getattr(a, "codex_web_search", "default")
     out["network"] = {"lead_deny": list(WEB_TOOLS), "claude_subagent_deny": list(WEB_TOOLS),
                       "claude_subagent_basis": "CCX_CLAUDE_SETTINGS = the unit's settings file, same deny list as the lead",
+                      "claude_env": dict(CLAUDE_WEB_ENV),
+                      "claude_env_basis": "removes the built-in web-fetch agent (and WebFetch) for the lead and ccx's "
+                                          "Claude sub-agents, which inherit the episode environment (#510)",
                       "codex_web_search": web,
                       "codex_flag": '-c web_search="disabled" on every codex exec via codex_tmp.py' if web == "disabled"
                       else "none added (Codex default; ccx adds it only with lean tools)"}
