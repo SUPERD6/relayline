@@ -15,6 +15,7 @@ import re
 from pathlib import Path
 import shutil
 import statistics
+import subprocess
 import sys
 import tempfile
 import time
@@ -32,6 +33,7 @@ import p5_arms as P5A
 import dispatch_eval as DE
 import long_environment as LE
 from common import ROOT, append_jsonl, read_jsonl
+from ccx import runners as R
 
 ARMS = ("self", "ccxlong")
 N = 4
@@ -310,6 +312,56 @@ def _prompt(task: dict, arm: str, child_cap: float, receipt: Path | None,
 def lead_argv(unit: PF.Unit, sid: str, turn: int, cap: float) -> list[str]:
     argv = r5.r3.lead_argv("ccx", cap, "sonnet", "medium") + PF.lead_flags(unit)
     return argv + (["--session-id", sid] if turn == 1 else ["--resume", sid])
+
+
+ENV_STOP_KINDS = ("auth", "quota")      # #509: the CLI could not work at all; no task outcome follows
+_AUTH_TEXT = ("failed to authenticate", "oauth session expired", "could not be refreshed", "authentication_error",
+              "invalid api key", "not logged in", "please run /login", "401")
+_QUOTA_TEXT = ("usage limit", "quota", "rate limit reached", "rate_limit_error", "limit reached", "429")
+
+
+def login_problem(a, timeout: float = 60) -> str | None:
+    """--check-login (#509): refuse to start when the lead's real login is gone, using only `claude auth status`
+    (its status line; no credential file is read). Flags mode logs in with the default Claude home; a fresh home
+    (config-dir / ccx-home) logs in with CLAUDE_CODE_OAUTH_TOKEN, which preflight already requires by name."""
+    if getattr(a, "claude_isolation", "flags") != "flags":
+        return None
+    binary = os.environ.get("CCX_CLAUDE_BIN") or shutil.which("claude") or shutil.which("claude.cmd")
+    if not binary:
+        return "--check-login: no `claude` command found to ask for the login status"
+    try:
+        proc = subprocess.run([binary, "auth", "status"], capture_output=True, text=True, encoding="utf-8",
+                              errors="replace", timeout=timeout)
+        status = json.loads(proc.stdout)
+    except (OSError, subprocess.SubprocessError, ValueError) as exc:
+        return f"--check-login: `claude auth status` gave no readable answer ({type(exc).__name__})"
+    if status.get("loggedIn") is not True:
+        return "the default Claude home is not logged in (`claude auth status`); run `claude auth login`, then start again"
+    return None
+
+
+def env_failure(fin: dict, err: str, rc: int, records: list[dict]) -> str | None:
+    """"auth" or "quota" when the lead's own error result / stderr, or a sub-agent's ccx receipt, says the login
+    or the plan's allowance stopped the work (#509); None otherwise. A normal result is never scanned (the model's
+    text may mention 401), only a failed one: is_error, an error subtype, or no result at all with a non-zero rc."""
+    texts = []
+    if fin.get("is_error") or str(fin.get("subtype") or "").startswith("error") and fin.get("subtype") != "error_max_budget_usd":
+        texts.append(str(fin.get("result") or ""))
+    if not fin and rc != 0 or fin.get("is_error"):
+        texts.append(err or "")
+    for text in texts:
+        if R.match_hint(text, _AUTH_TEXT):
+            return "auth"
+        if R.match_hint(text, _QUOTA_TEXT):
+            return "quota"
+    for rec in records:
+        kinds = [rec.get("kind"), (rec.get("result") or {}).get("kind"),
+                 *[a.get("kind") for a in rec.get("attempts") or []]]
+        if (rec.get("result") or {}).get("status", "done") == "error" or rec.get("kind") in ENV_STOP_KINDS:
+            for k in ENV_STOP_KINDS:
+                if k in kinds:
+                    return k
+    return None
 
 
 def telemetry(stream: str) -> dict:
@@ -647,6 +699,7 @@ class Episode:
             row["lead_cap_hit"] = fin.get("subtype") == "error_max_budget_usd"
             row["cap_hit"] = row["lead_cap_hit"] or bool(row.get("child_cap_hit"))
             row["timed_out"] = rc == -9
+        env_kind = env_failure(fin, err, rc, records)
         row.update(P5.costs(row))
         row["known_usd"] = row["ccx_usd"] + (lead or 0)
         if lead is not None:
@@ -655,6 +708,11 @@ class Episode:
             self.lead_total = self.lead_cost.cumulative
         if not row["session_match"]:
             row.update({"cost_complete": False, "usd": None, "environment_error": True})
+        if env_kind:
+            # #509: a login/quota failure is an environment error, not an unknown cost. Record what was actually
+            # spent (the failed call usually cost nothing), never the reservation, and let the run stop on it.
+            row.update({"env_stop": env_kind, "environment_error": True, "cost_complete": True,
+                        "usd": round(row["known_usd"], 6)})
         row["episode_usd"] = round(self.lead_total + self.child_total, 6) if row["cost_complete"] else None
         if self.first_context is None:
             self.first_context = row["context_first"]
@@ -683,7 +741,7 @@ class Episode:
             sc = {**sc, "environment_error": False}
             row["score_collection_error"] = True
         row.update({"ok": sc["ok"], "pytest": sc["summary"], "score_rc": sc["rc"],
-                    "environment_error": sc["environment_error"] or not row["session_match"],
+                    "environment_error": sc["environment_error"] or not row["session_match"] or bool(env_kind),
                     "score_wall_s": time.monotonic() - scoring_start})
         (dest / "hidden.txt").write_text(redactor.text(sc["output"]), encoding="utf-8", newline="")
         return row
@@ -861,6 +919,9 @@ def parser():
     p.add_argument("--child-budget", type=float, default=1.5, help="ccx --max-usd per task, including review and repairs")
     p.add_argument("--task-cap", type=float, default=None, help="legacy total task allowance; overrides lead/child split when explicitly supplied")
     p.add_argument("--pin-commit", default="")
+    p.add_argument("--check-login", action="store_true",
+                   help="with --run: refuse to start unless `claude auth status` says the lead's login (flags mode: the "
+                        "default Claude home) is valid; reads no credential file (#509)")
     p.add_argument("--wait-quiet", type=float, default=0)
     p.add_argument("--tag", default="p4")
     p.add_argument("--out", type=Path, default=ROOT / ".ccx" / "eval" / "p4" / "results.jsonl")
@@ -1015,6 +1076,8 @@ def main(argv=None) -> int:
         return 0
     if a.split == "p5" and len(tasks) != 8:
         raise SystemExit(f"P5 selection incomplete: {len(tasks)}/8 tasks; no model called")
+    if getattr(a, "check_login", False) and (problem := login_problem(a)):
+        raise SystemExit(f"{problem}; no model called")
     a.evidence = "measured"
     return run_experiment(a, tasks, units)
 
@@ -1252,6 +1315,8 @@ def run_experiment(a, tasks: list[dict], units: list[dict]) -> int:
                         session.lead_cost.failed = True
             row.update(P5.costs(row))
             rows.append(row)
+            if row.get("env_stop"):
+                stopped = "auth"      # #509: also for quota; the row's env_stop says which
             if max_invalid is None:
                 if any(u["arm"] == DE.ARM for u in units):
                     stopped = stopped or DE.stop_reason(rows, max_rate=max_rate)
