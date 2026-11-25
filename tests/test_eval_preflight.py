@@ -243,7 +243,7 @@ def test_canary_reads_every_message_not_only_the_result(machine, monkeypatch):
 
 def test_prepare_switches_off_the_builtin_web_fetch_agent_for_every_unit(machine, monkeypatch):
     # #514: Claude Code 2.1.316 lists a built-in `web-fetch` agent, which the audit and both canaries call unclean;
-    # prepare() sets the variable for each kind of unit, and a stray value from the person's shell does not reach it
+    # prepare() sets the variable for each kind of unit (base_env's allow-list also keeps a stray shell value out)
     monkeypatch.setenv("CLAUDE_CODE_DISABLE_WEB_FETCH", "0")
     assert PF.CLAUDE_WEB_ENV == {"CLAUDE_CODE_DISABLE_WEB_FETCH": "1"}
     for i, kw in enumerate(({}, {"claude": "ccx-home"}, {"claude": "ccx-home", "ccx_home": True})):
