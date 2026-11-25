@@ -183,3 +183,15 @@ python scripts/eval/model_fit_board.py --results docs/research/data/2026-10-25-l
 总额 `usd` 须已含修复。跨模型重试按组合分组，不只归功于最后一个模型。
 存在 `env_clean=false` 时同时报全部行和明确干净行，各有分母。样本 <10 标 **样本少**。
 这是历史描述，不是当前受控模型排名。
+
+## A 组与 `--check`（脚手架默认值）
+
+A 组（`strength_retest.py`）运行 ccx 时带 `--check "python -m pytest -q"`。这不是 A 组的设计选择：
+`scripts/eval/seven_func.py` 对所有调用方固定了这个写法（2026-10-25 起，第一轮也是）。A 组的题没有可见测试，
+检查收集不到测试（pytest 退出码 4 或 5），ccx 对几乎每个单元记 `check_broken`。`check_broken` 不触发重试或升级，
+也不进自动学习；runner 本来就固定了 `--no-escalate --no-fallback --no-subagents --review off`；两臂提示词里有同一句
+验收说明。对错只来自隐藏测试。
+
+读数规则：分析 A 组时不用 `kind` 和 `rc`（`rc` 只反映收据的退出码），也不把 `check_broken` 当作“声明成功”。
+正式跑完后核对每个单元是否恰好 1 行账本、1 次 attempt。记录在第二轮预登记修改记录里（2026-11-25，#511）。
+只是 48 个开发行上的工程检查，不说明模型质量。
