@@ -203,6 +203,7 @@ def test_check_init_accepts_builtins_only():
     assert PF.check_init(init(), [])[0] == []
     assert PF.check_init(init(agents=["claude", "worker"]), [], agents={"worker"})[0] == []
     assert PF.check_init(init(agents=["claude", "my-reviewer"]), [])[0] == ["agents loaded: ['my-reviewer']"]
+    assert PF.check_init(init(agents=["claude", "web-fetch"]), [])[0] == ["agents loaded: ['web-fetch']"]  # #510
     bad = PF.check_init(init(plugins=[{"name": "builtin-looking", "source": "mine@marketplace", "path": "x"}],
                              skills=["mine"], slash_commands=["/x"], output_style="Explanatory"), [])[0]
     assert len(bad) == 4

@@ -30,7 +30,8 @@ with log.open("a", encoding="utf-8", newline="") as f:
                         "stub": (repo / "pkg" / "_version.py").is_file(),
                         "stub_text": (repo / "pkg" / "_version.py").read_text(encoding="utf-8")
                         if (repo / "pkg" / "_version.py").is_file() else None,
-                        "pytest_plugins": os.environ.get("PYTEST_PLUGINS")}) + "\n")
+                        "pytest_plugins": os.environ.get("PYTEST_PLUGINS"),
+                        "disable_web_fetch": os.environ.get("CLAUDE_CODE_DISABLE_WEB_FETCH")}) + "\n")
 (repo / "left-by-fake.txt").write_text("changed", encoding="utf-8")
 usage = {
     "input_tokens": 10, "cache_read_input_tokens": turn * 100, "cache_creation_input_tokens": 5,

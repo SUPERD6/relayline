@@ -132,6 +132,7 @@ def test_dry_run_prints_default_first_rung_reviewers_and_network(tmp_path):
     assert plan["reviewers"][D.ARM2][0].startswith("codex:")
     assert plan["network"]["codex_web_search"] == "disabled"
     assert "WebSearch" in plan["network"]["claude_subagent_deny"]
+    assert plan["network"]["claude_env"] == {"CLAUDE_CODE_DISABLE_WEB_FETCH": "1"}       # #510
     assert plan["stop_rules"]["max_escalation_rate"] is None and plan["stop_rules"]["max_invalid_rows"] == 3
     codex = dry(["--split", "r2b", "--tasks-file", str(f), "--tasks-sha256", sha, "--child-agent", "codex",
                  "--arms", "self,ccxcheapfirst2", "--budget", "10"], tmp_path)
