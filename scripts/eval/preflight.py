@@ -178,7 +178,7 @@ SHELLS = re.compile(r"^(bash|sh|dash|zsh|fish|cmd|powershell|pwsh|timeout|conhos
 CANARY_WORD, CANARY_SECRET = "KIWI-7", "PLUM-3"
 # The agents a plain headless Claude Code 2.1.309 lists in its init event (seen in every round-5 stream)
 BUILTIN_AGENTS = {"claude", "Explore", "general-purpose", "Plan", "statusline-setup", "output-style-setup"}
-# Not in it on purpose: `web-fetch` (built in since about 2.1.31x) reads web pages, so a run that lists it is not
+# Not in it on purpose: `web-fetch` (absent from 2.1.309's init event, listed by 2.1.316's) reads web pages, so a run that lists it is not
 # clean; an eval switches it off with CLAUDE_CODE_DISABLE_WEB_FETCH=1 (p4_long_session.CLAUDE_WEB_ENV, #510)
 # Private parts of a Claude home: (path relative to it, kind) - d: a folder, f: a file, g: a glob
 CLAUDE_PRIVATE = (("CLAUDE.md", "f"), ("rules", "d"), ("settings.json", "f"), ("settings.local.json", "f"),

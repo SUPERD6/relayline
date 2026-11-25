@@ -97,7 +97,7 @@ def test_fake_resume_reset_and_hidden_grade_never_return_to_lead(fake_engine):
     assert all(not (s / "tests/test_hidden.py").exists() for s in a.work.glob("repo-*"))
 
 
-def test_lead_runs_without_the_web_fetch_agent(fake_engine, monkeypatch):
+def test_lead_gets_disable_web_fetch_env(fake_engine, monkeypatch):
     # #510: every lead turn (and, through its environment, every ccx Claude sub-agent) starts with Claude Code's
     # built-in web-fetch agent switched off, so the init event no longer lists it and the audit can pass
     monkeypatch.delenv("CLAUDE_CODE_DISABLE_WEB_FETCH", raising=False)
