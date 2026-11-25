@@ -179,7 +179,10 @@ CANARY_WORD, CANARY_SECRET = "KIWI-7", "PLUM-3"
 # The agents a plain headless Claude Code 2.1.309 lists in its init event (seen in every round-5 stream)
 BUILTIN_AGENTS = {"claude", "Explore", "general-purpose", "Plan", "statusline-setup", "output-style-setup"}
 # Not in it on purpose: `web-fetch` (absent from 2.1.309's init event, listed by 2.1.316's) reads web pages, so a run that lists it is not
-# clean; an eval switches it off with CLAUDE_CODE_DISABLE_WEB_FETCH=1 (p4_long_session.CLAUDE_WEB_ENV, #510)
+# clean; prepare() switches it off for every unit with CLAUDE_WEB_ENV (#510, #514). It stays in the init event's agent
+# list even with a deny rule `Agent(web-fetch)` (checked on 2.1.316); the variable removes it, and the WebFetch tool,
+# which the units' deny rules already cover.
+CLAUDE_WEB_ENV = {"CLAUDE_CODE_DISABLE_WEB_FETCH": "1"}
 # Private parts of a Claude home: (path relative to it, kind) - d: a folder, f: a file, g: a glob
 CLAUDE_PRIVATE = (("CLAUDE.md", "f"), ("rules", "d"), ("settings.json", "f"), ("settings.local.json", "f"),
                   ("settings.json.*", "g"), ("agents", "d"), ("commands", "d"), ("skills", "d"), ("plugins", "d"),
@@ -530,6 +533,7 @@ def prepare(u: Unit, extra_deny: list[str] = ()) -> dict:
         "CODEX_SQLITE_HOME": str(u.codex_home or u.real["codex_home"]),
         "DSH_HOME": str(u.x / "dsh-home" if u.dsh == "unit" else u.real["dsh_home"]),
     })
+    env.update(CLAUDE_WEB_ENV)         # every unit, canaries included: no built-in web-fetch agent in the init (#514)
     if u.fresh_home:
         env["CLAUDE_CONFIG_DIR"] = str(u.x / "claude-config")
     if u.codex_workspace_tmp:

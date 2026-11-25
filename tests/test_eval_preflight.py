@@ -241,6 +241,48 @@ def test_canary_reads_every_message_not_only_the_result(machine, monkeypatch):
     assert not bad["ok"] and any("other than the project's" in p for p in bad["problems"])
 
 
+def test_prepare_switches_off_the_builtin_web_fetch_agent_for_every_unit(machine, monkeypatch):
+    # #514: Claude Code 2.1.316 lists a built-in `web-fetch` agent, which the audit and both canaries call unclean;
+    # prepare() sets the variable for each kind of unit (base_env's allow-list also keeps a stray shell value out)
+    monkeypatch.setenv("CLAUDE_CODE_DISABLE_WEB_FETCH", "0")
+    assert PF.CLAUDE_WEB_ENV == {"CLAUDE_CODE_DISABLE_WEB_FETCH": "1"}
+    for i, kw in enumerate(({}, {"claude": "ccx-home"}, {"claude": "ccx-home", "ccx_home": True})):
+        u = PF.Unit(key=f"k{i}", work=machine["work"], repo=machine["repo"], hub=machine["work"] / f"h-k{i}",
+                    codex_home=machine["codex"], **kw)
+        (u.hub / "ccx").mkdir(parents=True)
+        assert PF.prepare(u)["CLAUDE_CODE_DISABLE_WEB_FETCH"] == "1"
+
+
+def test_canaries_pass_with_a_lead_that_lists_web_fetch_unless_switched_off(machine, monkeypatch):
+    # fake lead = 2.1.316: it lists `web-fetch` unless CLAUDE_CODE_DISABLE_WEB_FETCH=1 is in its environment
+    _pass_fake_switches(monkeypatch)
+    monkeypatch.setenv("CCX_CLAUDE_BIN", str(FAKE))
+    monkeypatch.setenv("FAKE_WEB_FETCH_AGENT", "1")
+    flags = {"claude": "flags", "codex_home": machine["codex"], "dsh": "unit"}
+    ccx_home = {"claude": "ccx-home", "codex_home": machine["codex"], "dsh": "unit"}
+    assert PF.canary(machine["work"], flags)["ok"]
+    assert PF.skill_canary(machine["work"], ccx_home)["ok"]
+    keep = PF.CLAUDE_WEB_ENV.copy()
+    monkeypatch.setattr(PF, "CLAUDE_WEB_ENV", {})                  # without the variable both canaries fail
+    for res in (PF.canary(machine["work"], flags), PF.skill_canary(machine["work"], ccx_home)):
+        assert not res["ok"] and any("agents loaded: ['web-fetch']" in p for p in res["problems"])
+    assert keep == {"CLAUDE_CODE_DISABLE_WEB_FETCH": "1"}
+
+
+def test_audit_is_clean_for_a_prepared_unit_whose_lead_would_list_web_fetch(machine, monkeypatch):
+    # the audit path r5, batch and p13 share: PF.prepare(iso) -> lead -> PF.audit(iso, stream)
+    monkeypatch.setenv("FAKE_WEB_FETCH_AGENT", "1")
+    u = PF.Unit(key="1-t-self", work=machine["work"], repo=machine["repo"], hub=machine["work"] / "h-1-t-self",
+                codex_home=machine["codex"])
+    (u.hub / "ccx").mkdir(parents=True)
+    env = {**PF.prepare(u), "FAKE_WEB_FETCH_AGENT": "1"}
+    out = _lead(env, machine["repo"], PF.lead_flags(u))
+    assert PF.audit(u, out)["clean"]
+    env.pop("CLAUDE_CODE_DISABLE_WEB_FETCH")
+    unclean = PF.audit(u, _lead(env, machine["repo"], PF.lead_flags(u)))
+    assert not unclean["clean"] and "agents loaded: ['web-fetch']" in unclean["problems"]
+
+
 def test_env_is_an_allow_list(machine, monkeypatch):
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "s")
     monkeypatch.setenv("CLAUDE_CODE_SDK_HAS_HOST_AUTH_REFRESH", "1")

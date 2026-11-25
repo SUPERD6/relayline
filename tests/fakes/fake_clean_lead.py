@@ -127,6 +127,8 @@ init = {"type": "system", "subtype": "init", "session_id": sid, "model": "fake",
         "agents": ["claude", "Explore", "general-purpose", "Plan", "statusline-setup"], "slash_commands": [],
         "output_style": "default", "claude_code_version": "2.1.309"}
 init["memory_paths"] = memory_paths
+if os.environ.get("FAKE_WEB_FETCH_AGENT") and os.environ.get("CLAUDE_CODE_DISABLE_WEB_FETCH") != "1":
+    init["agents"].append("web-fetch")     # Claude Code 2.1.316 lists its built-in web-fetch agent unless switched off
 if "--disable-slash-commands" not in argv and "Skill" in (opt("--tools") or "").split(","):
     # a skill lead: skills load, Claude Code's own bundled ones (FAKE_BUNDLED_SKILLS), the config dir's and the
     # project's (a lead without the Skill tool lists none here, as the older tests expect)
