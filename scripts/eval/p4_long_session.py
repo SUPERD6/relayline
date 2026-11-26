@@ -30,6 +30,7 @@ import long_check as LC
 import tasks_long as TASKS
 import p5_costs as P5
 import p5_arms as P5A
+import fat_arms as FA
 import dispatch_eval as DE
 import long_environment as LE
 from common import ROOT, append_jsonl, read_jsonl
@@ -155,8 +156,10 @@ def estimate(units: list[dict], arms=ARMS, tasks: list[dict] | None = None) -> d
         task = known.get(u["task"]) or TASKS.by_id(u["task"])
         lines, files = task.get("code_lines", 40), len(task["code"])
         scale = max(1, lines / 40, files / 2)
-        base = r5.UNIT_USD["self" if u["arm"] == "self" else "ccx2"]
+        base = r5.UNIT_USD["self" if u["arm"] in ("self", FA.SELF) else "ccx2"]
         base, note = P5A.estimate_base(u["arm"], base)
+        if FA.is_fat(u["arm"]):
+            note += "; fat-context fill and re-reads not included (Unknown until a smoke run measures them)"
         details.append({"task": u["task"], "arm": u["arm"], "code_lines": lines, "code_files": files,
                         "size_multiplier": scale, "usd": round(base * scale * 1.5, 6), "basis": note})
     by_arm = {a: round(sum(x["usd"] for x in details if x["arm"] == a), 4)
@@ -169,7 +172,13 @@ def estimate(units: list[dict], arms=ARMS, tasks: list[dict] | None = None) -> d
 
 
 def task_caps(a, arm: str) -> tuple[float, float]:
+    if arm == FA.SELF:
+        arm = "self"
     legacy = getattr(a, "task_cap", None)
+    if arm == FA.NATIVE:
+        # The built-in sub-agent spends inside the lead's own Claude cap, so its cap is lead + child (equal allowance).
+        return (legacy, 0.0) if legacy is not None else (
+            float(getattr(a, "lead_budget", 1.5)) + float(getattr(a, "child_budget", 1.5)), 0.0)
     if legacy is not None:
         return (legacy, 0.0) if arm == "self" else (legacy / 2, legacy / 2)
     if arm == "self" and getattr(a, "self_lead_budget", None) is not None:
@@ -181,13 +190,32 @@ def task_caps(a, arm: str) -> tuple[float, float]:
 def budget_envelope(a) -> dict:
     lead, child = task_caps(a, "ccxlong")
     reserve = max(lead + child, sum(task_caps(a, "self")))
+    fat = FA.any_fat(str(getattr(a, "arms", "")).split(","))
+    if fat:
+        reserve = max(reserve, sum(task_caps(a, FA.NATIVE))) + fill_budget(a)
     out = {"budget_usd": a.budget, "lead_allowance_usd": lead, "child_allowance_usd": child,
            "max_task_reservation_usd": reserve, "overrun_allowance_usd": reserve,
            "operational_upper_usd": a.budget + reserve, "absolute_hard_cap": False,
            "basis": "reserve lead+child before each task; allow one final overrun allowance per role; CLI caps are step-boundary checks, not a provider billing guarantee"}
     if getattr(a, "self_lead_budget", None) is not None and getattr(a, "task_cap", None) is None:
         out["self_lead_allowance_usd"] = float(a.self_lead_budget)
+    if fat:
+        out["fill_allowance_usd"] = fill_budget(a)
     return out
+
+
+def fill_budget(a) -> float:
+    """#546: --max-budget-usd of a fat arm's fill invocation, reserved once per episode (before its first task)."""
+    return float(getattr(a, "fill_budget", None) or FA.DEFAULT_FILL_BUDGET)
+
+
+def fill_extra(row: dict) -> float:
+    """What an episode's fill adds to the run budget: its known cost, or its reservation when the cost is unknown."""
+    reserved = finite_cost(row.get("fill_reserved_usd"))
+    if not reserved:
+        return 0.0
+    used = finite_cost(row.get("fill_usd"))
+    return used if used is not None else reserved
 
 
 @dataclass
@@ -282,6 +310,9 @@ def prompt(task: dict, arm: str, child_cap: float, receipt: Path | None = None,
 
 def _prompt(task: dict, arm: str, child_cap: float, receipt: Path | None,
             check_command, focused, child_agent: str) -> str:
+    if arm == FA.NATIVE:
+        return FA.native_prompt(task)
+    arm = FA.base_arm(arm)      # fatself / fatccx: the legacy self / ccxlong wording, unchanged
     if arm == DE.ARM2:
         return prompt_v2(task, child_cap, receipt, child_agent)
     common = ("The repository has been reset to a different historical parent for this task. "
@@ -319,8 +350,12 @@ def _prompt(task: dict, arm: str, child_cap: float, receipt: Path | None,
     return common + how + "\nFinish with one line DONE: <summary>."
 
 
-def lead_argv(unit: PF.Unit, sid: str, turn: int, cap: float) -> list[str]:
-    argv = r5.r3.lead_argv("ccx", cap, "sonnet", "medium") + PF.lead_flags(unit)
+def lead_argv(unit: PF.Unit, sid: str, turn: int, cap: float, arm: str | None = None,
+              model: str = FA.LEAD_MODEL) -> list[str]:
+    argv = r5.r3.lead_argv("ccx", cap, "sonnet", "medium")
+    if FA.is_fat(arm):
+        argv = FA.lead_argv(argv, arm, model)
+    argv = argv + PF.lead_flags(unit)
     return argv + (["--session-id", sid] if turn == 1 else ["--resume", sid])
 
 
@@ -555,9 +590,11 @@ class Episode:
     def __init__(self, key: str, a, material: dict, task: dict):
         self.sid = str(uuid.uuid4())
         grades = grade_files(a)
+        arm = key.rsplit("-", 1)[-1]
         self.iso = PF.Unit(key, a.work, a.work / ("repo-" + key), a.work / ("hub-" + key),
                            claude=getattr(a, "claude_isolation", "flags"), codex_home=Path(a.codex_home), codex_workspace_tmp=True,
                            hidden=unit_hidden(a, key),
+                           agents=("worker",) if arm == FA.NATIVE else (),     # fatnative's own --agents definition
                            # The same settings file reaches ccx's Claude sub-agents (CCX_CLAUDE_SETTINGS).
                            deny=(*WEB_TOOLS, *(f"Read({PF._rule_path(p)})" for p in grades)),
                            flags=(*r5.EXT_FLAGS, r"git\s+(?:fetch|clone|pull)", *hide_flags(a)))
@@ -568,6 +605,7 @@ class Episode:
         self.child_total = 0.0
         self.review_total = 0.0
         self.run_ids = set()
+        self.fill_pending = FA.is_fat(arm)      # #546: the fat arms' fill turn runs once, before the first task
         self.side_ledger_count = 0
         self.first_context = None
         self.last_context = None
@@ -610,6 +648,45 @@ class Episode:
             # Every Codex exec (sub-agent and reviewer) goes through codex_tmp.py in p4 (codex_workspace_tmp).
             self.env["CCX_EVAL_CODEX_WEB_SEARCH"] = "disabled"
 
+    def fill(self, a, row: dict, key: str) -> dict:
+        """#546: the fat arms' fill turn, a first turn of the same Claude session (--session-id) whose context is
+        about --fat-tokens; no tool is used and no repository content is involved. Returns the streams to keep.
+        Its cost is observed on the session's cumulative total like any turn, but belongs to `fill_usd`, not to the
+        task's `lead_usd`. A failed fill raises: the row is kept as an environment error (or auth/quota stop)."""
+        tokens, cpt = FA.fat_tokens(a), getattr(a, "fill_chars_per_token", None) or FA.DEFAULT_CHARS_PER_TOKEN
+        cap, model = fill_budget(a), getattr(a, "fat_lead_model", None) or FA.LEAD_MODEL
+        t0 = time.monotonic()
+        out, err, rc, _ = PF.run(lead_argv(self.iso, self.sid, 1, cap, row["arm"], model),
+                                  input=FA.fill_prompt(tokens, cpt), cwd=self.iso.repo, env=self.env,
+                                  timeout=a.timeout, job=self.job)
+        wall = round(time.monotonic() - t0, 3)
+        self.wall += wall
+        stream = a.work / f"{self.iso.key}-fill.jsonl"
+        stream.write_text(out, encoding="utf-8", newline="")
+        fin = r5.r3.last_result(out)
+        match = fin.get("session_id") == self.sid
+        tel = telemetry(out)
+        cost = self.lead_cost.observe(fin, match)
+        measured = tel["context_last"]
+        row.update({"fill_tier": getattr(a, "fat_tier", "main"), "fill_target_tokens": tokens,
+                    "fill_chars_per_token": cpt, "fill_chars": len(FA.filler(tokens, cpt)),
+                    "fill_measured_tokens": measured,
+                    "fill_ok": FA.fill_in_range(measured, tokens, getattr(a, "fill_tolerance", None) or FA.DEFAULT_TOLERANCE),
+                    "fill_tolerance": getattr(a, "fill_tolerance", None) or FA.DEFAULT_TOLERANCE,
+                    "fill_usd": cost["lead_usd"], "fill_cumulative_usd": cost["lead_cumulative_usd"],
+                    "fill_model_usage": cost["lead_model_usage"], "fill_cost_errors": cost["cost_errors"],
+                    "fill_wall_s": wall, "fill_rc": rc, "fill_subtype": fin.get("subtype"),
+                    "fill_session_match": match, "fat_lead_model": model,
+                    "fill_audit": PF.audit(self.iso, out)})
+        self.fill_pending = False
+        kind = env_failure(fin, err, rc, [])
+        if kind:
+            row["env_stop"] = kind
+        if rc != 0 or not match or fin.get("subtype") != "success":
+            stream.unlink(missing_ok=True)
+            raise RuntimeError(f"fat fill turn failed (rc={rc}, subtype={fin.get('subtype')}, session_match={match})")
+        return {"stream": stream, "stderr": err}
+
     def step(self, u: dict, task: dict, material: dict, a, cap: float) -> dict:
         reset_repo(self.iso.repo, material["tar"], self.native, self.arm == DE.ARM2, task.get("stubs"),
                    task.get("stub_version"))
@@ -645,9 +722,19 @@ class Episode:
         row["budget_envelope"] = budget_envelope(a)
         row.update({"lead_allowance_usd": lead_cap, "child_allowance_usd": child_cap,
                     "reservation_usd": lead_cap + child_cap})
+        fat = FA.is_fat(u["arm"])
+        fill_streams = None
+        if fat:
+            row["lead_model"] = getattr(a, "fat_lead_model", None) or FA.LEAD_MODEL
+            row["fat_limitation"] = FA.LIMITATION
+            if self.fill_pending:
+                fill_streams = self.fill(a, row, u["arm"])
+                row["lead_previous_cumulative_usd"] = self.lead_cost.cumulative
         stream = a.work / f"{self.iso.key}-{u['turn']}.jsonl"
         t0 = time.monotonic()
-        out, err, rc, _ = PF.run(lead_argv(self.iso, self.sid, u["turn"], lead_cap),
+        # A fat episode's session already exists after its fill turn, so even its first task resumes it.
+        out, err, rc, _ = PF.run(lead_argv(self.iso, self.sid, max(u["turn"], 2) if fat else u["turn"], lead_cap,
+                                           u["arm"] if fat else None, row.get("lead_model") or FA.LEAD_MODEL),
                                   input=prompt(task, u["arm"], child_cap, self.receipt,
                                                self.env.get("CCX_P4_CHECK_COMMAND"), getattr(a, "focused_context", False),
                                                self.child_agent), cwd=self.iso.repo, env=self.env,
@@ -680,6 +767,10 @@ class Episode:
                               if k in entry}
                              for entry in ledger[self.side_ledger_count:] if not entry.get("type")]
         self.side_ledger_count = len(ledger)
+        if fat:
+            facts = FA.stream_facts(out)
+            row.update(facts)
+            row["arm_conformance"] = FA.conformance(u["arm"], facts, len(row["ccx_run_ids"]))
         if u["arm"] in DE.ARMS:
             row["dispatch_observed"] = any(e.get("dispatch", {}).get("cheap_first") for e in row["side_ledger"])
         round2 = getattr(a, "max_invalid_rows", None) is not None
@@ -738,6 +829,10 @@ class Episode:
         row["streams"] = ES.keep(dest / "streams", self.iso, stream, self.env)
         row["checks"] = ES.keep_checks(dest/"checks", checks_root, self.iso, self.env)
         (dest / "stderr.txt").write_text(redactor.text(err), encoding="utf-8", newline="")
+        if fill_streams:
+            row["fill_streams"] = ES.keep(dest / "fill-streams", self.iso, fill_streams["stream"], self.env)
+            (dest / "fill-stderr.txt").write_text(redactor.text(fill_streams["stderr"]), encoding="utf-8", newline="")
+            fill_streams["stream"].unlink(missing_ok=True)
         diff = r5.final_diff(self.iso.repo)
         if diff is not None:
             (dest / "diff.patch").write_text(redactor.text(diff), encoding="utf-8", newline="")
@@ -840,6 +935,8 @@ def summary(rows: list[dict], expected: int, limits: dict | None = None, gates: 
                                    for arm in ("ccxlong", P5A.CHEAP)}
         result["p5_arms"] = {arm: P5.arm_summary([r for r in rows if r.get("arm") == arm])
                              for arm in P5A.ARMS}
+    if any(FA.is_fat(r.get("arm")) for r in rows):
+        result["fat"] = FA.comparison(rows)
     if any(r.get("arm") == DE.ARM for r in rows):
         result["dispatch"] = DE.comparison(rows, expected)
     if any(r.get("arm") == DE.ARM2 for r in rows):
@@ -861,6 +958,12 @@ def recompute_rows(rows: list[dict], artifacts: Path | None = None) -> list[dict
     for original in rows:
         row = dict(original)
         key = tuple(row.get(k) for k in ("tag", "round", "episode", "arm", "session_id"))
+        if key not in states and row.get("fill_cumulative_usd") is not None:
+            # #546: a fat episode's first row follows its fill turn; the session total and counters start there.
+            fill_usage = row.get("fill_model_usage")
+            states[key] = LeadCost(cumulative=row["fill_cumulative_usd"],
+                                   usage=dict(fill_usage) if isinstance(fill_usage, dict) else dict.fromkeys(USAGE_COUNTERS, 0),
+                                   failed=not isinstance(fill_usage, dict))
         state = states.setdefault(key, LeadCost())
         if row.get("turn") != turns.get(key, 0) + 1:
             state.failed = True
@@ -911,7 +1014,7 @@ def parser():
     p.add_argument("--tasks-sha256", help="r2b/r2c only: required SHA-256 of --tasks-file")
     p.add_argument("--max-tasks", type=int, help="optional: refuse a task file with more tasks than this")
     p.add_argument("--gates", choices=("p4", "p5"), default="p4", help="opt-in Stage 5 gates; Stage 4 verdicts unchanged")
-    p.add_argument("--arms", default=",".join(ARMS), help="opt-in ccxlongcheap / ccxcheapfirst / ccxcheapfirst2; defaults remain self,ccxlong")
+    p.add_argument("--arms", default=",".join(ARMS), help="opt-in ccxlongcheap / ccxcheapfirst / ccxcheapfirst2, or the fat-context diagnostic arms fatself,fatnative,fatccx (#546, round-2 splits only, see scripts/eval/fat_arms.py); defaults remain self,ccxlong")
     p.add_argument("--child-agent", choices=("claude", "codex"),
                    help="ccxcheapfirst2 only: sub-agent it delegates to (default claude); other ccx arms keep codex")
     p.add_argument("--episode-size", type=int, default=N,
@@ -928,6 +1031,18 @@ def parser():
     p.add_argument("--max-operational-usd", type=float, default=None,
                    help="optional: refuse a --run whose operational envelope (budget + one reservation) exceeds this")
     p.add_argument("--focused-context", action="store_true", help="experimental, default off: concise delegated brief and implementation file pointers; use a separate tag")
+    p.add_argument("--fat-tier", choices=tuple(FA.TIERS), default="main",
+                   help="fatself/fatnative/fatccx (#546): context the lead is filled to before its first task: main "
+                        f"{FA.TIERS['main']:,} or heavy {FA.TIERS['heavy']:,} tokens (docs/ROADMAP.md, #532)")
+    p.add_argument("--fat-tokens", type=int, default=None, help="fat arms: an explicit fill size in tokens, instead of the tier's")
+    p.add_argument("--fill-chars-per-token", type=float, default=FA.DEFAULT_CHARS_PER_TOKEN,
+                   help="fat arms: assumed characters per token of the filler; a smoke run's measured fill context calibrates it")
+    p.add_argument("--fill-tolerance", type=float, default=FA.DEFAULT_TOLERANCE,
+                   help="fat arms: allowed |measured - target| / target of the fill; outside it the row is invalid and the run stops")
+    p.add_argument("--fill-budget", type=float, default=FA.DEFAULT_FILL_BUDGET,
+                   help="fat arms: Claude --max-budget-usd of the fill turn, reserved once per episode")
+    p.add_argument("--fat-lead-model", default=FA.LEAD_MODEL,
+                   help="fat arms: the lead's --model (a 225k+ context needs the 1M-context variant; availability is Unknown until a smoke run)")
     p.add_argument("--rounds", type=int, default=1)
     p.add_argument("--budget", type=float, default=None, help="must be explicit with --run; dry-run defaults to $12")
     p.add_argument("--lead-budget", type=float, default=1.5, help="Claude --max-budget-usd for each resumed invocation")
@@ -978,6 +1093,10 @@ def resolve_options(a) -> None:
         raise SystemExit("--episode-size and --max-tasks must be positive")
     if a.self_lead_budget is not None and (not math.isfinite(a.self_lead_budget) or a.self_lead_budget <= 0):
         raise SystemExit("--self-lead-budget must be positive")
+    if (a.fat_tokens is not None and a.fat_tokens < 1) or any(
+            not math.isfinite(x) or x <= 0 for x in (a.fill_chars_per_token, a.fill_budget)) or not (
+            math.isfinite(a.fill_tolerance) and 0 < a.fill_tolerance < 1):
+        raise SystemExit("--fat-tokens, --fill-chars-per-token and --fill-budget must be positive; --fill-tolerance in (0, 1)")
 
 
 def main(argv=None) -> int:
@@ -1021,8 +1140,14 @@ def main(argv=None) -> int:
     if a.max_tasks is not None and len(tasks) > a.max_tasks:
         raise SystemExit(f"{len(tasks)} tasks exceed --max-tasks {a.max_tasks}; no model called")
     arms = tuple(a.arms.split(","))
-    if len(set(arms)) != len(arms) or not arms or set(arms)-set((*P5A.ARMS, *DE.ARMS)):
+    if len(set(arms)) != len(arms) or not arms or set(arms)-set((*P5A.ARMS, *DE.ARMS, *FA.ARMS)):
         raise SystemExit("unknown or duplicate arm")
+    if FA.any_fat(arms):
+        # #546: the fat-context arms are their own family on frozen round-2 task files; they never mix with the others.
+        if not set(arms) <= set(FA.ARMS) or a.split not in ROUND2:
+            raise SystemExit("fatself/fatnative/fatccx run only together (any subset) with --split r2b/r2c; no model called")
+        if a.focused_retry or a.focused_context:
+            raise SystemExit("fat arms cannot use --focused-retry or --focused-context; no model called")
     if a.split == "dispatch" or DE.ARM in arms:
         if a.split != "dispatch" or set(arms) != {"self", DE.ARM} or a.rounds != 1 or a.budget > 8:
             raise SystemExit("cheap-first requires --split dispatch --arms self,ccxcheapfirst --rounds 1 and budget <= $8")
@@ -1079,6 +1204,8 @@ def main(argv=None) -> int:
                     src_layout_tasks=sum(t.get("src_layout") is True for t in tasks))
     if a.split in ROUND2 or set(DE.ARMS) & set(arms):
         plan.update(plan_settings(a, arms))
+    if FA.any_fat(arms):
+        plan["fat"] = FA.plan(a, arms)
     if a.split in ROUND2 or a.hide:
         plan["isolation"] = isolation_plan(a, units)
     if a.split == "p5" and len(tasks) != 8:
@@ -1136,7 +1263,7 @@ def load_tasks(a) -> list[dict]:
 
 def child_agent(a, arm: str) -> str | None:
     """Only ccxcheapfirst2 chooses its sub-agent (default Claude, #346); every other ccx arm keeps Codex."""
-    if arm == "self":
+    if arm in ("self", FA.SELF, FA.NATIVE):
         return None
     return (getattr(a, "child_agent", None) or "claude") if arm == DE.ARM2 else "codex"
 
@@ -1180,7 +1307,9 @@ def plan_settings(a, arms) -> dict:
             "cheap_first": (cfg.get("dispatch") or {}).get("cheap_first") is True,
             "check_sensitivity": (cfg.get("check") or {}).get("sensitivity", "off"),
             "child_agent": agent, "lead_budget_usd": lead, "child_budget_usd": child,
-            "lead_prompt": "failing-check-first (#326/#338)" if arm == DE.ARM2 else "p4 legacy"}
+            "lead_prompt": ("failing-check-first (#326/#338)" if arm == DE.ARM2
+                            else "fat context (fat_arms): " + ("native Agent tool" if arm == FA.NATIVE else "p4 legacy")
+                            if FA.is_fat(arm) else "p4 legacy")}
         if agent:
             out["reviewers"][arm] = reviewer_rungs(cfg, agent)
         if arm in DE.ARMS:
@@ -1225,6 +1354,10 @@ def invalid_reason(row: dict) -> str | None:
         return "cost_unknown"
     if row.get("environment_error"):
         return "environment_error"
+    if row.get("fill_ok") is False:
+        return "fill_out_of_range"      # #546: the context was not the tier it claims to be
+    if row.get("arm_conformance") is False:
+        return "arm_not_followed"       # #546: e.g. fatself that used Agent, fatnative that used ccx
     if row.get("arm") in DE.ARMS:
         if row.get("dispatch_observed") is not True:
             return "dispatch_evidence_unknown"
@@ -1295,17 +1428,21 @@ def run_experiment(a, tasks: list[dict], units: list[dict]) -> int:
     try:
         for u in units:
             lead_cap, child_cap = task_caps(a, u["arm"])
-            if not budget.reserve(lead_cap + child_cap):
+            key = f"{u['round']}-{u['episode']}-{u['arm']}"
+            # #546: a fat episode's fill (once, before its first task) is reserved on top of that task.
+            fill_cap = fill_budget(a) if FA.is_fat(u["arm"]) and key not in sessions else 0.0
+            if not budget.reserve(lead_cap + child_cap + fill_cap):
                 stopped = "budget_unknown" if budget.unknown else "budget"
                 not_started = {**u, "spent_known_usd": budget.spent, "lead_allowance_usd": lead_cap,
                                "child_allowance_usd": child_cap, "reservation_usd": lead_cap + child_cap}
+                if fill_cap:
+                    not_started["fill_allowance_usd"] = fill_cap
                 break
             if a.wait_quiet and not r5.wait_quiet(a.wait_quiet, busy=lambda: r5._busy_now([str(a.work)])):
                 print(f"P4 wait-quiet failed before task {u['task']} (limit={a.wait_quiet:g} minutes)", file=sys.stderr)
                 stopped = "busy"
                 break
             task = next(t for t in tasks if t["id"] == u["task"])
-            key = f"{u['round']}-{u['episode']}-{u['arm']}"
             session = sessions.get(key)
             try:
                 if session is None:
@@ -1335,6 +1472,10 @@ def run_experiment(a, tasks: list[dict], units: list[dict]) -> int:
                         session.lead_cost.failed = True
             row.update(P5.costs(row))
             rows.append(row)
+            if fill_cap:
+                row["fill_reserved_usd"] = fill_cap     # kept on the episode's first row; fill_extra() charges it
+            if row.get("fill_ok") is False:
+                stopped = stopped or "fill_out_of_range"    # every later fill would be as far off, and as costly
             if row.get("env_stop"):
                 stopped = "auth"      # #509: also for quota; the row's env_stop says which
             if max_invalid is None:
@@ -1343,6 +1484,7 @@ def run_experiment(a, tasks: list[dict], units: list[dict]) -> int:
                 budget.charge(row.get("usd"))
                 if row.get("usd") is None:
                     budget.spent += row.get("known_usd", 0)
+                budget.spent += fill_extra(row)
             else:
                 row["invalid_reason"] = invalid_reason(row)
                 row["reservation_usd"] = row.get("reservation_usd", lead_cap + child_cap)
@@ -1355,6 +1497,7 @@ def run_experiment(a, tasks: list[dict], units: list[dict]) -> int:
                     budget.spent += max(row.get("usd") or row.get("known_usd") or 0, lead_cap + child_cap)
                 else:
                     budget.charge(row["usd"])
+                budget.spent += fill_extra(row)
                 if row.get("arm") in DE.ARMS and row.get("dispatch_observed") is not True:
                     missing_evidence_rows += 1
                 for arm in cheap_arms:
