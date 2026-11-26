@@ -599,6 +599,16 @@ class TestRelay(Env):
         self.assertIn("Relay", html)
         self.assertIn("old lead (before relay)", html)
 
+    def test_relay_summary_counts_a_relaunched_packet_once_per_side_524(self):
+        from ccx.report import relay_summary
+        u = {"input_tokens": 10, "cache_write_tokens": 0, "cached_input_tokens": 0, "output_tokens": 5}
+        rows = [{"packet": "p", "side": "old", "agent": "claude", "ts": 1, "usage4": u},
+                {"packet": "p", "side": "old", "agent": "claude", "ts": 2, "usage4": u},
+                {"packet": "p", "side": "new", "agent": "codex", "ts": 2, "usage": "Unknown"}]
+        g = {(x["agent"], x["side"]): x for x in relay_summary({"relay_usage": rows})}
+        self.assertEqual((g["claude", "old"]["rows"], g["claude", "old"]["tokens"]), (1, 15))
+        self.assertEqual((g["codex", "new"]["tokens"], "quota_units" in g["codex", "new"]), ("Unknown", False))
+
     def test_budget_interrupt_kills_child_tree_without_a_clock_race(self):
         self.enable()
         packet_id = self.capture()

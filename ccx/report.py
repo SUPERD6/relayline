@@ -358,21 +358,23 @@ def relay_summary(data: dict) -> list[dict]:
     report count as unknown and add nothing; no number is made up. Kept apart from the totals: the lead's own turns
     are already read from the CLIs' session files, so adding these would count them twice."""
     out: dict[tuple, dict] = {}
+    last: dict[tuple, dict] = {}        # a packet launched twice: the last row of each side wins, not both
     for r in sorted(data.get("relay_usage", []), key=lambda r: r.get("ts") or 0):
+        last[(r.get("packet"), r.get("side"), r.get("agent"))] = r
+    for r in last.values():
         g = out.setdefault((r.get("agent"), r.get("side")),
                            {"agent": r.get("agent"), "side": r.get("side"), "rows": 0, "known": 0, "unknown": 0,
-                            "tokens": 0, "quota_units": 0.0})
+                            "tokens": 0})
         g["rows"] += 1
         u = r.get("usage4")
         if isinstance(u, dict):
             g["known"] += 1
             g["tokens"] += ledger._token_total(u)
-            g["quota_units"] = round(g["quota_units"] + (r.get("quota_units") or 0), 6)
         else:
             g["unknown"] += 1
     for g in out.values():
         if not g["known"]:
-            g["tokens"] = g["quota_units"] = "Unknown"
+            g["tokens"] = "Unknown"
     return sorted(out.values(), key=lambda g: (g["agent"] or "", g["side"] or ""))
 
 
@@ -614,7 +616,7 @@ def render_html(s: dict) -> str:
                      'Unknown, never an estimate. Not added to the totals above: the lead turns are already counted '
                      'from the CLI session files.</p></div>')
     if s["ab"]:
-        ab_html = ('<div class="card"><h2>A/B check — lead did it itself vs delegated (same difficulty b)</h2>'
+        ab_html += ('<div class="card"><h2>A/B check — lead did it itself vs delegated (same difficulty b)</h2>'
                    '<div class="scroll"><table class="tbl"><tr><th>b</th><th class="r">self-runs</th>'
                    '<th class="r">mean AE$ self</th><th class="r">delegated runs</th><th class="r">mean AE$ delegated</th></tr>'
                    + "".join(f'<tr><td>{a["b"]}</td><td class="r">{a["self_n"]}</td><td class="r">{_usd(a["self_mean"])}</td>'

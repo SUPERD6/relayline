@@ -253,8 +253,7 @@ def _launch(cwd, packet_id, target, budget, path, packet, current, prompt, argv,
             pass        # do not mask the original exception
         raise
     from . import relay_usage
-    relay_usage.record(cwd, packet, target, run_path.with_suffix(".stdout.log").read_text(
-        encoding="utf-8", errors="replace"), out)      # #524: two ledger rows, Unknown when not readable
+    relay_usage.record(cwd, packet, target, run_path.with_suffix(".stdout.log"), out)      # #524: two ledger rows, Unknown when not readable
     if out.get("check"):
         before = out["state"]
         out["state"] = "checking"           # the record says so while the (long) check runs

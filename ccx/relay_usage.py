@@ -40,6 +40,8 @@ def _row(side: str, agent: str, packet: str, session: str, cwd, usage: dict | No
         row.update(usage="Unknown", reason=reason)
     else:
         row["usage4"] = usage
+        if side == "old":
+            row["window_days"] = OLD_LOOKBACK // 86400     # a longer session is cut off here: a lower bound
         if model:
             row["model"] = model
         if cfg is not None:
@@ -70,7 +72,7 @@ def old_lead_usage(packet: dict) -> tuple[dict | None, str, str]:
     return w["usage"], w.get("model") or "", ""
 
 
-def record(cwd: Path, packet: dict, target: str, stdout: str, out: dict) -> None:
+def record(cwd: Path, packet: dict, target: str, stdout_log: Path, out: dict) -> None:
     """Append the two ledger rows and note the result in the launch record (`out["usage_ledger"]`)."""
     try:
         from . import ledger
@@ -78,14 +80,15 @@ def record(cwd: Path, packet: dict, target: str, stdout: str, out: dict) -> None
         p = Paths(hub_dir())
         cfg = load_config(p)
         rows = []
-        new = child_usage(target, stdout)
+        new = child_usage(target, stdout_log.read_text(encoding="utf-8", errors="replace"))
         rows.append(_row("new", target, out["packet"], "Unknown", cwd, new,
                          reason="the CLI printed no usage in its output", cfg=cfg))
         try:
             old, model, why = old_lead_usage(packet)
         except Exception as exc:  # noqa: BLE001 — reading the other CLI's files is best effort
             old, model, why = None, "", f"could not read: {type(exc).__name__}"
-        rows.append(_row("old", packet["source"], out["packet"], str(packet.get("source_session") or "Unknown"), cwd,
+        source = packet.get("source") or "Unknown"
+        rows.append(_row("old", source, out["packet"], str(packet.get("source_session") or "Unknown"), cwd,
                          old, reason=why, model=model, cfg=cfg))
         for r in rows:
             ledger.append_event(p, r)

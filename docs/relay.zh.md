@@ -47,7 +47,7 @@ ccx 命令退出码为 2。记录中的 `exit_code` 仍指子进程，所以可�
 要求无法检查时报告具体被拒绝的命令，并将测试标为 `not-run`。
 预算必填，必须是有限正数，单位为**墙钟秒数**，不是美元上限。此新主导路径的美元记账和封顶 **Unknown / 尚未实现**；token 用量会记账（见下一段，#524）；不单独约束原生子任务花费。
 
-**用量账本（#524）。** `--launch` 的子进程结束后，ccx 往 hub 账本追加两行 `relay_usage`（汇总运行的统计会跳过它们）：`side: new` 是新主导，`side: old` 是旧主导。新主导那行取 CLI 自己在 stdout 里打印的用量（Claude 的 `result` 事件、Codex 的 `turn.completed`），换算方式与子 agent 运行相同。旧主导那行从它自己的会话文件读，只有接力包写明会话 id 时才读（截至交接时刻往前 7 天）。读不到的写 `usage: "Unknown"` 并带 `reason`，不估算；写账本失败只会在记录里显示 `usage_ledger: failed: …`。`ccx report` 按 agent 分两边列出（`summary.json` 的 `relay`，看板里一张卡片）；不并入总计，因为主导的轮次本来就从各 CLI 的会话文件统计了。
+**用量账本（#524）。** `--launch` 的子进程结束后，ccx 往 hub 账本追加两行 `relay_usage`（汇总运行的统计会跳过它们）：`side: new` 是新主导，`side: old` 是旧主导。新主导那行取 CLI 自己在 stdout 里打印的用量（Claude 的 `result` 事件、Codex 的 `turn.completed`），换算方式与子 agent 运行相同。旧主导那行从它自己的会话文件读，只有接力包写明会话 id 时才读（截至交接时刻往前 7 天；更长的会话会被截断，所以该行带 `window_days`，是下限）。读不到的写 `usage: "Unknown"` 并带 `reason`，不估算；写账本失败只会在记录里显示 `usage_ledger: failed: …`。`ccx report` 按 agent 分两边列出（`summary.json` 的 `relay`，看板里一张卡片）；同一个包启动两次时每边只算最后一行；不并入总计，因为主导的轮次本来就从各 CLI 的会话文件统计了。
 准备和启动前都检查暂存与未暂存 diffstat、HEAD 和当前状态。HEAD 变化时需人工核对后重新 capture。未提交修改有变化时交给新主导检查，绝不 reset。
 prompt 要求新主导先检查半成品和运行相关检查，再编辑；这不能证明模型遵守，`verification` 仍为 `not-run`，除非 ccx 自己跑了显式给的 `--check`。
 监督器保存 argv、prompt、PID、退出码和 stdout/stderr 日志；到时终止子进程树并保留半成品。
