@@ -1128,7 +1128,7 @@ def run(req: Request, p: Paths) -> dict:
                 prompt, session = first_prompt, None      # fresh session on the other agent
                 i += 1
                 continue
-        if oc.kind == "quota" and cli == "codex":
+        if oc.kind == "quota" and cli == "codex" and to == "codex" and not extra                 and not req.ephemeral and req.caller != "ccx-review":
             try:                       # #525: no fallback took it, so keep a relay packet for `ccx relay continue`
                 from . import relay
                 notice = relay.capture_from_run(cwd, "codex", oc.session_id or session or "", so,

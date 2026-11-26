@@ -93,16 +93,16 @@ Checked on 2026-11-26 with codex-cli **0.164.0** (`codex --version`, `codex exec
 or matcher). So a Codex session the person started in the app or the terminal gives ccx no signal: it is **not covered**,
 and ccx installs no Codex quota hook.
 
-What is covered: a Codex session **ccx itself launches** (`ccx run` / `ccx delegate --to codex`). ccx reads its
-`codex exec --json` events; when the run ends on a confirmed usage-limit refusal and no fallback took the task over, it saves
-a relay packet (`source: codex`, goal = the brief, state `quota_stopped`) and a notification, and the result carries a
+What is covered: a Codex session **ccx itself launches** (`ccx run` / `ccx delegate --to codex`, not DeepSeek on the Codex CLI, not one-shot `ask`/review runs). ccx reads its
+`codex exec --json` events; when the run ends on a confirmed usage-limit refusal and no fallback took the task over (`ccx run` falls back to Claude by itself when it can, so in practice: `--no-fallback`, or no other agent available), it saves
+a relay packet (`source: codex`, goal = the original task, else the brief, state `quota_stopped`) and a notification, and the result carries a
 `relay` field with the `ccx relay continue PACKET --to claude ...` command. Off unless `relay.enabled`; only a confirmed
 quota counts (not capacity, auth or an unconfirmed rate limit); it never launches Claude by itself, and a failure here
-never fails the delegation. A `ccx relay continue --launch` child that hits quota already saved its own next packet (above).
+never fails the delegation. With `--worktree` the packet lives in that worktree's `.ccx/relay`: run the continue command there. A `ccx relay continue --launch` child that hits quota already saved its own next packet (above).
 
 Real shape: the wording is **captured** (codex-cli 0.164.0 log, 2026-11-25: `You've hit your usage limit. Visit
-https://chatgpt.com/settings/usage to purchase more credits or try again at <time>.`) and matched in both `error` and
-`turn.failed` envelopes. The JSON envelope that `exec --json` wraps around it has **not** been captured (the docs name the `error` and
+https://chatgpt.com/settings/usage to purchase more credits or try again at <time>.`) and is recognised if it appears in an `error` or
+`turn.failed` envelope (both envelopes in the tests are our own construction). The JSON envelope that `exec --json` wraps around it has **not** been captured (the docs name the `error` and
 `turn.failed` events but no fields): **Unknown** until a real refusal is recorded; then the synthetic samples are replaced.
 
 ## Signals and native overlap
