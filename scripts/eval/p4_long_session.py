@@ -190,7 +190,8 @@ def task_caps(a, arm: str) -> tuple[float, float]:
 def budget_envelope(a) -> dict:
     lead, child = task_caps(a, "ccxlong")
     reserve = max(lead + child, sum(task_caps(a, "self")))
-    fat = FA.any_fat(str(getattr(a, "arms", "")).split(","))
+    arms = getattr(a, "arms", "")
+    fat = FA.any_fat(arms.split(",") if isinstance(arms, str) else arms)
     if fat:
         reserve = max(reserve, sum(task_caps(a, FA.NATIVE))) + fill_budget(a)
     out = {"budget_usd": a.budget, "lead_allowance_usd": lead, "child_allowance_usd": child,
@@ -206,7 +207,7 @@ def budget_envelope(a) -> dict:
 
 def fill_budget(a) -> float:
     """#546: --max-budget-usd of a fat arm's fill invocation, reserved once per episode (before its first task)."""
-    return float(getattr(a, "fill_budget", None) or FA.DEFAULT_FILL_BUDGET)
+    return float(getattr(a, "fill_budget", None) or FA.fill_budget_default(getattr(a, "fat_tier", "main")))
 
 
 def fill_extra(row: dict) -> float:
@@ -682,7 +683,17 @@ class Episode:
         kind = env_failure(fin, err, rc, [])
         if kind:
             row["env_stop"] = kind
+        used = FA.tool_calls(out)
+        row["fill_tool_calls"] = used
+        if used:
+            row["fill_ok"] = False       # the fill turn must make no tool call: it could have touched the repository
         if rc != 0 or not match or fin.get("subtype") != "success":
+            # Keep what a failed fill printed: it is the only evidence of why (model refused, prompt too long, ...).
+            dest = a.artifacts / f"{self.iso.key}-{row['turn']}"
+            dest.mkdir(parents=True, exist_ok=True)
+            redactor = ES.Redactor(self.iso, self.env)
+            row["fill_streams"] = ES.keep(dest / "fill-streams", self.iso, stream, self.env)
+            (dest / "fill-stderr.txt").write_text(redactor.text(err), encoding="utf-8", newline="")
             stream.unlink(missing_ok=True)
             raise RuntimeError(f"fat fill turn failed (rc={rc}, subtype={fin.get('subtype')}, session_match={match})")
         return {"stream": stream, "stderr": err}
@@ -775,7 +786,7 @@ class Episode:
             row["dispatch_observed"] = any(e.get("dispatch", {}).get("cheap_first") for e in row["side_ledger"])
         round2 = getattr(a, "max_invalid_rows", None) is not None
         records = []
-        if u["arm"] != "self" and (round2 or u["arm"] == DE.ARM2):
+        if FA.base_arm(u["arm"]) != "self" and (round2 or u["arm"] == DE.ARM2):
             # Sub-agent runs only: a review run's record has no result of its own (as r5.ccx_check_reason).
             records = [rec for rec in (r5.r2.record(self.iso.hub, rid) for rid in row["ccx_run_ids"])
                        if not str(rec.get("label") or "").startswith("review:")]
@@ -871,7 +882,8 @@ class Episode:
             row.update({"leftovers": cleanup, "hub": {"memory_empty": self.memory_empty},
                         "fingerprint": PF.fingerprint(rep, self.iso, self.env),
                         "pinned_commit": rep["commit"]})
-            row["env_clean"] = PF.env_clean(row, rep) and not row.get("environment_error", False)
+            row["env_clean"] = (PF.env_clean(row, rep) and not row.get("environment_error", False)
+                                and (row.get("fill_audit") or {"clean": True}).get("clean") is not False)
         for stream, _ in self.streams:
             stream.unlink(missing_ok=True)
             stream.with_suffix(".stderr").unlink(missing_ok=True)
@@ -963,7 +975,7 @@ def recompute_rows(rows: list[dict], artifacts: Path | None = None) -> list[dict
             fill_usage = row.get("fill_model_usage")
             states[key] = LeadCost(cumulative=row["fill_cumulative_usd"],
                                    usage=dict(fill_usage) if isinstance(fill_usage, dict) else dict.fromkeys(USAGE_COUNTERS, 0),
-                                   failed=not isinstance(fill_usage, dict))
+                                   failed=bool(row.get("fill_cost_errors")) or not isinstance(fill_usage, dict))
         state = states.setdefault(key, LeadCost())
         if row.get("turn") != turns.get(key, 0) + 1:
             state.failed = True
@@ -1039,8 +1051,9 @@ def parser():
                    help="fat arms: assumed characters per token of the filler; a smoke run's measured fill context calibrates it")
     p.add_argument("--fill-tolerance", type=float, default=FA.DEFAULT_TOLERANCE,
                    help="fat arms: allowed |measured - target| / target of the fill; outside it the row is invalid and the run stops")
-    p.add_argument("--fill-budget", type=float, default=FA.DEFAULT_FILL_BUDGET,
-                   help="fat arms: Claude --max-budget-usd of the fill turn, reserved once per episode")
+    p.add_argument("--fill-budget", type=float, default=None,
+                   help=f"fat arms: Claude --max-budget-usd of the fill turn, reserved once per episode (default "
+                        f"${FA.DEFAULT_FILL_BUDGET:g} main tier, ${FA.HEAVY_FILL_BUDGET:g} heavy)")
     p.add_argument("--fat-lead-model", default=FA.LEAD_MODEL,
                    help="fat arms: the lead's --model (a 225k+ context needs the 1M-context variant; availability is Unknown until a smoke run)")
     p.add_argument("--rounds", type=int, default=1)
@@ -1094,7 +1107,8 @@ def resolve_options(a) -> None:
     if a.self_lead_budget is not None and (not math.isfinite(a.self_lead_budget) or a.self_lead_budget <= 0):
         raise SystemExit("--self-lead-budget must be positive")
     if (a.fat_tokens is not None and a.fat_tokens < 1) or any(
-            not math.isfinite(x) or x <= 0 for x in (a.fill_chars_per_token, a.fill_budget)) or not (
+            not math.isfinite(x) or x <= 0 for x in (a.fill_chars_per_token, a.fill_budget
+                                                     if a.fill_budget is not None else 1)) or not (
             math.isfinite(a.fill_tolerance) and 0 < a.fill_tolerance < 1):
         raise SystemExit("--fat-tokens, --fill-chars-per-token and --fill-budget must be positive; --fill-tolerance in (0, 1)")
 
@@ -1356,6 +1370,8 @@ def invalid_reason(row: dict) -> str | None:
         return "environment_error"
     if row.get("fill_ok") is False:
         return "fill_out_of_range"      # #546: the context was not the tier it claims to be
+    if "fill_target_tokens" in row and row.get("fill_ok") is None:
+        return "fill_unmeasured"        # #546: the fill's real size could not be read
     if row.get("arm_conformance") is False:
         return "arm_not_followed"       # #546: e.g. fatself that used Agent, fatnative that used ccx
     if row.get("arm") in DE.ARMS:

@@ -33,7 +33,12 @@ TIER_SOURCE = ("docs/ROADMAP.md (2026-11-25): real lead re-read median 225,389 (
 LEAD_MODEL = "sonnet[1m]"                       # a 225k+ context does not fit the default 200k window
 DEFAULT_CHARS_PER_TOKEN = 4.0
 DEFAULT_TOLERANCE = 0.15                        # |measured - target| / target allowed for the fill
-DEFAULT_FILL_BUDGET = 2.5                       # --max-budget-usd of the fill invocation, also reserved per episode
+DEFAULT_FILL_BUDGET = 2.5                       # --max-budget-usd of the fill invocation (main tier), reserved per episode
+HEAVY_FILL_BUDGET = 4.0                         # heavy tier default: more cache to write
+
+
+def fill_budget_default(tier: str) -> float:
+    return HEAVY_FILL_BUDGET if tier == "heavy" else DEFAULT_FILL_BUDGET
 FILL_MARKER = "BACKGROUND-FILL"
 FILLER_SEED = 546
 LIMITATION = ("Synthetic task-independent filler stands in for accumulated tool output; whether it behaves like real "
@@ -82,8 +87,9 @@ def filler(tokens: int, chars_per_token: float = DEFAULT_CHARS_PER_TOKEN, seed: 
 
 
 def fill_prompt(tokens: int, chars_per_token: float = DEFAULT_CHARS_PER_TOKEN) -> str:
-    return (f"{FILL_MARKER}. Below are working notes from earlier in this session. They are unrelated to the next "
-            "request. Do not use any tool and do not summarise them: read them and answer with exactly the word "
+    # No "do not" / "never" / "must" and the like: ccx --context auto reads this message and would copy such a
+    # sentence into the Codex brief as a settled decision (context_share._DECIDED), which only fatccx would see.
+    return (f"{FILL_MARKER}. These working notes are background for later requests. Reply with the single word "
             "READY.\n\n" + filler(tokens, chars_per_token))
 
 
@@ -144,7 +150,7 @@ def stream_facts(stream: str) -> dict:
     """What the lead itself called (built-in sub-agents' own messages are left out): Agent tool calls and Bash
     commands that went through p4_receipt.py (ccx), each call once; and the built-in sub-agent's own requests."""
     agent_calls = ccx_calls = 0
-    seen, workers = set(), set()
+    seen, workers, types = set(), set(), []
     for ev in PF._events(stream):
         if ev.get("type") != "assistant":
             continue
@@ -161,9 +167,18 @@ def stream_facts(stream: str) -> dict:
             seen.add(key)
             if c.get("name") in ("Agent", "Task"):
                 agent_calls += 1
+                types.append(str((c.get("input") or {}).get("subagent_type") or ""))
             elif c.get("name") == "Bash" and "p4_receipt.py" in str((c.get("input") or {}).get("command") or ""):
                 ccx_calls += 1
-    return {"agent_calls": agent_calls, "ccx_calls": ccx_calls, "worker_requests": len(workers)}
+    return {"agent_calls": agent_calls, "ccx_calls": ccx_calls, "worker_requests": len(workers),
+            "agent_types": types}
+
+
+def tool_calls(stream: str) -> int:
+    """Every tool call the lead itself made in a stream (a fill turn must make none)."""
+    return sum(1 for ev in PF._events(stream) if ev.get("type") == "assistant" and ev.get("parent_tool_use_id") is None
+               for c in (ev.get("message") or {}).get("content") or []
+               if isinstance(c, dict) and c.get("type") == "tool_use")
 
 
 def conformance(arm: str, facts: dict, ccx_runs: int = 0):
@@ -172,7 +187,7 @@ def conformance(arm: str, facts: dict, ccx_runs: int = 0):
     if arm == SELF:
         return agent == 0 and ccx == 0
     if arm == NATIVE:
-        return agent >= 1 and ccx == 0
+        return agent >= 1 and ccx == 0 and all(t == "worker" for t in facts.get("agent_types", []))
     if arm == CCX:
         return ccx >= 1 and agent == 0
     return None
@@ -198,12 +213,18 @@ def plan(a, arms) -> dict:
                  "tier_source": TIER_SOURCE, "chars_per_token": getattr(a, "fill_chars_per_token", DEFAULT_CHARS_PER_TOKEN),
                  "chars_per_token_basis": "assumption, Unknown until a smoke run reads the measured fill context",
                  "tolerance": getattr(a, "fill_tolerance", DEFAULT_TOLERANCE),
-                 "fill_budget_usd": getattr(a, "fill_budget", DEFAULT_FILL_BUDGET),
+                 "fill_budget_usd": getattr(a, "fill_budget", None) or fill_budget_default(getattr(a, "fat_tier", "main")),
                  "per": "episode (once, before its first task); the group stops if a fill is out of range",
                  "content": f"deterministic filler, seed {FILLER_SEED}, task-independent",
                  "cost": "recorded as fill_usd, not part of a task's usd; charged to the run budget"},
         "limitation": LIMITATION,
+        "caps": "fatself's Claude cap is --self-lead-budget (default --lead-budget) and fatnative's is lead + child "
+                "budget: pass --self-lead-budget = lead + child for equal allowances; a fat context makes every step "
+                "re-read the cache, so cap hits must be reported per arm (#547 preregistration)",
         "unverified": ["sonnet[1m] availability", "real tokens per char of the filler",
+                       "whether --max-budget-usd on --resume counts the session so far (the fill would then use up "
+                       "the task's cap)",
+                       "measured fill includes system prompt and tool definitions (tens of thousands of tokens)",
                        "whether result.usage includes native sub-agent tokens (cost check fails closed)"]}
 
 

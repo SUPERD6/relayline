@@ -118,7 +118,8 @@ def test_dry_run_prints_the_three_arms_settings(tmp_path):
     assert plan["arm_settings"][FA.CCX]["child_agent"] == "codex" and plan["arm_settings"][FA.NATIVE]["child_agent"] is None
     assert "Unknown" in plan["estimate"]["tasks"][0]["basis"]
     explicit = dry(["--split", "r2b", "--tasks-file", str(f), "--tasks-sha256", sha, "--arms", FA.SELF,
-                    "--budget", "30", "--fat-tokens", "1234"], tmp_path)
+                    "--budget", "30", "--episode-size", "1", "--fat-tokens", "1234"], tmp_path)
+    assert explicit.returncode == 0, explicit.stderr
     assert json.loads(explicit.stdout)["fat"]["fill"]["target_tokens"] == 1234
 
 
@@ -278,3 +279,20 @@ def test_the_cheap_first_arms_are_untouched(fake_engine):
     assert P.child_agent(type("A", (), {"child_agent": None})(), D.ARM2) == "claude"
     assert P.child_agent(None, "ccxlong") == "codex" and P.child_agent(None, "self") is None
     assert P.child_agent(None, FA.CCX) == "codex" and P.child_agent(None, FA.NATIVE) is None
+
+
+def test_fill_prompt_is_not_read_by_ccx_context_as_a_decision_and_a_fill_with_tools_is_found():
+    from ccx import context_share
+    sentences = [s for s in context_share._SENT.split(FA.fill_prompt(2000)) if s.strip()]
+    assert sentences and not any(context_share._DECIDED.search(s) for s in sentences)
+    use = json.dumps({"type": "assistant", "message": {"id": "m", "content": [
+        {"type": "tool_use", "id": "t", "name": "Bash", "input": {"command": "ls"}}]}})
+    sub = json.dumps({"type": "assistant", "parent_tool_use_id": "t", "message": {"id": "w", "content": [
+        {"type": "tool_use", "id": "u", "name": "Read", "input": {}}]}})
+    assert FA.tool_calls(use + "\n" + sub) == 1 and FA.tool_calls("") == 0
+
+
+def test_native_arm_must_use_the_worker_agent():
+    base = {"agent_calls": 1, "ccx_calls": 0, "worker_requests": 1}
+    assert FA.conformance(FA.NATIVE, {**base, "agent_types": ["worker"]}) is True
+    assert FA.conformance(FA.NATIVE, {**base, "agent_types": ["general-purpose"]}) is False
