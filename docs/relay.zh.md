@@ -37,20 +37,35 @@ ccx relay continue PACKET_ID --to codex --budget-seconds 300 --old-stopped --lau
 force 不绕过工作区锁、已知写进程检查、Git 核对或预算。旧 StopFailure 和 rate_limit_event 包
 缺少 `usage_confirmed=true` 时也要求 force。
 
-第一条只准备 prompt 和 argv，不调用模型。`--launch` 才显式启动受监督的 `codex exec --json --sandbox workspace-write` 或 `claude -p --output-format stream-json --verbose --permission-mode acceptEdits --permission-prompts none`。Claude 的原生文件编辑权限不等于 Codex 的操作系统沙箱，其他工具仍可能被拒绝；不启用权限绕过。退出码零但没有观察到工作区改动时返回 `no_changes`，不报成功；验证仍为 `not-run`。每个 `<包>.continue-*.json` 启动记录带 `started_at`（格式同上；晚于抢工作区锁、早于子进程启动；旧记录没有），记录进入最终状态时（含监督进程被中断、超过时间预算）再写 `ended_at`（格式同上；接续还在运行时没有，#483 之前写的旧记录也没有，读取方退回文件修改时间）。
+第一条只准备 prompt 和 argv，不调用模型。`--launch` 才显式启动受监督的 `codex exec --json --sandbox workspace-write` 或 `claude -p --output-format stream-json --verbose --permission-mode acceptEdits --permission-prompts none`。Claude 的原生文件编辑权限不等于 Codex 的操作系统沙箱，其他工具仍可能被拒绝；不启用权限绕过。退出码零但没有观察到工作区改动时返回 `no_changes`，不报成功；验证仍为 `not-run`（除非人给了显式 `--check`，见下文）。每个 `<包>.continue-*.json` 启动记录带 `started_at`（格式同上；晚于抢工作区锁、早于子进程启动；旧记录没有），记录进入最终状态时（含监督进程被中断、超过时间预算）再写 `ended_at`（格式同上；接续还在运行时没有，#483 之前写的旧记录也没有，读取方退回文件修改时间）。
 子进程退出后 relay 自己的后处理（额度信号解析、交接 capture、工作区快照）抛异常时，记录会写成 `state=postprocess_error`，附简短 `error` 和 `ended_at`（保留子进程的 `exit_code`），并重新抛出异常，记录不再停在 `running`；此时工作是否完成为 Unknown，每日额度页判 `unknown` 而不是失败（#487）。
 子进程退出码零但改动检测为 Unknown 时，单独返回 `changes_unknown`，提示人工查看 `git status`，
 ccx 命令退出码为 2。记录中的 `exit_code` 仍指子进程，所以可以保持零。
 2026-11-05 重新核对 **Claude Code 2.1.316 --help**：即使使用 `acceptEdits`，
-`--permission-prompts none` 也会自动拒绝需要询问的工具。交接包没有可信的精确检查命令字段，
-因此不增加 `--allowedTools` 授权。Claude 提示词说明原生编辑权限及 Bash/PowerShell/测试可能被拒绝，
+`--permission-prompts none` 也会自动拒绝需要询问的工具。没有显式 `--check` 时交接包没有可信的检查命令，有也
+不增加 `--allowedTools` 授权。Claude 提示词说明原生编辑权限及 Bash/PowerShell/测试可能被拒绝，
 要求无法检查时报告具体被拒绝的命令，并将测试标为 `not-run`。
 预算必填，必须是有限正数，单位为**墙钟秒数**，不是美元上限。此新主导路径的美元记账和封顶 **Unknown / 尚未实现**；不单独约束原生子任务花费。
 准备和启动前都检查暂存与未暂存 diffstat、HEAD 和当前状态。HEAD 变化时需人工核对后重新 capture。未提交修改有变化时交给新主导检查，绝不 reset。
-prompt 要求新主导先检查半成品和运行相关检查，再编辑；这不能证明模型遵守，`verification` 仍为 `not-run`。
+prompt 要求新主导先检查半成品和运行相关检查，再编辑；这不能证明模型遵守，`verification` 仍为 `not-run`，除非 ccx 自己跑了显式给的 `--check`。
 监督器保存 argv、prompt、PID、退出码和 stdout/stderr 日志；到时终止子进程树并保留半成品。
 新主导输出显式限额拒绝时，即使退出码为零，也会保存新的交接和通知；不会自动启动另一家。
 持久包声明禁止同一包重复启动，工作区级锁阻止不同包同时启动。锁记录 PID 和时间，失效锁必须先人工核对孤儿进程；启动进程失败会释放两把锁。启动前检查同 Git 工作区（含子目录）的已知 ccx 运行 PID。没有 ccx 记录的原生进程及自动恢复状态仍为 Unknown；`--old-stopped` 是必需的用户声明，不能证明所有写入者已停止。外部强杀监督器可能留下 CLI；没有 watchdog，也不自动恢复。
+
+## 显式 `--check`：由 ccx 自己跑命令作证（#522）
+
+默认：不给 `--check` 就什么都不发生，`verification` 和以前一样是 `not-run`。它在同一个 `relay.enabled` 开关里，没有第二个开关。
+
+```text
+ccx relay capture --goal "Finish the parser" --check "python -m pytest -q tests/test_parser.py"
+ccx relay continue PACKET_ID --to codex --budget-seconds 300 --old-stopped --launch --check "python -m pytest -q tests/test_parser.py"
+```
+
+* 唯一接受的来源是人亲手给的 `--check`：capture 时（写进包里的 `check` = `cmd`、`source` 为 `capture-flag`、`sha256`），或 continue 时（`source` 为 `continue-flag`；会替换包里自带的，并标 `overrides_packet`）。包只是数据，不是授权：`check` 字段的 `source` 不认识、`sha256` 与 `cmd` 对不上、或格式不对，在准备和启动两步都会**说明原因并拒绝，什么都不跑**。哈希只能让改动露馅，拦不住本来就能写包文件和哈希的人，所以包目录按“本机可信”对待。
+* 不会告诉模型去跑它，也不给额外权限（不改 `--allowedTools`），提示词只说明 ccx 会自己跑。
+* 子进程结束后（工作区锁仍持有，没有别的写入者），ccx 在同一个工作区用普通检查运行器（`workspace.run_check`，同样的 shell 规则和输出尾部）跑这条命令，把 `verification` = `pass` / `fail` / `broken` 与 `check_result`（退出码、秒数、输出尾部、`timed_out`）写进启动记录，并往账本写一行 `relay_check`（hub 的 `ledger.jsonl`，汇总运行的读取方会跳过它）。超时算 `fail`（`check_result.timed_out` 为真）；`broken` 表示命令根本没法测（缺 Bash、pytest 用法错误、起不来）。检查失败或 broken 时 `ccx relay continue` 退出 2，不管子进程自己的退出码是什么。
+* `--check-timeout-seconds`（默认 900）限制命令时长。无论子进程是什么状态（正常退出、`no_changes`、到时间预算被停）都会跑，因为它评判的是工作区而不是子进程；监督进程自己被中断时不跑。不带 `--launch` 的准备只显示检查，不执行。
+* 子进程因额度停下后写出的下一个交接包会带着同一个 `check`。
 
 ## 信号与原生功能重叠
 

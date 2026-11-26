@@ -149,6 +149,8 @@ def capture(cwd: Path, source: str, session: str, evidence: dict, context: dict,
                                   ("" if evidence.get("kind") == "rate_limit_unconfirmed" else " --old-stopped"))
     packet["state"] = ("quota_stopped" if evidence.get("kind") == "quota" else
                        "rate_limit_unconfirmed" if evidence.get("kind") == "rate_limit_unconfirmed" else "captured")
+    if context.get("check") is not None:     # only carried over, never made up here (relay.trusted_check judges it)
+        packet["check"] = context["check"]
     path = folder / (packet["id"] + ".json")
     atomic_json(path, packet)
     return path, packet
