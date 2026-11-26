@@ -52,6 +52,11 @@ prompt 要求新主导先检查半成品和运行相关检查，再编辑；这�
 新主导输出显式限额拒绝时，即使退出码为零，也会保存新的交接和通知；不会自动启动另一家。
 持久包声明禁止同一包重复启动，工作区级锁阻止不同包同时启动。锁记录 PID 和时间，失效锁必须先人工核对孤儿进程；启动进程失败会释放两把锁。启动前检查同 Git 工作区（含子目录）的已知 ccx 运行 PID。没有 ccx 记录的原生进程及自动恢复状态仍为 Unknown；`--old-stopped` 是必需的用户声明，不能证明所有写入者已停止。外部强杀监督器可能留下 CLI；没有 watchdog，也不自动恢复。
 
+## 新会话开场提示未处理的接力包（#523）
+
+`relay.enabled = true` 时，原来就在跑 `ccx mem delta` 的开场钩子（Claude Code 和 Codex 两边）会多补一行纯文本：本工作区里有一个来自**另一家**的包，状态是 `quota_stopped`、`rate_limit_unconfirmed` 或 `captured`，且还没有 `<包号>.continue-*.json` 运行记录。这行写明包号、一句话目标和 `ccx relay continue ...` 命令，并提醒先确认旧会话已停、先问用户。它只看不做：不会继续也不会启动，所以“旧会话已停”的声明和用户的同意都和以前一样。接力关闭、没有包、或包来自同一家时，钩子不多输出任何内容。
+已按 hooks 文档核对（2026-11-26，Claude Code 2.1.316、codex-cli 0.164.0）：两边 SessionStart 钩子的纯文本 stdout 都会进上下文（JSON 形式是 `hookSpecificOutput.additionalContext`；ccx 沿用纯文本，和其他开场行一致，Codex 一侧该行不以 `[` 或 `{` 开头，见 `hook_text`）。还没有在真实的 Claude→Codex 上录屏（只有假 CLI 测试）。
+
 ## 显式 `--check`：由 ccx 自己跑命令作证（#522）
 
 默认：不给 `--check` 就什么都不发生，`verification` 和以前一样是 `not-run`。它在同一个 `relay.enabled` 开关里，没有第二个开关。

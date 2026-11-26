@@ -56,6 +56,19 @@ The supervisor records argv, prompt, PID, exit code and stdout/stderr logs local
 An explicit quota refusal in the new lead's output also saves a fresh handoff and notification, even with exit code zero; it never launches another vendor automatically.
 An exclusive durable packet claim prevents duplicate launch, while a workspace-wide lock prevents different packets launching together. Locks record PID/time; stale locks require manual orphan-process reconciliation. Failure to spawn releases both claims. Before launch ccx checks known live run PIDs in the same Git workspace (including subdirectories). Native processes without ccx records and native auto-resume remain Unknown: `--old-stopped` is still a required user attestation, not proof that all writers stopped. Killing the supervisor externally may leave its CLI alive; there is no watchdog or automatic recovery.
 
+## A new session is told about an unfinished packet (#523)
+
+With `relay.enabled = true`, the session-start hook that already runs `ccx mem delta` (Claude Code and Codex) adds one
+plain-text line when this workspace holds a packet that came from the *other* tool, is in state `quota_stopped`,
+`rate_limit_unconfirmed` or `captured`, and has no `<packet>.continue-*.json` record yet: the packet id, the one-line
+goal, and the `ccx relay continue ...` command, with the reminder to make sure the old session is stopped and to ask the
+person first. It only looks: it never continues or launches anything, so the old-session-stopped attestation and the
+person's yes stay as they were. With relay off, no packet, or a packet from the same tool, the hook prints nothing extra.
+Checked against the hooks docs on 2026-11-26 (Claude Code 2.1.316, codex-cli 0.164.0): plain stdout of a SessionStart
+hook is added to the context in both tools (`hookSpecificOutput.additionalContext` is the JSON form; ccx keeps plain
+text, as for its other start-up lines, and the line does not begin with `[` or `{` for Codex, see `hook_text`).
+Not recorded on a real Claude→Codex run yet (fake-CLI tests only).
+
 ## Explicit `--check`: verification by a command ccx runs itself (#522)
 
 Default: no `--check`, nothing below happens, and `verification` stays `not-run` exactly as before. The feature is inside the same `relay.enabled` switch; there is no second switch.
