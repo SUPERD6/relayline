@@ -63,7 +63,7 @@ def command(a) -> int:
         raise ValueError("Git root lookup timed out; inspect git status and retry with --git-timeout-seconds 60") from None
     out = relay.continue_packet(cwd, a.packet, a.to, a.budget_seconds,
                                 a.old_stopped, a.launch, a.force_unconfirmed, a.git_timeout_seconds,
-                                a.check, a.check_timeout_seconds)
+                                a.check, a.check_timeout_seconds, a.use_packet_check)
     _out(out)
     if out.get("verification") in ("fail", "broken"):
         return 2        # the user's own check did not pass (only when --check was given)
@@ -92,6 +92,8 @@ def register(sub) -> None:
                       help="explicitly allow launch for an unconfirmed rate-limit packet")
     cont.add_argument("--check", help="acceptance command ccx runs in the workspace after the new lead stops; "
                       "overrides the packet's own (default: none, verification stays not-run)")
+    cont.add_argument("--use-packet-check", action="store_true",
+                      help="also run the check stored in the packet (it sits in the workspace, so only on your say-so)")
     cont.add_argument("--check-timeout-seconds", type=float, default=900, help="timeout of --check (default 900)")
     for parser in (capture, cont):
         parser.add_argument("--git-timeout-seconds", type=float, default=30,

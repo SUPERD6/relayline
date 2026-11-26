@@ -76,16 +76,17 @@ def make_check(cmd: str, source: str) -> dict:
     return {"cmd": cmd, "source": source, "sha256": hashlib.sha256(cmd.encode("utf-8")).hexdigest()}
 
 
-def trusted_check(packet: dict, cli_check: str | None) -> dict | None:
-    """The check relay may run: an explicit `--check` now, else the packet's own field when its source is traceable.
-    Anything else in the packet is refused before anything runs (the packet is data, never authorization)."""
+def trusted_check(packet: dict, cli_check: str | None, use_packet_check: bool = False) -> dict | None:
+    """The check relay may run: an explicit `--check` now, else the packet's own field, but only when the person also
+    passes `--use-packet-check` (the packet lives in the workspace, which the new lead can write, so its field is
+    data, never authorization) and its source is traceable. A bad field is then refused before anything runs."""
     if cli_check is not None:
         check = make_check(cli_check, "continue-flag")
         if packet.get("check") is not None:
             check["overrides_packet"] = True
         return check
     raw = packet.get("check")
-    if raw is None:
+    if raw is None or not use_packet_check:
         return None
     try:
         ok = (isinstance(raw, dict) and raw.get("source") in CHECK_SOURCES
@@ -101,14 +102,14 @@ def trusted_check(packet: dict, cli_check: str | None) -> dict | None:
 
 def continue_packet(cwd: Path, packet_id: str, target: str, budget: float, old_stopped: bool,
                     launch: bool = False, force_unconfirmed: bool = False, git_timeout: float = 30,
-                    check: str | None = None, check_timeout: float = 900) -> dict:
+                    check: str | None = None, check_timeout: float = 900, use_packet_check: bool = False) -> dict:
     if not math.isfinite(budget) or budget <= 0:
         raise ValueError("--budget-seconds must be finite and positive")
     if not math.isfinite(check_timeout) or check_timeout <= 0:
         raise ValueError("--check-timeout-seconds must be finite and positive")
     validate_git_timeout(git_timeout)
     path, packet = state.load_packet(cwd, packet_id)
-    check_spec = trusted_check(packet, check)
+    check_spec = trusted_check(packet, check, use_packet_check)
     unconfirmed = (packet.get("state") == "rate_limit_unconfirmed"
                    or packet["quota_signal"].get("kind") == "rate_limit_unconfirmed"
                    or packet["quota_signal"].get("source") in ("StopFailure", "rate_limit_event")
@@ -161,6 +162,9 @@ def continue_packet(cwd: Path, packet_id: str, target: str, budget: float, old_s
            "unconfirmed_override": bool(unconfirmed and launch and force_unconfirmed)}
     if check_spec:
         out.update(check=check_spec, check_timeout_seconds=check_timeout)
+    elif isinstance(packet.get("check"), dict):     # shown, never run: the person has not asked for it
+        out["packet_check_ignored"] = {"cmd": str(packet["check"].get("cmd"))[:200],
+                                       "hint": "not run; pass --use-packet-check (or type --check) to have ccx run a check"}
     if unconfirmed:
         out["launch_requires"] = ["--force-unconfirmed", "--old-stopped", "--launch"]
     if not launch:
@@ -225,7 +229,8 @@ def _launch(cwd, packet_id, target, budget, path, packet, current, prompt, argv,
         out["quota_signal"] = quota_signals.identify(run_path.with_suffix(".stdout.log").read_text(encoding="utf-8", errors="replace"))
         if out["quota_signal"]["kind"] in ("quota", "rate_limit_unconfirmed"):
             out["state"] = ("quota_stopped" if out["quota_signal"]["kind"] == "quota" else "rate_limit_unconfirmed")
-            next_path, next_packet = state.capture(cwd, target, "Unknown", out["quota_signal"], packet,
+            next_path, next_packet = state.capture(cwd, target, "Unknown", out["quota_signal"],
+                                                   {**packet, "check": out["check"]} if out.get("check") else packet,
                                                    command_timeout=out["git_timeout_seconds"],
                                                    total_timeout=4 * out["git_timeout_seconds"])
             state.atomic_json(next_path.with_suffix(".notification.json"), state.notice(next_packet))
@@ -248,7 +253,19 @@ def _launch(cwd, packet_id, target, budget, path, packet, current, prompt, argv,
             pass        # do not mask the original exception
         raise
     if out.get("check"):
-        _run_check(cwd, out)
+        before = out["state"]
+        out["state"] = "checking"           # the record says so while the (long) check runs
+        state.atomic_json(run_path, out)
+        try:
+            _run_check(cwd, out)
+            out["state"] = before
+        except BaseException as exc:        # e.g. Ctrl-C during the check: never leave the record at "running"
+            out.update(state="check_interrupted", error=f"{type(exc).__name__}: {exc}"[:300], ended_at=state.utc_now())
+            try:
+                state.atomic_json(run_path, out)
+            except Exception:
+                pass
+            raise
     out["ended_at"] = state.utc_now()      # same format as started_at; only final-state writes carry it
     state.atomic_json(run_path, out)
     out["record"] = str(run_path)

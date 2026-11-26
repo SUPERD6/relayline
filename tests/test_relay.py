@@ -432,9 +432,14 @@ class TestRelay(Env):
         self.assertEqual((saved["check"]["cmd"], saved["check"]["source"]), (cmd, "capture-flag"))
         prepared = json.loads(self.ccx("relay", "continue", packet, "--to", "codex", "--budget-seconds", "30",
                                        "--old-stopped").stdout)
-        self.assertEqual((prepared["verification"], prepared["check"]["cmd"]), ("not-run", cmd))
+        self.assertEqual((prepared["verification"], prepared["packet_check_ignored"]["cmd"]), ("not-run", cmd))
+        self.assertNotIn("check", prepared)                             # in the packet, not asked for: not run
         self.assertFalse((self.work / "partial.txt").exists())          # preparing never runs the check
-        r = self._launch(packet)
+        # a packet in the workspace is data: launching without --use-packet-check runs nothing (H1 of the review)
+        plain = json.loads(self._launch(packet).stdout)
+        self.assertEqual((plain["verification"], "check_result" in plain, self._relay_events()), ("not-run", False, []))
+        packet = json.loads(self.ccx("relay", "capture", "--goal", "g", "--check", cmd).stdout)["packet"]
+        r = self._launch(packet, "--use-packet-check")
         out = json.loads(r.stdout)
         self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
         self.assertEqual((out["verification"], out["check_result"]["exit"], out["ledger"]), ("pass", 0, "written"))
@@ -484,16 +489,36 @@ class TestRelay(Env):
         for bad in forged:
             path.write_text(json.dumps({**good, "check": bad}), encoding="utf-8")
             for extra in ((), ("--launch",)):
-                args = ("relay", "continue", packet, "--to", "codex", "--budget-seconds", "30", "--old-stopped", *extra)
+                args = ("relay", "continue", packet, "--to", "codex", "--budget-seconds", "30", "--old-stopped",
+                        "--use-packet-check", *extra)
                 r = self.ccx(*args)
                 self.assertEqual(r.returncode, 3, r.stdout + r.stderr)
                 self.assertIn("without a traceable source", r.stdout)
                 self.assertFalse(marker.exists() or (self.work / "relay-fake-call.json").exists())
+        # a perfectly forged field (right source, right hash) still is not run without --use-packet-check;
+        # the hash lives in the workspace, so it proves nothing (review H1)
+        path.write_text(json.dumps({**good, "check": {"cmd": evil, "source": "capture-flag", "sha256": digest}}),
+                        encoding="utf-8")
+        shown = self.ccx("relay", "continue", packet, "--to", "codex", "--budget-seconds", "30", "--old-stopped")
+        self.assertEqual(shown.returncode, 0, shown.stdout)
+        self.assertIn("packet_check_ignored", shown.stdout)
+        path.write_text(json.dumps({**good, "check": bad}), encoding="utf-8")
         # an explicit --check on continue is the user speaking now: it replaces the forged field and runs
         r = self._launch(packet, "--check", self._script("chk522_ok2.py", "pass\n"))
         self.assertEqual(json.loads(r.stdout)["verification"], "pass", r.stdout)
         self.assertTrue(json.loads(r.stdout)["check"]["overrides_packet"])
         self.assertFalse(marker.exists())
+
+    def test_check_in_record_when_interrupted_and_chain_carries_the_run_check_522(self):
+        self.enable()
+        packet = self.capture()
+        cmd = self._script("chk522_chain.py", "pass\n")
+        r = self.ccx("relay", "continue", packet, "--to", "codex", "--budget-seconds", "30", "--old-stopped",
+                     "--launch", "--check", cmd, env={"FAKE_RELAY_QUOTA": "1"})
+        out = json.loads(r.stdout)
+        self.assertEqual((out["state"], out["verification"]), ("quota_stopped", "pass"), r.stdout)
+        nxt = json.loads((self.work / ".ccx" / "relay" / (out["handoff_packet"] + ".json")).read_text(encoding="utf-8"))
+        self.assertEqual((nxt["check"]["cmd"], nxt["check"]["source"]), (cmd, "continue-flag"))
 
     def test_check_flag_alone_never_runs_when_relay_is_disabled_522(self):
         marker = self._script("chk522_off.py", "import pathlib\npathlib.Path('chk522_off.txt').write_text('x')\n")

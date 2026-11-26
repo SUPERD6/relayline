@@ -61,11 +61,11 @@ ccx relay capture --goal "Finish the parser" --check "python -m pytest -q tests/
 ccx relay continue PACKET_ID --to codex --budget-seconds 300 --old-stopped --launch --check "python -m pytest -q tests/test_parser.py"
 ```
 
-* 唯一接受的来源是人亲手给的 `--check`：capture 时（写进包里的 `check` = `cmd`、`source` 为 `capture-flag`、`sha256`），或 continue 时（`source` 为 `continue-flag`；会替换包里自带的，并标 `overrides_packet`）。包只是数据，不是授权：`check` 字段的 `source` 不认识、`sha256` 与 `cmd` 对不上、或格式不对，在准备和启动两步都会**说明原因并拒绝，什么都不跑**。哈希只能让改动露馅，拦不住本来就能写包文件和哈希的人，所以包目录按“本机可信”对待。
+* 唯一接受的来源是人亲手给的 `--check`：capture 时（写进包里的 `check` = `cmd`、`source` 为 `capture-flag`、`sha256`），或 continue 时（`source` 为 `continue-flag`；会替换包里自带的，并标 `overrides_packet`）。包只是数据，不是授权：它放在工作区里，新主导（和旧主导）都能写，谁都能算出来的哈希或来源标签证明不了什么。所以包里存的 check **只显示、不执行**，除非人在 continue 时再加 `--use-packet-check`（或重新敲 `--check`）；加了之后，`source` 不认识、`sha256` 与 `cmd` 对不上、或格式不对，在准备和启动两步都会**说明原因并拒绝，什么都不跑**。检查以你的权限在新主导的沙箱外运行，跑的是新主导可能改过的文件（比如 `conftest.py`），命令行会告诉新主导并写进账本（前 200 字符）：别放密钥。命令会留在该会话保存的上下文里，之后同一会话的捕获会带上它，除非你另给一条。
 * 不会告诉模型去跑它，也不给额外权限（不改 `--allowedTools`），提示词只说明 ccx 会自己跑。
 * 子进程结束后（工作区锁仍持有，没有别的写入者），ccx 在同一个工作区用普通检查运行器（`workspace.run_check`，同样的 shell 规则和输出尾部）跑这条命令，把 `verification` = `pass` / `fail` / `broken` 与 `check_result`（退出码、秒数、输出尾部、`timed_out`）写进启动记录，并往账本写一行 `relay_check`（hub 的 `ledger.jsonl`，汇总运行的读取方会跳过它）。超时算 `fail`（`check_result.timed_out` 为真）；`broken` 表示命令根本没法测（缺 Bash、pytest 用法错误、起不来）。检查失败或 broken 时 `ccx relay continue` 退出 2，不管子进程自己的退出码是什么。
-* `--check-timeout-seconds`（默认 900）限制命令时长。无论子进程是什么状态（正常退出、`no_changes`、到时间预算被停）都会跑，因为它评判的是工作区而不是子进程；监督进程自己被中断时不跑。不带 `--launch` 的准备只显示检查，不执行。
-* 子进程因额度停下后写出的下一个交接包会带着同一个 `check`。
+* `--check-timeout-seconds`（默认 900）限制命令时长（Windows 上 `shell` 命令的挂死孙进程可能比超时活得久：共用检查运行器的已知限制，另行跟踪）。无论子进程是什么状态（正常退出、`no_changes`、到时间预算被停）都会跑，因为它评判的是工作区而不是子进程；监督进程自己被中断时不跑。不带 `--launch` 的准备只显示检查，不执行。
+* 子进程因额度停下后写出的下一个交接包会带着实际跑过的那条检查。运行期间记录写 `state=checking`，被中断则写 `check_interrupted`。
 
 ## 信号与原生功能重叠
 
