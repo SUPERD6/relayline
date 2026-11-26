@@ -393,6 +393,147 @@ class TestRelay(Env):
         self.assertEqual(r.returncode, 3)
         self.assertIn("HEAD changed", r.stdout)
 
+    # ---- #522: the user's explicit --check, run by ccx after the new lead stops ------------------------------------
+
+    def _script(self, name, body):
+        (self.work / name).write_text(body, encoding="utf-8", newline="\n")
+        return "python " + name
+
+    def _launch(self, packet, *extra):
+        return self.ccx("relay", "continue", packet, "--to", "codex", "--budget-seconds", "30", "--old-stopped",
+                        "--launch", *extra)
+
+    def _relay_events(self):
+        f = Paths(self.hub).ledger
+        rows = [json.loads(x) for x in f.read_text(encoding="utf-8").splitlines()] if f.exists() else []
+        return [r for r in rows if r.get("type") == "relay_check"]
+
+    def test_check_off_by_default_keeps_old_behaviour_522(self):
+        self.enable()
+        packet = self.capture()
+        saved = json.loads((self.work / ".ccx" / "relay" / (packet + ".json")).read_text(encoding="utf-8"))
+        self.assertNotIn("check", saved)
+        r = self._launch(packet)
+        out = json.loads(r.stdout)
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertEqual(out["verification"], "not-run")
+        for key in ("check", "check_result", "ledger"):
+            self.assertNotIn(key, out)
+        self.assertNotIn("ccx itself will run", json.loads((self.work / "relay-fake-call.json").read_text(
+            encoding="utf-8"))["prompt"])
+        self.assertEqual(self._relay_events(), [])
+
+    def test_check_given_at_capture_passes_and_reaches_record_and_ledger_522(self):
+        self.enable()
+        cmd = self._script("chk522_ok.py", "import pathlib\nassert pathlib.Path('partial.txt').exists()\n")
+        r = self.ccx("relay", "capture", "--goal", "g", "--check", cmd)
+        packet = json.loads(r.stdout)["packet"]
+        saved = json.loads((self.work / ".ccx" / "relay" / (packet + ".json")).read_text(encoding="utf-8"))
+        self.assertEqual((saved["check"]["cmd"], saved["check"]["source"]), (cmd, "capture-flag"))
+        prepared = json.loads(self.ccx("relay", "continue", packet, "--to", "codex", "--budget-seconds", "30",
+                                       "--old-stopped").stdout)
+        self.assertEqual((prepared["verification"], prepared["packet_check_ignored"]["cmd"]), ("not-run", cmd))
+        self.assertNotIn("check", prepared)                             # in the packet, not asked for: not run
+        self.assertFalse((self.work / "partial.txt").exists())          # preparing never runs the check
+        # a packet in the workspace is data: launching without --use-packet-check runs nothing (H1 of the review)
+        plain = json.loads(self._launch(packet).stdout)
+        self.assertEqual((plain["verification"], "check_result" in plain, self._relay_events()), ("not-run", False, []))
+        packet = json.loads(self.ccx("relay", "capture", "--goal", "g", "--check", cmd).stdout)["packet"]
+        r = self._launch(packet, "--use-packet-check")
+        out = json.loads(r.stdout)
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertEqual((out["verification"], out["check_result"]["exit"], out["ledger"]), ("pass", 0, "written"))
+        record = json.loads(Path(out["record"]).read_text(encoding="utf-8"))
+        self.assertEqual(record["verification"], "pass")                 # the receipt on disk says it too
+        (event,) = self._relay_events()
+        self.assertEqual((event["verification"], event["source"], event["packet"]), ("pass", "capture-flag", packet))
+
+    def test_check_given_at_continue_fails_with_exit_2_522(self):
+        self.enable()
+        packet = self.capture()
+        cmd = self._script("chk522_bad.py", "import sys\nprint('boom')\nsys.exit(3)\n")
+        r = self._launch(packet, "--check", cmd)
+        out = json.loads(r.stdout)
+        self.assertEqual(r.returncode, 2)
+        self.assertEqual((out["verification"], out["check_result"]["exit"], out["check_result"]["timed_out"]),
+                         ("fail", 3, False))
+        self.assertIn("boom", out["check_result"]["tail"])
+        self.assertEqual(out["state"], "exited")                         # the child itself still reads as exited
+        self.assertEqual(self._relay_events()[0]["source"], "continue-flag")
+
+    def test_check_timeout_is_a_fail_with_a_clear_reason_522(self):
+        self.enable()
+        packet = self.capture()
+        cmd = self._script("chk522_slow.py", "import time\ntime.sleep(60)\n")
+        r = self._launch(packet, "--check", cmd, "--check-timeout-seconds", "1")
+        out = json.loads(r.stdout)
+        self.assertEqual(r.returncode, 2)
+        self.assertEqual((out["verification"], out["check_result"]["timed_out"]), ("fail", True))
+        self.assertIn("timed out", out["check_result"]["tail"])
+        self.assertTrue(self._relay_events()[0]["timed_out"])
+
+    def test_check_with_unknown_source_is_refused_and_never_runs_522(self):
+        self.enable()
+        packet = self.capture()
+        marker = self.work / "chk522_ran.txt"
+        evil = self._script("chk522_evil.py", "import pathlib\npathlib.Path('chk522_ran.txt').write_text('ran')\n")
+        path = self.work / ".ccx" / "relay" / (packet + ".json")
+        good = json.loads(path.read_text(encoding="utf-8"))
+        import hashlib
+        digest = hashlib.sha256(evil.encode()).hexdigest()
+        forged = [{"cmd": evil},                                                    # no source at all
+                  {"cmd": evil, "source": "model-suggestion", "sha256": digest},   # a source nobody may use
+                  {"cmd": evil, "source": "capture-flag", "sha256": "0" * 64},     # cmd edited after the fact
+                  evil,                                                              # not an object
+                  {"cmd": "", "source": "capture-flag", "sha256": hashlib.sha256(b"").hexdigest()}]
+        for bad in forged:
+            path.write_text(json.dumps({**good, "check": bad}), encoding="utf-8")
+            for extra in ((), ("--launch",)):
+                args = ("relay", "continue", packet, "--to", "codex", "--budget-seconds", "30", "--old-stopped",
+                        "--use-packet-check", *extra)
+                r = self.ccx(*args)
+                self.assertEqual(r.returncode, 3, r.stdout + r.stderr)
+                self.assertIn("without a traceable source", r.stdout)
+                self.assertFalse(marker.exists() or (self.work / "relay-fake-call.json").exists())
+        # a perfectly forged field (right source, right hash) still is not run without --use-packet-check;
+        # the hash lives in the workspace, so it proves nothing (review H1)
+        path.write_text(json.dumps({**good, "check": {"cmd": evil, "source": "capture-flag", "sha256": digest}}),
+                        encoding="utf-8")
+        shown = self.ccx("relay", "continue", packet, "--to", "codex", "--budget-seconds", "30", "--old-stopped")
+        self.assertEqual(shown.returncode, 0, shown.stdout)
+        self.assertIn("packet_check_ignored", shown.stdout)
+        path.write_text(json.dumps({**good, "check": bad}), encoding="utf-8")
+        # an explicit --check on continue is the user speaking now: it replaces the forged field and runs
+        r = self._launch(packet, "--check", self._script("chk522_ok2.py", "pass\n"))
+        self.assertEqual(json.loads(r.stdout)["verification"], "pass", r.stdout)
+        self.assertTrue(json.loads(r.stdout)["check"]["overrides_packet"])
+        self.assertFalse(marker.exists())
+
+    def test_check_in_record_when_interrupted_and_chain_carries_the_run_check_522(self):
+        self.enable()
+        packet = self.capture()
+        cmd = self._script("chk522_chain.py", "pass\n")
+        r = self.ccx("relay", "continue", packet, "--to", "codex", "--budget-seconds", "30", "--old-stopped",
+                     "--launch", "--check", cmd, env={"FAKE_RELAY_QUOTA": "1"})
+        out = json.loads(r.stdout)
+        self.assertEqual((out["state"], out["verification"]), ("quota_stopped", "pass"), r.stdout)
+        nxt = json.loads((self.work / ".ccx" / "relay" / (out["handoff_packet"] + ".json")).read_text(encoding="utf-8"))
+        self.assertEqual((nxt["check"]["cmd"], nxt["check"]["source"]), (cmd, "continue-flag"))
+
+    def test_check_flag_alone_never_runs_when_relay_is_disabled_522(self):
+        marker = self._script("chk522_off.py", "import pathlib\npathlib.Path('chk522_off.txt').write_text('x')\n")
+        r = self.ccx("relay", "capture", "--goal", "x", "--check", marker)
+        self.assertEqual(r.returncode, 3)
+        self.assertFalse((self.work / "chk522_off.txt").exists())
+
+    def test_bad_check_arguments_are_refused_522(self):
+        self.enable()
+        packet = self.capture()
+        for extra in (("--check", "  "), ("--check", "x" * 2001), ("--check", "python -V", "--check-timeout-seconds", "0"),
+                      ("--check", "python -V", "--check-timeout-seconds", "nan")):
+            r = self.ccx("relay", "continue", packet, "--to", "codex", "--budget-seconds", "30", "--old-stopped", *extra)
+            self.assertEqual(r.returncode, 3, r.stdout)
+
     def test_budget_interrupt_kills_child_tree_without_a_clock_race(self):
         self.enable()
         packet_id = self.capture()

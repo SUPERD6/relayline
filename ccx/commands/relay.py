@@ -42,6 +42,8 @@ def command(a) -> int:
         for name in ("goal", "progress", "next_step"):
             if getattr(a, name) is not None:
                 context[name] = getattr(a, name)
+        if getattr(a, "check", None) is not None:
+            context["check"] = relay.make_check(a.check, "capture-flag")
         if not a.hook and session != "Unknown":
             state.atomic_json(context_file, context)
         path, packet = state.capture(cwd, a.source, session, evidence, context,
@@ -60,8 +62,11 @@ def command(a) -> int:
     except subprocess.TimeoutExpired:
         raise ValueError("Git root lookup timed out; inspect git status and retry with --git-timeout-seconds 60") from None
     out = relay.continue_packet(cwd, a.packet, a.to, a.budget_seconds,
-                                a.old_stopped, a.launch, a.force_unconfirmed, a.git_timeout_seconds)
+                                a.old_stopped, a.launch, a.force_unconfirmed, a.git_timeout_seconds,
+                                a.check, a.check_timeout_seconds, a.use_packet_check)
     _out(out)
+    if out.get("verification") in ("fail", "broken"):
+        return 2        # the user's own check did not pass (only when --check was given)
     return 0 if out["state"] == "prepared" or (out["state"] == "exited" and out["exit_code"] == 0) else 2
 
 
@@ -75,6 +80,7 @@ def register(sub) -> None:
     capture.add_argument("--session-id", help="save context for this source session's later hook")
     for key in ("goal", "progress", "next-step"):
         capture.add_argument("--" + key)
+    capture.add_argument("--check", help="acceptance command ccx runs after the new lead stops (recorded in the packet)")
     cont = actions.add_parser("continue", help="prepare another vendor's new lead; --launch starts it")
     cont.add_argument("packet", help="packet id from capture")
     cont.add_argument("--cwd", default=".")
@@ -84,6 +90,11 @@ def register(sub) -> None:
     cont.add_argument("--launch", action="store_true", help="explicitly start supervised codex exec / claude -p")
     cont.add_argument("--force-unconfirmed", action="store_true",
                       help="explicitly allow launch for an unconfirmed rate-limit packet")
+    cont.add_argument("--check", help="acceptance command ccx runs in the workspace after the new lead stops; "
+                      "overrides the packet's own (default: none, verification stays not-run)")
+    cont.add_argument("--use-packet-check", action="store_true",
+                      help="also run the check stored in the packet (it sits in the workspace, so only on your say-so)")
+    cont.add_argument("--check-timeout-seconds", type=float, default=900, help="timeout of --check (default 900)")
     for parser in (capture, cont):
         parser.add_argument("--git-timeout-seconds", type=float, default=30,
                             help="per-Git-command timeout for manual capture/continue (default 30); hooks keep 2 seconds")
