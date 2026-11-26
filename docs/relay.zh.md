@@ -2,11 +2,38 @@
 
 [English](relay.md)
 
+## 三步走
+
+需要一个 Git 工作区，以及 Claude Code 或 Codex。接力**默认关闭**，且是**实验性**功能（见下面的细节）。
+
+1. **开启**，只做一次：
+
+   ```text
+   ccx config set relay.enabled true
+   ccx sync --only hooks --apply
+   ```
+
+2. **Claude Code 撞到额度上限时，你只做一件事：停掉旧会话**（以及它自带的自动恢复等待）。不用敲命令：钩子已经存好了交接包和一个通知文件 `.ccx/relay/<id>.notification.json`，里面有包 id 和第 3 步要用的完整命令。如果通知写的是“可能只是限速”，也可以选择等一等。没有目标的包不能接续：自己运行 `ccx relay capture --session-id SESSION_ID --goal "要完成什么"`。
+
+3. **到另一家继续**，包 id 取自通知文件：
+
+   ```text
+   ccx relay continue PACKET_ID --to codex --budget-seconds 300 --old-stopped --launch
+   ```
+
+   可以先不带 `--launch`，只预览 prompt，不启动模型。`--old-stopped` 表示你已经做完第 2 步。Codex → Claude 用 `--to claude`，但只覆盖 ccx 自己启动的 Codex 会话（`ccx run` / `ccx delegate --to codex`）；你自己打开的 Codex 会话不在覆盖范围内。
+
+另一家的新会话开场还会多打印一行，提示有未处理的包和这条命令（#523）；它不会自己接续。
+
+## 细节
+
+下面是完整说明。三步改写没有删任何一条，只是挪了位置。
+
 证据等级：**engineering check**，只有假 CLI 检查和 Claude 已捕获事件回放。
 默认 `[relay] enabled = false`。现有派活判定、JSON 字段、命令和退出码保持不变。
 本功能保存交接包，再由显式命令在另一家启动新主导；不透明接管已打开的终端或桌面会话。
 
-## 保存与接续
+### 保存与接续
 
 在 Git 工作区运行，`SESSION_ID` 换成源会话 id：
 
@@ -55,12 +82,12 @@ prompt 要求新主导先检查半成品和运行相关检查，再编辑；这�
 新主导输出显式限额拒绝时，即使退出码为零，也会保存新的交接和通知；不会自动启动另一家。
 持久包声明禁止同一包重复启动，工作区级锁阻止不同包同时启动。锁记录 PID 和时间，失效锁必须先人工核对孤儿进程；启动进程失败会释放两把锁。启动前检查同 Git 工作区（含子目录）的已知 ccx 运行 PID。没有 ccx 记录的原生进程及自动恢复状态仍为 Unknown；`--old-stopped` 是必需的用户声明，不能证明所有写入者已停止。外部强杀监督器可能留下 CLI；没有 watchdog，也不自动恢复。
 
-## 新会话开场提示未处理的接力包（#523）
+### 新会话开场提示未处理的接力包（#523）
 
 `relay.enabled = true` 时，原来就在跑 `ccx mem delta` 的开场钩子（Claude Code 和 Codex 两边）会多补一行纯文本：本工作区里有一个来自**另一家**的包，状态是 `quota_stopped`、`rate_limit_unconfirmed` 或 `captured`，且还没有 `<包号>.continue-*.json` 运行记录。这行写明包号、一句话目标和 `ccx relay continue ...` 命令，并提醒先确认旧会话已停、先问用户。它只看不做：不会继续也不会启动，所以“旧会话已停”的声明和用户的同意都和以前一样。接力关闭、没有包、或包来自同一家时，钩子不多输出任何内容。
 已按 hooks 文档核对（2026-11-26，Claude Code 2.1.316、codex-cli 0.164.0）：两边 SessionStart 钩子的纯文本 stdout 都会进上下文（JSON 形式是 `hookSpecificOutput.additionalContext`；ccx 沿用纯文本，和其他开场行一致，Codex 一侧由 `hook_text` 在前面加一行普通文字，免得输出被当成 JSON）。还没有在真实的 Claude→Codex 上录屏（只有假 CLI 测试）。
 
-## 显式 `--check`：由 ccx 自己跑命令作证（#522）
+### 显式 `--check`：由 ccx 自己跑命令作证（#522）
 
 默认：不给 `--check` 就什么都不发生，`verification` 和以前一样是 `not-run`。它在同一个 `relay.enabled` 开关里，没有第二个开关。
 
@@ -75,7 +102,7 @@ ccx relay continue PACKET_ID --to codex --budget-seconds 300 --old-stopped --lau
 * `--check-timeout-seconds`（默认 900）限制命令时长（Windows 上 `shell` 命令的挂死孙进程可能比超时活得久：共用检查运行器的已知限制，另行跟踪）。无论子进程是什么状态（正常退出、`no_changes`、到时间预算被停）都会跑，因为它评判的是工作区而不是子进程；监督进程自己被中断时不跑。不带 `--launch` 的准备只显示检查，不执行。
 * 子进程因额度停下后写出的下一个交接包会带着实际跑过的那条检查。运行期间记录写 `state=checking`，被中断则写 `check_interrupted`。
 
-## Codex → Claude：只覆盖 ccx 自己启动的 Codex 会话（#525）
+### Codex → Claude：只覆盖 ccx 自己启动的 Codex 会话（#525）
 
 2026-11-26 用 codex-cli **0.164.0**（`codex --version`、`codex exec --help`，没有运行模型）对照 [Codex hooks 文档](https://learn.chatgpt.com/docs/hooks) 核对：文档列出的事件有 `SessionStart`、`SessionEnd`、`SubagentStart/Stop`、`PreToolUse`、`PermissionRequest`、`PostToolUse`、`PreModelRequest`、`PostModelRequest`、`PreCompact`、`PostCompact`、`UserPromptSubmit`、`Stop`、`Interrupt`，**没有额度类事件**（没有 `StopFailure`，也没有 quota / rate limit 的事件或 matcher）。所以用户自己在应用或终端里开的 Codex 会话，ccx 收不到任何信号：**不覆盖**，ccx 也不装 Codex 额度钩子。
 
@@ -83,7 +110,7 @@ ccx relay continue PACKET_ID --to codex --budget-seconds 300 --old-stopped --lau
 
 真实形状：拒绝**文案**是实录（codex-cli 0.164.0 自己的日志，2026-11-25：`You've hit your usage limit. Visit https://chatgpt.com/settings/usage to purchase more credits or try again at <时间>.`），出现在 `error` 或 `turn.failed` 外层里就能识别（测试里的两种外层都是我们自己构造的）。`exec --json` 包在外面的 JSON **没有抓到**（文档只写了 `error`、`turn.failed` 事件名，没写字段）：真实拒绝录到之前记 **Unknown**，录到后替换合成样本。
 
-## 信号与原生功能重叠
+### 信号与原生功能重叠
 
 `ccx/quota_signals.py` 优先识别已知用量窗口被拒绝、显式 `usage_limit_reached` 或错误包中的明确额度文案。
 StopFailure 和被拒绝的 rate_limit_event 缺少这些证据时保留 `rate_limit_unconfirmed`；
@@ -97,7 +124,7 @@ StopFailure 和被拒绝的 rate_limit_event 缺少这些证据时保留 `rate_l
 * [Claude settings 官方文档](https://code.claude.com/docs/en/settings-reference#autocontinueatusagelimit)：原生 `autoContinueAtUsageLimit` 等待同一账号恢复后自动继续，默认 true，要求 2.1.234 起。它与等待/恢复重叠，不提供跨厂商接力。ccx 不修改此设置；换家前需停止原生等待，避免双写。本轮抓取的官方页面未找到准确的 `quota_auto_resume_*` Notification matcher 名称，记 **Unknown**。
 * [Codex 非交互模式官方文档](https://learn.chatgpt.com/docs/non-interactive-mode)：`codex exec --json` 可给独立监督器提供事件。抓取的 [Codex hooks 文档](https://learn.chatgpt.com/docs/hooks) 未确认对应的限额 StopFailure 钩子，记 **Unknown**；不安装 Codex 限额钩子。
 
-## 桌面一分钟检查（2026-11-05，待本人验证）
+### 桌面一分钟检查（2026-11-05，待本人验证）
 
 1. 在一次性 Git 项目按上文开启并同步钩子。桌面 Code 标签页不支持 `/hooks`，用下面两种办法之一检查注册：(a) 在终端运行交互式 `claude`，输入 `/hooks`；(b) 直接看 `~/.claude/settings.json` 里的 `hooks.StopFailure`（ccx 写入的是 `~/.claude/settings.json`，Windows 上是 `%USERPROFILE%\.claude\settings.json`；桌面 app 是否读取同一个文件没有单独验证）。两种办法都要确认有 matcher `rate_limit` → `ccx relay capture --hook`。如果桌面会话没触发钩子，先重开会话再试。
 2. 若正常使用的会话已经自然限额，发一个无害请求，查看 `.ccx/relay/*.notification.json` 是否新增，检查包里的桌面会话、HEAD 和脏文件。尚未限额时只检查钩子可见性，实际事件投递仍为 **Unknown**，不要为了验证耗尽额度。
