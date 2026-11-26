@@ -43,7 +43,7 @@ class TestRelayHint(Env):
         self.enable()
         pid = self.capture("claude")
         out = self.delta("codex")
-        self.assertEqual(out.count(pid), 1, out)
+        self.assertEqual(out.count("unfinished relay " + pid), 1, out)   # the command line carries the id too
         self.assertIn("finish parser", out)
         self.assertIn("ccx relay continue " + pid + " --to codex", out)
         self.assertIn("old session is stopped", out)       # the confirmation stays

@@ -102,7 +102,8 @@ def _quota_events(p: Paths, row: dict) -> tuple[bool, bool, bool]:
 
 
 def build(p: Paths, day: str | None = None, tz: timezone | None = None, include_evals: bool = False,
-          now: float | None = None, quota_events: bool = False, quota_workspaces=(), quota_split: str | None = None) -> dict:
+          now: float | None = None, quota_events: bool = False, quota_workspaces=(), quota_split: str | None = None,
+          real_use: bool = False) -> dict:
     day = resolve_day(day, tz, now)
     all_rows = ledger.rows(p)
     by_id = ledger.runs_by_id(all_rows)
@@ -174,11 +175,47 @@ def build(p: Paths, day: str | None = None, tz: timezone | None = None, include_
         elif r.get("type") == "dismiss" and r["run_id"] in gone:   # judged again later: no longer "counts neither way"
             flagged.append({**base, "what": "dismissed", "why": r.get("note") or ""})
     out["flagged"] = flagged
+    if real_use:                # opt-in (#541): receipts, re-judgements and the running count of comparable runs
+        out["real_use"] = _real_use(all_rows, runs, hard, day, tz)
     if quota_events:            # opt-in: decision 3 of the eval-rule decisions (#411); the default page is unchanged
         from . import daily_quota
         out["quota_events"] = daily_quota.build(p, day, tz, time.time() if now is None else now,
                                                 quota_workspaces, quota_split, include_evals)
     return out
+
+
+COMPARABLE_TARGET = 20          # #541: the bar is a number of comparable real delegations, not a number of days
+
+
+def _real_use(all_rows: list[dict], runs: list[dict], hard: dict[str, dict], day: str, tz: timezone | None) -> dict:
+    """The #541 extras for one day, from ledger rows only. `receipts`: `relay_check` rows written that day (the
+    check ccx ran after a relay continue). `rejudged`: runs of the day whose hard verdicts flipped (right then wrong
+    or the other way), counted by every verdict on record. `comparable`: real-use runs up to the end of that day
+    (not evaluation, review or internal, not still running), and how many of those carry a hard verdict."""
+    checks = [r for r in all_rows if r.get("type") == "relay_check" and _valid_ts(r.get("ts")) and _day_of(r["ts"], tz) == day]
+    receipts = {k: sum(r.get("verification") == k for r in checks) for k in ("pass", "fail", "broken")}
+    receipts["other"] = len(checks) - sum(receipts.values())
+    receipts["total"] = len(checks)
+    seq: dict[str, list[bool]] = {}
+    for r in all_rows:
+        if (r.get("type") == "verify" and not r.get("soft") and r.get("run_id")
+                and _valid_ts(r.get("ts")) and _day_of(r["ts"], tz) <= day):      # as of the end of that day
+            seq.setdefault(r["run_id"], []).append(bool(r.get("ok")))
+    ids = {x.get("run_id") for x in runs}
+    flips = {rid: sum(a != b for a, b in zip(v, v[1:])) for rid, v in seq.items() if rid in ids}
+    cum = judged = 0
+    for r in all_rows:
+        if r.get("type") or not _valid_ts(r.get("ts")) or _day_of(r["ts"], tz) > day:
+            continue
+        label = str(r.get("label") or "")
+        if ledger.is_eval(r) or label.startswith("review:") or r.get("ephemeral") or label.startswith(INTERNAL):
+            continue
+        if r.get("status") == "running" or r.get("state") == "running":
+            continue
+        cum += 1
+        judged += r.get("run_id") in seq
+    return {"receipts": receipts, "rejudged_runs": sum(1 for n in flips.values() if n), "rejudged_flips": sum(flips.values()),
+            "comparable": cum, "comparable_judged": judged, "target": COMPARABLE_TARGET}
 
 
 def _row(name: str, g: dict) -> str:
@@ -228,6 +265,14 @@ def render(d: dict) -> str:
         L += [f"| {f['run_id']} | {f['project']} | {f['to'] or '?'} | {f['what']} | {(f['why'] or '-').replace('|', '/')} |"
               for f in d["flagged"]]
         L.append("")
+    if "real_use" in d:
+        ru, rc, n = d["real_use"], d["real_use"]["receipts"], d["total"]["runs"]
+        L += ["## 真实使用补充（--real-use）", "",
+              f"- 接力回执（接力结束后 ccx 自己跑的 --check，按回执当天算）：共 {rc['total']} 次；通过 {rc['pass']}、失败 {rc['fail']}、"
+              f"没法测 {rc['broken']}" + (f"、其他 {rc['other']}" if rc["other"] else "") + "。接上没有的逐条判定见 `--quota-events`",
+              f"- 改判：当天的 {n} 次派活里，判定来回改过的 {ru['rejudged_runs']} 次（共改 {ru['rejudged_flips']} 回；只算人或组长的判定）",
+              f"- 累计可比的真实派活（截至当天，已排除评测、审查、内部运行和还在跑的）：{ru['comparable']}/{ru['target']}"
+              f"，其中带人判定的 {ru['comparable_judged']}。验收按这个数，不按天数", ""]
     if "quota_events" in d:
         from . import daily_quota
         L += daily_quota.render(d["quota_events"])
@@ -240,8 +285,8 @@ def render(d: dict) -> str:
 
 def write(p: Paths, day: str | None = None, out: Path | None = None, tz: timezone | None = None,
           include_evals: bool = False, now: float | None = None, quota_events: bool = False,
-          quota_workspaces=(), quota_split: str | None = None) -> dict:
-    d = build(p, day, tz, include_evals, now, quota_events, quota_workspaces, quota_split)
+          quota_workspaces=(), quota_split: str | None = None, real_use: bool = False) -> dict:
+    d = build(p, day, tz, include_evals, now, quota_events, quota_workspaces, quota_split, real_use)
     md = render(d)
     path = out or p.state / "daily" / f"{d['day']}.md"
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -250,6 +295,8 @@ def write(p: Paths, day: str | None = None, out: Path | None = None, tz: timezon
     t = d["total"]
     res = {"daily": str(path), "day": d["day"], "runs": t["runs"], "right": t["right"], "failed": t["failed"],
            "unverified": t["unverified"], "markdown": md}
+    if "real_use" in d:
+        res["real_use"] = d["real_use"]
     if "quota_events" in d:
         res["quota_events"] = d["quota_events"]
     return res

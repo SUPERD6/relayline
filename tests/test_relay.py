@@ -381,6 +381,42 @@ class TestRelay(Env):
         self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
         self.assertEqual(json.loads(settings.read_text(encoding="utf-8"))["hooks"]["StopFailure"], [other])
 
+    def test_lead_capture_per_skill_gives_hook_packet_a_goal_521(self):
+        """The skill tells the lead to capture at start and at milestones; the hook packet then has a goal."""
+        skill = (Path(__file__).resolve().parent.parent / "skills" / "agent-delegate" / "SKILL.md").read_text(
+            encoding="utf-8")
+        for needle in ("relay.enabled", "ccx relay capture --session-id", "--goal", "--progress", "--next-step",
+                       "CLAUDE_CODE_SESSION_ID"):
+            self.assertIn(needle, skill)
+        event = {"hook_event_name": "StopFailure", "error": "rate_limit", "session_id": "lead-521",
+                 "cwd": str(self.work)}
+        # Without the lead's capture the packet goal stays Unknown and continue is refused (unchanged behaviour).
+        self.enable()
+        bare = json.loads(self.ccx("relay", "capture", "--hook", stdin=json.dumps(event)).stdout)["relay"]["packet"]
+        refused = self.ccx("relay", "continue", bare, "--to", "codex", "--budget-seconds", "30", "--old-stopped",
+                           "--launch", "--force-unconfirmed")
+        self.assertEqual(refused.returncode, 3)
+        self.assertIn("goal is Unknown", refused.stdout + refused.stderr)
+        self.assertFalse((self.work / "relay-fake-call.json").exists())
+        # Start of work, then a milestone: the later capture replaces the earlier one for this session.
+        for goal, progress in (("parse config files", "not started"), ("parse config files", "parser half done")):
+            r = self.ccx("relay", "capture", "--session-id", "lead-521", "--goal", goal, "--progress", progress,
+                         "--next-step", "run parser tests")
+            self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        result = self.ccx("relay", "capture", "--hook", stdin=json.dumps(event))
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        packet_id = json.loads(result.stdout)["relay"]["packet"]
+        packet = json.loads((self.work / ".ccx" / "relay" / (packet_id + ".json")).read_text(encoding="utf-8"))
+        text = json.dumps(packet)
+        self.assertIn("parse config files", text)
+        self.assertIn("parser half done", text)
+        self.assertNotIn("not started", text)
+        launched = self.ccx("relay", "continue", packet_id, "--to", "codex", "--budget-seconds", "30",
+                            "--old-stopped", "--launch", "--force-unconfirmed")
+        self.assertEqual(launched.returncode, 0, launched.stdout + launched.stderr)
+        call = json.loads((self.work / "relay-fake-call.json").read_text(encoding="utf-8"))
+        self.assertIn("parse config files", call["prompt"])
+
     def test_unknown_goal_and_moved_head_refuse_launch(self):
         self.enable()
         r = self.ccx("relay", "capture")
@@ -533,6 +569,81 @@ class TestRelay(Env):
                       ("--check", "python -V", "--check-timeout-seconds", "nan")):
             r = self.ccx("relay", "continue", packet, "--to", "codex", "--budget-seconds", "30", "--old-stopped", *extra)
             self.assertEqual(r.returncode, 3, r.stdout)
+
+    # ---- #524: relay accounting, one ledger row per side ------------------------------------------------------------
+
+    def _usage_rows(self):
+        f = Paths(self.hub).ledger
+        rows = [json.loads(x) for x in f.read_text(encoding="utf-8").splitlines()] if f.exists() else []
+        return {r["side"]: r for r in rows if r.get("type") == "relay_usage"}
+
+    def test_launch_writes_new_lead_usage_and_unknown_old_side_524(self):
+        self.enable()
+        packet = self.capture()
+        r = self.ccx("relay", "continue", packet, "--to", "codex", "--budget-seconds", "30", "--old-stopped",
+                     "--launch", env={"FAKE_RELAY_USAGE": "1"})
+        out = json.loads(r.stdout)
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertEqual(out["usage_ledger"], {"new": "known", "old": "Unknown"})
+        rows = self._usage_rows()
+        self.assertEqual((rows["new"]["agent"], rows["new"]["packet"]), ("codex", packet))
+        self.assertEqual(rows["new"]["usage4"]["input_tokens"], 600)         # 1000 input, 400 of it cached
+        self.assertEqual(rows["new"]["usage4"]["cached_input_tokens"], 400)
+        self.assertEqual(rows["new"]["usage4"]["output_tokens"], 50)
+        self.assertEqual((rows["old"]["agent"], rows["old"]["usage"]), ("claude", "Unknown"))
+        self.assertNotIn("usage4", rows["old"])                               # no estimate
+        self.assertTrue(rows["old"]["reason"])
+
+    def test_no_usage_in_output_is_unknown_not_a_number_524(self):
+        self.enable()
+        packet = self.capture()
+        out = json.loads(self._launch(packet).stdout)                         # the fake prints turn.completed, no usage
+        self.assertEqual(out["usage_ledger"], {"new": "Unknown", "old": "Unknown"})
+        new = self._usage_rows()["new"]
+        self.assertEqual(new["usage"], "Unknown")
+        self.assertNotIn("usage4", new)
+        self.assertNotIn("quota_units", new)
+
+    def test_old_lead_usage_is_read_when_the_session_is_known_524(self):
+        from ccx import relay_usage
+        packet = {"source": "claude", "source_session": "abc", "captured_at": "2026-11-20T10:00:00Z"}
+        fake = {"usage": {"input_tokens": 5, "cache_write_tokens": 0, "cached_input_tokens": 0, "output_tokens": 7},
+                "model": "m", "messages": 2}
+        with patch("ccx.usage.window_usage", return_value=fake) as w:
+            usage, model, why = relay_usage.old_lead_usage(packet)
+        self.assertEqual((usage["output_tokens"], model, why), (7, "m", ""))
+        self.assertEqual(w.call_args.args[0], "claude")
+        self.assertEqual(w.call_args.args[4], "abc")
+        with patch("ccx.usage.window_usage", return_value={**fake, "messages": 0}):
+            self.assertIsNone(relay_usage.old_lead_usage(packet)[0])          # session not found: Unknown
+        self.assertIsNone(relay_usage.old_lead_usage({**packet, "source_session": "Unknown"})[0])
+
+    def test_report_lists_both_sides_and_keeps_unknown_524(self):
+        self.enable()
+        self.assertEqual(json.loads(self.ccx("relay", "continue", self.capture(), "--to", "codex",
+                                             "--budget-seconds", "30", "--old-stopped", "--launch",
+                                             env={"FAKE_RELAY_USAGE": "1"}).stdout)["state"], "exited")
+        self.assertEqual(json.loads(self._launch(self.capture()).stdout)["usage_ledger"]["new"], "Unknown")
+        r = self.ccx("report", "--no-lead")
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        relay = {(g["agent"], g["side"]): g for g in json.loads(r.stdout)["relay"]}
+        self.assertEqual(set(relay), {("codex", "new"), ("claude", "old")})
+        self.assertEqual((relay["codex", "new"]["rows"], relay["codex", "new"]["known"],
+                          relay["codex", "new"]["unknown"], relay["codex", "new"]["tokens"]), (2, 1, 1, 1050))
+        self.assertEqual((relay["claude", "old"]["known"], relay["claude", "old"]["tokens"]), (0, "Unknown"))
+        html = Path(json.loads(r.stdout)["report"]).read_text(encoding="utf-8")
+        self.assertIn("Relay", html)
+        self.assertIn("old lead (before relay)", html)
+
+    def test_relay_summary_counts_a_relaunched_packet_once_per_side_524(self):
+        from ccx.report import relay_summary
+        u = {"input_tokens": 10, "cache_write_tokens": 0, "cached_input_tokens": 0, "output_tokens": 5}
+        rows = [{"packet": "p", "side": "old", "agent": "claude", "ts": 1, "usage4": u},
+                {"packet": "p", "side": "old", "agent": "claude", "ts": 2, "usage4": u},
+                {"packet": "p", "side": "new", "agent": "codex", "ts": 2, "usage": "Unknown"}]
+        g = {(x["agent"], x["side"]): x for x in relay_summary({"relay_usage": rows})}
+        self.assertEqual((g["claude", "old"]["rows"], g["claude", "old"]["tokens"]), (1, 15))
+        self.assertEqual((g["codex", "new"]["tokens"], "quota_units" in g["codex", "new"]), ("Unknown", False))
 
     def test_budget_interrupt_kills_child_tree_without_a_clock_race(self):
         self.enable()

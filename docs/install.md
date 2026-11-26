@@ -191,6 +191,7 @@ ccx show <run_id> --wait [SECONDS]    # block until it (and a review fix round) 
 ccx stats [--summary]                 # per agent × tier; --summary: spend first, then a labelled saving estimate, cache share
 ccx report [--days 30] [--publish]    # offline one-file dashboard; --publish commits it to your private repo
 ccx report --daily [DAY] [--tz +08:00]     # one Markdown page for a day of real use (default today): delegations, right/failed/unverified, spend, wall clock, quota events, runs you marked wrong; read-only, written to <hub>/ccx/daily/DAY.md
+ccx report --daily [DAY] --real-use   # add relay-check receipts, re-judged runs and the running count of comparable real delegations toward 20 (#541)
 ccx report --daily [DAY] --quota-events [--quota-workspace DIR] [--quota-split DAY]   # add the quota-event section (decision 3 of the eval-rule decisions): events since 2026-11-19, verdict per event, summary
 ccx ui [--project DIR] [--no-open] [--export FILE]   # live page on 127.0.0.1 (never calls a model; writes only yes/no on suggested notes)
 ccx demo [--no-open] [--keep] [--export FILE]       # the same page on made-up data in a temp folder: no account, offline

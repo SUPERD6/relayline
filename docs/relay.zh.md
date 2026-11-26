@@ -17,6 +17,7 @@ ccx relay capture --session-id SESSION_ID --goal "完成解析器" --progress "�
 ```
 
 `capture` 按会话保存上下文供后续钩子读取。请在有意义的进展后更新；不从私有对话记录提取目标和进度。
+`relay.enabled=true` 时，`agent-delegate` 技能会让主导在开工和每个里程碑处自己运行 `capture`（#521），`--session-id` 用它自己的会话 id（`CLAUDE_CODE_SESSION_ID`；钩子按事件里的 `session_id` 找上下文），这样钩子产生的包里就有目标，不用人手敲；relay 关着时技能什么都不做，也不读私有对话记录。
 Claude 的 `StopFailure` 钩子使用 matcher `rate_limit`，执行 `ccx relay capture --hook`。
 交接包和 `.notification.json` 通知原子写入工作区 `.ccx/relay/`。
 包内有 `captured_at`（UTC ISO 8601，固定格式 `YYYY-MM-DDTHH:MM:SSZ`，即 capture 开始的时间，早于 Git 快照；旧包没有该字段，照常读取）。语义随保存者而异：`StopFailure` 钩子触发时近似额度事件时间（误差几秒）；手动 `ccx relay capture` 是人执行命令的时间；接续者撞限后再保存的交接包是接续者结束之后的时间。按“事件后 N 小时内接续”这类时限评判时，先按 `source` / `quota_signal.source` 区分再用、显式目标、进度、下一步、源会话、Git HEAD、有上限的暂存与未暂存 diffstat、未提交文件清单和接手命令，不存全文 diff。
@@ -45,7 +46,9 @@ ccx 命令退出码为 2。记录中的 `exit_code` 仍指子进程，所以可�
 `--permission-prompts none` 也会自动拒绝需要询问的工具。没有显式 `--check` 时交接包没有可信的检查命令，有也
 不增加 `--allowedTools` 授权。Claude 提示词说明原生编辑权限及 Bash/PowerShell/测试可能被拒绝，
 要求无法检查时报告具体被拒绝的命令，并将测试标为 `not-run`。
-预算必填，必须是有限正数，单位为**墙钟秒数**，不是美元上限。此新主导路径的美元记账和封顶 **Unknown / 尚未实现**；不单独约束原生子任务花费。
+预算必填，必须是有限正数，单位为**墙钟秒数**，不是美元上限。此新主导路径的美元记账和封顶 **Unknown / 尚未实现**；token 用量会记账（见下一段，#524）；不单独约束原生子任务花费。
+
+**用量账本（#524）。** `--launch` 的子进程结束后，ccx 往 hub 账本追加两行 `relay_usage`（汇总运行的统计会跳过它们）：`side: new` 是新主导，`side: old` 是旧主导。新主导那行取 CLI 自己在 stdout 里打印的用量（Claude 的 `result` 事件、Codex 的 `turn.completed`），换算方式与子 agent 运行相同。旧主导那行从它自己的会话文件读，只有接力包写明会话 id 时才读（截至交接时刻往前 7 天；更长的会话会被截断，所以该行带 `window_days`，是下限）。读不到的写 `usage: "Unknown"` 并带 `reason`，不估算；写账本失败只会在记录里显示 `usage_ledger: failed: …`。`ccx report` 按 agent 分两边列出（`summary.json` 的 `relay`，看板里一张卡片）；同一个包启动两次时每边只算最后一行；不并入总计，因为主导的轮次本来就从各 CLI 的会话文件统计了。
 准备和启动前都检查暂存与未暂存 diffstat、HEAD 和当前状态。HEAD 变化时需人工核对后重新 capture。未提交修改有变化时交给新主导检查，绝不 reset。
 prompt 要求新主导先检查半成品和运行相关检查，再编辑；这不能证明模型遵守，`verification` 仍为 `not-run`，除非 ccx 自己跑了显式给的 `--check`。
 监督器保存 argv、prompt、PID、退出码和 stdout/stderr 日志；到时终止子进程树并保留半成品。

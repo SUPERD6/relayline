@@ -242,6 +242,26 @@ class TestDaily(Env):
         self.assertNotEqual(self.ccx("report", "--daily", "2026-11-10", "--publish").returncode, 0)
         self.assertNotEqual(self.ccx("report", "--tz", "UTC").returncode, 0)
 
+    def test_real_use_is_off_by_default_and_counts_receipts_flips_and_comparable(self):
+        chk = lambda v, day="2026-11-10": {"type": "relay_check", "ts": ts(day, 14), "verification": v}
+        self.put(run("a"), run("b"), run("c", status="running", ok=None), run("old", day="2026-11-09"),
+                 run("e", label="eval-x"), run("r", label="review:a"), run("z", day="2026-11-12"),
+                 verify("a", True, hh=13), verify("a", False, hh=14), verify("b", True), verify("b", True, hh=15),
+                 verify("old", True, day="2026-11-09"), chk("pass"), chk("fail"), chk("broken"), chk("pass", "2026-11-11"))
+        self.assertNotIn("real_use", self.build())
+        ru = self.build(real_use=True)["real_use"]
+        self.assertEqual(ru["receipts"], {"pass": 1, "fail": 1, "broken": 1, "other": 0, "total": 3})
+        self.assertEqual((ru["rejudged_runs"], ru["rejudged_flips"]), (1, 1))
+        self.assertEqual((ru["comparable"], ru["comparable_judged"], ru["target"]), (3, 3, 20))   # old, a, b; not c/e/r/z
+        md = daily.render(self.build(real_use=True))
+        self.assertIn("3/20", md)
+        self.assertNotIn("--real-use", daily.render(self.build()))
+
+    def test_cli_real_use_only_with_daily(self):
+        self.put(run("a"))
+        self.assertNotEqual(self.ccx("report", "--real-use").returncode, 0)
+        self.assertEqual(self.ccx("report", "--daily", "2026-11-10", "--tz", "UTC", "--real-use").returncode, 0)
+
     def test_read_only_on_the_ledger(self):
         self.put(run("a"))
         before = self.p.ledger.read_bytes()
