@@ -228,6 +228,7 @@ See [how to reproduce it](https://github.com/SUPERD6/relayline/blob/main/docs/in
 |---|---|
 | [What it does, and how](https://github.com/SUPERD6/relayline/blob/main/docs/features.md) the seven things (grouped differently from the eight layers) in detail, `ccx ui`, one example end to end, where shared things live, tiers, safety |
 | [Install and commands](https://github.com/SUPERD6/relayline/blob/main/docs/install.md) | install from a clone, plugging in your own setup, every command |
+| [Advanced](https://github.com/SUPERD6/relayline/blob/main/docs/advanced.md) | every command and config switch on one page, each labelled measured / experimental / measured, not recommended |
 | [Measured](https://github.com/SUPERD6/relayline/blob/main/docs/measured.md) | all measurements with their limits (the hold-out run, the round-5 comparison, the best-case feature A/Bs), how a saving is estimated, external facts checked |
 | [Public benchmark](https://github.com/SUPERD6/relayline/blob/main/bench/README.md) | the hold-out and dev tasks, hidden tests and our result rows: re-run the comparison yourself |
 | [Shared work context](https://github.com/SUPERD6/relayline/blob/main/docs/shared-context.md) · [The board](https://github.com/SUPERD6/relayline/blob/main/docs/board.md) | what open sessions share with each other, and how |
