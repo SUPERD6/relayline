@@ -240,9 +240,13 @@ def cmd_mem(a) -> int:
             return 0          # sub-agents get the notes their task is about in the brief (I6), not memory deltas
         from ..lead_slim import minimal_context_on
         if not getattr(a, "full", False) and minimal_context_on(p):
-            if p.snapshot_external:
-                from ..sync import minimal_memory_block
-                print(hook_text(minimal_memory_block(), a.as_))
+            from ..relay_hint import pending_line
+            from ..sync import minimal_memory_block
+            slim = [minimal_memory_block() if p.snapshot_external else "", pending_line(Path.cwd(), _lead_as(a.as_), p)]
+            if any(slim):
+                print(hook_text("
+
+".join(x for x in slim if x), a.as_))
             if not a.peek:
                 from ..startup_maintenance import maintain
                 maintain(p)
@@ -309,6 +313,9 @@ def cmd_mem(a) -> int:
                 parts.append(say("hint_projects", p, n=n))
         except Exception:  # noqa: BLE001 — never break session start
             pass
+        hints(parts, a.as_)
+        from ..relay_hint import pending_line          # #523: an unfinished relay packet waits (relay.enabled only)
+        parts.append(pending_line(Path.cwd(), me, p))
         out = "\n\n".join(x for x in parts if x)
         hints(parts, a.as_)
         if out:
