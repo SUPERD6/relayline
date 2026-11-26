@@ -75,4 +75,6 @@ Checked on 2026-11-05: `claude --version` / `claude --help` = **2.1.316**; `code
 
 2026-11-10: a simulated StopFailure event fed to the hook command (stdin) wrote `.ccx/relay/*.notification.json` (state `rate_limit_unconfirmed`). Desktop hook execution on a real usage limit and notification visibility are still **Unknown**. This check can verify hook registration immediately; actual rate-limit delivery needs an already limited session and is not promised within one minute.
 
+When a real quota event happens, record it with the [event log template and steps](quota-event-log.md); "the hook did not fire" is a normal outcome there (native auto-continue may have taken over).
+
 To disable: `ccx config set relay.enabled false`, then `ccx sync --only hooks --apply`. A stale installed capture hook is also a silent no-op while disabled. Uninstall removes only ccx's relay handler and preserves other handlers.
