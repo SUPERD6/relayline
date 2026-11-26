@@ -16,6 +16,31 @@ from .relay_lock import WorkspaceLock, known_writers
 from .runners import bin_argv, kill_tree, without_launcher_vars
 
 
+def capture_from_run(cwd: Path, source: str, session: str, stdout_text: str, goal: str, cfg: dict) -> dict | None:
+    """A session ccx itself started (`ccx delegate`/`run` to Codex) ended on a confirmed quota refusal in its
+    `exec --json` events: save a packet so `ccx relay continue --to claude` can pick the work up (#525).
+    Off unless relay.enabled; only a confirmed quota counts (not rate_limit_unconfirmed, auth, capacity); never
+    raises, so a relay problem cannot fail the delegation. Codex sessions the person starts themselves have no
+    hook and are not covered. Returns the notice, or None."""
+    try:
+        if not relay_enabled(cfg):
+            return None
+        evidence = quota_signals.identify(stdout_text)
+        if evidence.get("kind") != "quota":
+            return None
+        try:
+            root = state.root(cwd, timeout=2)
+        except (OSError, ValueError, subprocess.SubprocessError):
+            root = cwd
+        path, packet = state.capture(root, source, session or "Unknown", evidence, {"goal": goal},
+                                     command_timeout=2, total_timeout=6)
+        packet_notice = state.notice(packet)
+        state.atomic_json(path.with_suffix(".notification.json"), packet_notice)
+        return packet_notice
+    except Exception:  # noqa: BLE001 — best effort
+        return None
+
+
 def require_enabled(cfg: dict) -> None:
     if not relay_enabled(cfg):
         raise ValueError("experimental relay is disabled; set relay.enabled true explicitly")

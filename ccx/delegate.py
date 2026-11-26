@@ -1128,6 +1128,16 @@ def run(req: Request, p: Paths) -> dict:
                 prompt, session = first_prompt, None      # fresh session on the other agent
                 i += 1
                 continue
+        if oc.kind == "quota" and cli == "codex":
+            try:                       # #525: no fallback took it, so keep a relay packet for `ccx relay continue`
+                from . import relay
+                notice = relay.capture_from_run(cwd, "codex", oc.session_id or session or "", so,
+                                                req.user_task or req.brief, cfg)
+                if notice:
+                    record["relay"] = notice
+                    _write_record(run_dir, record)
+            except Exception:  # noqa: BLE001
+                pass
         if oc.kind == "model" and swaps < 2:
             # this account can't use the model: remember it, move to the cheapest usable model at least as able.
             # Fresh session (the failed one holds nothing), and drop later rungs on the same model.
@@ -1711,6 +1721,8 @@ def compact(record: dict) -> dict:
         out["quota_fallback"] = record["quota_fallback"]
     if record.get("quota_stop"):
         out["quota_stop"] = record["quota_stop"]
+    if record.get("relay"):
+        out["relay"] = record["relay"]
     if record.get("capacity_recovery"):
         out["capacity_recovery"] = record["capacity_recovery"]
     atts = record["attempts"]
