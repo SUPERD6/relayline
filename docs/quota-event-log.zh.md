@@ -22,22 +22,21 @@
 
 按顺序做，每步只做一件事。不要为了测这个故意耗尽额度。
 
-1. 保持录屏，先别关会话窗口。记下第一次看到限额提示的时钟时间。
+1. 如果在录屏就保持录屏（没录就算了，对应字段写 Unknown）。先别关会话窗口。记下第一次看到限额提示的时钟时间。
 2. 在项目目录打开终端，运行 `claude --version`，再运行 `codex --version`，把两行抄进记录。
-3. 运行 `git status`，把输出抄进记录。
+3. 运行 `git status`，把输出抄进记录（先去掉个人路径和用户名）。
 4. 运行 `dir .ccx\relay`（macOS/Linux 用 `ls .ccx/relay`），把文件名和时间抄进记录；目录不存在或没有新文件就写“无新文件”。
 5. 如果有 `*.notification.json`，打开最新的一个，只抄 `state` 和提示文字那几行，不抄整个文件。
 6. 按上面说的查原生 auto-continue 设置，写下查到的结果。
-7. 判定结果 A、B 或 C。A：用 `ccx relay continue PACKET_ID --to codex --budget-seconds 300 --old-stopped` 继续
-   （见 [relay.zh.md](relay.zh.md)），再跑任务需要的检查，写下回执；C：开一个 GitHub bug issue，链接这份记录，并写明当时
+7. 判定结果 A、B 或 C。A：先停掉旧会话、它的子任务和原生 auto-resume 等待（只有你能确认；`--old-stopped` 就是你声明已停）。`PACKET_ID` 取 `.ccx/relay/` 里最新接力包的文件名去掉后缀（以 [relay.zh.md](relay.zh.md) 里的命名为准核对）。通知里 `state` 是 `quota_stopped` 时运行 `ccx relay continue PACKET_ID --to codex --budget-seconds 300 --old-stopped`（这条只准备，真要启动 Codex 再加 `--launch`）；`state` 是 `rate_limit_unconfirmed` 时不要强行继续，按 [relay.zh.md](relay.zh.md) 先检查。之后跑任务需要的检查，写下回执；C：开一个 GitHub bug issue，链接这份记录，并写明当时
    auto-continue 开没开。
-8. 把填好的记录存为 `.ccx/relay/events/<日期>-quota-event.md`（本地文件，`.ccx/` 不进 Git）。录屏放在旁边，或记下存放位置。
+8. 没有 `.ccx/relay/events/` 目录就先建，把填好的记录存为 `<日期>-quota-event.md`（本地文件，`.ccx/` 不进 Git）。录屏放在旁边，或记下存放位置。
 
 ## 不能放进仓库（也不能放进 issue/PR）的东西
 
 - 私人对话内容、提示词、会话记录，以及不公开的任务内容。
 - 凭据：API key、token、`auth.json`、cookie，`~/.claude`、`~/.codex` 下除了读到的那一个设置值以外的任何内容。
-- 个人路径、用户名、邮箱。用 `<user>`、`<project>` 代替。
+- 个人路径、用户名、邮箱，包括贴进去的 `git status` 和 `dir` 输出里的。用 `<user>`、`<project>` 代替。
 - 录屏本身。留在本地，只写文件名。
 - 完整的接力包文件：里面有文件名和 diffstat，只抄模板里点名的字段。
 

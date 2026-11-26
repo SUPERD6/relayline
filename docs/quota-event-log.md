@@ -23,17 +23,16 @@ you could check. If none can be checked, write Unknown and leave the outcome as 
 
 Do these in order, one thing per step. Do not exhaust quota on purpose to test this.
 
-1. Keep recording. Do not close the session window yet. Note the clock time you first saw the limit message.
+1. If you are recording, keep recording (no recording: fine, write Unknown). Do not close the session window yet. Note the clock time you first saw the limit message.
 2. Open a terminal in the project folder and run `claude --version`, then `codex --version`. Copy both lines into the log.
-3. Run `git status` and copy the output into the log.
+3. Run `git status` and copy the output into the log (replace personal paths and user names first).
 4. Run `dir .ccx\relay` (macOS/Linux: `ls .ccx/relay`) and copy the file names and times into the log. If the folder does not
    exist or has nothing new, write "no new files".
 5. If a `*.notification.json` exists, open the newest one and copy its `state` and message lines (not the whole file).
 6. Check the native auto-continue setting as described above and write what you found.
-7. Decide the outcome (A, B or C). If A, continue with `ccx relay continue PACKET_ID --to codex --budget-seconds 300 --old-stopped`
-   (see [relay.md](relay.md)), then run the checks the task needs and write the receipt line. If C, open a GitHub bug issue
+7. Decide the outcome (A, B or C). If A: first stop the old session, its child tasks and its native auto-resume wait (you are the only one who can; `--old-stopped` is your statement that you did). `PACKET_ID` is the newest packet file name in `.ccx/relay/` without its suffix (check the name against [relay.md](relay.md)). If the notification `state` is `quota_stopped`, run `ccx relay continue PACKET_ID --to codex --budget-seconds 300 --old-stopped` (this only prepares; add `--launch` to actually start Codex). If `state` is `rate_limit_unconfirmed`, do not force it: inspect it as described in [relay.md](relay.md). Afterwards run the checks the task needs and write the receipt line. If C, open a GitHub bug issue
    that links this log and states whether auto-continue was on.
-8. Save the filled log as `.ccx/relay/events/<date>-quota-event.md` (local; `.ccx/` is not committed). Save the recording next to
+8. Create the folder `.ccx/relay/events/` if missing and save the filled log there as `<date>-quota-event.md` (local; `.ccx/` is not committed). Save the recording next to
    it or note where it is.
 
 ## What must not go into the repository (or any issue/PR)
@@ -41,7 +40,7 @@ Do these in order, one thing per step. Do not exhaust quota on purpose to test t
 - Private conversation text, prompts, transcripts and task content that is not public.
 - Credentials: API keys, tokens, `auth.json`, cookies, anything under `~/.claude` or `~/.codex` other than the single
   setting value you read.
-- Personal paths, user names and email addresses. Replace them with `<user>` or `<project>`.
+- Personal paths, user names and email addresses, including inside the pasted `git status` and `dir` output. Replace them with `<user>` or `<project>`.
 - The recording itself. Keep it local; refer to it only by file name.
 - Full packet files: they list file names and diffstats. Copy only the fields named in the template.
 
