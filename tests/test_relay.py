@@ -381,6 +381,42 @@ class TestRelay(Env):
         self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
         self.assertEqual(json.loads(settings.read_text(encoding="utf-8"))["hooks"]["StopFailure"], [other])
 
+    def test_lead_capture_per_skill_gives_hook_packet_a_goal_521(self):
+        """The skill tells the lead to capture at start and at milestones; the hook packet then has a goal."""
+        skill = (Path(__file__).resolve().parent.parent / "skills" / "agent-delegate" / "SKILL.md").read_text(
+            encoding="utf-8")
+        for needle in ("relay.enabled", "ccx relay capture --session-id", "--goal", "--progress", "--next-step",
+                       "CLAUDE_CODE_SESSION_ID"):
+            self.assertIn(needle, skill)
+        event = {"hook_event_name": "StopFailure", "error": "rate_limit", "session_id": "lead-521",
+                 "cwd": str(self.work)}
+        # Without the lead's capture the packet goal stays Unknown and continue is refused (unchanged behaviour).
+        self.enable()
+        bare = json.loads(self.ccx("relay", "capture", "--hook", stdin=json.dumps(event)).stdout)["relay"]["packet"]
+        refused = self.ccx("relay", "continue", bare, "--to", "codex", "--budget-seconds", "30", "--old-stopped",
+                           "--launch", "--force-unconfirmed")
+        self.assertEqual(refused.returncode, 3)
+        self.assertIn("goal is Unknown", refused.stdout + refused.stderr)
+        self.assertFalse((self.work / "relay-fake-call.json").exists())
+        # Start of work, then a milestone: the later capture replaces the earlier one for this session.
+        for goal, progress in (("parse config files", "not started"), ("parse config files", "parser half done")):
+            r = self.ccx("relay", "capture", "--session-id", "lead-521", "--goal", goal, "--progress", progress,
+                         "--next-step", "run parser tests")
+            self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        result = self.ccx("relay", "capture", "--hook", stdin=json.dumps(event))
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        packet_id = json.loads(result.stdout)["relay"]["packet"]
+        packet = json.loads((self.work / ".ccx" / "relay" / (packet_id + ".json")).read_text(encoding="utf-8"))
+        text = json.dumps(packet)
+        self.assertIn("parse config files", text)
+        self.assertIn("parser half done", text)
+        self.assertNotIn("not started", text)
+        launched = self.ccx("relay", "continue", packet_id, "--to", "codex", "--budget-seconds", "30",
+                            "--old-stopped", "--launch", "--force-unconfirmed")
+        self.assertEqual(launched.returncode, 0, launched.stdout + launched.stderr)
+        call = json.loads((self.work / "relay-fake-call.json").read_text(encoding="utf-8"))
+        self.assertIn("parse config files", call["prompt"])
+
     def test_unknown_goal_and_moved_head_refuse_launch(self):
         self.enable()
         r = self.ccx("relay", "capture")
