@@ -89,7 +89,7 @@ linked closed issues.
 | Formal round-2 spend so far | $0 (dry-runs only) | — | [#529](https://github.com/SUPERD6/relayline/issues/529), [STATUS](STATUS.md) |
 | Real lead re-read per request (cache read, median) | **225,389** tokens; input total median 228,362; p25 152,060, p75 358,902, p90 545,958; 40,242 requests, 706 sessions, 2026-10-23 to 11-25; weekly medians 151k–284k; this repo's main directory median 304,944 | 352k (one week in October) | [#532](https://github.com/SUPERD6/relayline/issues/532) |
 | Install-but-not-used overhead (lead's first request) | ≈ 710 tokens fresh default install (600–1,310), ≈ 470 on the maintainer's machine; 0.31% / 0.21% of 225k; worst case ≈ 1,700 = 0.75% (estimate, ±30%) | — | [#531](https://github.com/SUPERD6/relayline/issues/531) |
-| Delegation cost split (26 units, estimate) | lead handover 22.7% of cost / 5.2% of time; work 37.3% / 62.5%; check and review 3.3% / 13.9%; repair or escalation 36.7% / 18.0% | — | [#530](https://github.com/SUPERD6/relayline/issues/530) |
+| Delegation cost split (26 units, estimate) | lead handover 22.7% of cost / 5.2% of time; work 37.3% / 62.5%; check and review 3.3% / 13.9%; repair or escalation 36.7% / 18.0%. Fixed overhead (handover + sub-agent start + check/review) is only about 19.5% of wall time; serial slowness comes mainly from the sub-agent redoing the work and re-checking, not from handover, and the cost shares are pulled by a few escalation events | — | [#530](https://github.com/SUPERD6/relayline/issues/530) |
 | Daily A/B samples (10% of delegable tasks done alone) | 0 | — | [#532](https://github.com/SUPERD6/relayline/issues/532) |
 
 **Why $182 was wrong.** It appears in no repository file and the ledger cannot reproduce it. The repository only
@@ -102,7 +102,7 @@ token, $237.44, which is not a bill). Neither equals $182; the $17 step from $16
 median is lower and moves from week to week, so the diagnostic now fills the lead to a **main tier of about 225k**
 (median re-read) with an optional heavy tier of about 360k (p75 of total input), and reports the weekly spread. The
 provisional "install overhead ≤ 1% of the median request" bar becomes ≈ 2,250 tokens instead of ≈ 3,500; the measured
-overhead still passes it. A fresh evaluation session re-reads roughly 10–30k, so the baseline-bias claim (the "do it
+overhead still passes it, but only against real lead contexts: in a thin 11–25k evaluation context the same ≈ 470–710 tokens exceed 1%, so every floor comparison must say so up front. A fresh evaluation session re-reads roughly 10–30k, so the baseline-bias claim (the "do it
 alone" arm of every earlier evaluation was far cheaper than real use) holds, by roughly an order of magnitude. Limits:
 one machine, one user, and the window starts on 2026-10-23, so the week behind 352k cannot be recomputed; Codex-led
 sessions were not recomputed (Unknown).
