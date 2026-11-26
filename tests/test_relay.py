@@ -385,7 +385,8 @@ class TestRelay(Env):
         """The skill tells the lead to capture at start and at milestones; the hook packet then has a goal."""
         skill = (Path(__file__).resolve().parent.parent / "skills" / "agent-delegate" / "SKILL.md").read_text(
             encoding="utf-8")
-        for needle in ("relay.enabled", "ccx relay capture --session-id", "--goal", "--progress", "--next-step"):
+        for needle in ("relay.enabled", "ccx relay capture --session-id", "--goal", "--progress", "--next-step",
+                       "CLAUDE_CODE_SESSION_ID"):
             self.assertIn(needle, skill)
         event = {"hook_event_name": "StopFailure", "error": "rate_limit", "session_id": "lead-521",
                  "cwd": str(self.work)}
@@ -395,6 +396,7 @@ class TestRelay(Env):
         refused = self.ccx("relay", "continue", bare, "--to", "codex", "--budget-seconds", "30", "--old-stopped",
                            "--launch", "--force-unconfirmed")
         self.assertEqual(refused.returncode, 3)
+        self.assertIn("goal is Unknown", refused.stdout + refused.stderr)
         self.assertFalse((self.work / "relay-fake-call.json").exists())
         # Start of work, then a milestone: the later capture replaces the earlier one for this session.
         for goal, progress in (("parse config files", "not started"), ("parse config files", "parser half done")):

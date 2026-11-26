@@ -17,7 +17,7 @@ ccx relay capture --session-id SESSION_ID --goal "完成解析器" --progress "�
 ```
 
 `capture` 按会话保存上下文供后续钩子读取。请在有意义的进展后更新；不从私有对话记录提取目标和进度。
-`relay.enabled=true` 时，`agent-delegate` 技能会让主导在开工和每个里程碑处自己运行 `capture`（#521），这样钩子产生的包里就有目标，不用人手敲；relay 关着时技能什么都不做，也不读私有对话记录。
+`relay.enabled=true` 时，`agent-delegate` 技能会让主导在开工和每个里程碑处自己运行 `capture`（#521），`--session-id` 用它自己的会话 id（`CLAUDE_CODE_SESSION_ID`；钩子按事件里的 `session_id` 找上下文），这样钩子产生的包里就有目标，不用人手敲；relay 关着时技能什么都不做，也不读私有对话记录。
 Claude 的 `StopFailure` 钩子使用 matcher `rate_limit`，执行 `ccx relay capture --hook`。
 交接包和 `.notification.json` 通知原子写入工作区 `.ccx/relay/`。
 包内有 `captured_at`（UTC ISO 8601，固定格式 `YYYY-MM-DDTHH:MM:SSZ`，即 capture 开始的时间，早于 Git 快照；旧包没有该字段，照常读取）。语义随保存者而异：`StopFailure` 钩子触发时近似额度事件时间（误差几秒）；手动 `ccx relay capture` 是人执行命令的时间；接续者撞限后再保存的交接包是接续者结束之后的时间。按“事件后 N 小时内接续”这类时限评判时，先按 `source` / `quota_signal.source` 区分再用、显式目标、进度、下一步、源会话、Git HEAD、有上限的暂存与未暂存 diffstat、未提交文件清单和接手命令，不存全文 diff。
