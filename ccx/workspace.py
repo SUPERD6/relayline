@@ -392,11 +392,25 @@ def missing_test_paths(cmd: str, cwd: Path) -> list[dict]:
     return out
 
 
+def _reap(proc) -> None:
+    try:
+        proc.wait(timeout=5)
+    except subprocess.TimeoutExpired:
+        pass
+    for pipe in (proc.stdout, proc.stderr):
+        try:
+            pipe and pipe.close()
+        except OSError:
+            pass
+
+
 def _run_tree(*popen_args, timeout: float, capture_output: bool = True, **kwargs) -> subprocess.CompletedProcess:
     """subprocess.run that, on timeout, kills the whole process tree (#571). subprocess.run kills only the child; with
     shell=True on Windows that is cmd.exe, and communicate() then waits for the real command to end by itself.
     The child gets its own process group (runners.group_flags) so kill_tree can stop it and everything under it.
-    Raises TimeoutExpired carrying the output collected so far, like subprocess.run."""
+    Raises TimeoutExpired carrying the output collected so far, like subprocess.run. Known limit: a process that
+    left the tree (on Windows an orphan whose parent already exited; on POSIX one that called setsid) is not killed,
+    and if it holds the pipes the partial output is dropped (None)."""
     from .runners import group_flags, kill_tree
 
     assert capture_output
@@ -409,10 +423,12 @@ def _run_tree(*popen_args, timeout: float, capture_output: bool = True, **kwargs
             out, err = proc.communicate(timeout=5)
         except subprocess.TimeoutExpired:          # something outside the tree still holds the pipes
             proc.kill()
+            _reap(proc)
             out, err = None, None
         raise subprocess.TimeoutExpired(proc.args, timeout, output=out, stderr=err) from None
     except BaseException:                          # e.g. Ctrl-C: the new group no longer shares our terminal
         kill_tree(proc.pid)
+        _reap(proc)
         raise
     return subprocess.CompletedProcess(proc.args, proc.returncode, out, err)
 
