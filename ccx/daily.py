@@ -198,9 +198,10 @@ def _real_use(all_rows: list[dict], runs: list[dict], hard: dict[str, dict], day
     receipts["total"] = len(checks)
     seq: dict[str, list[bool]] = {}
     for r in all_rows:
-        if r.get("type") == "verify" and not r.get("soft") and r.get("run_id"):
+        if (r.get("type") == "verify" and not r.get("soft") and r.get("run_id")
+                and _valid_ts(r.get("ts")) and _day_of(r["ts"], tz) <= day):      # as of the end of that day
             seq.setdefault(r["run_id"], []).append(bool(r.get("ok")))
-    ids = {r.get("run_id") for r in runs}
+    ids = {x.get("run_id") for x in runs}
     flips = {rid: sum(a != b for a, b in zip(v, v[1:])) for rid, v in seq.items() if rid in ids}
     cum = judged = 0
     for r in all_rows:
@@ -212,7 +213,7 @@ def _real_use(all_rows: list[dict], runs: list[dict], hard: dict[str, dict], day
         if r.get("status") == "running" or r.get("state") == "running":
             continue
         cum += 1
-        judged += r.get("run_id") in hard
+        judged += r.get("run_id") in seq
     return {"receipts": receipts, "rejudged_runs": sum(1 for n in flips.values() if n), "rejudged_flips": sum(flips.values()),
             "comparable": cum, "comparable_judged": judged, "target": COMPARABLE_TARGET}
 
