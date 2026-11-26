@@ -10,6 +10,7 @@ import pytest
 from test_adapters import AdapterEnv
 from ccx import check_baseline as baseline
 from ccx.config import Paths, load_config
+from ccx import workspace
 from ccx.workspace import run_check
 
 
@@ -281,7 +282,7 @@ def test_real_pytest_summary_is_identified(tmp_path, monkeypatch):
 def test_timeout_keeps_partial_logs(tmp_path, monkeypatch):
     def timeout(*args, **kwargs):
         raise subprocess.TimeoutExpired("check", 2, output=b"partial stdout", stderr=b"partial stderr")
-    monkeypatch.setattr(subprocess, "run", timeout)
+    monkeypatch.setattr(workspace, "_run_tree", timeout)
     check = run_check("check", tmp_path, 2, log_dir=tmp_path)
     assert check["exit"] == -1 and check["failed_cases"] is None
     assert Path(check["stdout_path"]).read_text() == "partial stdout"
