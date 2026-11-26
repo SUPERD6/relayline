@@ -74,4 +74,6 @@ StopFailure 和被拒绝的 rate_limit_event 缺少这些证据时保留 `rate_l
 
 2026-11-10 已用模拟的 StopFailure 事件（经 stdin 喂给钩子命令）验证能写出 `.ccx/relay/*.notification.json`（状态 `rate_limit_unconfirmed`）；真实限额时桌面是否触发钩子、提示是否可见仍为 **Unknown**。一分钟可核对注册；实际限额事件需要已限额会话，不能承诺一分钟内验证。
 
+真实额度事件发生时，按[事件登记模板和步骤](quota-event-log.zh.md)存证据；“钩子没触发”也是正常结果之一（可能是原生 auto-continue 接管了）。
+
 关闭方法：`ccx config set relay.enabled false`，再 `ccx sync --only hooks --apply`。关闭时遗留 capture 钩子静默无操作。uninstall 只移除 ccx 的接力 handler，保留其他 handler。
