@@ -147,6 +147,7 @@ ccx show <run_id> --wait [秒数]     # 等它（连同审查后的修改轮）�
 ccx stats [--summary]               # 按 agent×级别统计；--summary 先给花费，再给带标签的节省估算、缓存占比
 ccx report [--days 30] [--publish]  # 看板网页（离线单文件）；--publish 提交到你的私有用量仓库
 ccx report --daily [日期] [--tz +08:00]  # 某一天（默认今天）真实使用的一页 Markdown：派活、做对/失败/未验证、花费、墙钟、额度事件、你标错的运行；只读，写到 <hub>/ccx/daily/日期.md
+ccx report --daily [日期] --real-use   # 加上接力回执、改判次数和累计可比真实派活数（对照 20 次门槛，#541）
 ccx report --daily [日期] --quota-events [--quota-workspace DIR] [--quota-split 日期]   # 加上额度事件一节（评测规则决定 3）：2026-11-19 起的事件、逐事件判定、汇总
 ccx ui [--project 文件夹] [--no-open] [--export 文件]   # 本机实时页面（127.0.0.1，不调用模型；只写“建议记下的事”的同意/拒绝）
 ccx demo [--no-open] [--keep] [--export 文件]       # 同一个页面，用临时目录里编好的数据：不用账号，离线可用

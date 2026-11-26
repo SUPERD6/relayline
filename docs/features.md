@@ -837,6 +837,15 @@ not delegations: they create no run directory or ledger row, and do not enter le
 itself is unchanged. Live limit recovery and the refresh cost still need the lead's next real quota-stop
 check; no improvement in task success or savings has been measured here.
 
+### Real-use extras in the daily page (`ccx report --daily --real-use`, #541)
+
+Off by default; without the option the page and its JSON are unchanged. It adds a `real_use` object and a section, read
+from the ledger only: the relay-check receipts written that day (`relay_check` rows: pass / fail / broken), how many of
+that day's delegations had their hard verdict (`ccx verify`) flipped, and the running count of comparable real
+delegations up to that day (not evaluation, review or internal runs, not still running; how many carry a person's
+verdict) against the bar of 20 from #541. Whether a relay was picked up is judged per event by `--quota-events`; the two
+options can be combined. The bar counts samples, not days.
+
 ### Quota events in the daily page (`ccx report --daily --quota-events`, #480)
 
 Off by default; without the option the page and its JSON are unchanged. It applies decision 3 of

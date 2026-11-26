@@ -19,10 +19,12 @@ def cmd_report(a) -> int:
             raise ValueError("--publish publishes the dashboard and cannot be combined with --daily")
         _out(daily.write(p, a.daily or None, Path(a.out) if a.out else None, daily.parse_tz(a.tz),
                          include_evals=a.include_evals, quota_events=a.quota_events,
-                         quota_workspaces=a.quota_workspace or (), quota_split=a.quota_split))
+                         quota_workspaces=a.quota_workspace or (), quota_split=a.quota_split, real_use=a.real_use))
         return 0
     if a.tz:
         raise ValueError("--tz only goes with --daily")
+    if a.real_use:
+        raise ValueError("--real-use only goes with --daily")
     if a.quota_events or a.quota_workspace or a.quota_split:
         raise ValueError("--quota-events, --quota-workspace and --quota-split only go with --daily")
     res = report.write(p, days=a.days, out=Path(a.out) if a.out else None, include_lead=not a.no_lead,
@@ -558,6 +560,8 @@ def register(sub) -> None:
                     "packets in DIR/.ccx/relay (repeatable; workspaces of ledger runs are read already)")
     rp.add_argument("--quota-split", metavar="DAY", help="with --quota-events: split the events at DAY (first period "
                     "before it, second from it) to check the two-period rule for quoting numbers")
+    rp.add_argument("--real-use", action="store_true", help="with --daily: add receipts of relay checks, re-judged runs and "
+                    "the running count of comparable real delegations toward 20 (#541; off by default)")
     rp.set_defaults(fn=cmd_report)
     cf = sub.add_parser("config", help="settings, e.g. the save/fast knob: ccx config set defaults.tradeoff 0.3")
     cfs = cf.add_subparsers(dest="config_cmd", required=True)
