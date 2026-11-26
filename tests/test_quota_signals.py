@@ -44,8 +44,7 @@ def test_codex_usage_limit_wording_from_the_cli_log_in_both_error_envelopes():
     # Wording captured from codex-cli 0.164.0's own log (2026-11-25); the exec --json envelope is not captured (#525).
     assert identify({"type": "error", "message": REAL_CODEX_TEXT})["kind"] == "quota"
     assert identify({"type": "turn.failed", "error": {"message": REAL_CODEX_TEXT}})["kind"] == "quota"
-    stream = "
-".join(json.dumps(e) for e in ({"type": "turn.started"}, {"type": "error", "message": REAL_CODEX_TEXT},
+    stream = "\n".join(json.dumps(e) for e in ({"type": "turn.started"}, {"type": "error", "message": REAL_CODEX_TEXT},
                                               {"type": "turn.failed", "error": {"message": REAL_CODEX_TEXT}}))
     assert identify(stream)["kind"] == "quota"
     # the same sentence in ordinary assistant prose is not a refusal
