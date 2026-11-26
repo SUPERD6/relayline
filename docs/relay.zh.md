@@ -75,13 +75,21 @@ ccx relay continue PACKET_ID --to codex --budget-seconds 300 --old-stopped --lau
 * `--check-timeout-seconds`（默认 900）限制命令时长（Windows 上 `shell` 命令的挂死孙进程可能比超时活得久：共用检查运行器的已知限制，另行跟踪）。无论子进程是什么状态（正常退出、`no_changes`、到时间预算被停）都会跑，因为它评判的是工作区而不是子进程；监督进程自己被中断时不跑。不带 `--launch` 的准备只显示检查，不执行。
 * 子进程因额度停下后写出的下一个交接包会带着实际跑过的那条检查。运行期间记录写 `state=checking`，被中断则写 `check_interrupted`。
 
+## Codex → Claude：只覆盖 ccx 自己启动的 Codex 会话（#525）
+
+2026-11-26 用 codex-cli **0.164.0**（`codex --version`、`codex exec --help`，没有运行模型）对照 [Codex hooks 文档](https://learn.chatgpt.com/docs/hooks) 核对：文档列出的事件有 `SessionStart`、`SessionEnd`、`SubagentStart/Stop`、`PreToolUse`、`PermissionRequest`、`PostToolUse`、`PreModelRequest`、`PostModelRequest`、`PreCompact`、`PostCompact`、`UserPromptSubmit`、`Stop`、`Interrupt`，**没有额度类事件**（没有 `StopFailure`，也没有 quota / rate limit 的事件或 matcher）。所以用户自己在应用或终端里开的 Codex 会话，ccx 收不到任何信号：**不覆盖**，ccx 也不装 Codex 额度钩子。
+
+覆盖的是 **ccx 自己启动**的 Codex 会话（`ccx run` / `ccx delegate --to codex`；不含 Codex CLI 上的 DeepSeek，也不含一次性的 `ask`/审查运行）：ccx 读它的 `codex exec --json` 事件；运行以确认的额度拒绝收尾、且没有改派给别家时（`ccx run` 能改派 Claude 时会自己改派，所以实际是 `--no-fallback` 或没有别的可用 agent），存一个接力包（`source: codex`，目标取原任务、没有就取简报，状态 `quota_stopped`）和通知，结果里带 `relay` 字段与 `ccx relay continue PACKET --to claude ...` 命令。只有 `relay.enabled` 打开才做；只认确认的额度（不算容量、认证、未确认的限速）；不会自己启动 Claude；这一步出错也不会让委派失败。用 `--worktree` 时包存在那个 worktree 的 `.ccx/relay` 里，要在那里执行接续命令。`ccx relay continue --launch` 启动的子进程撞额度，本来就会存下一个包（见上）。
+
+真实形状：拒绝**文案**是实录（codex-cli 0.164.0 自己的日志，2026-11-25：`You've hit your usage limit. Visit https://chatgpt.com/settings/usage to purchase more credits or try again at <时间>.`），出现在 `error` 或 `turn.failed` 外层里就能识别（测试里的两种外层都是我们自己构造的）。`exec --json` 包在外面的 JSON **没有抓到**（文档只写了 `error`、`turn.failed` 事件名，没写字段）：真实拒绝录到之前记 **Unknown**，录到后替换合成样本。
+
 ## 信号与原生功能重叠
 
 `ccx/quota_signals.py` 优先识别已知用量窗口被拒绝、显式 `usage_limit_reached` 或错误包中的明确额度文案。
 StopFailure 和被拒绝的 rate_limit_event 缺少这些证据时保留 `rate_limit_unconfirmed`；
 仅有重置时间或每分钟请求限制不能证明额度耗尽。认证、网络、账单错误、正常额度读数和任意工具/用户/模型正文
 不算额度耗尽。原派活的历史限额分类逻辑不变。
-`tests/data/real_signals` 中 Claude 样本来自脱敏实录；**Codex 限额样本是合成的**，不是实录。
+`tests/data/real_signals` 中 Claude 样本来自脱敏实录；**Codex 限额样本是合成的**，只有拒绝文案是实录（见上）；`exec --json` 的外层 JSON 仍是 Unknown。
 
 2026-11-05 核对：`claude --version` / `claude --help` 为 **2.1.316**；`codex --version` / `codex exec --help` 为 **0.164.0**。未调用真实模型。
 

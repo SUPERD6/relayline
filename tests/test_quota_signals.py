@@ -36,6 +36,21 @@ def test_negative_controls(sample):
     assert identify(sample)["kind"] != "quota"
 
 
+REAL_CODEX_TEXT = ("You’ve hit your usage limit. Visit https://chatgpt.com/settings/usage to purchase more credits "
+                   "or try again at Dec 2nd, 2026 8:09 AM.")
+
+
+def test_codex_usage_limit_wording_from_the_cli_log_in_both_error_envelopes():
+    # Wording captured from codex-cli 0.164.0's own log (2026-11-25); the exec --json envelope is not captured (#525).
+    assert identify({"type": "error", "message": REAL_CODEX_TEXT})["kind"] == "quota"
+    assert identify({"type": "turn.failed", "error": {"message": REAL_CODEX_TEXT}})["kind"] == "quota"
+    stream = "\n".join(json.dumps(e) for e in ({"type": "turn.started"}, {"type": "error", "message": REAL_CODEX_TEXT},
+                                              {"type": "turn.failed", "error": {"message": REAL_CODEX_TEXT}}))
+    assert identify(stream)["kind"] == "quota"
+    # the same sentence in ordinary assistant prose is not a refusal
+    assert identify({"type": "item.completed", "item": {"type": "agent_message", "text": REAL_CODEX_TEXT}})["kind"] == "unknown"
+
+
 def test_synthetic_codex_and_structured_priority():
     assert identify({"type": "turn.failed", "error": {"code": "usage_limit_reached"}})["kind"] == "quota"
     assert identify({"type": "error", "message": "429 Too Many Requests: usage limit reached"})["kind"] == "quota"

@@ -1,7 +1,7 @@
 """Stand-in for `codex exec` used by tests. Mimics codex-cli 0.163 JSONL events.
 
 FAKE_STATUS: done | blocked | blocked_then_done | policy_then_done | policy | env | env_uac |
-             cmd_1223_then_done | auth | quota | hang
+             cmd_1223_then_done | auth | quota | quota_real | hang
 FAKE_LOG:    file to append argv (json) for assertions
 """
 import json
@@ -80,6 +80,13 @@ if model and model in os.environ.get("FAKE_UNSUPPORTED", "").split(","):
         "type": "invalid_request_error",
         "message": f"The '{model}' model is not supported when using Codex with a ChatGPT account."}})}))
     print(json.dumps({"type": "turn.failed", "error": {"message": "unsupported model"}}))
+    sys.exit(1)
+if mode == "quota_real":
+    # Wording of a real usage-limit refusal (ChatGPT account, codex-cli 0.164.0, 2026-11-25, from the CLI's own log;
+    # reset time made up). The JSON envelope around it is NOT captured: shape taken from the docs, Unknown (#525).
+    text = "You’ve hit your usage limit. Visit https://chatgpt.com/settings/usage to purchase more credits or try again at Dec 2nd, 2026 8:09 AM."
+    print(json.dumps({"type": "error", "message": text}))
+    print(json.dumps({"type": "turn.failed", "error": {"message": text}}))
     sys.exit(1)
 if mode == "quota":
     print(json.dumps({"type": "error", "message": "429 Too Many Requests: usage limit reached, try again at 18:00"}))

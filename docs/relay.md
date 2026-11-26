@@ -87,10 +87,31 @@ ccx relay continue PACKET_ID --to codex --budget-seconds 300 --old-stopped --lau
 * `--check-timeout-seconds` (default 900) bounds the command (on Windows, a hung grandchild process of a `shell` command may outlive the timeout: known limit of the shared check runner, tracked separately). The check runs whatever the child's state was (exited, `no_changes`, budget stop), because it judges the workspace, not the child; it does not run when the supervisor itself was interrupted. Preparation without `--launch` shows the check and runs nothing.
 * A quota-stopped child's next handoff packet carries the check that was actually run forward. While it runs the record says `state=checking`; an interrupt writes `check_interrupted`.
 
+## Codex → Claude: only for Codex sessions ccx started (#525)
+
+Checked on 2026-11-26 with codex-cli **0.164.0** (`codex --version`, `codex exec --help`; no model was run) against the
+[Codex hooks reference](https://learn.chatgpt.com/docs/hooks): it documents `SessionStart`, `SessionEnd`, `SubagentStart/Stop`,
+`PreToolUse`, `PermissionRequest`, `PostToolUse`, `PreModelRequest`, `PostModelRequest`, `PreCompact`, `PostCompact`,
+`UserPromptSubmit`, `Stop` and `Interrupt`, and **nothing for usage limits** (no `StopFailure`, no quota or rate-limit event
+or matcher). So a Codex session the person started in the app or the terminal gives ccx no signal: it is **not covered**,
+and ccx installs no Codex quota hook.
+
+What is covered: a Codex session **ccx itself launches** (`ccx run` / `ccx delegate --to codex`, not DeepSeek on the Codex CLI, not one-shot `ask`/review runs). ccx reads its
+`codex exec --json` events; when the run ends on a confirmed usage-limit refusal and no fallback took the task over (`ccx run` falls back to Claude by itself when it can, so in practice: `--no-fallback`, or no other agent available), it saves
+a relay packet (`source: codex`, goal = the original task, else the brief, state `quota_stopped`) and a notification, and the result carries a
+`relay` field with the `ccx relay continue PACKET --to claude ...` command. Off unless `relay.enabled`; only a confirmed
+quota counts (not capacity, auth or an unconfirmed rate limit); it never launches Claude by itself, and a failure here
+never fails the delegation. With `--worktree` the packet lives in that worktree's `.ccx/relay`: run the continue command there. A `ccx relay continue --launch` child that hits quota already saved its own next packet (above).
+
+Real shape: the wording is **captured** (codex-cli 0.164.0 log, 2026-11-25: `You've hit your usage limit. Visit
+https://chatgpt.com/settings/usage to purchase more credits or try again at <time>.`) and is recognised if it appears in an `error` or
+`turn.failed` envelope (both envelopes in the tests are our own construction). The JSON envelope that `exec --json` wraps around it has **not** been captured (the docs name the `error` and
+`turn.failed` events but no fields): **Unknown** until a real refusal is recorded; then the synthetic samples are replaced.
+
 ## Signals and native overlap
 
 `ccx/quota_signals.py` prioritizes protocol evidence: rejected known usage windows and explicit `usage_limit_reached` or usage-limit wording in error envelopes. StopFailure and rejected rate_limit_event signals without that evidence remain `rate_limit_unconfirmed`; a reset time or requests-per-minute limit alone does not confirm exhausted quota. Authentication/transport/billing errors, normal usage readings and arbitrary tool/user/model prose do not count as quota. Existing delegation quota classification remains unchanged.
-Claude fixtures in `tests/data/real_signals` are captured and redacted. **Codex quota samples are synthetic**, not a captured real refusal.
+Claude fixtures in `tests/data/real_signals` are captured and redacted. **Codex quota samples are synthetic** except the refusal wording (captured, see above); the `exec --json` envelope is still Unknown.
 
 Checked on 2026-11-05: `claude --version` / `claude --help` = **2.1.316**; `codex --version` / `codex exec --help` = **0.164.0**. No real model was invoked.
 
