@@ -37,6 +37,9 @@ task: whatever you read is re-read on every later turn. Keep STATUS one page (EN
   current change caused it). Cutting something back means a switch, a default-off option or a "not recommended"
   note in the docs, not deleting the feature; a default changes only after a measured result clears its bar
   (see [docs/engineering-standards.md](docs/engineering-standards.md)).
+- The plan lives in [docs/ROADMAP.md](docs/ROADMAP.md) (tracker issue #528). Every task and phase hand-off goes through an issue or
+  PR; when a result changes the plan, a PR updates `docs/ROADMAP*.md` and adds the reason to its adjustment log; the lead
+  checks the roadmap once at the end of each phase.
 - Every PR made by an agent gets an independent read-only review by a fresh agent that did not write the change;
   the author answers each finding before merging.
 - The lead session keeps a daily digest of the day's changes in `.ccx/reports/daily-digest/<date>.md` (local, not committed).
