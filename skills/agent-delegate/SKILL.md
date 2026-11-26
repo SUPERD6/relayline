@@ -249,12 +249,21 @@ Your own conversation got long (the per-turn hint says so) and the next piece is
 with it. Give `--minutes` for the next work: with `lead.model_by_task` on (the person's setting) `ccx fresh` and
 `ccx handoff` start the new lead on a model by difficulty. Never switch a running conversation's model.
 
-**Quota relay goal (only when `ccx config get relay.enabled` is `true`; default off).** `relay continue` refuses a
-packet whose goal is `Unknown`, and the `StopFailure` hook never reads your private conversation, so the packet has a
-goal only if you registered one. At the start of a piece of work and at each milestone, run
-`ccx relay capture --session-id <your session id> --goal "<one sentence>" --progress "<what is done>" --next-step "<what
-comes next>"`, with the text written by you (not copied from the private transcript). It only saves session-scoped
-context; a later capture in the same session replaces it. With relay off, or in a sub-agent, skip it.
+**Quota relay goal (only when `ccx config get relay.enabled` prints `{"relay.enabled": true}`; default off).**
+`relay continue` refuses a packet whose goal is `Unknown`, and the `StopFailure` hook never reads your private
+conversation, so the packet has a goal only if you registered one. At the start of a piece of work and at each
+milestone, run (one line, all three text arguments every time):
+
+```text
+ccx relay capture --session-id "$CLAUDE_CODE_SESSION_ID" --goal "<one sentence>" --progress "<done so far>" --next-step "<what comes next>"
+```
+
+`--session-id` must be this conversation's own id: the hook looks the context up by the `session_id` in its event,
+so any other value is never found. Claude Code sets it in the environment as `CLAUDE_CODE_SESSION_ID`; if you cannot
+get your own id, skip this and tell the person. Write the text yourself, never copied from the private transcript.
+Each call saves session-scoped context (a later call overwrites fields of the same name) and also writes a manual
+packet plus notification under `.ccx/relay/` (git-ignored; ignore these, the hook's own packet is the one that
+matters). With relay off, or in a sub-agent, skip it.
 
 ## 6. Memory
 
