@@ -19,4 +19,8 @@ if os.environ.get("FAKE_RELAY_QUOTA") == "1":
 if os.environ.get("FAKE_RELAY_UNCONFIRMED") == "1":
     print(json.dumps({"hook_event_name": "StopFailure", "error": "rate_limit"}))
     sys.exit(0)
+if os.environ.get("FAKE_RELAY_USAGE") == "1":    # #524: a CLI that reports its own usage (Codex turn.completed)
+    print(json.dumps({"type": "turn.completed", "usage": {"input_tokens": 1000, "cached_input_tokens": 400,
+                                                          "output_tokens": 50}}))
+    sys.exit(0)
 print(json.dumps({"type": "turn.completed"}))
