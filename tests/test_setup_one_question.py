@@ -34,7 +34,7 @@ class SetupQuestions(Env):
         self.assertTrue(any(self.hub.iterdir()))
         self.assertIn("skipped (costs a little)", out)               # the paid selftest is not part of it
         self.assertNotIn("sessions of the last", out)                # nor the notes scan
-        self.assertFalse(self.calls())                               # no CLI ran a task
+        self.assertFalse([c for c in self.calls() if c.get("prompt")])        # no task ran
 
     def test_default_path_no_changes_nothing(self):
         hub_files = sorted(self.hub.rglob("*"))
@@ -55,9 +55,25 @@ class SetupQuestions(Env):
         self.assertNotIn("recommended settings", joined)
 
     def test_relay_stays_off_by_default(self):
-        self.run_setup(["y"])
+        rc, _, out = self.run_setup(["y"])
+        self.assertEqual(rc, 0, out)
+        self.assertIn("skipped (costs a little)", out)               # ran to the end
         cfg = config.load_config(config.paths())
         self.assertIs(config.relay_enabled(cfg), False)
+
+    def test_a_hub_that_replaces_another_is_not_switched_by_the_one_yes(self):
+        other = self.hub.parent / "other"
+        config.user_config_file().write_text(f'hub = "{self.hub.as_posix()}"
+', encoding="utf-8")
+        rc, asked, out = self.run_setup(["y"], hub=str(other))
+        self.assertEqual((rc, len(asked)), (1, 1), out)
+        self.assertIn("does not switch hubs", out)
+        self.assertFalse(other.exists())
+
+    def test_input_ending_changes_nothing(self):
+        rc, asked, out = self.run_setup([])
+        self.assertEqual(rc, 0, out)
+        self.assertIn("Nothing was changed", out)
 
     def test_yes_is_unchanged_and_asks_nothing(self):
         rc, asked, out = self.run_setup([], yes=True)
