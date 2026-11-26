@@ -63,8 +63,7 @@ class SetupQuestions(Env):
 
     def test_a_hub_that_replaces_another_is_not_switched_by_the_one_yes(self):
         other = self.hub.parent / "other"
-        config.user_config_file().write_text(f'hub = "{self.hub.as_posix()}"
-', encoding="utf-8")
+        config.user_config_file().write_text(f'hub = "{self.hub.as_posix()}"' + chr(10), encoding="utf-8")
         rc, asked, out = self.run_setup(["y"], hub=str(other))
         self.assertEqual((rc, len(asked)), (1, 1), out)
         self.assertIn("does not switch hubs", out)
