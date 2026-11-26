@@ -11,7 +11,7 @@ README 和 `ccx -h` 只给最短的路：安装、`ccx setup`、`ccx run`、`ccx
 | 标签 | 意思 |
 |---|---|
 | **实测** | 这个选项或它的默认值有公开的测量结果，来源已链接或写明 |
-| **实验性** | 已发布、默认关（或没真跑过）；效果是 Unknown，或只测了一部分 |
+| **实验性** | 已发布、默认关，或默认开但没在真实运行里测过；效果是 Unknown，或只测了一部分 |
 | **已测不推荐** | 测过，候选没过门槛（或证据是 Unknown）；留着供复现 |
 | **普通功能** | 日常辅助或管线，不对效果做任何声明 |
 
@@ -47,7 +47,7 @@ Pass / Fail 的说法沿用[功能详解「实验性、已测不推荐」](featu
 | `q` | 项目的工作队列：`add`、`ls`、`tree`、`budget`、`done`、`accept`、`run`、`resume` | 普通功能 |
 | `ui` | 实时页面：`--project`、`--no-open`、`--port`、`--days`、`--export FILE`、`--demo`、`--keep` | 普通功能 |
 | `mem` | 共享记忆：`add`、`verify`、`search`、`stale`、`delta`、`show`、`status`、`compact`、`kinds`、`report`、`suggest`、`suggestions`、`accept`、`reject` | 普通功能 |
-| `handoff` | 把接力棒交给另一个主导；`--from-transcript` 从旧会话文件拼出来 | 普通功能 |
+| `handoff` | 把接力棒交给另一个主导：`--to`（必填）、`--by`、`--file`、`--next`、`--title`、`--from-transcript`（从旧会话文件拼出来；配 `--session`、`--no-model`、`--max-chars`）、`--cwd`；`--minutes`、`--difficulty`、`--risk` 只在开了 `lead.model_by_task` 时有用 | 普通功能 |
 | `lead` | 主导每一轮重读多少：`--breakdown`、`--cache`、`--suggest`、`--hours`、`--limit`、`--session`；`--hint`、`--threshold`、`--as` 给钩子用 | 普通功能 |
 | `demo` | 用虚构数据看 `ccx ui`，不需要账号：`--no-open`、`--port`、`--export`、`--dir`、`--keep` | 普通功能 |
 
@@ -93,7 +93,7 @@ Pass / Fail 的说法沿用[功能详解「实验性、已测不推荐」](featu
 | `agents` | 每个智能体 CLI：厂商、能做什么、测过的版本 | 普通功能 |
 | `ability` | 按任务看模型证据和你的偏好：`show`、`rebuild`、`set 厂商.模型 任务 prefer\|avoid\|clear`、`--json`；只作参考 | 普通功能（偏好暂时不影响路由） |
 | `roles` | 可选的角色分配：`show`、`set`、`unset`、`--cwd`、`--project`、`--ability` | 普通功能；默认为空 |
-| `relay` | 额度接力：`capture` 和 `continue`（`--to`、`--budget-seconds`、`--old-stopped`、`--launch`、`--force-unconfirmed`、`--check`、`--use-packet-check` 等） | 实验性（需主动开启，不做透明接管；见 [relay](relay.zh.md)） |
+| `relay` | 额度接力：`capture` 和 `continue`（`capture`：`--hook`、`--source`、`--session-id`、`--goal`、`--progress`、`--next-step`、`--check`；`continue`：`--to`、`--budget-seconds`、`--old-stopped`、`--launch`、`--force-unconfirmed`、`--check`、`--use-packet-check`、`--check-timeout-seconds`；两者都有：`--cwd`、`--git-timeout-seconds`） | 实验性（需主动开启，不做透明接管；见 [relay](relay.zh.md)） |
 
 ### 维护（`ccx -h --all` 只列名字）
 
@@ -105,8 +105,8 @@ Pass / Fail 的说法沿用[功能详解「实验性、已测不推荐」](featu
 | `batch` | 跑一个计划文件：`--lanes N`、`--merge`、`--no-merge`、`--force`、`--from` | 普通功能；`--merge` 实验性，`--lanes` 已测不推荐当默认 |
 | `route` | 哪个智能体、模型、强度来做，要不要派 | 普通功能 |
 | `propose` | 同上，做成一个让人点头的提议（`--no`、`--stats`、`--days`） | 普通功能 |
-| `way` | 一件事，一到两个做的人：`--with`、`--check`、`--yes`（约两倍花费）、`--dry-run`、`--stats`、`--risk`、`--kind`、`--label`、`--force` | 普通功能 |
-| `discuss` | 多个模型的简短讨论：`--with`、`--rounds`、`--tier`、`--dry-run`、`--confirmed`、`--bg`、`--show`、`--list`、`--context-file` | 普通功能 |
+| `way` | 一件事，一到两个做的人：`--with`、`--check`、`--yes`（约两倍花费）、`--dry-run`、`--stats`、`--days`、`--include-evals`、`--risk`、`--kind`、`--label`、`--brief-file`、`--cwd`、`--from`、`--force` | 普通功能 |
+| `discuss` | 多个模型的简短讨论：`--with`、`--rounds`、`--tier`、`--dry-run`、`--confirmed`、`--bg`、`--show`、`--list`、`--context-file`、`--question-file`、`--cwd`、`--from` | 普通功能 |
 | `turn` | 每轮钩子的那一行：`--as`、`--threshold` | 普通功能 |
 | `sum` | 跑一个命令，只留一个简短摘要：`--kind`、`--max-chars`、`--shell`、`--ask` | 普通功能 |
 | `archive` | 归档已结束的会话：`--older-than`、`--apply`、`--restore` | 普通功能 |
@@ -131,9 +131,9 @@ Pass / Fail 的说法沿用[功能详解「实验性、已测不推荐」](featu
 |---|---|---|
 | 任务 | `brief ...`（或 `--brief-file`、标准输入）、`--user-task-file`、`--label`、`--cwd`、`--project`、`--rules-ok` | 普通功能 |
 | 做什么、在哪做 | `--mode read\|write`、`--worktree`、`--no-worktree`、`--base head\|upstream`、`--new`、`--fork`、`--seat 名字`、`--mcp` | 普通功能 |
-| 验收 | `--check CMD`、`--review auto\|on\|off`、`--namecheck warn\|fail\|off`、`--strict-brief` | `--check`：实测（跑的测试点名了改动代码的检查算“强证据”，七核心 r2）；`--strict-brief` 实验性；其余普通功能 |
+| 验收 | `--check CMD`、`--review auto\|on\|off`、`--namecheck warn\|fail\|off`、`--strict-brief` | `--strict-brief` 实验性；其余普通功能 |
 | 后台 | `--bg`、`--wait 秒` | 普通功能 |
-| 谁来做 | `--to`、`--from`、`--provider`、`--role`、`--model`、`--effort`（只和 `--model` 或 `--provider` 一起才生效）、`--tier T0..T4`、`--tradeoff save\|balanced\|fast\|cheapest`、`--no-escalate`、`--no-fallback` | 默认 `--tradeoff save`：实测（七核心 A/B，PR #30） |
+| 谁来做 | `--to`、`--from`、`--provider`、`--role`、`--model`、`--effort`（只和 `--model` 或 `--provider` 一起才生效）、`--tier T0..T4`、`--tradeoff save\|balanced\|fast\|cheapest`、`--no-escalate`、`--no-fallback` | `--tradeoff save` 是发布的默认值（没有测量把它和其他档位比过）；其余普通功能 |
 | 路由评分表 | `--files`、`--independent-parts`、`--coupling`、`--clarity`、`--risk`、`--novelty`、`--b`、`--minutes`、`--kind` | 普通功能 |
 | 上限 | `--budget 美元`（它自己的子智能体）、`--max-usd 美元`（整次委派）、`--allow-subagents`、`--no-subagents`、`--subagents auto\|off\|N`、`--parallel` | 普通功能 |
 | 上下文 | `--context auto\|on\|off`、`--user-words-file 路径` | `--context` 普通功能；`--user-words-file` 实验性 |
@@ -141,7 +141,7 @@ Pass / Fail 的说法沿用[功能详解「实验性、已测不推荐」](featu
 | 先看看 | `--dry-run`：显示会试哪几档；什么也不跑 | 普通功能 |
 
 上面表里没写的其他命令选项：`ccx q add`（`--brief --dep --parent --check --minutes --mode --kind --to --budget --plan`）、
-`q run`（`--max --once --lanes --gate --from --force --bg`）、`q accept`（`--all-ready --check --dry-run --into-protected`）、
+`q ls`（`--gate --long`）、`q run` 和 `q resume`（`--max --once --lanes --gate --from --force --bg`）、`q accept`（`--all-ready --check --dry-run --into-protected`）、
 `q done`（`--ok --note`）、`verify` 的抽查（`--sweep --after-h --sample --list --days --project --state --include-evals
 --builtin --b --agent-id`）、`route` 和 `propose`（`--lead --ctx-files --ctx-tokens --lead-ctx --turns-left --requests
 --needs --quota`）。都是**普通功能**，详见 `ccx <命令> -h`。
@@ -155,7 +155,7 @@ Pass / Fail 的说法沿用[功能详解「实验性、已测不推荐」](featu
 | 键（默认） | 作用 | 标签 |
 |---|---|---|
 | `routing.mode`（`auto`） | `off`：ccx 不派新活；审查、`ask`、`discuss` 和对话照常。`--force` 可绕过 | 普通功能 |
-| `defaults.tradeoff`（`save`） | `save`、`balanced`、`fast`、`cheapest`，或 0..1 旋钮 | `save`：实测（七核心 A/B，PR #30） |
+| `defaults.tradeoff`（`save`） | `save`、`balanced`、`fast`、`cheapest`，或 0..1 旋钮 | `save` 是发布的默认值（没有测量把它和其他档位比过） |
 | `policy.picked`（空） | 你为所有活选的档位；预先授权这一档会派的活；空 = 先提议 | 普通功能 |
 | `routing.require_ready`（`true`） | 优先已安装且有本地登录证据的 CLI | 普通功能 |
 | `routing.default`（`auto`） | `self_first`：先自己做的派活门（[self-first](self-first.zh.md)） | 实验性（未实测） |
@@ -183,16 +183,16 @@ Pass / Fail 的说法沿用[功能详解「实验性、已测不推荐」](featu
 | `review.tests_model`、`review.tests_effort`（空） | 测试审查员的模型和强度；只在 `mode = "tests"` 时有用 | 已测不推荐（同 `tests`） |
 | `review.contract_diag`（`false`） | 离线契约诊断；不改任何判定（[诊断](review-contract-diag.zh.md)） | 实验性 |
 | `review.skip_when_clean`（`false`）、`review.skip_max_files`（3）、`review.skip_max_lines`（49） | 运行干净时跳过自动审查 | 实验性（效果 Unknown，#427，见[功能详解](features.zh.md)） |
-| `escalate.on_self_checked`（`review`） | `--check` 只在子智能体自己写的测试上通过时：`review`、`rung` 或 `off` | 实测：pg1（30/30 通过、18 道隐藏测试失败）是默认 `review` 的依据 |
+| `escalate.on_self_checked`（`review`） | `--check` 只在子智能体自己写的测试上通过时：`review`、`rung` 或 `off` | 普通功能。默认 `review` 的理由是 pg1 里 check 在全部 18 个隐藏测试失败里都通过；之后 pg3b 回放显示 review 没抓住这些（见[实测](measured.zh.md)），所以不能证明默认值有效 |
 | `check.baseline`（`off`）、`check.sensitivity`（`off`） | 在干净的派活树上重跑失败的检查（`on_fail`）；也比较通过的检查（`warn`、`escalate`）（[check baseline](check-baseline.zh.md)） | 实验性 |
-| `defaults.namecheck`（`warn`；只能改文件） | `--namecheck` 的 `warn`、`fail`、`off` | 实测（见上面的 `namecheck`） |
+| `defaults.namecheck`（`warn`；只能改文件） | `--namecheck` 的 `warn`、`fail`、`off` | `warn` 默认：实测（0 误报，见上面的 `namecheck`）；`fail`：没测（等 r5 前后对比） |
 | `git.auto_stage_resolved`（`false`） | 主机暂存没有冲突标记的已解决路径；从不提交（[git-pending](git-pending.zh.md)） | 实验性 |
 | `security.credential_guard`（`false`）、`security.credential_dirs`（`[]`） | 不让子智能体访问凭据目录（[凭据防护](credential-guard.zh.md)） | 实验性（Claude 是工具拒绝，不是系统级隔离；Codex 是 beta） |
 
 只能改文件的 `[review]` 键，除非点名，都是**普通功能**：`min_lines`（50）、`weak`（`true`）、`weak_daily`（20）、
 `fix_rounds`（1）、`max_diff_chars`（12000）、`by`、`also`、`coverage_rubric`（`true`）。下面都默认关，属于已测不推荐或实验性：
 `fix_rereview = "focus"`（Fail：回放 40 对）、`context = true`（回放：28 次已知 bug 只抓到 11 次，不附时 19 次）、
-`must_needs_repro`（结论未定）、`cache_ttl`（没做 A/B 实测）。
+`must_needs_repro`（结论未定）、`cache_ttl`（没做 A/B 实测）；它们的依据是 `config/tiers.toml` 里的注释，不在功能详解的表里。
 
 ### 上限、时间和会话
 

@@ -12,7 +12,7 @@ kept off the default path. The contents of this page come from `python ccx.py -h
 | Label | Meaning |
 |---|---|
 | **Measured** | the option or its default has a published measurement; the source is linked or named |
-| **Experimental** | shipped, off by default (or not run for real); the effect is Unknown or only partly measured |
+| **Experimental** | shipped, off by default or on without a real-run test (the effect is Unknown or only partly measured) |
 | **Measured, not recommended** | measured, and the candidate did not clear its gate (or the evidence is Unknown); kept for reproduction |
 | **Shipped** | ordinary plumbing or a convenience; no claim about its effect is made |
 
@@ -49,7 +49,7 @@ and [Measured](measured.md). They are historical results on older code, not a te
 | `q` | the project's work queue: `add`, `ls`, `tree`, `budget`, `done`, `accept`, `run`, `resume` | Shipped |
 | `ui` | live page: `--project`, `--no-open`, `--port`, `--days`, `--export FILE`, `--demo`, `--keep` | Shipped |
 | `mem` | shared memory: `add`, `verify`, `search`, `stale`, `delta`, `show`, `status`, `compact`, `kinds`, `report`, `suggest`, `suggestions`, `accept`, `reject` | Shipped |
-| `handoff` | pass the baton to the other lead; `--from-transcript` builds it from the old session file | Shipped |
+| `handoff` | pass the baton to the other lead: `--to` (required), `--by`, `--file`, `--next`, `--title`, `--from-transcript` (builds it from the old session file; with `--session`, `--no-model`, `--max-chars`), `--cwd`; `--minutes`, `--difficulty`, `--risk` only with `lead.model_by_task` | Shipped |
 | `lead` | what each turn of your lead re-reads: `--breakdown`, `--cache`, `--suggest`, `--hours`, `--limit`, `--session`; `--hint`, `--threshold`, `--as` are for hooks | Shipped |
 | `demo` | `ccx ui` on made-up data, no account needed: `--no-open`, `--port`, `--export`, `--dir`, `--keep` | Shipped |
 
@@ -95,7 +95,7 @@ and [Measured](measured.md). They are historical results on older code, not a te
 | `agents` | each agent CLI: vendor, abilities, tested version | Shipped |
 | `ability` | task-specific model evidence and your preferences: `show`, `rebuild`, `set VENDOR.MODEL TASK prefer\|avoid\|clear`, `--json`; advisory only | Shipped (preferences do not steer routing yet) |
 | `roles` | opt-in role assignments: `show`, `set`, `unset`, `--cwd`, `--project`, `--ability` | Shipped; empty by default |
-| `relay` | quota handoff: `capture` and `continue` (`--to`, `--budget-seconds`, `--old-stopped`, `--launch`, `--force-unconfirmed`, `--check`, `--use-packet-check`, ...) | Experimental (opt-in, no transparent takeover; see [relay](relay.md)) |
+| `relay` | quota handoff: `capture` and `continue` (`capture`: `--hook`, `--source`, `--session-id`, `--goal`, `--progress`, `--next-step`, `--check`; `continue`: `--to`, `--budget-seconds`, `--old-stopped`, `--launch`, `--force-unconfirmed`, `--check`, `--use-packet-check`, `--check-timeout-seconds`; both: `--cwd`, `--git-timeout-seconds`) | Experimental (opt-in, no transparent takeover; see [relay](relay.md)) |
 
 ### Maintenance (`ccx -h --all` lists names only)
 
@@ -107,8 +107,8 @@ and [Measured](measured.md). They are historical results on older code, not a te
 | `batch` | run a plan file: `--lanes N`, `--merge`, `--no-merge`, `--force`, `--from` | Shipped; `--merge` Experimental, `--lanes` Measured, not recommended as a default |
 | `route` | which agent, model and effort would take a task, and whether to delegate at all | Shipped |
 | `propose` | the same, as an offer for the person to accept (`--no`, `--stats`, `--days`) | Shipped |
-| `way` | one task, one or two builders: `--with`, `--check`, `--yes` (about twice the cost), `--dry-run`, `--stats`, `--risk`, `--kind`, `--label`, `--force` | Shipped |
-| `discuss` | a short multi-model discussion: `--with`, `--rounds`, `--tier`, `--dry-run`, `--confirmed`, `--bg`, `--show`, `--list`, `--context-file` | Shipped |
+| `way` | one task, one or two builders: `--with`, `--check`, `--yes` (about twice the cost), `--dry-run`, `--stats`, `--days`, `--include-evals`, `--risk`, `--kind`, `--label`, `--brief-file`, `--cwd`, `--from`, `--force` | Shipped |
+| `discuss` | a short multi-model discussion: `--with`, `--rounds`, `--tier`, `--dry-run`, `--confirmed`, `--bg`, `--show`, `--list`, `--context-file`, `--question-file`, `--cwd`, `--from` | Shipped |
 | `turn` | the per-turn hook line: `--as`, `--threshold` | Shipped |
 | `sum` | run a command and keep only a short summary: `--kind`, `--max-chars`, `--shell`, `--ask` | Shipped |
 | `archive` | archive finished sessions: `--older-than`, `--apply`, `--restore` | Shipped |
@@ -133,9 +133,9 @@ Most runs need only the task, `--check` and sometimes `--mode`, `--worktree`, `-
 |---|---|---|
 | Task | `brief ...` (or `--brief-file`, stdin), `--user-task-file`, `--label`, `--cwd`, `--project`, `--rules-ok` | Shipped |
 | What and where | `--mode read\|write`, `--worktree`, `--no-worktree`, `--base head\|upstream`, `--new`, `--fork`, `--seat NAME`, `--mcp` | Shipped |
-| Acceptance | `--check CMD`, `--review auto\|on\|off`, `--namecheck warn\|fail\|off`, `--strict-brief` | `--check`: Measured (a check that runs tests naming the changed code is "strong evidence", 7-core r2); `--strict-brief` Experimental; the rest Shipped |
+| Acceptance | `--check CMD`, `--review auto\|on\|off`, `--namecheck warn\|fail\|off`, `--strict-brief` | `--strict-brief` Experimental; the rest Shipped |
 | Background | `--bg`, `--wait SECONDS` | Shipped |
-| Who | `--to`, `--from`, `--provider`, `--role`, `--model`, `--effort` (only with `--model` or `--provider`), `--tier T0..T4`, `--tradeoff save\|balanced\|fast\|cheapest`, `--no-escalate`, `--no-fallback` | `--tradeoff save` default: Measured (7-core A/B, PR #30) |
+| Who | `--to`, `--from`, `--provider`, `--role`, `--model`, `--effort` (only with `--model` or `--provider`), `--tier T0..T4`, `--tradeoff save\|balanced\|fast\|cheapest`, `--no-escalate`, `--no-fallback` | `--tradeoff save` is the shipped default (no measurement compares it with the other tiers); the rest Shipped |
 | Routing rubric | `--files`, `--independent-parts`, `--coupling`, `--clarity`, `--risk`, `--novelty`, `--b`, `--minutes`, `--kind` | Shipped |
 | Limits | `--budget USD` (its own sub-agents), `--max-usd USD` (the whole delegation), `--allow-subagents`, `--no-subagents`, `--subagents auto\|off\|N`, `--parallel` | Shipped |
 | Context | `--context auto\|on\|off`, `--user-words-file PATH` | `--context` Shipped; `--user-words-file` Experimental |
@@ -143,7 +143,7 @@ Most runs need only the task, `--check` and sometimes `--mode`, `--worktree`, `-
 | Look first | `--dry-run`: the rungs it would try; runs nothing | Shipped |
 
 Other commands' options not in the tables above: `ccx q add` (`--brief --dep --parent --check --minutes --mode --kind --to
---budget --plan`), `q run` (`--max --once --lanes --gate --from --force --bg`), `q accept` (`--all-ready --check --dry-run
+--budget --plan`), `q ls` (`--gate --long`), `q run` and `q resume` (`--max --once --lanes --gate --from --force --bg`), `q accept` (`--all-ready --check --dry-run
 --into-protected`), `q done` (`--ok --note`), `verify` spot checks (`--sweep --after-h --sample --list --days --project
 --state --include-evals --builtin --b --agent-id`), `route` and `propose` (`--lead --ctx-files --ctx-tokens --lead-ctx
 --turns-left --requests --needs --quota`). All are **Shipped**; read `ccx <command> -h`.
@@ -157,7 +157,7 @@ Defaults are the shipped values in `config/tiers.toml`.
 | Key (default) | What it does | Label |
 |---|---|---|
 | `routing.mode` (`auto`) | `off`: ccx delegates no new work; review, `ask`, `discuss` and talk still work. `--force` bypasses | Shipped |
-| `defaults.tradeoff` (`save`) | `save`, `balanced`, `fast`, `cheapest`, or a 0..1 knob | `save`: Measured (7-core A/B, PR #30) |
+| `defaults.tradeoff` (`save`) | `save`, `balanced`, `fast`, `cheapest`, or a 0..1 knob | `save` is the shipped default (no measurement compares it with the other tiers) |
 | `policy.picked` (empty) | the tier you pick for all work; pre-authorises what it delegates; empty offers first | Shipped |
 | `routing.require_ready` (`true`) | prefer installed CLIs with local login evidence | Shipped |
 | `routing.default` (`auto`) | `self_first`: self-first delegation gate ([self-first](self-first.md)) | Experimental (not measured) |
@@ -185,9 +185,9 @@ Defaults are the shipped values in `config/tiers.toml`.
 | `review.tests_model`, `review.tests_effort` (empty) | model and effort of the test reviewer; only with `mode = "tests"` | Measured, not recommended (as `tests`) |
 | `review.contract_diag` (`false`) | offline contract diagnostic; never changes verdicts ([diag](review-contract-diag.md)) | Experimental |
 | `review.skip_when_clean` (`false`), `review.skip_max_files` (3), `review.skip_max_lines` (49) | skip an automatic review when the run is clean | Experimental (effect Unknown, [#427](features.md#experimental-skip-the-review-when-the-run-is-clean-review-skip_when_clean-off-until-measured)) |
-| `escalate.on_self_checked` (`review`) | when `--check` passed only on tests the sub-agent wrote: `review`, `rung` or `off` | Measured: pg1 (30/30 pass, 18 hidden tests failed) is why `review` is the default |
+| `escalate.on_self_checked` (`review`) | when `--check` passed only on tests the sub-agent wrote: `review`, `rung` or `off` | Shipped. `review` is the default because in pg1 the check passed in all 18 hidden-test failures; a later pg3b replay shows review did not catch them ([Measured](measured.md)), so it is not proof the default works |
 | `check.baseline` (`off`), `check.sensitivity` (`off`) | rerun a failed check on the clean dispatch tree (`on_fail`); compare passing checks too (`warn`, `escalate`) ([check baseline](check-baseline.md)) | Experimental |
-| `defaults.namecheck` (`warn`; file only) | `warn`, `fail`, `off` for `--namecheck` | Measured (see `namecheck` above) |
+| `defaults.namecheck` (`warn`; file only) | `warn`, `fail`, `off` for `--namecheck` | `warn` default: Measured (0 false positives, see `namecheck` above); `fail`: not measured (waits for an r5 before/after) |
 | `git.auto_stage_resolved` (`false`) | host stages marker-free resolved conflict paths; never commits ([git-pending](git-pending.md)) | Experimental |
 | `security.credential_guard` (`false`), `security.credential_dirs` (`[]`) | deny credential directories to sub-agents ([credential guard](credential-guard.md)) | Experimental (Claude: tool denies, not OS isolation; Codex: beta) |
 
@@ -195,7 +195,7 @@ The file-only `[review]` keys are **Shipped** unless named: `min_lines` (50), `w
 `fix_rounds` (1), `max_diff_chars` (12000), `by`, `also`, `coverage_rubric` (`true`). Measured, not recommended or
 Experimental, all off: `fix_rereview = "focus"` (Fail: [replay, 40 pairs](features.md#experimental-measured-not-recommended)),
 `context = true` (replay: 11 of 28 known bugs caught, 19 without it), `must_needs_repro` (conclusion open),
-`cache_ttl` (not A/B measured).
+`cache_ttl` (not A/B measured); their evidence is the comments in `config/tiers.toml`, not the Features table.
 
 ### Limits, time and sessions
 
