@@ -249,6 +249,13 @@ Your own conversation got long (the per-turn hint says so) and the next piece is
 with it. Give `--minutes` for the next work: with `lead.model_by_task` on (the person's setting) `ccx fresh` and
 `ccx handoff` start the new lead on a model by difficulty. Never switch a running conversation's model.
 
+**Quota relay goal (only when `ccx config get relay.enabled` is `true`; default off).** `relay continue` refuses a
+packet whose goal is `Unknown`, and the `StopFailure` hook never reads your private conversation, so the packet has a
+goal only if you registered one. At the start of a piece of work and at each milestone, run
+`ccx relay capture --session-id <your session id> --goal "<one sentence>" --progress "<what is done>" --next-step "<what
+comes next>"`, with the text written by you (not copied from the private transcript). It only saves session-scoped
+context; a later capture in the same session replaces it. With relay off, or in a sub-agent, skip it.
+
 ## 6. Memory
 
 Only when memory maintenance is authorized: store a needed durable fact with
