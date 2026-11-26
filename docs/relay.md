@@ -13,7 +13,7 @@ You need a Git workspace and Claude Code or Codex. Relay is **off by default** a
    ccx sync --only hooks --apply
    ```
 
-2. **When Claude Code stops on a usage limit, do one thing: stop the old session** (and its native auto-resume wait). Nothing to type: the hook has already saved a handoff packet and a note, `.ccx/relay/<id>.notification.json`, which holds the packet id and the exact command for step 3. If that note says "may just be a rate limit", you can wait instead. A packet without a goal cannot be continued: run `ccx relay capture --session-id SESSION_ID --goal "what to finish"` yourself.
+2. **When Claude Code stops on a usage limit, do one thing: stop the old session** (and its native auto-resume wait). Nothing to type: the hook has already saved a handoff packet and a note, `.ccx/relay/<id>.notification.json`, which holds the packet id and a command skeleton for step 3 (you fill in `--budget-seconds`, and add `--launch` to actually start). If that note says "may just be a rate limit", you can wait instead; to launch anyway, step 3 also needs `--force-unconfirmed`. A packet without a goal cannot be continued (the `agent-delegate` skill normally records the goal for you): run `ccx relay capture --session-id SESSION_ID --goal "what to finish"` yourself, which saves a **new** packet, and use its id in step 3.
 
 3. **Continue in the other tool**, with the packet id from the note:
 
@@ -21,7 +21,7 @@ You need a Git workspace and Claude Code or Codex. Relay is **off by default** a
    ccx relay continue PACKET_ID --to codex --budget-seconds 300 --old-stopped --launch
    ```
 
-   Leave out `--launch` first to only preview the prompt, with no model started. `--old-stopped` says you did step 2. Codex → Claude uses `--to claude`, but only for a Codex session that ccx itself started (`ccx run` / `ccx delegate --to codex`); a Codex session you opened yourself is not covered.
+   Leave out `--launch` first to only preview the prompt, with no model started. `--old-stopped` says you did step 2; it is only your statement, ccx cannot verify it. Codex → Claude uses `--to claude`, but only for a Codex session that ccx itself started (`ccx run` / `ccx delegate --to codex`); a Codex session you opened yourself is not covered.
 
 A fresh session of the other tool also prints one start-up line about an unfinished packet and this command (#523); it never continues on its own.
 

@@ -13,7 +13,7 @@
    ccx sync --only hooks --apply
    ```
 
-2. **Claude Code 撞到额度上限时，你只做一件事：停掉旧会话**（以及它自带的自动恢复等待）。不用敲命令：钩子已经存好了交接包和一个通知文件 `.ccx/relay/<id>.notification.json`，里面有包 id 和第 3 步要用的完整命令。如果通知写的是“可能只是限速”，也可以选择等一等。没有目标的包不能接续：自己运行 `ccx relay capture --session-id SESSION_ID --goal "要完成什么"`。
+2. **Claude Code 撞到额度上限时，你只做一件事：停掉旧会话**（以及它自带的自动恢复等待）。不用敲命令：钩子已经存好了交接包和一个通知文件 `.ccx/relay/<id>.notification.json`，里面有包 id 和第 3 步的命令骨架（`--budget-seconds` 要你自己填，真要启动再加 `--launch`）。如果通知写的是“可能只是限速”，也可以选择等一等；仍要启动的话，第 3 步还要加 `--force-unconfirmed`。没有目标的包不能接续（`agent-delegate` 技能通常会替你记下目标）：自己运行 `ccx relay capture --session-id SESSION_ID --goal "要完成什么"`，它会存一个**新**包，第 3 步用新包的 id。
 
 3. **到另一家继续**，包 id 取自通知文件：
 
@@ -21,7 +21,7 @@
    ccx relay continue PACKET_ID --to codex --budget-seconds 300 --old-stopped --launch
    ```
 
-   可以先不带 `--launch`，只预览 prompt，不启动模型。`--old-stopped` 表示你已经做完第 2 步。Codex → Claude 用 `--to claude`，但只覆盖 ccx 自己启动的 Codex 会话（`ccx run` / `ccx delegate --to codex`）；你自己打开的 Codex 会话不在覆盖范围内。
+   可以先不带 `--launch`，只预览 prompt，不启动模型。`--old-stopped` 表示你已经做完第 2 步；这只是你的声明，ccx 无法验证。Codex → Claude 用 `--to claude`，但只覆盖 ccx 自己启动的 Codex 会话（`ccx run` / `ccx delegate --to codex`）；你自己打开的 Codex 会话不在覆盖范围内。
 
 另一家的新会话开场还会多打印一行，提示有未处理的包和这条命令（#523）；它不会自己接续。
 
