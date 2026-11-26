@@ -58,7 +58,7 @@ Thresholds are proposals until written into a preregistration. "Order" is the su
 | 1 | Small tasks (≤ 3–4 requests alone) delegated | — | **Disproved**: 25/30 correct vs 12/30; handover cost ≈ doing it | The right method is to do it alone; what to prove is that routing to "alone" costs nothing | Folded into the floor | $0 | 1 | [#545](https://github.com/SUPERD6/relayline/issues/545) |
 | 2 | Medium, short context, same-vendor cheap first (round 2, group B) | Total cost | **Disproved on 4 dev tasks** (estimate): cost ratio ≈ 2.1, wall ≈ 3.1×. Formal round 2 pending | As preregistered (all four pass) | Round 2 B | ≈ $26.5, approved $34.5 | scheduled | [#536](https://github.com/SUPERD6/relayline/issues/536) |
 | 3 | Medium–large, short context, cross-vendor cheap sub-agent | Total cost | **Conflicting leads**: 0.70× (old code), 0.55–0.62× (dev set); also costlier or less correct runs | Total-cost ratio upper ≤ 0.8; correctness lower bound > −0.15 | Oracle upper bound on existing data; no separate eval | $0 | 6 | [#544](https://github.com/SUPERD6/relayline/issues/544) |
-| 4 | Long task + fat context + cross-vendor | Quota of the vendor that leads | **Lead, not tested under real conditions**: lead's own spend 0.24×, lead tokens −54%. See "real lead context" below | Lead-vendor spend geometric-mean upper ≤ 0.6; guardrails: total ≤ 1.2×, correctness lower > −0.15, wall ≤ 3×; no worse than the built-in sub-agent | Fat-context three-arm diagnostic, then fresh-task confirmation | $15–25, then $30–55 | 2 | [#546](https://github.com/SUPERD6/relayline/issues/546) [#547](https://github.com/SUPERD6/relayline/issues/547) [#560](https://github.com/SUPERD6/relayline/issues/560) |
+| 4 | Long task + fat context + cross-vendor | Quota of the vendor that leads | **Lead, not tested under real conditions**: lead's own spend 0.24×, lead tokens −54%. See "What the 225k re-read changes" below | Lead-vendor spend geometric-mean upper ≤ 0.6; guardrails: total ≤ 1.2×, correctness lower > −0.15, wall ≤ 3×; no worse than the built-in sub-agent | Fat-context three-arm diagnostic, then fresh-task confirmation | $15–25, then $30–55 | 2 | [#546](https://github.com/SUPERD6/relayline/issues/546) [#547](https://github.com/SUPERD6/relayline/issues/547) [#560](https://github.com/SUPERD6/relayline/issues/560) |
 | 5 | A batch of clearly specified mechanical small tasks in one cheap run | Cost, maybe speed | **Lead**: ten blocks in one run all correct, $0.004–0.005, 68–83 s. Versus doing it alone: not tested | Total-cost ratio upper ≤ 0.8; correctness lower > −0.15; wall reported | 10–15 batches, two arms | $5–8 | 4 | [#548](https://github.com/SUPERD6/relayline/issues/548) |
 | 6 | ≥ 4 unrelated large blocks in parallel | Speed | **Lead**: 10 paths 29–31 s vs 1 path 68–83 s, 7.4× tokens; baseline was not "alone" and blocks were tiny | Wall-clock median ratio ≤ 0.7, correctness not lower; token multiple reported, no 1.2× guardrail | Wait until real use shows there is parallelisable work | $15–25 | after launch | [#564](https://github.com/SUPERD6/relayline/issues/564) |
 | 7 | High-risk change + other vendor's reading review | Accuracy | **Disproved lean**: of 29 self-check receipts 15 were wrong and the review passed all | Struck from the map | Not tested | — | — | — |
@@ -89,12 +89,12 @@ linked closed issues.
 | Formal round-2 spend so far | $0 (dry-runs only) | — | [#529](https://github.com/SUPERD6/relayline/issues/529), [STATUS](STATUS.md) |
 | Real lead re-read per request (cache read, median) | **225,389** tokens; input total median 228,362; p25 152,060, p75 358,902, p90 545,958; 40,242 requests, 706 sessions, 2026-10-23 to 11-25; weekly medians 151k–284k; this repo's main directory median 304,944 | 352k (one week in October) | [#532](https://github.com/SUPERD6/relayline/issues/532) |
 | Install-but-not-used overhead (lead's first request) | ≈ 710 tokens fresh default install (600–1,310), ≈ 470 on the maintainer's machine; 0.31% / 0.21% of 225k; worst case ≈ 1,700 = 0.75% (estimate, ±30%) | — | [#531](https://github.com/SUPERD6/relayline/issues/531) |
-| Delegation cost split (26 units, estimate) | lead handover 22.7% of cost / 5.2% of time; work 37.3% / 62.5%; check and review 3.3% / 13.9%; repair or escalation 36.7% / 18.0%. Fixed overhead (handover + sub-agent start + check/review) is only about 19.5% of wall time; serial slowness comes mainly from the sub-agent redoing the work and re-checking, not from handover, and the cost shares are pulled by a few escalation events | — | [#530](https://github.com/SUPERD6/relayline/issues/530) |
+| Delegation cost split (26 units, estimate) | lead handover 22.7% of cost / 5.2% of time; work 37.3% / 62.5%; check and review 3.3% / 13.9%; repair or escalation 36.7% / 18.0% (sub-agent start 0.4% of time, cost folded into work). Fixed overhead (handover + sub-agent start + check/review) is only about 19.5% of wall time; serial slowness comes mainly from the sub-agent redoing the work and re-checking, not from handover, and the cost shares are pulled by a few escalation events | — | [#530](https://github.com/SUPERD6/relayline/issues/530) |
 | Daily A/B samples (10% of delegable tasks done alone) | 0 | — | [#532](https://github.com/SUPERD6/relayline/issues/532) |
 
 **Why $182 was wrong.** It appears in no repository file and the ledger cannot reproduce it. The repository only
 holds two lead estimates ($154 on 2026-11-07, about $165 on 2026-11-16). On the evaluation basis the ledger gives
-$101.92 ($80.08 less); on an "everything dispatched" basis it gives $358.48 (it adds Codex sub-agent work priced by
+$101.92 ($80.08 less); on an "everything dispatched" basis it gives $358.48 (it includes Codex sub-agent work priced by
 token, $237.44, which is not a bill). Neither equals $182; the $17 step from $165 to $182 has no ledger source
 (Unknown). We now manage the budget by the evaluation basis and the script-summed result files.
 
@@ -102,7 +102,7 @@ token, $237.44, which is not a bill). Neither equals $182; the $17 step from $16
 median is lower and moves from week to week, so the diagnostic now fills the lead to a **main tier of about 225k**
 (median re-read) with an optional heavy tier of about 360k (p75 of total input), and reports the weekly spread. The
 provisional "install overhead ≤ 1% of the median request" bar becomes ≈ 2,250 tokens instead of ≈ 3,500; the measured
-overhead still passes it, but only against real lead contexts: in a thin 11–25k evaluation context the same ≈ 470–710 tokens exceed 1%, so every floor comparison must say so up front. A fresh evaluation session re-reads roughly 10–30k, so the baseline-bias claim (the "do it
+overhead still passes it, but only against real lead contexts: in a thin 11–25k evaluation context the same ≈ 470–710 tokens exceed 1%, so every floor comparison must say so up front. A fresh evaluation session re-reads roughly 11–25k, so the baseline-bias claim (the "do it
 alone" arm of every earlier evaluation was far cheaper than real use) holds, by roughly an order of magnitude. Limits:
 one machine, one user, and the window starts on 2026-10-23, so the week behind 352k cannot be recomputed; Codex-led
 sessions were not recomputed (Unknown).
@@ -117,7 +117,7 @@ sessions were not recomputed (Unknown).
 | Mechanical-batch experiment | $5–8 (estimate) | [#548](https://github.com/SUPERD6/relayline/issues/548) |
 | Floor comparison (mixed tasks) | $15–25 (estimate) | [#557](https://github.com/SUPERD6/relayline/issues/557) |
 | Confirmation round (conditional) | $30–45 plus about $10 task selection (estimate) | [#560](https://github.com/SUPERD6/relayline/issues/560) |
-| New spend to launch | about $94–162 | sum of the rows above |
+| New spend to launch | about $94–162 | sum of the rows above; the low end counts the confirmation round without its task-selection cost |
 | Cumulative at launch | about **$196–264**; $186–254 left under the $450 cap | $101.92 + new spend |
 | Optional after launch | parallel cell $15–25; default-change confirmations $20–40 | [#564](https://github.com/SUPERD6/relayline/issues/564) [#565](https://github.com/SUPERD6/relayline/issues/565) |
 
@@ -135,7 +135,7 @@ dependencies.
 
 | Phase | Dates (estimate) | Goal | Acceptance | Milestone |
 |---|---|---|---|---|
-| 0. Free groundwork | 11-25 – 11-30 | Get the numbers later decisions need for free; turn the plan into issues | Five read-only results; issues and milestones exist | [Phase 0](https://github.com/SUPERD6/relayline/milestone/2) |
+| 0. Free groundwork | 11-25 – 11-30 | Get the numbers later decisions need for free; turn the plan into issues | Six read-only results; issues and milestones exist | [Phase 0](https://github.com/SUPERD6/relayline/milestone/2) |
 | 1. Round 2 as preregistered | 11-27 – 12-06 | Five groups each have a verdict | No threshold or task changed; each group archived before the next starts | [Phase 1](https://github.com/SUPERD6/relayline/milestone/3) |
 | 2. Relay for real, one-line install | 12-01 – 12-13 | One fully recorded real relay; others can install the latest version in one line | A real quota event page with all fields from real files; 0.8.0 installable | [Phase 2](https://github.com/SUPERD6/relayline/milestone/1) |
 | 3. First map | 12-07 – 12-20 | Every cell has today's status; router rule v0 has offline numbers; cell 4 has a diagnostic | Replay, oracle bound, diagnostic and `docs/map.md` published | [Phase 3](https://github.com/SUPERD6/relayline/milestone/4) |
