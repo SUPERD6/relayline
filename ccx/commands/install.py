@@ -350,7 +350,10 @@ def register(sub) -> None:
     stp = sub.add_parser("setup", help="guided first run: check, hub, init, sync (asks first), doctor, selftest")
     stp.add_argument("--yes", action="store_true", help="accept every step (scripts / CI)")
     stp.add_argument("--hub", help="hub folder (default: the one already set, or ~/.ccx-hub)")
-    stp.set_defaults(fn=lambda a: __import__("ccx.setup", fromlist=["run"]).run(yes=a.yes, hub=a.hub))
+    stp.add_argument("--advanced", action="store_true", help="ask every step-by-step question (hub location, each "
+                     "change, notes from your sessions, selftest) instead of the one recommended-settings question")
+    stp.set_defaults(fn=lambda a: __import__("ccx.setup", fromlist=["run"]).run(yes=a.yes, hub=a.hub,
+                                                                                   advanced=a.advanced))
     dr = sub.add_parser("doctor", help="check installs, logins and wiring")
     dr.add_argument("--codex-rule", action="store_true",
                     help="print a Codex rule (for ~/.codex/rules/ccx.rules) that lets a sandboxed Codex lead run this "

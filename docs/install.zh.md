@@ -25,7 +25,7 @@ Linux 和 macOS 检查都用假 CLI，不是真实智能体；macOS 证据只有
 
 ```bash
 pipx install relayline
-ccx setup        # 向导：hub、接线、体检；每次改动前先问
+ccx setup        # 向导：只问一个问题（推荐设置）；--advanced 逐步询问
 ccx run --to codex --mode read "Summarise README.md in three lines for a new user: what this project does, how to install it, and the first command to try"
 ```
 

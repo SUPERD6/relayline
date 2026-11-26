@@ -22,7 +22,7 @@ The command is `ccx`; Python standard library only.
 ```bash
 claude plugin install relayline --marketplace SUPERD6/relayline   # the skills and hooks in Claude Code (2.1.275+)
 pipx install relayline                                            # ccx itself, for your terminal and Codex
-ccx setup                    # guided: explains each step and asks before changing anything
+ccx setup                    # guided: one question (recommended settings); --advanced asks every step
 ccx run --to codex --mode read "Summarise README.md in three lines for a new user: what this project does, how to install it, and the first command to try"
 ```
 

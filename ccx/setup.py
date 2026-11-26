@@ -3,6 +3,8 @@ recent sessions (L6, each one only on a yes), selftest.
 
 Every change is previewed and asked about first. Not on a terminal and no --yes (an agent running it, a pipe): it
 shows the whole plan as the commands to run and changes nothing.
+Default path on a terminal: ONE question ("accept the recommended setup?"); `--advanced` keeps the step-by-step
+questions (hub location, each change, notes from sessions, selftest). `--yes` is unchanged.
 Goal: a new user delegates for the first time within five minutes."""
 from __future__ import annotations
 
@@ -156,7 +158,7 @@ def cold_start(w: Wizard, p) -> None:
     w.say(f"  kept {kept}" + (f"; {rest} more wait in `ccx mem suggestions --all`" if rest else ""))
 
 
-def run(yes: bool = False, hub: str | None = None) -> int:
+def run(yes: bool = False, hub: str | None = None, advanced: bool = False) -> int:
     from .commands.install import init_hub
     from .sync import sync_all
     w = Wizard(yes, sys.stdin.isatty())
@@ -180,6 +182,16 @@ def run(yes: bool = False, hub: str | None = None) -> int:
     if not {"codex", "claude"} & set(agents):
         w.say("  Neither Codex nor Claude Code is installed. Install one or both, then run `ccx setup` again.")
         return 2
+
+    if not w.yes and not advanced and w.interactive:
+        # the one question of the default path; everything below then takes the recommended answer
+        if not w.ask("Set up with the recommended settings (hub in the default place, wire both tools, health check; "
+                     "every changed file is backed up, `ccx uninstall` removes it again)?", default=True):
+            if w.interactive:
+                w.say("  Nothing was changed. For the step-by-step questions: ccx setup --advanced")
+                return 0
+        else:
+            w.quick = True
 
     w.step(2, "Your hub (personal folder for memory, skills, MCP and the ledger)")
     already = user_config_file().exists() and not hub
@@ -237,6 +249,8 @@ def run(yes: bool = False, hub: str | None = None) -> int:
     if logged_out:
         # it would only fail (and costs a little where it gets through): log in first, then `ccx selftest`
         w.say(f"  skipped: {', '.join(logged_out)} not logged in. Log in first, then run `ccx selftest`")
+    elif w.quick:
+        w.say("  skipped (costs a little): run `ccx selftest` when you want a real check")
     elif w.ask("Run one tiny real task per installed agent (cheapest model, a few cents at most)?"):
         from types import SimpleNamespace
         from .commands.install import cmd_selftest
