@@ -140,6 +140,7 @@ def collect(p: Paths, days: int = 30, include_lead: bool = True) -> dict:
     return {"since": since, "days": days, "events": events, "quota_events": quota_events,
             "runs": runs, "verdicts": verdicts, "soft": soft,
             "soft_trust": ledger.soft_trust(ledger.rows(p)), "reasons": reasons,
+            "relay_usage": [r for r in rows if r.get("type") == "relay_usage"],
             "selfruns": selfruns, "quota": quota, "lead_models": cfg.get("lead", {}),
             "lead_seen": include_lead, "billing": {"mode": billing["mode"]}}
 
@@ -346,9 +347,33 @@ def summarize(p: Paths, data: dict) -> dict:
         "quota_days_series": [{"day": d, **{f"{a}:{r}": round(v[(a, r)], 6) for a, r in STREAMS}}
                               for d, v in sorted(quota_by_day.items())],
         "runs": sorted(run_rows, key=lambda r: r["run_id"], reverse=True),
+        **({"relay": relay_summary(data)} if data.get("relay_usage") else {}),
         "ab": ab, "trial": tr, "quota": list(quota.values()), "compare": compare,
         "accuracy": accuracy.summary(p, include_evals=bool(data.get("include_evals"))),
     }
+
+
+def relay_summary(data: dict) -> list[dict]:
+    """#524: what the relay path cost, per agent and side (new lead / old lead). Rows whose usage the CLI did not
+    report count as unknown and add nothing; no number is made up. Kept apart from the totals: the lead's own turns
+    are already read from the CLIs' session files, so adding these would count them twice."""
+    out: dict[tuple, dict] = {}
+    for r in sorted(data.get("relay_usage", []), key=lambda r: r.get("ts") or 0):
+        g = out.setdefault((r.get("agent"), r.get("side")),
+                           {"agent": r.get("agent"), "side": r.get("side"), "rows": 0, "known": 0, "unknown": 0,
+                            "tokens": 0, "quota_units": 0.0})
+        g["rows"] += 1
+        u = r.get("usage4")
+        if isinstance(u, dict):
+            g["known"] += 1
+            g["tokens"] += ledger._token_total(u)
+            g["quota_units"] = round(g["quota_units"] + (r.get("quota_units") or 0), 6)
+        else:
+            g["unknown"] += 1
+    for g in out.values():
+        if not g["known"]:
+            g["tokens"] = g["quota_units"] = "Unknown"
+    return sorted(out.values(), key=lambda g: (g["agent"] or "", g["side"] or ""))
 
 
 def output_summary(s: dict) -> dict:
@@ -576,6 +601,18 @@ def render_html(s: dict) -> str:
         + '</tr>' for r in s["runs"][:200])
     role_head = '<th>role</th>' if has_roles else ""
     ab_html = ""
+    if s.get("relay"):
+        side = {"new": "new lead (after relay)", "old": "old lead (before relay)"}
+        ab_html = ('<div class="card"><h2>Relay — what each side of a quota handover used</h2>'
+                   '<div class="scroll"><table class="tbl"><tr><th>agent</th><th>side</th><th class="r">relays</th>'
+                   '<th class="r">usage read</th><th class="r">Unknown</th><th class="r">tokens</th></tr>'
+                   + "".join(f'<tr><td>{_esc(g["agent"])}</td><td>{_esc(side.get(g["side"], g["side"]))}</td>'
+                             f'<td class="r">{g["rows"]}</td><td class="r">{g["known"]}</td>'
+                             f'<td class="r">{g["unknown"]}</td><td class="r">{g["tokens"] if isinstance(g["tokens"], str) else _num(g["tokens"])}</td></tr>'
+                             for g in s["relay"])
+                   + '</table></div><p class="note">Only usage the CLI itself reported; a side it did not report is '
+                     'Unknown, never an estimate. Not added to the totals above: the lead turns are already counted '
+                     'from the CLI session files.</p></div>')
     if s["ab"]:
         ab_html = ('<div class="card"><h2>A/B check — lead did it itself vs delegated (same difficulty b)</h2>'
                    '<div class="scroll"><table class="tbl"><tr><th>b</th><th class="r">self-runs</th>'
@@ -661,6 +698,8 @@ def write(p: Paths, days: int = 30, out: Path | None = None, include_lead: bool 
     result = {"report": str(out), "summary": str(out.parent / "summary.json"), "totals": s["totals"]}
     if "billing" in s:
         result["billing"] = s["billing"]
+    if "relay" in s:            # #524: only when a relay was launched in the window
+        result["relay"] = s["relay"]
     return result
 
 
