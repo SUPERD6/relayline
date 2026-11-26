@@ -45,7 +45,7 @@ def test_windows_export_uses_bash_without_cmd_quote_rewrite(tmp_path, monkeypatc
     resolver = Mock(return_value="git-bash.exe")
     monkeypatch.setattr(check_shell, "find_bash", resolver)
     run = Mock(return_value=subprocess.CompletedProcess([], 0, "checked", ""))
-    monkeypatch.setattr(workspace.subprocess, "run", run)
+    monkeypatch.setattr(workspace, "_run_tree", run)
     cmd = "export X=1 && python -m pytest tests/test_*.py -k 'a or b'"
     out = workspace.run_check(cmd, tmp_path, env={"PATH": "fixture", "CCX_RUN_ID": "outer"})
     assert out["passed"] and out["cmd"] == cmd and "ran" not in out
@@ -59,7 +59,7 @@ def test_missing_bash_is_broken_and_preserves_logs(tmp_path, monkeypatch):
     windows(monkeypatch)
     monkeypatch.setattr(check_shell, "find_bash", lambda env: None)
     run = Mock(return_value=subprocess.CompletedProcess([], 1, "", "export is not recognized"))
-    monkeypatch.setattr(workspace.subprocess, "run", run)
+    monkeypatch.setattr(workspace, "_run_tree", run)
     cmd = "export X=1 && python -m pytest"
     out = workspace.run_check(cmd, tmp_path, log_dir=tmp_path)
     assert out["status"] == "check_broken" and not out["passed"]
@@ -72,7 +72,7 @@ def test_missing_bash_is_broken_and_preserves_logs(tmp_path, monkeypatch):
 def test_bash_launch_error_is_broken(tmp_path, monkeypatch):
     windows(monkeypatch)
     monkeypatch.setattr(check_shell, "find_bash", lambda env: "gone-bash.exe")
-    monkeypatch.setattr(workspace.subprocess, "run", Mock(side_effect=OSError("cannot execute")))
+    monkeypatch.setattr(workspace, "_run_tree", Mock(side_effect=OSError("cannot execute")))
     out = workspace.run_check("export X=1", tmp_path)
     assert out["status"] == "check_broken" and "cannot execute" in out["broken"]
 
@@ -81,7 +81,7 @@ def test_bash_launch_error_is_broken(tmp_path, monkeypatch):
 def test_bash_exit_keeps_existing_verdicts(tmp_path, monkeypatch, code, broken):
     windows(monkeypatch)
     monkeypatch.setattr(check_shell, "find_bash", lambda env: "git-bash.exe")
-    monkeypatch.setattr(workspace.subprocess, "run",
+    monkeypatch.setattr(workspace, "_run_tree",
                         Mock(return_value=subprocess.CompletedProcess([], code, "", "")))
     out = workspace.run_check("export X=1 && python -m pytest", tmp_path)
     assert out["exit"] == code and out["passed"] == (code == 0)
@@ -93,7 +93,7 @@ def test_cmd_path_still_expands_single_quotes(tmp_path, monkeypatch):
     resolver = Mock(side_effect=AssertionError("ordinary command must not discover Bash"))
     monkeypatch.setattr(check_shell, "find_bash", resolver)
     run = Mock(return_value=subprocess.CompletedProcess([], 1, "", ""))
-    monkeypatch.setattr(workspace.subprocess, "run", run)
+    monkeypatch.setattr(workspace, "_run_tree", run)
     out = workspace.run_check("python -m pytest -k 'a or b' && echo done", tmp_path)
     assert out["ran"] == 'python -m pytest -k "a or b" && echo done'
     assert run.call_args.kwargs["shell"] is True
@@ -105,7 +105,7 @@ def test_posix_keeps_native_shell(tmp_path, monkeypatch):
     monkeypatch.setattr(workspace, "_check_doubt", lambda *a: {})
     monkeypatch.setattr(check_shell, "find_bash", Mock(side_effect=AssertionError("not Windows")))
     run = Mock(return_value=subprocess.CompletedProcess([], 0, "", ""))
-    monkeypatch.setattr(workspace.subprocess, "run", run)
+    monkeypatch.setattr(workspace, "_run_tree", run)
     cmd = "export X=1 && echo $X"
     assert workspace.run_check(cmd, tmp_path)["passed"]
     assert run.call_args.args == (cmd,) and run.call_args.kwargs["shell"] is True
@@ -192,7 +192,7 @@ def test_supported_bash_expansions_still_select_bash(cmd):
 def test_backslash_paths_have_a_check_warning(tmp_path, monkeypatch):
     windows(monkeypatch)
     monkeypatch.setattr(check_shell, "find_bash", lambda env: "git-bash.exe")
-    monkeypatch.setattr(workspace.subprocess, "run",
+    monkeypatch.setattr(workspace, "_run_tree",
                         Mock(return_value=subprocess.CompletedProcess([], 0, "", "")))
     out = workspace.run_check(r'export X=1 && python C:\work\check.py', tmp_path)
     assert out["passed"] and "backslashes" in out["shell_warning"]
@@ -212,7 +212,7 @@ def test_preexisting_os_errors_propagate(tmp_path, monkeypatch, platform, cmd, e
     if existing_bash:
         bash.write_bytes(b"fake")
     monkeypatch.setattr(check_shell, "find_bash", lambda env: str(bash))
-    monkeypatch.setattr(workspace.subprocess, "run", Mock(side_effect=OSError("original failure")))
+    monkeypatch.setattr(workspace, "_run_tree", Mock(side_effect=OSError("original failure")))
     cwd = tmp_path / "missing" if missing_cwd else tmp_path
     with pytest.raises(OSError, match="original failure"):
         workspace.run_check(cmd, cwd)

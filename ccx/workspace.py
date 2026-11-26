@@ -392,6 +392,31 @@ def missing_test_paths(cmd: str, cwd: Path) -> list[dict]:
     return out
 
 
+def _run_tree(*popen_args, timeout: float, capture_output: bool = True, **kwargs) -> subprocess.CompletedProcess:
+    """subprocess.run that, on timeout, kills the whole process tree (#571). subprocess.run kills only the child; with
+    shell=True on Windows that is cmd.exe, and communicate() then waits for the real command to end by itself.
+    The child gets its own process group (runners.group_flags) so kill_tree can stop it and everything under it.
+    Raises TimeoutExpired carrying the output collected so far, like subprocess.run."""
+    from .runners import group_flags, kill_tree
+
+    assert capture_output
+    proc = subprocess.Popen(*popen_args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, **group_flags(), **kwargs)
+    try:
+        out, err = proc.communicate(timeout=timeout)
+    except subprocess.TimeoutExpired:
+        kill_tree(proc.pid)
+        try:
+            out, err = proc.communicate(timeout=5)
+        except subprocess.TimeoutExpired:          # something outside the tree still holds the pipes
+            proc.kill()
+            out, err = None, None
+        raise subprocess.TimeoutExpired(proc.args, timeout, output=out, stderr=err) from None
+    except BaseException:                          # e.g. Ctrl-C: the new group no longer shares our terminal
+        kill_tree(proc.pid)
+        raise
+    return subprocess.CompletedProcess(proc.args, proc.returncode, out, err)
+
+
 def run_check(cmd: str, cwd: Path, timeout: int = 900, tail_chars: int = 800, *,
               log_dir: Path | None = None, log_name: str = "check", env: dict | None = None) -> dict:
     """The lead's acceptance command, run by ccx after the sub-agent says it is done (not trusting its report).
@@ -417,9 +442,8 @@ def run_check(cmd: str, cwd: Path, timeout: int = 900, tail_chars: int = 800, *,
             code, tail, stderr = -1, broken[-tail_chars:], broken
         else:
             invocation = [bash, "--noprofile", "--norc", "-c", ran] if bash else ran
-            r = subprocess.run(invocation, shell=not bool(bash), cwd=cwd, capture_output=True, text=True, timeout=timeout,
-                               stdin=subprocess.DEVNULL, encoding="utf-8", errors="replace",
-                               env=check_env)
+            r = _run_tree(invocation, shell=not bool(bash), cwd=cwd, capture_output=True, text=True, timeout=timeout,
+                          stdin=subprocess.DEVNULL, encoding="utf-8", errors="replace", env=check_env)
             stdout, stderr = r.stdout, r.stderr
             code, tail = r.returncode, (stdout + stderr)[-tail_chars:]
     except subprocess.TimeoutExpired as e:
