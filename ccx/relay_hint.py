@@ -15,6 +15,8 @@ MAX_PACKETS = 50                    # a hook must stay fast: look at the newest 
 
 def pending(root: Path, me: str | None) -> dict | None:
     """The newest packet of this workspace that came from the *other* tool and has no continue record yet."""
+    if me not in ("claude", "codex"):               # a DeepSeek-behind-Claude lead or no --as is not told
+        return None
     folder = root / ".ccx" / "relay"
     if not folder.is_dir():
         return None
@@ -28,8 +30,8 @@ def pending(root: Path, me: str | None) -> dict | None:
             continue
         if not isinstance(packet, dict) or packet.get("id") != f.stem or packet.get("state") not in PENDING_STATES:
             continue
-        if me and packet.get("source") == me:       # the tool that stopped is not the one to continue
-            continue
+        if packet.get("source") == me or packet.get("source") not in ("claude", "codex"):
+            continue                                  # only the other tool continues
         if any(folder.glob(f.stem + ".continue-*.json")):
             continue                                  # already handled once
         try:

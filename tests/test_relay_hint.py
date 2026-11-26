@@ -1,15 +1,38 @@
 """#523: the SessionStart hook (`ccx mem delta`) tells a new session about an unfinished relay packet. Fake CLIs only."""
 import json
 
-import test_relay
-from test_ccx import Env
+import subprocess
 
-R = test_relay.TestRelay
+from test_ccx import Env
 
 
 class TestRelayHint(Env):
-    # reuse the relay fixtures (git repo, fake CLIs, capture) without inheriting - and re-running - its tests
-    setUp, git, enable, capture = R.setUp, R.git, R.enable, R.capture
+    def setUp(self):
+        super().setUp()
+        from test_ccx import FAKES
+        self.env.update(CCX_CODEX_BIN=str(FAKES / "fake_relay.py"), CCX_CLAUDE_BIN=str(FAKES / "fake_relay.py"))
+        self.git("init")
+        self.git("config", "user.email", "test@example.invalid")
+        self.git("config", "user.name", "Test")
+        (self.work / ".gitignore").write_text(".ccx/\n", encoding="utf-8")
+        (self.work / "tracked.txt").write_text("initial\n", encoding="utf-8")
+        self.git("add", ".")
+        self.git("commit", "-m", "initial")
+
+    def git(self, *args):
+        r = subprocess.run(["git", *args], cwd=self.work, capture_output=True, text=True, encoding="utf-8")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        return r.stdout
+
+    def enable(self):
+        r = self.ccx("config", "set", "relay.enabled", "true")
+        self.assertEqual(r.returncode, 0, r.stderr + r.stdout)
+
+    def capture(self, source="claude"):
+        r = self.ccx("relay", "capture", "--goal", "finish parser", "--progress", "partial parser", "--next-step",
+                     "run targeted tests", "--session-id", "session-1", "--source", source)
+        self.assertEqual(r.returncode, 0, r.stderr + r.stdout)
+        return json.loads(r.stdout)["packet"]
 
     def delta(self, as_="codex", **kw):
         r = self.ccx("mem", "delta", "--as", as_, **kw)
@@ -58,7 +81,17 @@ class TestRelayHint(Env):
         pid = self.capture("claude")
         self.assertEqual(self.delta("codex", env={"CCX_ROLE": "subagent"}), "")
         self.assertIn(pid, self.delta("codex"))
-        self.assertIn(pid, self.delta("codex"))            # a packet is not "consumed" by being shown
+        peek = self.ccx("mem", "delta", "--as", "codex", "--peek")
+        self.assertIn(pid, peek.stdout)
+        self.assertIn(pid, self.delta("codex"))            # a packet is not "consumed" by being shown or peeked
+
+    def test_other_lead_names_are_not_told(self):
+        from ccx import relay_hint
+        self.enable()
+        self.capture("claude")
+        for who in ("deepseek", None, "gemini"):
+            self.assertIsNone(relay_hint.pending(self.work.resolve(), who))
+        self.assertIsNotNone(relay_hint.pending(self.work.resolve(), "codex"))
 
     def test_codex_output_is_plain_text_not_json(self):
         self.enable()

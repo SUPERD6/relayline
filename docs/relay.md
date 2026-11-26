@@ -66,7 +66,7 @@ person first. It only looks: it never continues or launches anything, so the old
 person's yes stay as they were. With relay off, no packet, or a packet from the same tool, the hook prints nothing extra.
 Checked against the hooks docs on 2026-11-26 (Claude Code 2.1.316, codex-cli 0.164.0): plain stdout of a SessionStart
 hook is added to the context in both tools (`hookSpecificOutput.additionalContext` is the JSON form; ccx keeps plain
-text, as for its other start-up lines, and the line does not begin with `[` or `{` for Codex, see `hook_text`).
+text, as for its other start-up lines, and for Codex `hook_text` puts a plain first line before it so the output is not read as JSON).
 Not recorded on a real Claude→Codex run yet (fake-CLI tests only).
 
 ## Explicit `--check`: verification by a command ccx runs itself (#522)
