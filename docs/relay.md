@@ -2,11 +2,38 @@
 
 [中文](relay.zh.md)
 
+## Three steps
+
+You need a Git workspace and Claude Code or Codex. Relay is **off by default** and **experimental** (details below).
+
+1. **Turn it on**, once:
+
+   ```text
+   ccx config set relay.enabled true
+   ccx sync --only hooks --apply
+   ```
+
+2. **When Claude Code stops on a usage limit, do one thing: stop the old session** (and its native auto-resume wait). Nothing to type: the hook has already saved a handoff packet and a note, `.ccx/relay/<id>.notification.json`, which holds the packet id and a command skeleton for step 3 (you fill in `--budget-seconds`, and add `--launch` to actually start). If that note says "may just be a rate limit", you can wait instead; to launch anyway, step 3 also needs `--force-unconfirmed`. A packet without a goal cannot be continued (the `agent-delegate` skill normally records the goal for you): run `ccx relay capture --session-id SESSION_ID --goal "what to finish"` yourself, which saves a **new** packet, and use its id in step 3.
+
+3. **Continue in the other tool**, with the packet id from the note:
+
+   ```text
+   ccx relay continue PACKET_ID --to codex --budget-seconds 300 --old-stopped --launch
+   ```
+
+   Leave out `--launch` first to only preview the prompt, with no model started. `--old-stopped` says you did step 2; it is only your statement, ccx cannot verify it. Codex → Claude uses `--to claude`, but only for a Codex session that ccx itself started (`ccx run` / `ccx delegate --to codex`); a Codex session you opened yourself is not covered.
+
+A fresh session of the other tool also prints one start-up line about an unfinished packet and this command (#523); it never continues on its own.
+
+## Details
+
+Everything below is the full reference. Nothing in it was dropped by the three-step rewrite; it was only moved.
+
 Evidence: **engineering check**, fake CLIs and captured Claude event replay only.
 Default: `[relay] enabled = false`. Existing delegation verdicts, JSON fields, commands and exit codes are unchanged.
 This feature captures a handoff and explicitly starts a new lead at another vendor; it does not take over an open terminal or desktop conversation.
 
-## Capture and continue
+### Capture and continue
 
 Run in the Git workspace (replace `SESSION_ID` with the source session id):
 
@@ -59,7 +86,7 @@ The supervisor records argv, prompt, PID, exit code and stdout/stderr logs local
 An explicit quota refusal in the new lead's output also saves a fresh handoff and notification, even with exit code zero; it never launches another vendor automatically.
 An exclusive durable packet claim prevents duplicate launch, while a workspace-wide lock prevents different packets launching together. Locks record PID/time; stale locks require manual orphan-process reconciliation. Failure to spawn releases both claims. Before launch ccx checks known live run PIDs in the same Git workspace (including subdirectories). Native processes without ccx records and native auto-resume remain Unknown: `--old-stopped` is still a required user attestation, not proof that all writers stopped. Killing the supervisor externally may leave its CLI alive; there is no watchdog or automatic recovery.
 
-## A new session is told about an unfinished packet (#523)
+### A new session is told about an unfinished packet (#523)
 
 With `relay.enabled = true`, the session-start hook that already runs `ccx mem delta` (Claude Code and Codex) adds one
 plain-text line when this workspace holds a packet that came from the *other* tool, is in state `quota_stopped`,
@@ -72,7 +99,7 @@ hook is added to the context in both tools (`hookSpecificOutput.additionalContex
 text, as for its other start-up lines, and for Codex `hook_text` puts a plain first line before it so the output is not read as JSON).
 Not recorded on a real Claude→Codex run yet (fake-CLI tests only).
 
-## Explicit `--check`: verification by a command ccx runs itself (#522)
+### Explicit `--check`: verification by a command ccx runs itself (#522)
 
 Default: no `--check`, nothing below happens, and `verification` stays `not-run` exactly as before. The feature is inside the same `relay.enabled` switch; there is no second switch.
 
@@ -87,7 +114,7 @@ ccx relay continue PACKET_ID --to codex --budget-seconds 300 --old-stopped --lau
 * `--check-timeout-seconds` (default 900) bounds the command (on Windows, a hung grandchild process of a `shell` command may outlive the timeout: known limit of the shared check runner, tracked separately). The check runs whatever the child's state was (exited, `no_changes`, budget stop), because it judges the workspace, not the child; it does not run when the supervisor itself was interrupted. Preparation without `--launch` shows the check and runs nothing.
 * A quota-stopped child's next handoff packet carries the check that was actually run forward. While it runs the record says `state=checking`; an interrupt writes `check_interrupted`.
 
-## Codex → Claude: only for Codex sessions ccx started (#525)
+### Codex → Claude: only for Codex sessions ccx started (#525)
 
 Checked on 2026-11-26 with codex-cli **0.164.0** (`codex --version`, `codex exec --help`; no model was run) against the
 [Codex hooks reference](https://learn.chatgpt.com/docs/hooks): it documents `SessionStart`, `SessionEnd`, `SubagentStart/Stop`,
@@ -108,7 +135,7 @@ https://chatgpt.com/settings/usage to purchase more credits or try again at <tim
 `turn.failed` envelope (both envelopes in the tests are our own construction). The JSON envelope that `exec --json` wraps around it has **not** been captured (the docs name the `error` and
 `turn.failed` events but no fields): **Unknown** until a real refusal is recorded; then the synthetic samples are replaced.
 
-## Signals and native overlap
+### Signals and native overlap
 
 `ccx/quota_signals.py` prioritizes protocol evidence: rejected known usage windows and explicit `usage_limit_reached` or usage-limit wording in error envelopes. StopFailure and rejected rate_limit_event signals without that evidence remain `rate_limit_unconfirmed`; a reset time or requests-per-minute limit alone does not confirm exhausted quota. Authentication/transport/billing errors, normal usage readings and arbitrary tool/user/model prose do not count as quota. Existing delegation quota classification remains unchanged.
 Claude fixtures in `tests/data/real_signals` are captured and redacted. **Codex quota samples are synthetic** except the refusal wording (captured, see above); the `exec --json` envelope is still Unknown.
@@ -119,7 +146,7 @@ Checked on 2026-11-05: `claude --version` / `claude --help` = **2.1.316**; `code
 * [Claude settings reference](https://code.claude.com/docs/en/settings-reference#autocontinueatusagelimit): native `autoContinueAtUsageLimit` waits for the same account's reset and resumes automatically (default true, since 2.1.234). This overlaps with waiting/recovery, not cross-vendor handoff. ccx does not edit that setting. Stop the native wait before switching vendors to avoid two writers. Exact `quota_auto_resume_*` Notification matcher names were not found in the official pages fetched in this check: **Unknown**.
 * [Codex non-interactive mode](https://learn.chatgpt.com/docs/non-interactive-mode): `codex exec --json` exposes events for a separately supervised session. The fetched [Codex hooks reference](https://learn.chatgpt.com/docs/hooks) did not establish an equivalent quota StopFailure hook: **Unknown**. No Codex quota hook is installed.
 
-## One-minute desktop check (2026-11-05; pending user verification)
+### One-minute desktop check (2026-11-05; pending user verification)
 
 1. Enable relay and apply hook sync as above in a disposable Git project. The desktop Code tab does not support `/hooks`, so check registration in one of two ways: (a) run interactive `claude` in a terminal and type `/hooks`; or (b) read `hooks.StopFailure` in `~/.claude/settings.json` (ccx writes `~/.claude/settings.json`; on Windows that is `%USERPROFILE%\.claude\settings.json`; whether the desktop app reads the same file has not been verified separately). Either way, look for matcher `rate_limit` → `ccx relay capture --hook`. If a desktop session does not trigger the hook, reopen the session and try again.
 2. If a normal session is already at its natural usage limit, submit one harmless prompt. Look for a new `.ccx/relay/*.notification.json` and its packet. Confirm the packet names the desktop session, HEAD and dirty files. If no limit is present, stop after checking hook visibility: real desktop event delivery remains **Unknown**; do not spend tokens to exhaust quota.
