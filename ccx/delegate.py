@@ -1473,7 +1473,8 @@ def run(req: Request, p: Paths) -> dict:
 # fails must still climb. Only the launcher's own markers count; a generic "CreateProcess ... failed" (one command
 # the model picked that could not start, say a missing `rg`) is the model's problem and still climbs.
 ENV_MARKERS = ("shellexecuteexw", "createprocesswithlogonw", "orchestrator_helper_launch",
-               "failed to launch setup helper")
+               "failed to launch setup helper",
+               "ccx launch failed")      # runners.execute: the agent's own process could not be started (#585: WinError 206)
 
 
 def env_failure(status: str | None, ok: bool, kind: str | None, *texts: str | None) -> str | None:
@@ -1531,6 +1532,9 @@ def env_hint(record: dict) -> str:
         fix = ("the current (elevated) Windows sandbox mode needs one UAC approval: run `codex` once yourself in this "
                "folder and allow the prompt, or switch Codex to `[windows] sandbox = \"unelevated\"`; keep CODEX_HOME "
                "outside a temp folder")
+    elif "ccx launch failed" in why:
+        fix = (f"ccx could not start the `{agent}` process at all (see the error; Windows `[WinError 206]` = a command "
+               "line over 32767 characters): fix that, nothing ran")
     elif agent == "codex":
         fix = ("run `codex` once yourself in this folder and let it finish setting up its Windows sandbox (error 1223 "
                "means its permission prompt was cancelled; 267, a working folder it cannot use), and keep CODEX_HOME "

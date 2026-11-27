@@ -41,6 +41,28 @@ def _extra_settings() -> dict:
 CLEAN_SETTING_SOURCES = "project,local"
 
 
+# A command line ends at 32767 characters on Windows (CreateProcess; Python raises `[WinError 206]`). A unit that
+# denies hundreds of folders makes the --settings JSON longer than that (#585, round-2 eval B: 39 of 39 starts failed).
+# Past this size the JSON goes to a file in the run's folder and `--settings` gets its path (claude 2.1.316 --help:
+# "--settings <file-or-json>  Path to a settings JSON file or a JSON string").
+SETTINGS_INLINE_MAX = 6000
+SETTINGS_FILE_NAME = "claude-settings.json"
+
+
+def put_settings(inv: Invocation, data: dict) -> None:
+    """Set the value after `--settings` in inv.argv: inline JSON when short (or there is nowhere to write a file),
+    else the path of a file written next to the run's other files."""
+    i = inv.argv.index("--settings") + 1
+    encoded = json.dumps(data)
+    if len(encoded) <= SETTINGS_INLINE_MAX or inv.spill_dir is None:
+        inv.argv[i], inv.settings_file = encoded, None
+        return
+    inv.spill_dir.mkdir(parents=True, exist_ok=True)
+    path = inv.spill_dir / SETTINGS_FILE_NAME
+    path.write_text(encoded, encoding="utf-8", newline="")
+    inv.argv[i], inv.settings_file = str(path), path
+
+
 def claude_invocation(*, model: str, effort: str, perm: list[str], cwd: Path, prompt: str,
                       run_dir: Path, resume_id: str | None = None, lean: bool = False,
                       cache_ttl: str | None = None, clean: bool = False) -> Invocation:
@@ -74,10 +96,16 @@ def claude_invocation(*, model: str, effort: str, perm: list[str], cwd: Path, pr
         settings = {**_extra_settings(), "ultracode": False, "workflowKeywordTriggerEnabled": False}
         if cache_ttl in ("5m", "1h"):
             settings["promptCacheTtl"] = cache_ttl
-        argv += ["--settings", json.dumps(settings)]
+        argv += ["--settings", ""]
+        spill = settings
+    else:
+        spill = None
     if resume_id:
         argv += ["--resume", resume_id]
-    return Invocation(argv, prompt, cwd, None)
+    inv = Invocation(argv, prompt, cwd, None, spill_dir=run_dir)
+    if spill is not None:
+        put_settings(inv, spill)
+    return inv
 
 
 def parse_claude(stdout: str, stderr: str, rc: int, _last: Path | None = None) -> Outcome:

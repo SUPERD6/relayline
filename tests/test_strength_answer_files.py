@@ -3,6 +3,7 @@ unit's folder (an on arm's shared-context.md, a mem arm's notes) or the run's ma
 dry run lists each arm's answer-level files. Fake CLIs only."""
 import fnmatch
 import json
+from _settings_arg import settings_arg
 import os
 from pathlib import Path
 import sys
@@ -91,7 +92,7 @@ def test_claude_off_arm_writes_no_transcript_and_the_folder_is_denied(tmp_path, 
     assert "error" not in off and "lead_transcript" not in off, off
     assert not synth.exists() or not any(synth.iterdir())
     argv = calls(log, "claude")[-1]["argv"]
-    deny = json.loads(argv[argv.index("--settings") + 1])["permissions"]["deny"]
+    deny = settings_arg(argv)["permissions"]["deny"]
     assert f"Read({PF._rule_path(synth.resolve())}/**)" in deny
     on = runner.run_unit({"task": "r2-ctx-0", "arm": "on", **CLAUDE}, "context", out / "unit-0001", .1, None,
                          claude_home=home, tasks=tasks, fresh=True, hidden=runner.isolation_paths(path))
@@ -210,7 +211,7 @@ def test_claude_unit_denied_the_runs_files_and_earlier_units(tmp_path, monkeypat
     unit = {"task": "mem-errors", "arm": "nomem", **CLAUDE}
     runner.run_unit(unit, "memory", out / "unit-0012", .1, None, claude_home=home)
     argv = calls(log, "claude")[-1]["argv"]
-    deny = json.loads(argv[argv.index("--settings") + 1])["permissions"]["deny"]
+    deny = settings_arg(argv)["permissions"]["deny"]
     r = PF._rule_path(out.resolve())
     for f in ("manifest.json", "results.jsonl"):
         assert f"Read({r}/{f})" in deny          # Read only since #472: writing there reveals nothing

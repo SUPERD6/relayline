@@ -2,6 +2,7 @@
 Claude deny rules, a tool-call audit (the P4 path_hits rules plus content patterns, alias spellings and recursive
 searches of a parent folder) and the forbidden list in the dry run. Fake CLIs only."""
 import json
+from _settings_arg import settings_arg
 import os
 from pathlib import Path
 import sys
@@ -160,7 +161,7 @@ def test_claude_unit_denied_and_audited_end_to_end(tmp_path, monkeypatch):
     assert "error" not in row and row["ok"] is True, row
     assert row["path_audit"]["clean"] is True and row["path_audit"]["logs"] >= 1
     argv = calls(log, "claude")[-1]["argv"]
-    deny = json.loads(argv[argv.index("--settings") + 1])["permissions"]["deny"]
+    deny = settings_arg(argv)["permissions"]["deny"]
     assert {"WebFetch", "WebSearch"} <= set(deny)
     for p in (ROOT, ROOT / "scripts" / "eval", dev.resolve()):
         assert f"Read({PF._rule_path(p)}/**)" in deny and f"Edit({PF._rule_path(p)}/**)" in deny
@@ -180,7 +181,7 @@ def test_default_units_are_isolated_without_hide(tmp_path, monkeypatch):
     unit = {"task": "mem-errors", "arm": "nomem", "agent": "claude", "model": "haiku", "effort": "low", "rep": 1}
     runner.run_unit(unit, "memory", tmp_path / "u", .1, None, claude_home=home)
     argv = calls(log, "claude")[-1]["argv"]
-    deny = json.loads(argv[argv.index("--settings") + 1])["permissions"]["deny"]
+    deny = settings_arg(argv)["permissions"]["deny"]
     assert f"Read({PF._rule_path(ROOT)}/**)" in deny
 
 
