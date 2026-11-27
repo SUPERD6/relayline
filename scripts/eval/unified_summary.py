@@ -455,7 +455,8 @@ def p4(rows: list[dict], tag: str, pair: tuple[str, str], paired: bool = False,
             arms[arm] = {key: stats[key] for key in
                          ("attempted", "right", "cost_known_usd", "cost_unknown", "wall_median_s")}
             arms[arm]["env_clean"] = sum(row.get("env_clean") is True for row in group)
-            arms[arm]["valid"] = sum(map(valid, group))
+            # #586: the same rule as P4's own summary (invalid_reason, receipt/environment error), not valid() alone
+            arms[arm]["valid"] = sum(map(pair_valid, group))
             if arm in P4.DE.ARMS:
                 # Round 1's arm keeps its 30% escalation stop; round 2's arm runs with
                 # --max-escalation-rate none (pre-registration section 4), so only evidence/cost stops apply.

@@ -192,9 +192,12 @@ def protect(cli: str, inv, cfg: dict, project: Path, env: dict) -> dict | None:
         raise ValueError("credential guard requires one inline Claude --settings object")
     i = indexes[0]
     try:
-        data = json.loads(inv.argv[i])
-    except (ValueError, IndexError) as e:
-        raise ValueError("credential guard requires inline Claude --settings JSON") from e
+        if inv.settings_file is not None and inv.argv[i] == str(inv.settings_file):
+            data = json.loads(inv.settings_file.read_text(encoding="utf-8"))     # ccx's own file (#585), not an arbitrary one
+        else:
+            data = json.loads(inv.argv[i])
+    except (ValueError, IndexError, OSError) as e:
+        raise ValueError("credential guard requires inline Claude --settings JSON (or ccx's own settings file)") from e
     if not isinstance(data, dict) or not isinstance(data.get("permissions", {}), dict):
         raise ValueError("credential guard requires a Claude settings object with permissions")
     permissions = data.setdefault("permissions", {})
@@ -218,12 +221,16 @@ def protect(cli: str, inv, cfg: dict, project: Path, env: dict) -> dict | None:
     deny += [f"Bash(*{p}*)" for p in (".ccx/eval-codex-home", ".ccx\\eval-codex-home",
                                       ".CCX/EVAL-CODEX-HOME", ".CCX\\EVAL-CODEX-HOME")]
     permissions["deny"] = list(dict.fromkeys(deny))
-    encoded = json.dumps(data)
-    argv = [*inv.argv[:i], encoded, *inv.argv[i + 1:]]
-    command_units = len(subprocess.list2cmdline(argv).encode("utf-16-le")) // 2
-    if len(encoded) > MAX_SETTINGS_CHARS or command_units > MAX_COMMAND_CHARS:
+    from .agents.claude import put_settings
+    was = (inv.argv[i], inv.settings_file)
+    try:
+        put_settings(inv, data)          # inline when short, else the run's settings file (#585)
+    except OSError as e:
+        raise ValueError(f"credential guard could not write the Claude settings file: {e}") from e
+    command_units = len(subprocess.list2cmdline(inv.argv).encode("utf-16-le")) // 2
+    if (inv.settings_file is None and len(inv.argv[i]) > MAX_SETTINGS_CHARS) or command_units > MAX_COMMAND_CHARS:
+        inv.argv[i], inv.settings_file = was
         raise ValueError("credential guard rule length exceeds launch limit; reduce security.credential_dirs or inherited settings")
-    inv.argv[i] = encoded
     print(launch_warning(cli), file=sys.stderr, flush=True)
     return {"status": "Unknown", "mechanism": "claude-permissions-deny", "rules_added": True}
 

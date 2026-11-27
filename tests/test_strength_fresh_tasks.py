@@ -1,6 +1,7 @@
 """strength_retest with frozen new task files (issue #345): offline only, no real agent CLI, no personal home."""
 import hashlib
 import json
+from _settings_arg import settings_arg
 import os
 from pathlib import Path
 import subprocess
@@ -295,7 +296,7 @@ def test_claude_context_unit_end_to_end_with_fake(tmp_path, monkeypatch):
     assert "error" not in row and row["ok"] is True, row
     assert row["note_in_prompt"] is True and Path(row["lead_transcript"]).is_relative_to(home)
     argv = calls(log, "claude")[-1]["argv"]
-    settings = json.loads(argv[argv.index("--settings") + 1])
+    settings = settings_arg(argv)
     assert {"WebFetch", "WebSearch"} <= set(settings["permissions"]["deny"])
     assert argv[argv.index("--model") + 1] == "haiku"
 

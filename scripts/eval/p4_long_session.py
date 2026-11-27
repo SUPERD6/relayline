@@ -792,6 +792,8 @@ class Episode:
                        if not str(rec.get("label") or "").startswith("review:")]
             # The receipt's status, as ccx builds it (ledger.slim / delegate result): result.status, else "error".
             row["receipt_error"] = any((rec.get("result") or {}).get("status", "error") == "error" for rec in records)
+            # #586: a sub-agent that never started (ccx's "could not start <agent>: ..." error, e.g. WinError 206).
+            row["start_failed"] = any(start_failed(rec) for rec in records)
             # ccx --max-usd stop: record["max_usd"] is written only when the cap stopped a step (delegate._capped);
             # p4_receipt refuses a new attempt once the task's child allowance is spent.
             row["child_cap_hit"] = (any(rec.get("kind") == "over_budget" or rec.get("max_usd") for rec in records)
@@ -1352,16 +1354,27 @@ def plan_settings(a, arms) -> dict:
                                          "(kept, group continues); an arm's own timeout, cap or hidden-test collection error "
                                          "with known cost is a valid row with ok=false" if limit is not None else
                                          "round-1 rules: the first error, cost-unknown row or missing dispatch evidence stops the group"),
+                         "start_failed": ("a row whose sub-agent never started is invalid; the group stops past max_invalid_rows such rows"
+                                          if limit is not None else "round-1 rules: the first error stops the group"),
                          "unknown_cost": ("charged at the task reservation; the group stops past max_invalid_rows such rows"
                                           if limit is not None else "stops the group (round-1 rule)")}
     out["episode_size"] = 1 if set(DE.ARMS) & set(arms) else getattr(a, "episode_size", N)
     return out
 
 
+def start_failed(record: dict) -> bool:
+    """#586: the run's sub-agent process never started (runners.py: "could not start <agent>: <OS error>"), on the
+    run itself or on any of its attempts. A receipt that is merely missing or says error is not one."""
+    errors = [record.get("error")] + [a.get("error") for a in record.get("attempts") or [] if isinstance(a, dict)]
+    return any("could not start " in str(e) for e in errors if e)
+
+
 def invalid_reason(row: dict) -> str | None:
     """Round-2 invalid rows (#346): kept and counted; the group continues until a limit is passed."""
     if row.get("env_stop"):
         return "environment_error"      # #509: login/quota stop, whichever receipt also failed
+    if row.get("start_failed"):
+        return "subagent_start_failed"  # #586: counted toward --max-invalid-rows, unlike a plain receipt_error
     if row.get("receipt_error"):
         return "receipt_error"
     if not row.get("cost_complete"):
@@ -1440,7 +1453,7 @@ def run_experiment(a, tasks: list[dict], units: list[dict]) -> int:
     max_invalid = getattr(a, "max_invalid_rows", None)
     max_rate = getattr(a, "max_escalation_rate", .3)
     cheap_arms = [arm for arm in DE.ARMS if any(u["arm"] == arm for u in units)]
-    unknown_cost_rows = missing_evidence_rows = 0
+    unknown_cost_rows = missing_evidence_rows = start_failed_rows = 0
     try:
         for u in units:
             lead_cap, child_cap = task_caps(a, u["arm"])
@@ -1516,12 +1529,16 @@ def run_experiment(a, tasks: list[dict], units: list[dict]) -> int:
                 budget.spent += fill_extra(row)
                 if row.get("arm") in DE.ARMS and row.get("dispatch_observed") is not True:
                     missing_evidence_rows += 1
+                if row.get("start_failed"):
+                    start_failed_rows += 1
                 for arm in cheap_arms:
                     stopped = stopped or DE.stop_reason(rows, arm, max_rate, evidence=False)
                 if unknown_cost_rows > max_invalid:
                     stopped = stopped or "cost_unknown_over_limit"
                 if missing_evidence_rows > max_invalid:
                     stopped = stopped or "dispatch_evidence_unknown"
+                if start_failed_rows > max_invalid:
+                    stopped = stopped or "subagent_start_failed"   # #586: a broken arm must not run on
             # Journal outside every agent's allowed roots; never inject a grade
             # into the session, ccx verify, shared memory, or the live repo.
             append_jsonl(a.out.with_suffix(".pending.jsonl"), row)
@@ -1549,6 +1566,7 @@ def run_experiment(a, tasks: list[dict], units: list[dict]) -> int:
                  "budget_envelope": limits, "not_started": not_started}
         if max_invalid is not None:
             event.update(cost_unknown_rows=unknown_cost_rows, missing_dispatch_evidence_rows=missing_evidence_rows,
+                         start_failed_rows=start_failed_rows,
                          max_invalid_rows=max_invalid, unknown_cost_charged_at="reservation")
         append_jsonl(a.out.with_suffix(".events.jsonl"), event)
     print(json.dumps(summary(rows, expected_count(a, len(units) // 2), limits, getattr(a, "gates", "p4"),

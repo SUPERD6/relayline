@@ -548,3 +548,27 @@ def test_check_login_reads_only_auth_status(monkeypatch, tmp_path):
     monkeypatch.setattr(P.subprocess, "run", lambda *x, **k: SimpleNamespace(stdout=json.dumps({"loggedIn": True})))
     assert P.login_problem(a) is None
     assert P.login_problem(SimpleNamespace(claude_isolation="ccx-home")) is None
+
+
+def test_start_failed_rows_are_invalid_and_stop_past_the_cap(fake_engine, monkeypatch, tmp_path):
+    """#586: a sub-agent that never started (WinError 206) is invalid and counts toward --max-invalid-rows, so a broken
+    arm stops after 4 rows instead of running to the end; a plain receipt error stays receipt_error and does not."""
+    assert P.start_failed({"error": "could not start claude: [WinError 206] file name too long"})
+    assert P.start_failed({"attempts": [{"error": "could not start codex: x"}]})
+    assert not P.start_failed({"error": "timeout"}) and not P.start_failed({})
+    assert P.invalid_reason({"arm": "self", "cost_complete": True, "start_failed": True}) == "subagent_start_failed"
+    a, ts, log = _r2_engine(fake_engine, monkeypatch, tmp_path, _ledger())
+    _run_ids(monkeypatch)
+    err = "could not start claude: [WinError 206] The filename or extension is too long"
+    monkeypatch.setattr(P.r5.r2, "record", lambda hub, rid: {"label": "x", "error": err, "result": None})
+    assert P.run_experiment(a, ts, P.schedule(ts, 1, ("self", D.ARM2))) == 2
+    v2 = [r for r in P.read_jsonl(a.out) if r["arm"] == D.ARM2]
+    assert len(v2) == 4 and all(r["start_failed"] and r["invalid_reason"] == "subagent_start_failed" for r in v2)
+    event = [json.loads(x) for x in a.out.with_suffix(".events.jsonl").read_text(encoding="utf-8").splitlines()][-1]
+    assert event["reason"] == "subagent_start_failed" and event["start_failed_rows"] == 4
+    # the same rows, read by unified_summary p4: invalid, as in P4's own summary
+    import unified_summary as U
+    rows = [{**r, "tag": r.get("tag") or "t"} for r in P.read_jsonl(a.out)]
+    arms = U.p4(rows, rows[0]["tag"], ("self", D.ARM2))["all"]["arms"]
+    assert arms[D.ARM2]["valid"] == 0
+    assert P.summary(rows, 6, {}, "p4", None)["invalid_rows"]["by_reason"] == {"subagent_start_failed": 4}

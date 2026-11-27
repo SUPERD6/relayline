@@ -140,6 +140,8 @@ class Invocation:
     stdin: str
     cwd: Path
     last_message_file: Path | None = None
+    spill_dir: Path | None = None        # where a long --settings JSON goes as a file (#585); None = always inline
+    settings_file: Path | None = None    # the file ccx wrote for `--settings` (the credential guard may rewrite it)
 
 
 @dataclass
@@ -284,7 +286,7 @@ def execute(agent: str, inv: Invocation, timeout: int, env: dict, on_session=Non
         proc = subprocess.Popen(inv.argv, cwd=str(inv.cwd), env=env, stdin=subprocess.PIPE,
                                 stdout=subprocess.PIPE, stderr=subprocess.PIPE, **group_flags())
     except OSError as e:
-        oc = Outcome(ok=False, error=f"could not start {agent}: {e}", kind="error")
+        oc = Outcome(ok=False, error=f"could not start {agent} (ccx launch failed): {e}", kind="error")
         return oc, "", ""
     started_at, t_launch = wall_now(), time.perf_counter()       # #392: launch moment
     first_event: list = []                                         # [(wall, monotonic)] of the first stdout line
