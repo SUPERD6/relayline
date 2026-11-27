@@ -146,7 +146,8 @@ def test_run_command_from_outside_repo_applies_guard(tmp_path, monkeypatch, cli)
     argv = next(call["argv"] for call in calls if call["agent"] == cli and
                 ("-p" in call["argv"] if cli == "claude" else "exec" in call["argv"]))
     if cli == "claude":
-        rules = json.loads(argv[argv.index("--settings") + 1])["permissions"]["deny"]
+        value = argv[argv.index("--settings") + 1]       # inline JSON, or a file once it is long (#585)
+        rules = json.loads(value if value.startswith("{") else Path(value).read_text(encoding="utf-8"))["permissions"]["deny"]
         assert any("eval-codex-home/**)" in rule for rule in rules)
         assert any(rule.startswith("Bash(*") for rule in rules)
     else:

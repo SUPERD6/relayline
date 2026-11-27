@@ -5,6 +5,7 @@ the unit's own. Now every unit is audited (and a Claude unit denied) on the part
 """
 import fnmatch
 import json
+from _settings_arg import settings_arg
 import os
 from pathlib import Path
 import sys
@@ -124,7 +125,7 @@ def test_claude_unit_denied_other_units_records(tmp_path, monkeypatch):
     runner.run_unit({"task": "mem-errors", "arm": "nomem", **CLAUDE}, "memory", out / "unit-0012", .1, None,
                     claude_home=claude)
     argv = calls(log, "claude")[-1]["argv"]
-    deny = json.loads(argv[argv.index("--settings") + 1])["permissions"]["deny"]
+    deny = settings_arg(argv)["permissions"]["deny"]
     h = PF._rule_path(claude.resolve())
     for rule in (f"Read({h}/projects/*/*.jsonl)", f"Read({h}/file-history/**)", f"Read({h}/history.jsonl)",
                  f"Read({h}/todos/**)", f"Read({h}/projects/*/*/subagents/**)"):
@@ -249,11 +250,12 @@ def test_evidence_files_keep_edit_rules(tmp_path, monkeypatch):
     runner.run_unit({"task": "mem-errors", "arm": "nomem", **CLAUDE}, "memory", out / "unit-0003", .1, None,
                     claude_home=claude)
     argv = calls(log, "claude")[-1]["argv"]
-    deny = json.loads(argv[argv.index("--settings") + 1])["permissions"]["deny"]
+    deny = settings_arg(argv)["permissions"]["deny"]
     r = PF._rule_path(out.resolve())
     for f in ("manifest.json", "results.jsonl"):
         assert f"Edit({r}/{f})" in deny and f"Read({r}/{f})" in deny
-    assert not any(d.startswith(f"Edit({r}/unit-") for d in deny)
+    # (the settings file's own Edit rule, #585, lies in the unit's own run folder and is no other unit's)
+    assert not any(d.startswith(f"Edit({r}/unit-") and not d.endswith("claude-settings.json)") for d in deny)
 
 
 def test_out_whose_unit_number_falls_past_the_slug_limit_refused(tmp_path):
