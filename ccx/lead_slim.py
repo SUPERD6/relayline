@@ -15,11 +15,34 @@ def minimal_context_on(p) -> bool:
         return False
 
 
+# Proven cells of the trade-off map: (task type, who to delegate to). v0 is empty on purpose: nothing is proven
+# until the round-2 group-B offline replay (#544) says so. A cell goes in here only with that evidence.
+PROVEN_CELLS: tuple[tuple[str, str], ...] = ()
+
+
+def route_map_guidance(cfg: dict) -> str:
+    """The trade-off map's split rule (#545), one short paragraph; '' unless lead.route_map is on.
+
+    Self-work costs nothing: the text says not to call ccx or start a process to decide.
+    """
+    if (cfg.get("lead") or {}).get("route_map") is not True:
+        return ""
+    if PROVEN_CELLS:
+        cells = "; ".join(f"{kind} -> {who}" for kind, who in PROVEN_CELLS)
+    else:
+        cells = "none yet"
+    return ("Task split rule (v0): do the task yourself, with no ccx command and no extra process, "
+            "unless the person asks for delegation or the task type is a proven cell below. "
+            f"Proven cells (task type -> delegate to): {cells}. "
+            "If unsure whether a task fits a cell, do it yourself. This overrides other delegation advice here.")
+
+
 def guidance_for(p) -> str:
     """Optional guidance must not break existing sync/hook output on bad config."""
     from .config import load_config
     try:
-        return small_guidance(load_config(p))
+        cfg = load_config(p)
+        return "\n".join(t for t in (small_guidance(cfg), route_map_guidance(cfg)) if t)
     except (OSError, ValueError, TypeError, AttributeError):
         return ""
 
