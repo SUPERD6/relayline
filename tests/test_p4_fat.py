@@ -113,7 +113,7 @@ def test_dry_run_prints_the_three_arms_settings(tmp_path):
     assert fat["fill"]["tiers"] == {"main": 225_000, "heavy": 360_000}
     assert all(v["lead_model"] == "sonnet[1m]" for v in fat["arms"].values())
     assert len(plan["units"]) == 9 and {u["arm"] for u in plan["units"]} == set(FA.ARMS)
-    assert plan["budget_envelope"]["fill_allowance_usd"] == FA.DEFAULT_FILL_BUDGET
+    assert plan["budget_envelope"]["fill_allowance_usd"] == FA.HEAVY_FILL_BUDGET
     assert set(plan["arm_settings"]) == set(FA.ARMS)
     assert plan["arm_settings"][FA.CCX]["child_agent"] == "codex" and plan["arm_settings"][FA.NATIVE]["child_agent"] is None
     assert "Unknown" in plan["estimate"]["tasks"][0]["basis"]
