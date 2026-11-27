@@ -4,7 +4,7 @@
 
 `[lead] slim_small = false` **默认关闭**。用 `ccx config set lead.slim_small true` 开启。
 运行 `ccx sync --only memory --apply` 更新已有受管块；正常的 `ccx turn` 钩子也会给出指令。
-两处都调用 `ccx.lead_slim.small_guidance`，子智能体的钩子不输出它。
+两处都调用 `ccx.lead_slim.guidance_for`（内部调 `small_guidance`），子智能体的钩子不输出它。
 关闭时运行 `ccx config set lead.slim_small false`，再同步一次，移除受管块里的指令。
 已经打开的对话可能仍保留旧指令；切换后用新会话核对。
 
@@ -80,11 +80,11 @@
 ## 分流规则 v0（#545，取舍地图层）
 
 `lead.route_map = false` 默认**关**。用 `ccx config set lead.route_map true` 打开，再跑
-`ccx sync --only memory --apply` 并开新对话。它在和 `slim_small` 同样的位置加一段话（约 75 token）：
+`ccx sync --only memory --apply` 并开新对话。它在和 `slim_small` 同样的位置加一段话（约 100 token）：
 `ccx.lead_slim.guidance_for`，即受管块和主导的 `ccx turn` 钩子；子 agent 的钩子不带；`slim_context` 开着时照样被压掉。
 v0 的内容：所有任务自己做，不调 ccx、不起额外进程，除非用户要求派活，或任务类型属于「已证明格」。已证明格列表
 （`ccx.lead_slim.PROVEN_CELLS`，任务类型 -> 派给谁）**故意留空**：要等第二轮 B 组离线回放（#544）出结果才填。
-拿不准就自己做。这段话写明它优先于同一块里其他派活建议，所以能和 `slim_small` 并存。开关关着时，所有输出和以前逐字节相同。
+拿不准就自己做。这段话写明它优先于同一块里其他派活建议，同开 `slim_small` 时以分流规则为准：`slim_small` 的例外（额度紧、上下文大、要 worktree/undo/resume/换别家）不再把活派出去，因为 v0 只在用户要求或已证明格时才派。其他 ccx 命令（mem、board、review、relay）不受影响。开关关着时，所有输出和以前逐字节相同。
 
-token 估算：文本 314 字符 / 57 词，字符数除以 4 约 79，词数乘 1.3 约 74，所以**约 75 token（估算，误差约 ±30%，
+token 估算：文本 398 字符 / 74 词，字符数除以 4 约 100，词数乘 1.3 约 96，所以**约 100 token（估算，误差约 ±30%，
 没有跑分词器）**，估法和「装了不用」开销（#531）一致。钩子每轮主导都会重复它，要按每次请求计入该开销。

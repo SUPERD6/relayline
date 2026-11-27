@@ -31,7 +31,7 @@ def test_on_text_appears_exactly_once(tmp_path):
     set_setting(p, "lead.route_map", "true")
     text = route_map_guidance(load_config(p))
     assert "do the task yourself" in text and "none yet" in text and "unsure" in text
-    assert "ccx" in text and "no ccx command" in text          # self-work: no ccx call, no extra process
+    assert "call no ccx command" in text and "start no process" in text   # self-work: no ccx call, no process
     for block in (claude_memory_block(p), lead_memory_block(p, "codex"), guidance_for(p)):
         assert block.count(text) == 1
     set_setting(p, "lead.slim_small", "true")                  # next to the other guidance: still once each
@@ -66,7 +66,13 @@ def test_turn_hook_once_when_on_and_identical_when_off(tmp_path):
     on = cli(["turn", "--as", "claude"], tmp_path, env, {"cwd": str(tmp_path)})
     assert on.returncode == 0 and on.stdout.count(text) == 1
     sub = cli(["turn", "--as", "claude"], tmp_path, {**env, "CCX_ROLE": "subagent"}, {"cwd": str(tmp_path)})
-    assert text not in sub.stdout
+    assert sub.returncode == 0 and text not in sub.stdout
+    dep = cli(["turn", "--as", "claude"], tmp_path, {**env, "CCX_DEPTH": "1"}, {"cwd": str(tmp_path)})
+    assert dep.returncode == 0 and text not in dep.stdout
+    assert cli(["config", "set", "lead.slim_context", "true"], tmp_path, env).returncode == 0
+    mini = cli(["turn", "--as", "claude"], tmp_path, env, {"cwd": str(tmp_path)})
+    assert mini.returncode == 0 and text not in mini.stdout
+    assert cli(["config", "set", "lead.slim_context", "false"], tmp_path, env).returncode == 0
     assert cli(["config", "set", "lead.route_map", "false"], tmp_path, env).returncode == 0
     again = cli(["turn", "--as", "claude"], tmp_path, env, {"cwd": str(tmp_path)})
-    assert again.stdout == off.stdout
+    assert again.returncode == 0 and again.stdout == off.stdout

@@ -31,10 +31,11 @@ def route_map_guidance(cfg: dict) -> str:
         cells = "; ".join(f"{kind} -> {who}" for kind, who in PROVEN_CELLS)
     else:
         cells = "none yet"
-    return ("Task split rule (v0): do the task yourself, with no ccx command and no extra process, "
-            "unless the person asks for delegation or the task type is a proven cell below. "
+    return ("Task split rule (v0): to decide who does a task, call no ccx command and start no process. "
+            "Do it yourself unless the person asks for delegation or the task type is a proven cell below. "
             f"Proven cells (task type -> delegate to): {cells}. "
-            "If unsure whether a task fits a cell, do it yourself. This overrides other delegation advice here.")
+            "If unsure whether a task fits a cell, do it yourself. "
+            "This wins over other delegation advice in this block; other ccx commands (mem, board, review) work as usual.")
 
 
 def guidance_for(p) -> str:
