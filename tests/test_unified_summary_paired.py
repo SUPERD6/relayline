@@ -312,7 +312,7 @@ def test_p4_paired_round2_invalid_rows_are_invalid():
     assert block["n_valid_pairs"] == 1 and (block["correctness"]["b"], block["correctness"]["c"]) == (0, 0)
     assert block["all_rows"]["invalid_rows"] == 3
     assert (block["all_rows"]["correctness"]["b"], block["all_rows"]["correctness"]["c"]) == (2, 0)
-    assert result["all"]["arms"]["v2"]["valid"] == 3          # the default count keeps its old definition
+    assert result["all"]["arms"]["v2"]["valid"] == 1          # #586: same invalid-row rule as P4's own summary
     env = rows_fixture()
     env[0]["environment_error"] = True
     assert U.p4(env, "t", ("self", "v2"), paired=True)["all"]["paired"]["n_valid_pairs"] == 2
