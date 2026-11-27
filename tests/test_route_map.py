@@ -30,7 +30,7 @@ def test_on_text_appears_exactly_once(tmp_path):
     p = Paths(tmp_path / "hub")
     set_setting(p, "lead.route_map", "true")
     text = route_map_guidance(load_config(p))
-    assert "do the task yourself" in text and "none yet" in text and "unsure" in text
+    assert "Do it yourself unless" in text and "none yet" in text and "If unsure" in text
     assert "call no ccx command" in text and "start no process" in text   # self-work: no ccx call, no process
     for block in (claude_memory_block(p), lead_memory_block(p, "codex"), guidance_for(p)):
         assert block.count(text) == 1
