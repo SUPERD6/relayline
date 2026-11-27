@@ -1,1 +1,0 @@
-| 2026-11-16 | Merging an upstream-based run into a branch behind that upstream is refused, not done with a note | 把基于 upstream 的运行合进落后于该 upstream 的分支时直接拒绝，而不是合并后在回执里注明 | ccx never pulls; a refusal keeps the person's branch untouched and the fix is one `git pull` / ccx 从不 pull；拒绝不动本地分支，补救只需一次 `git pull` | #349; `ccx/autonomy.py` `behind_start`; `ccx/accept.py` |
