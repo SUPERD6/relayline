@@ -4,7 +4,7 @@ English · [中文](lead-slim.zh.md)
 
 `[lead] slim_small = false` ships **off**. Enable with `ccx config set lead.slim_small true`.
 Run `ccx sync --only memory --apply` to refresh existing managed blocks; the normal `ccx turn` hook
-also emits the guidance. Both use `ccx.lead_slim.small_guidance`; sub-agent hooks omit it.
+also emits the guidance. Both use `ccx.lead_slim.guidance_for` (which calls `small_guidance`); sub-agent hooks omit it.
 Disable with `ccx config set lead.slim_small false` and sync again to remove it from managed blocks.
 An already running conversation may retain previously loaded instructions; use a fresh session after switching.
 
@@ -88,3 +88,18 @@ and external-mode startup output at the same two-line size plus its final newlin
 as subprocesses outside the repository with temporary tool homes, check restored default blocks byte for byte,
 and verify maintenance and completion delivery. These are **engineering checks**; native client loading,
 model behavior, latency and cost are **not run**.
+
+## Split rule v0 (#545, trade-off map layer)
+
+`lead.route_map = false` ships **off**. Enable with `ccx config set lead.route_map true`, then
+`ccx sync --only memory --apply` and a fresh conversation. It adds one paragraph (about 100 tokens) to the same places
+as `slim_small` (`ccx.lead_slim.guidance_for`: managed block and the lead's `ccx turn` hook; sub-agent hooks omit it;
+`slim_context` still suppresses it). v0 says: do every task yourself with no ccx command and no extra process, unless
+the person asks for delegation or the task type is a *proven cell*. The list of proven cells
+(`ccx.lead_slim.PROVEN_CELLS`, task type -> who to delegate to) is **empty on purpose**: a cell is added only after the
+round-2 group-B offline replay (#544). Unsure means do it yourself. The paragraph says it overrides other delegation
+advice in the same block. With `slim_small` also on, the split rule wins: `slim_small`'s exceptions (tight quota, large context, worktree/undo/resume/other vendor) no longer send work out, because v0 delegates only on the person's request or a proven cell. Other ccx commands (mem, board, review, relay) are untouched. With the switch off, all output is byte-identical to before.
+
+Token estimate: the text is 398 characters / 74 words; chars/4 gives about 100, words x 1.3 about 96, so **about 100
+tokens (estimate, +-30%, no tokenizer run)**, in line with how the install-overhead figure (#531) was estimated.
+Because the hook repeats it on every lead turn, count it per request in the install-but-not-used overhead.

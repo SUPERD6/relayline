@@ -175,7 +175,7 @@ Defaults are the shipped values in `config/tiers.toml`.
 | `dispatch.cheap_first` (`false`) | cheap first attempt, needs an independent `--check` ([dispatch](dispatch.md)) | Experimental |
 | `lead.claude` (`opus`), `lead.codex` (`gpt-6.1-sol`) | the lead's model, for savings estimates | Shipped |
 | `lead.model_by_task` (`false`) | choose a new lead conversation's model from difficulty (`[lead_by_task]`) | Measured, not recommended (Unknown: n=10 per arm, one round) |
-| `lead.slim_small`, `lead.slim_context` (`false`) | slim lead-side flow ([lead-slim](lead-slim.md)) | Experimental |
+| `lead.slim_small`, `lead.slim_context`, `lead.route_map` (`false`) | slim lead-side flow ([lead-slim](lead-slim.md)) | Experimental |
 
 ### Review and acceptance
 

@@ -166,6 +166,7 @@ read = { T1 = 4.0, T2 = 6.0, T3 = 8.0 }      # reading edits nothing: one band c
 
 [lead]                    # 主导平时用的模型：估算“如果自己做要花多少”；lead.model_by_task 开时也是“强档”的名字（强档不传 --model，工具照常用自己的模型）
 slim_small = false        # experimental: skip routing call/brief for clearly small tasks; see docs/lead-slim.md
+route_map = false         # experimental: split rule v0 in the lead's context (do it yourself; no proven cells yet); see docs/lead-slim.md
 slim_context = false      # experimental: minimal lead context, details on demand; see docs/lead-slim.md
 claude = "opus"
 codex = "gpt-6.1-sol"

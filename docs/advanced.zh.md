@@ -173,7 +173,7 @@ Pass / Fail 的说法沿用[功能详解「实验性、已测不推荐」](featu
 | `dispatch.cheap_first`（`false`） | 先用便宜档试，需要独立的 `--check`（[dispatch](dispatch.zh.md)） | 实验性 |
 | `lead.claude`（`opus`）、`lead.codex`（`gpt-6.1-sol`） | 主导用的模型，用于估算节省 | 普通功能 |
 | `lead.model_by_task`（`false`） | 新开主对话时按难度选模型（`[lead_by_task]`） | 已测不推荐（Unknown：每组 n=10，一轮） |
-| `lead.slim_small`、`lead.slim_context`（`false`） | 主导侧精简（[lead-slim](lead-slim.zh.md)） | 实验性 |
+| `lead.slim_small`、`lead.slim_context`、`lead.route_map`（`false`） | 主导侧精简（[lead-slim](lead-slim.zh.md)） | 实验性 |
 
 ### 审查和验收
 
