@@ -31,7 +31,7 @@ and a cross-tool ledger; its wiring and opt-in selftest remain unchanged.
 
 ```bash
 pipx install relayline
-ccx setup        # guided: hub, wiring, health check; asks before each change
+ccx setup        # guided: one question (recommended settings); --advanced asks every step
 ccx run --to codex --mode read "Summarise README.md in three lines for a new user: what this project does, how to install it, and the first command to try"
 ```
 

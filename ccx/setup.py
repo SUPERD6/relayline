@@ -1,8 +1,10 @@
 """`ccx setup`: a guided first run — check, hub, init, sync (preview, then apply on a yes), doctor, notes from your
 recent sessions (L6, each one only on a yes), selftest.
 
-Every change is previewed and asked about first. Not on a terminal and no --yes (an agent running it, a pipe): it
+Every change is previewed first and made only on a yes (the one recommended-settings question, or each step with --advanced). Not on a terminal and no --yes (an agent running it, a pipe): it
 shows the whole plan as the commands to run and changes nothing.
+Default path on a terminal: ONE question ("accept the recommended setup?"); `--advanced` keeps the step-by-step
+questions (hub location, each change, notes from sessions, selftest). `--yes` is unchanged.
 Goal: a new user delegates for the first time within five minutes."""
 from __future__ import annotations
 
@@ -32,8 +34,9 @@ def first_command(to: str = "codex") -> str:
 
 
 class Wizard:
-    def __init__(self, yes: bool, interactive: bool):
-        self.yes, self.interactive = yes, interactive
+    def __init__(self, yes: bool, interactive: bool, quick: bool = False):
+        # quick: the one-question path already said yes to the recommended steps; ask() then answers them
+        self.yes, self.interactive, self.quick = yes, interactive, quick
 
     def say(self, text: str = "") -> None:
         print(text, flush=True)
@@ -44,6 +47,9 @@ class Wizard:
     def ask(self, question: str, default: bool = False) -> bool:
         if self.yes:
             self.say(f"  {question} yes (--yes)")
+            return True
+        if self.quick:
+            self.say(f"  {question} yes (recommended)")
             return True
         if not self.interactive:
             self.say(f"  {question} (skipped: not on a terminal; run `ccx setup` yourself, or add --yes)")
@@ -58,7 +64,7 @@ class Wizard:
         return default if not ans else ans in ("y", "yes", "是", "好")
 
     def text(self, question: str, default: str) -> str:
-        if self.yes or not self.interactive:
+        if self.yes or self.quick or not self.interactive:
             return default
         try:
             ans = input(f"  {question} [{default}] ").strip()
@@ -120,7 +126,7 @@ def recent_sessions(days: float = COLD_DAYS, limit: int = COLD_FILES, now: float
 def cold_start(w: Wizard, p) -> None:
     """L6: on a new hub, offer the preferences and pitfalls ccx's rules (memsuggest, no model) find in the last few
     days of sessions; each one goes to shared memory only on a yes, through `ccx mem accept`'s own path."""
-    if w.yes or not w.interactive:
+    if w.yes or w.quick or not w.interactive:
         w.say("  skipped (asks one by one, so only on a terminal); later: `ccx mem suggest --from-transcript "
               "claude|codex`, then `ccx mem suggestions`")
         return
@@ -156,7 +162,7 @@ def cold_start(w: Wizard, p) -> None:
     w.say(f"  kept {kept}" + (f"; {rest} more wait in `ccx mem suggestions --all`" if rest else ""))
 
 
-def run(yes: bool = False, hub: str | None = None) -> int:
+def run(yes: bool = False, hub: str | None = None, advanced: bool = False) -> int:
     from .commands.install import init_hub
     from .sync import sync_all
     w = Wizard(yes, sys.stdin.isatty())
@@ -181,6 +187,16 @@ def run(yes: bool = False, hub: str | None = None) -> int:
         w.say("  Neither Codex nor Claude Code is installed. Install one or both, then run `ccx setup` again.")
         return 2
 
+    if not w.yes and not advanced and w.interactive:
+        # the one question of the default path; everything below then takes the recommended answer
+        if w.ask("Set up with the recommended settings (the hub already set, or the default one; wire the tools you "
+                 "have; health check. Every changed file is backed up, `ccx uninstall` removes it again)?",
+                 default=True):
+            w.quick = True
+        elif w.interactive:                  # a real no; input ended (EOF) falls through to the printed plan
+            w.say("  Nothing was changed. For the step-by-step questions: ccx setup --advanced")
+            return 0
+
     w.step(2, "Your hub (personal folder for memory, skills, MCP and the ledger)")
     already = user_config_file().exists() and not hub
     where = Path(hub or (str(hub_dir()) if already else w.text("Where should it live?", str(hub_dir())))).expanduser()
@@ -193,8 +209,8 @@ def run(yes: bool = False, hub: str | None = None) -> int:
 
     if not w.yes and not w.interactive:
         return _plan_only(w, where, agents, logged_out)
-    if w.yes and hub and _replaces(where):
-        # --yes answers every question, so it would switch hubs unasked (as a walkthrough's temp hub once did)
+    if (w.yes or w.quick) and hub and _replaces(where):
+        # --yes (and the recommended-settings answer) answers every question, so it would switch hubs unasked (as a walkthrough's temp hub once did)
         w.say(f'  Stopped: --yes does not switch hubs. To switch: ccx init --hub "{where}" --force, then ccx setup.')
         return 1
 
@@ -237,6 +253,8 @@ def run(yes: bool = False, hub: str | None = None) -> int:
     if logged_out:
         # it would only fail (and costs a little where it gets through): log in first, then `ccx selftest`
         w.say(f"  skipped: {', '.join(logged_out)} not logged in. Log in first, then run `ccx selftest`")
+    elif w.quick:
+        w.say("  skipped (costs a little): run `ccx selftest` when you want a real check")
     elif w.ask("Run one tiny real task per installed agent (cheapest model, a few cents at most)?"):
         from types import SimpleNamespace
         from .commands.install import cmd_selftest
