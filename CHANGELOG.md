@@ -2,6 +2,655 @@
 
 ## Unreleased
 
+## 0.8.0 — 2026-11-27 (relay across vendors, relay check and start hint, daily real-use page, public roadmap)
+- Credential guard (opt-in, still off by default) now covers Codex: ccx replaces its own `-c sandbox_mode=...` with an
+  inline Codex permission profile (`default_permissions="ccx-credential-guard"`, `extends=":read-only"|":workspace"`,
+  `filesystem` deny entries for the same credential targets as Claude) and adds `--ignore-rules` so execpolicy allow
+  rules cannot run commands outside the sandbox. Launch is refused when the arguments would bypass or hide the
+  profile, and on Windows with any sandbox other than elevated (unelevated refuses deny-read entries). Receipts
+  record `mechanism: "codex-permission-profile"`, `windows_sandbox`, `config_sets_sandbox_mode`, and observed refusal
+  counts (`access_denied_commands` for Codex, `refused_tool_calls` for Claude; run totals at top level, not
+  attributed to the guard alone). Measured on codex-cli 0.164.0 / Windows: the elevated sandbox enforces the deny
+  with persistent `CodexSandboxUsers` DENY ACLs. Status stays `Unknown`. Fixes #289.
+- p4 evaluation, round 2 (#346, experimental, nothing run): `--split r2b` / `r2c` read any number of tasks from a
+  frozen `--tasks-file`, refused unless `--tasks-sha256` matches. New arm `ccxcheapfirst2` (hub: `dispatch.cheap_first`
+  plus `check.sensitivity = "escalate"`; its lead writes a failing test first, commits it and passes it as `--check`,
+  per the #326/#338 guidance) delegating to Claude by default (`--child-agent`). New options `--episode-size`
+  (1 = each task its own lead session), `--self-lead-budget`, `--max-escalation-rate` (default 0.3, `none`),
+  `--max-invalid-rows` (default 3 for r2b/r2c: invalid rows are kept, cost-unknown ones charged at their reservation),
+  `--codex-web-search disabled` (default for r2b/r2c; adds `-c web_search="disabled"` to every Codex exec through
+  `codex_tmp.py`), `--max-tasks`, `--max-operational-usd`. The dry run prints each arm's effective settings, the
+  default first rung computed from ccx's tiers, reviewers, network settings and stop rules; v2 rows record the
+  lead's `--check`, its sensitivity receipt, the ledger's first rung and cap hits. Old splits, arms and their dry-run
+  output are unchanged.
+- Evaluation (#375, A part): round 2's A1/A2 task set, frozen for `strength_retest.py --tasks`:
+  `docs/research/data/round2-tasks/a1.json` (48 settled + 8 neutral; 19/48 settled tasks change the convention
+  mid-conversation, 48/48 have an adjacent-topic distractor sentence), `a2.json` (48 memory tasks, each with an
+  adjacent-topic distractor note) and the development files `a1-dev.json` / `a2-dev.json` (4 each, written and
+  committed first). Every task carries its reference and a "naive" implementation (repository default or the dropped
+  option). `scripts/eval/round2_a_tasks.py` builds the files from `scripts/eval/round2_a/` and checks them offline
+  (hidden tests fail on start, pass on the reference, the naive version fails a test of every convention, trace table
+  complete per hidden test function, no convention sentence in the brief, a neutral task's trace only from its brief,
+  the A1 settle text reaches the `--context on` attachment whole), runs the leak/similarity rule and writes the
+  SHA-256 manifest. No model was called. `.gitattributes` keeps these JSON files LF, because `--tasks-sha256` hashes
+  the raw bytes.
+- strength_retest: an arm that must not get the answer has no answer-level file in its unit: the context off arm no
+  longer gets the lead transcript (ccx never read it with `--context off`). Claude units' shared transcript folder
+  (`<claude-home>/projects/ccx-strength-synthetic/`) is denied and audited for every unit; only an on unit's own
+  transcript is not a hit. Every unit is kept from the rest of `--out` (the other `unit-*` folders, `manifest.json`,
+  `results.jsonl`, `report.json`): any spelling of `--out` left after masking the unit's own folder is a path-audit
+  hit, and Claude units get deny rules on the run files and the earlier units (a few `unit-NN*` globs). The dry run's
+  `isolation` field lists each arm's answer-level files (`answer_files`) and the `--out` rules (`siblings`). (#467)
+- strength_retest: the logged-in homes every unit shares keep earlier units' session records (Codex `sessions/`,
+  `archived_sessions/`, `history.jsonl`, `session_index.jsonl`, `memories/`, `*.sqlite`; Claude `projects/<slug>/`,
+  `file-history/`, `todos/` ...), whose prompts and tool results hold an on or mem arm's answer. The audit masked the
+  whole home as the unit's own; now, once the unit's own parts are masked (its Claude project folders, its own Codex
+  rollouts), any spelling left inside a shared home is a path-audit hit for every unit (records, globs, the home
+  itself; `$CODEX_HOME`-style variables expanded), except the files a CLI reads to start. Claude units get Read deny
+  rules on the records; the `--out` rules from #467 become Read only, except Edit kept on `manifest.json` and
+  `results.jsonl` (evidence). Before anything starts, `execute` refuses a run whose last unit's `--settings` would
+  exceed 30,000 characters (`execute --dry-run` prints the length) or whose last unit number would fall past the 200
+  characters of a Claude project folder name. The audit is detection: the known gaps are listed in
+  docs/research/strength-tools.md. (#470)
+- docs: `docs/engineering-standards.md` (and the Chinese version) metric table gets a "lead-vendor spend (quota
+  scenario)" row, as decided in the eval-rule decisions (#411, maintainer-confirmed 2026-11-19): primary metric
+  of a quota-scenario claim, whoever leads counts, geometric-mean upper bound ≤ 0.6, guardrails total spend ≤ 1.2×,
+  correctness lower bound > −0.15, wall ≤ 3×; effective from the next quota-scenario preregistration, round 2
+  unchanged. Docs only; nothing run. (#477)
+- `ccx report --daily --quota-events` (off by default, the default page and JSON unchanged): adds decision 3 of the
+  eval-rule decisions (#411) to the daily page. A `quota_events` object and a page section list quota events from 2026-11-19
+  (sub-agent runs from `run.json` and the ledger, lead events from `.ccx/relay/` packets and continue records), give each a
+  verdict (`success` / `failure` / `not_attempted` / `unknown`, with a reason and a machine or human source), and summarise
+  combined and per role, whether there are at least 5 counted events with at least 80% success, the 95% Clopper-Pearson
+  lower bound and the two-period rule (`--quota-split`). Human-only facts (waited for the reset, confirmation of an
+  unconfirmed packet, nothing lost, marked done, lost work, excluded) are read from `<hub>/ccx/daily/quota-notes.jsonl`.
+  New options `--quota-events`, `--quota-workspace`, `--quota-split`; new module `ccx/daily_quota.py`. One original task is one event (resume chains and lead hand-off packets merge, judged by the last result); a missing
+  `done` or `intact` after its window is a labelled failure with a non-quotable sensitivity line. (#480, #482)
+- Docs: the engineering standards' "Receipt false positive" row (English and Chinese) now states the bar from eval
+  rule decision 2: point estimate ≤ 2% and one-sided 95% upper bound ≤ 5% → Pass; point > 2% → Fail; otherwise
+  Unknown; n = 0 is Unknown. Smallest passing samples: 0/59, 1/93, 2/124, 4/200, matching `bar_verdict` in
+  `scripts/eval/receipt_fp.py` (#481). Links to decision section 2. Docs only; no code or results change.
+  Refs #411. Fixes #484.
+- personal-data check (`tests/test_repo_hygiene.py`, run by `.github/workflows/hygiene.yml`, #493): a new pattern flags
+  `pytest-of-<name>`, pytest's temp folder named after the OS login, which leaked through error lines and logs.
+  Placeholders (`<USER>`, `USER`, `someone`, `runner`, `root`, ...) pass like in the other patterns; positive and negative
+  cases are tested, and the whole tracked tree still scans clean. No option or command changed.
+- tests: the headless-browser demo test (`tests/test_demo.py`, #500) no longer reads the page after one fixed
+  `--virtual-time-budget`; it waits for an explicit "rendered" signal (`<main>` past its `…` placeholder and the expected
+  strings shown), re-dumping with a doubled budget up to a deadline, and fails as `render timeout` when the page never
+  draws. A fake slow browser covers this without Chrome. No option or command changed.
+- Evaluation (#449): `round2_tasks.py select --skip-c` takes no C and no C development task: B's development tasks
+  follow right after B's 60 final tasks, as the round-2 pre-registration change log of 2026-11-18 (#447/#448) reads
+  it now that C is moved to round 3. Default off; without it the order stays B, C, B-dev, C-dev and the output is
+  unchanged. With it, `c_shortfall` and the C development shortfall are 0 and `rule.skip_c` records the switch.
+  No selection is rerun and no frozen file changes.
+- round 2 `prepare` (`scripts/eval/round2_tasks.py`, #446): a kept dependency is now pinned at the highest final
+  release uploaded before 2026-07-01 whose `requires_python` admits `--ext-python`'s version: a release counts only
+  when one of its non-yanked files has a fitting `requires_python` (the version is read once; parsed with the standard
+  library). A file without `requires_python`, or a value with any clause that does not parse, counts as compatible, as
+  in pip. Wheel platform tags are not checked. Before, numpy 2.5.0 / scipy 1.18.0 (Python >= 3.12) were pinned on 3.11
+  and never installed. The output records `ext_python_release` (e.g. `3.11.9`); if the version cannot be read, pins
+  fall back to dates only, the rule says so and `prepare` prints a warning. Not re-run on the 250 repositories yet
+  (round 3 preparation); round 2's frozen B set is unchanged.
+- Tests no longer write into the checkout's own `.ccx/eval/` (#506): an autouse fixture (`tests/_ccx_repo_outputs.py`)
+  points every module-level path under `<repo>/.ccx` (`r5.OUT`, `batch.RESULTS`, ...) to the test's `tmp_path`, and
+  a test session that adds or changes a file under `.ccx/eval/` fails and names it (`CCX_TEST_ALLOW_EVAL_WRITES=1`
+  only warns, for a checkout where a real evaluation writes there meanwhile). The scripts' defaults are unchanged.
+- Evaluation (#509): `scripts/eval/p4_long_session.py` now treats an auth or quota failure as an environment error
+  instead of an unknown cost. When the lead's error result or stderr (`Failed to authenticate`, `OAuth session
+  expired`, 401, usage limit / quota) or a sub-agent's ccx receipt (kind `auth` / `quota`) says the login or the
+  allowance stopped the work, the row is `environment_error` with `env_stop` set, `usd` is the amount actually
+  spent (usually 0, not the reservation), and the whole group stops at once with `stop_reason` `auth` (previously
+  three failed rows were each charged the $1.5 reservation and the run ended as `budget`). A normal result is never
+  scanned, so a model mentioning 401 in its text is not a stop. New opt-in `--check-login` refuses to start with
+  `--run` unless `claude auth status` reports the lead's login (flags mode: the default Claude home) as valid; it
+  reads no credential file. No command or option was removed; default behaviour without a failure is unchanged.
+- Evaluation (#510): the P4 long-session script starts every episode with `CLAUDE_CODE_DISABLE_WEB_FETCH=1`, so
+  Claude Code's built-in `web-fetch` agent is gone from the lead's init event and the clean-environment audit can
+  pass. ccx's Claude sub-agents should inherit it through the lead's Bash tool and `_child_env`; that step is read
+  from the code, not yet seen in a real run. Checked on Claude Code 2.1.316 without a model call: a deny rule
+  `Agent(web-fetch)` (flag or settings) leaves the name listed, as the docs say; this variable removes it and keeps
+  every other built-in agent. The agent could not fetch pages before either (it calls WebFetch, which the deny rules
+  already cover). The env_clean rule is unchanged: a run that lists `web-fetch` is still not clean. The dry-run plan
+  records the variable under `network.claude_env`.
+- Evaluation (#514): `preflight.prepare()` now sets `CLAUDE_CODE_DISABLE_WEB_FETCH=1` (`preflight.CLAUDE_WEB_ENV`) for
+  every unit it prepares, so Claude Code 2.1.316's built-in `web-fetch` agent no longer shows in the lead's init event.
+  Before, `canary()`, `skill_canary()` and the audits of r5, batch, p13_discuss (and the other `prepare()` users:
+  b3_arms, c2, p2/review/rereview replay) reported `agents loaded: ['web-fetch']`; #513 had fixed only P4. The deny
+  rules already covered the pages the agent fetches, so tool access is unchanged; the clean rule is unchanged (a run
+  that lists `web-fetch` is still not clean). Not covered, because they do not use `prepare()` and have no agent-list
+  check: strength_retest/strength_runner and the older `lead_env()` scripts. P4 keeps its own copy of the variable
+  (same value). `env_keys_sha256` of earlier non-P4 rows differs from new rows (one more key); that is expected, and
+  those earlier results are historical. Tests use a fake lead that lists the agent unless the variable is set; no real
+  CLI was run.
+- Evaluation (#515): P4 (`p4_long_session.py`) now records the between-units check made right after each unit on that
+  unit's row, as r5, batch and p13 already did. Before, every episode was closed with the last check, so one outside
+  pytest seen after the last unit marked every earlier, already finished row `env_clean = false` (round-2 B dev
+  rerun `r2-dev-b2`: 8 of 8 rows, where only the last one overlapped). The environment stop is unchanged. A row whose
+  check never ran because the run broke records "between-units check did not run after this unit" and is not clean.
+- Relay: the `agent-delegate` skill (and its Chinese README) now tells the lead, only when `relay.enabled=true`, to run
+  `ccx relay capture --session-id ... --goal ... --progress ... --next-step ...` at the start of work and at each
+  milestone, so a `StopFailure` packet has a goal and `relay continue` is not refused as `Unknown` (#521). Default off;
+  no private transcript is read; no command or option changed. A fake-CLI test covers the flow. `docs/relay.md` and
+  `.zh.md` updated.
+- relay: after a `ccx relay continue --launch` child ends, two `relay_usage` rows go to the hub ledger: the new lead's
+  usage as the CLI itself printed it (Claude `result` / Codex `turn.completed`) and the old lead's session usage when the
+  packet names its session; whatever cannot be read is `Unknown`, never an estimate. `ccx report` lists both sides per
+  agent (`relay` in `summary.json` and a dashboard card), kept out of the totals (#524).
+- docs(relay): `docs/relay.md` / `relay.zh.md` now open with three steps (turn it on, stop the old session when Claude hits
+  a usage limit, `ccx relay continue ...`), commands checked against `ccx relay -h` and its subcommands; the earlier
+  text moved unchanged under a new "Details" section (headings one level down), no limit clause removed (Refs #527).
+- Daily page (#541): `ccx report --daily --real-use` (off by default; the page and JSON are unchanged without it) adds
+  the relay-check receipts of the day (pass / fail / broken), how many of the day's delegations had their hard verdict
+  flipped, and the running count of comparable real delegations toward the bar of 20 (samples, not days).
+- Added a real quota event log template and steps (`docs/quota-event-log.md`, `.zh.md`): fields, how to tell native
+  auto-continue from a missing hook, what must stay out of the repo; linked from `docs/relay.md` (#520). Docs only.
+- Relay: `ccx relay capture --check CMD` / `ccx relay continue --check CMD [--check-timeout-seconds N]` (#522). The
+  packet gains a `check` field (`cmd`, `source`, `sha256`) that only an explicit `--check` can fill; after the new lead's
+  process ends, ccx runs it in the same workspace with the ordinary check runner and writes `verification`
+  `pass` / `fail` / `broken` plus `check_result` into the launch record and a `relay_check` row into the ledger. A
+  `check` of unknown source, a hash that does not match, or a malformed value is refused and never run. Default off
+  (no `--check` = unchanged, `verification` stays `not-run`); no command or option removed. `docs/relay.md` and
+  `.zh.md` updated.
+- `--check` timeout now stops the whole process tree: `run_check` starts the command in its own process group and
+  kills the tree (`kill_tree`) on timeout or interruption. On Windows the timeout used to kill only the outer
+  `cmd.exe` and wait for the real command to end by itself (#571).
+- On Linux/macOS the check now runs in its own session: an outer `killpg` of ccx no longer reaches it, Ctrl-C ends it
+  with SIGKILL (no graceful pytest summary), and it has no controlling terminal (#571).
+- Add `docs/ROADMAP.md` / `docs/ROADMAP.zh.md`: a living public roadmap (positioning, three layers, the trade-off map with
+  per-cell status, phases 0-7 with dates and acceptance, budget, gates, adjustment log), updated with the phase-0
+  measurements (evaluation spend $101.92 instead of about $182, real lead re-read median 225,389 tokens). Add a rule to
+  `AGENTS.md`: hand-offs go through issues and PRs, plan changes go through a PR that updates the roadmap and its log.
+  No command, option, default, preregistration or registered SHA is changed.
+- Relay (#525): checked codex-cli 0.164.0 and the Codex hooks reference (2026-11-26): there is no usage-limit hook, so a
+  Codex session the person starts themselves is not covered (said in docs/relay*.md). A Codex session ccx itself
+  launches (`ccx run --to codex`) that ends on a confirmed usage-limit refusal, with no fallback, now saves a relay
+  packet (`source: codex`) and a `relay` field in the result for `ccx relay continue --to claude`. Off with
+  `relay.enabled` (default false). The refusal wording is captured from the CLI's own log; the `exec --json` envelope is
+  still Unknown. Fake-CLI tests only.
+- Docs: save the seven Chinese pre-registration summaries of the 2026-11-04/05 optimization round (phases 0, 2, 2
+  round 2, 3, 4, 5 and round 2) under `docs/research/prereg/`, with English translations, and list them in the
+  research index (`docs/research/README.md`). Numbers and conclusions are unchanged from the originals (#381).
+- Docs: correct the published round-1 G1 result in `docs/research/2026-11-14-unified.md` (and `.zh.md`). The dsh `off`
+  arm was contaminated (all 18 non-neutral units read the agreed answer), so "dsh 21/21 → 21/21 (ceiling)" is
+  withdrawn (dsh arm Unknown) and the pooled "0.46× cost per success" is replaced by Codex alone, 0.22×. The G1 and
+  G2 Pass verdicts are unchanged: b = 16, c = 0 come from Codex only, and the contamination can only understate the
+  Pass direction (the cost ratio is biased the other way). The original wording is kept, struck through (#467, #468).
+- Docs (#497): round 2 pre-registration change log (EN + ZH) gets a 2026-11-20 entry with the full formal and development
+  commands for A1, A2, A1x, A2x and B (`--tasks-sha256` for A, `--hide <everyday checkout>` for A and B plus one `--hide`
+  per other worktree holding task folders for B, no `--claude-home` for A1x/A2x), the raw-byte SHA-256 of the six task
+  files, and a pointer sentence after each earlier command. Mechanical completion only; thresholds, sample sizes and
+  budgets are unchanged. `strength_retest.py execute -h` and `strength-tools` (EN + ZH) now state the same `--budget`
+  ceiling as the code: min($10, units x $0.15) with `--tasks`, context $4 and memory $3 without it (help text only,
+  behaviour unchanged).
+- Docs: three evaluation-rule decisions, confirmed by the maintainer on 2026-11-19: lead-vendor spend as the primary
+  cost metric of quota-scenario claims (total spend a guardrail; from the next quota-scenario preregistration, round 2
+  unchanged); the ordinary `ok` receipt false-positive bar as point ≤ 2% and one-sided 95% Clopper-Pearson upper bound
+  ≤ 5%; "work does not stop when quota runs out" judged on at least 5 naturally occurring limit events with ≥ 80%
+  success (`docs/research/2026-11-17-eval-rule-decisions.md`). Plus a design note: automatic splitting stops at the
+  piece, and inside a piece the tool decides (`docs/research/2026-11-17-split-to-pieces.md`). No code or default
+  changes.
+- Docs: add a 2026-11-21 correction to the round-2 preregistration change log
+  (`docs/research/prereg/2026-11-16-round2.md` and `.zh.md`): the frozen `selection-env/pip-list-v3.json` is the pip
+  list of the earlier prepare-v3 environment (no pytest, #442) and does not describe the B selection environment; the
+  selection used the prepare-v4 environment, whose authority is the frozen `prepare-v4.json` (SHA-256 recorded by both
+  selection runs; 905 distributions, pytest 9.1.1). B's development and formal runs use copies of that environment and
+  cache, compared with `prepare-v4.json`'s pip list before every start. No frozen file or registered SHA-256 changes;
+  written before any round-2 model result (#501).
+- Docs: add a 2026-11-20 entry to the round-2 preregistration change log
+  (`docs/research/prereg/2026-11-16-round2.md` and `.zh.md`) for the frozen B-group task set (PR #492): SHA-256 of
+  `b.json` (for `--tasks-sha256`), of `selection-b.json` and of the manifest; 60 final tasks = 42 upstream + 18
+  authored, plus 4 authored development tasks; the 51-repository rerun and why it is equivalent; the one upstream task
+  excluded (networkx Leiden) and replaced by an authored one; systematic exclusions and known differences; `PIN` must
+  contain #492. Written before any round-2 model result; thresholds, sample sizes (B stays 60) and budget are
+  unchanged and no original text is removed (#495).
+- Docs (#447, #375): round 2 pre-registration (EN + ZH) gets a change-log entry dated 2026-11-18: group C moves from round 2
+  to round 3 (maintainer's decision, written before any model-evaluation result and not made after seeing one; cause: upstream
+  selection yields almost no valid tasks, so C's 24 final and 2 development tasks would all be newly authored). C's 4 development
+  units leave round 2 (56 in total); the report records C as Unknown (not run: deferred to round 3); round 2's conclusions are
+  not extrapolated to long tasks. The entry also records that B's 4 development tasks are expected to be newly authored,
+  that `round2_tasks.py select` (collects B, C, B-dev, C-dev) differs from the new reading only if B reaches 60 (switch
+  tracked in #449), and that the $450 cumulative cap is unchanged. Short pointers to the entry are added to the file header,
+  the "Why" and section 0 tables and sections 1, 2 and 7; original text, thresholds, sample sizes and B's rules are
+  unchanged.
+- Docs (#458): round 2 pre-registration (EN + ZH) gets a change-log entry dated 2026-11-18 recording the isolation
+  conditions of groups A and B (#451/#453, #454/#455), written before any model-evaluation result: B's formal command
+  adds `--hide <other local checkouts>`; A's units are by default denied the running checkout, its task data and the
+  `--tasks` file, take `--hide`, and are audited (a hit makes the row invalid); run constraints (`--out` outside the
+  clone and the person's home/hub, no audit content pattern in the `--out`, `--claude-home` and `--codex-home` path
+  names); the audit is a backstop with listed known misses; #456 must be merged before B starts. The A and B command
+  lines get a pointer to the entry; command text, thresholds, samples and decision rules are unchanged.
+- Docs: add a 2026-11-19 entry to the round-2 preregistration change log
+  (`docs/research/prereg/2026-11-16-round2.md` and `.zh.md`) for the group-A isolation supplements: answer files and
+  sibling units (#467, PR #471) and shared-home session records (#470, PR #472), caused by the round-1 leak check
+  (#468, PR #469). Written before any round-2 model result; the analysis rule for audit hits is unchanged. The A1 and A2
+  command notes also point to it; no original text is removed (#475).
+- Docs (#375, #415): round 2 pre-registration change log (EN + ZH) gets two entries dated 2026-11-17: the
+  task-selection environment fix (#416) and the A-group task-set freeze (#407) with the manifest and task-file
+  SHA-256 values. Appended only; text, thresholds, sample sizes and budget are unchanged.
+- Docs (#375, #417, #424, #430): round 2 pre-registration change log (EN + ZH) gets two more entries dated 2026-11-17: the
+  vendored-copy leakage check (#422, which corrects the earlier "vendored by another package, is not caught" sentence)
+  and the second selection round fixes (#425: per-repository 10-minute reading, declared pytest plugins, tag-based
+  version stub, Windows limit, B-under-60 consequence). Appended only; text, thresholds, sample sizes and budget are
+  unchanged.
+- Report: `ccx report --daily [DAY] [--tz local|UTC|+08:00]` (#376) writes one Markdown page for a day of real use to `<hub>/ccx/daily/DAY.md` (or `--out`), from the ledger and run records only (read-only, no CLI, no network, the lead's own session logs are not read). It shows delegations, per agent and per project (folder name only), right / failed / unverified with numerator and denominator, spend (API-equivalent and billed, with how many runs had a price), wall clock, quota events (limit hit, relayed to the other agent; unreadable run.json is unknown, not zero), runs marked wrong or dismissed by hand, and the planned-first-rung match when the ledger has `planned_first_rung`. Evaluation and dismissed runs are left out unless `--include-evals`. Without `--daily`, `ccx report` is unchanged.
+- Eval: new read-only `scripts/eval/receipt_fp.py` (#377), standard library only. From result rows (a strength
+  directory or a P4 JSONL, optionally with the hub's `ledger.jsonl` for rows that keep only run ids) it counts how
+  often a receipt that claims success (`ok`, `ok_self_checked`, `done`, `UNVERIFIED` when a row carries a lead-view
+  headline) still fails the hidden test, per receipt type, as failures / n with a one-sided 95% Clopper-Pearson
+  upper bound (n = 0 is Unknown, bound 1.0). `--by FIELD` splits further; `--text` prints a table. No evaluation
+  behaviour changes.
+- Eval: new `scripts/eval/handover_overhead.py` (#378), read-only, standard library only, no CLI or model calls. It splits
+  one delegation's cost and wall time into four items (brief, CLI startup, sub-agent work, check and review) from result
+  rows, the lead stream (`--artifacts`) and optionally ledger rows (`--ledger`), and prints each item's median and
+  share per arm. Items the data cannot give (startup; a separate check/review wall; the first delegation message's
+  duration) are `Unknown` with the missing field named, and are left out of the shares. Lead cost per item is
+  allocated from the measured `lead_usd` by usage weight and labelled as such. No existing behavior changed.
+- `ccx run --dry-run` (#379): shows the rungs a run would try, `planned_first_rung` (routing's pick), `first_rung`
+  (where it starts) and `rung_why` (one reason each for vendor, model and effort, from the signals the pick used,
+  plus `changes` when the start moved before running); starts nothing, writes no run or ledger row, probes no quota. Real runs record
+  `planned_first_rung`, `actual_first_rung` (the first rung that really took the task: capacity, quota and
+  missing-model switches do not count) and `rung_why`; the one-line result adds the two rungs only when they
+  differ. No default and no pick changed.
+- Eval: new read-only `scripts/eval/ledger_replay.py` (#380), standard library only. From a ledger (`--ledger` /
+  `--hub`, optionally the hub's `run.json` records and scored result rows joined by label) it reports, per task
+  category and first rung, the judged right rate (final and on the first rung) with a Wilson 95% interval and n, the
+  mean `ae_usd`, and the calibration of task-routing's `p` / `chain_p` against what happened (gap and Brier score).
+  The first rung is read from `actual_first_rung` when a row has it (#379), else `first_rung`, else `rungs[0]`. An
+  optional `--rule` (a rung per category) gives that rule's estimated right rate and cost only where the history has
+  at least `--min-n` judged runs for that cell; the rest is marked unsupported. Small samples and non-randomized
+  history are flagged. Reads only the files named; refuses paths under `eval-codex-home`; no default changes.
+- Run records and the ledger keep handover timings (#392), added only: per attempt `started_at`, `first_event_at`
+  and `startup_seconds` (CLI process launch to its first stdout line, monotonic clock: process start-up, not the
+  first model request); for each attempt's last check `check_started_at` and `check_seconds`, passed checks too
+  (before, only a failed one kept `check_seconds`); a recorded review's `started_at`, `ended_at`, `seconds` and
+  `background`. Ledger rows add `startup_seconds`, `check_seconds`, `check_timing` and `review_timing`.
+  `scripts/eval/handover_overhead.py` uses them for the startup and the check/review wall time (a background review
+  that overlaps the check counts once) and subtracts startup from the agent's wall (a summary mixing rows with and
+  without startup keeps it in every unit); rows written before stay `Unknown`. `scripts/eval/r5.py` (`phase_wall`)
+  and `r5_timeline.py` (`run_parts`) no longer count the final check twice now that it is also on the last attempt
+  (also fixes the same double count in old check-baseline records). The check's own `seconds` now come from a
+  monotonic clock. Receipts (one line and whole result) and defaults are unchanged.
+- Relay (#414): packets now carry `captured_at` and `<packet>.continue-*.json` records carry `started_at`, both UTC ISO 8601 in the fixed form `YYYY-MM-DDTHH:MM:SSZ`, so "continued within N hours of the event" no longer depends on file modification times. Fields are only added; records without them still load, and no command, option or default changed. The format is seconds precision with a trailing `Z`; other places in the repository use `+00:00` or epoch values, and parsers accept all of them.
+- Experimental cold-start table for automatic model choice, off by default (`routing.cold_start = false`; with it off
+  every pick is byte for byte as before, locked by a regression test). Switched on, it acts only on task-routing's pick
+  and only when no candidate vendor has a learned outcome yet (any kind of work counts: the learned counts record no
+  kind, so the window is short; judging by kind is #437): the first rung's tier then comes from the new `[cold_start]`
+  table in `config/tiers.toml` (per kind of work, difficulty b at most a bound -> tier; provisional, unmeasured
+  bounds). The table names tiers, never a vendor; the vendor stays task-routing's pick and escalation climbs that
+  vendor's next tiers. A choice the person fixed (`--to`, `--model`, `--tier`, `--provider`, `--effort` with `--model`
+  or `--provider`, or a role) is never changed, and `rung_why` gains a `user_fixed` line saying so; `route.cold_start`
+  says whether the table applied and why. Dry run and real run start on the same rung (#426).
+- `[review] skip_when_clean` (experimental, default `false`, effect Unknown, to be evaluated; #427): when on, a write
+  run's automatic independent review is not started if the run is mechanically clean: `--check` passed, not weak, and
+  sensitive (failed before the change; needs `[check] sensitivity` warn/escalate), at most `skip_max_files` (3) files
+  and `skip_max_lines` (49) changed lines with no binary or long new file, every changed file on a whitelist (source
+  files changed or added, test files only new; no delete, rename, config / data / lock / snapshot file, conftest.py,
+  testdata/ or __snapshots__/), no edited or added-to pre-existing tests, check basis not self-authored, no open
+  questions, reported files matching the diff, no sub-agent commit, not `--review on` / a fix round / `--risk visible`
+  or `critical`. Inline tests in source files and adversarial source or new-test changes cannot be judged. The
+  receipt says `review.verdict = "skipped"` with `review.skipped` (why); run.json keeps `review_skip.unmet`, the
+  ledger row `review_skipped: true`; `ccx ui` shows "skipped (clean)" in a neutral colour. Off: unchanged.
+- Config: `[brief] slim = false` (#428, experimental, effect Unknown, off by default). On, a fresh or continued sub-agent
+  run's first message moves two builder paragraphs (how to test through the triggering command, what to do for an
+  answer-only task) into `guidance.md` in the run's folder, with a line telling it to read that file first, and the Finish
+  text is shorter; the rules, `KEEP_TESTS`, the project-context / memory / shared-note lines, permission, acceptance
+  command and receipt format stay in the message. ccx's own reviewer and follow-up resumes are unchanged; if the file
+  cannot be written the run gets the full text. The run record gets `brief_slim` / `brief_guidance` (only when the switch
+  is on). Off, the text is byte for byte as before (`tests/test_brief_slim.py`). Different from `lead.slim_context`
+  (#300, the lead's own context) and `[prompt] slim`. No command or option was removed.
+- Eval: new read-only `scripts/eval/routing_calibration.py` (#429), standard library only, reusing `ledger_replay.py`
+  (same inputs, same outcome rule: a scorable result row's `ok`, else the last non-probable `verify`). By task-size
+  signal (`b`, files, minutes, band, coupling, clarity; a missing signal is its own bucket, never guessed) it reports,
+  for "self" (`selfrun` samples, outcome = the person's `ok` flag) and "delegated" (ledger runs), the right rate with
+  k, n and a Wilson 95% interval, cost, wall time, and per bucket a Newcombe-interval comparison (verdict
+  `insufficient` below `--min-n` judged runs per arm). From the ordered buckets it gives a threshold candidate
+  (`self_ok_up_to`, `delegate_better_from`; null = Unknown). Eval and real use are separate strata. Reads only the
+  files named; refuses paths under `eval-codex-home`; changes no default (`small_self`, `routing.default` untouched).
+- `ccx ab done` now writes size signals into its `selfrun` ledger row (#433): `estimate_files`,
+  `estimate_minutes`, `band`, `coupling`, `clarity` (the tier plan's and the rubric's values from the `ccx run` that
+  drew the sample), plus `route.rubric.{coupling,clarity}`, laid out where `scripts/eval/routing_calibration.py`
+  (`signals_of`) reads them, so the do-it-yourself arm is no longer empty on those signals. Fields are added only
+  when given or measured; samples opened earlier and runs without signals close as before. No new option, no output
+  change beyond the added fields; `ccx ab done <id> --ok 1|0` is as it was.
+- Cold-start table (experimental, still off by default) now judges "no history" per kind of work (#437): every
+  learned outcome also records its kind (`kind_counts` {kind: {rung: n}} in the routing state and `kind` on the
+  outcome; only added, `counts` unchanged). A candidate vendor with only `code` runs is still cold for `read` work.
+  A pick fixed with `--tier` / `--model` / `--provider` records its kind from the run's mode. Runs with no recorded kind (state written before #437) count as history for every kind, so an old state file
+  behaves as before; an unknown kind of work falls back to the per-vendor check. `route.cold_start` gains `by_kind`
+  and its `why` names the kind it was judged by. With the table off every pick is byte for byte unchanged.
+- Routing (#440): `ccx doctor --backfill-kinds` rebuilds `kind_counts` of the routing state from old run records
+  (`runs/*/run.json`, read only, `route.kind` else the run's mode), so history learned before #437 counts per kind in the
+  cold-start check. Adds only, never more per rung than the skill's `counts`, what cannot be placed stays "unknown
+  kind", done once (marker `kind_backfill`) under the state lock. No pick changes without the option.
+- Eval: `scripts/eval/receipt_fp.py` gets the receipt false-positive bar of decision 2 in
+  `docs/research/2026-11-17-eval-rule-decisions.md` (#411, confirmed 2026-11-19). Each receipt type now carries a
+  `verdict`: Pass when the point estimate is <= 2% and the one-sided 95% Clopper-Pearson upper bound is <= 5%, Fail
+  when the point estimate is > 2%, otherwise Unknown (too few receipts, or n = 0), plus `bar`
+  (`point_max`, `upper95_max`) next to the existing `failures` and `n`. `--text` adds a verdict column. The smallest
+  passing samples 0/59, 1/93, 2/124 and 4/200 are test cases. `all_claims` stays descriptive, and the existing
+  fields (`below_2pct`, `status`, `upper95`) keep their meaning. Fixes #478.
+- Evaluation: `scripts/eval/strength_retest.py` can run round 2's group A on frozen new tasks (#345). `plan` / `execute
+  context|memory` take `--tasks FILE --tasks-sha256 HEX` (a JSON task file, refused when its SHA-256 differs from the
+  preregistered value; checked again right before `--run`), `--agents codex,dsh,claude` (Claude: `haiku` low),
+  `--claude-home DIR` (a dedicated logged-in Claude home, checked by existence of `.credentials.json` only; Claude units
+  use it as `CLAUDE_CONFIG_DIR` and get a unique synthetic lead session there) and `--on-invalid stop|continue`
+  (default `continue` with `--tasks`: errored, receipt-error and unknown-cost units are recorded as `invalid` and the
+  group goes on; a sub-agent's own timeout/cap with a known cost is a valid row with `ok` false and `hidden_ok` kept;
+  it stops on the budget, a unit over its reservation, Ctrl-C, the 4th unknown-cost unit or a receipt of kind
+  auth/quota). `--claude-home` must not overlap your own homes, hub or checkout, nor hold CLAUDE.md / agents / skills /
+  commands. Claude units deny WebFetch/WebSearch (merged into any given settings); `--tasks` Codex units run with
+  `[subagent] codex_lean_tools` in the unit hub (`-c web_search="disabled"`, also no image generation / goals; listed
+  in the plan's `subagent_tools`). With `--tasks` the unit budget is at most $0.15 and the
+  total cap is min($10, units × $0.15). `unified_summary.py strength --subset neutral` added; a row's own `neutral`
+  flag decides its subset. Without the new flags plans and runs are unchanged (fingerprint test).
+- Eval: `scripts/eval/unified_summary.py` gains the round-2 statistics (#347), standard library only. `p4 --paired`
+  adds a task-level block per subset: correctness difference with the one-sided 95% Tango (1998) score lower bound,
+  per-task cost geometric-mean ratio with a one-sided 95% upper bound (paired t on log ratios), total-cost ratio,
+  Claude's own spend (lead plus Claude-side ledger entries) with the same ratios, median-wall and per-task wall
+  ratios, cap hits, observed first rungs checked against `--expected-first-rung`, strata by source and repository,
+  and an all-rows secondary analysis charging unknown costs at `--reserve-usd`. New `holm` subcommand (Unknown
+  counts as p = 1); strength pairs add `effect_rate = (b - c) / n_pairs`. Existing fields and outputs are unchanged
+  (round-1 G1–G4 summaries recompute identically).
+- Evaluation: `scripts/eval/round2_tasks.py` (#348) selects and checks round 2's new tasks before any run, following
+  the round 2 pre-registration: a mechanical repository list from a top-pypi snapshot (GitHub source, permissive
+  license, not used before), upstream commits on or after 2026-07-01 for B (first 60, at most 6 per repository) and
+  C (next 24 of at least 150 lines or 5 files, at most 4 per repository) whose parent suite passes and whose hidden
+  tests fail on the parent and pass on the commit, every exclusion with its reason; authored-task validation (hidden
+  fails on start, passes on reference, existing suite passes); brief checks (hidden-assert literals found in the
+  brief, trace table coverage); a leakage scan of ids, repository + commit and normalized briefs (ratio >= 0.6
+  flagged, > 0.4 listed) against everything under `scripts/eval/` and `docs/research/data/`; an `--ext-python` check
+  that no task's own package released at or after its commit is installed; dependency preparation that installs
+  wheels except the package itself; and a SHA-256 manifest with LF-normalized text. Never calls a model.
+  `long_candidates.history` and a `timeout` on `long_environment.baseline` are factored out for it; existing callers
+  behave as before.
+- Evaluation: `round2_tasks.py` follow-up from the independent review of #356: commits that change test support files
+  (conftest, helpers, data) or delete/rename a test are excluded with that reason; `prepare` installs no kept
+  package (not only the task's own), so `env-check` cannot fail through another repository's dependencies; src-layout
+  repositories get `src/` on `PYTHONPATH` during round 2 validation only (P4/P5 unchanged); `repos`/`select` leave
+  their own outputs out of the earlier-task corpus; the brief corpus also reads long `prompt`/`task`/`instruction`
+  text; literals outside asserts are listed for review; the manifest skips `.git` and `__pycache__`.
+- Fixed (#349): a `--base upstream` worktree run merged back with `ccx autonomy merge` counted the upstream's new
+  commits as its own lines/files (the merge-base with a trailing local branch is the local tip), and `--apply` /
+  `ccx q accept` merged those commits in too, an implicit pull. The count now starts from the run's `base_sha`
+  (or that of the run it resumed), and both commands refuse while the local branch lacks that commit:
+  `<branch> is missing N commit(s) that this run started from ... pull first` (a diverged branch is told to bring
+  the upstream in with `git pull --rebase` or `git pull`). A resume chain that breaks (record missing or unreadable,
+  a loop, over 20 resumes) is refused with `cannot tell where this run started` instead of falling back to the
+  merge-base. `--base head` (the default) is unchanged.
+- The one-line lead view (`output.lead = line`) now keeps a compact `commit_state` for a clean `--worktree` run
+  (state, next, any note, the first 5 files plus a count) and adds "N files uncommitted, see commit_state.next" to
+  the recap, so a run with a passing `--check` no longer hides that its work is uncommitted (#350).
+- Docs: the agent-delegate skill (`SKILL.md`, `README.zh.md`) now says `--worktree` / `ccx q run` start from the local
+  HEAD by default, and from `@{upstream}` with `base = "upstream"` / `--base upstream` (push the test first or use
+  `--base head`); the `base` result field is described the same way. The sensitivity note says the clean tree is
+  the one the dispatch runs in (the new worktree for `--worktree`). Fixes #351.
+- Evaluation: `long_environment.py` `baseline()` and `hidden()` run pytest through `common.run_tree` (#359): a
+  timeout now ends pytest and everything it started, not only the shell (baseline no longer goes through a shell;
+  same `PYTHON -m pytest -q -o addopts=` command and recorded fields). `hidden()` takes `timeout` (default 180, as
+  before).
+- Evaluation clean-up on Windows: closing a unit's Job Object now waits (up to 10 s) on a handle to each of its
+  processes until it has really exited, and `after_unit` reports as unkilled exactly those still running; before,
+  it slept a fixed 0.5 s and re-listed processes, which under load could miss a still-exiting process or mistake a
+  reused pid. The grandchild test checks by handle, not pid. (#362)
+- Evaluation: round-2 B/C runs put `src/` before the root on `PYTHONPATH` for a task selected with `src_layout`
+  (#365), as `round2_tasks.py` validated it: `p4_long_session.py` sets it per task for the lead, its sub-agents and
+  the acceptance check (and says so in the lead prompt), and `long_environment.validate_task` (the
+  `--validate-native` pre-check) reads the task's `src_layout`. Other tasks keep the root only and an unchanged
+  prompt; hidden-test scoring is #367.
+- p4 evaluation: hidden-test scoring puts `src/` before the repository root on `PYTHONPATH` for tasks whose frozen
+  selection says `src_layout: true`, matching round-2 task validation (#364); other tasks keep the root only. A
+  round-2 dry run prints `src_layout_tasks` (#367).
+- `scripts/eval/unified_summary.py p4` now prints the `dispatch` block (escalation rate, first-rung and escalation
+  spend, status, stop_reason) for round 2's `ccxcheapfirst2` arm as well, as pre-registration section 4 asks for
+  group B; that arm's stop_reason has no escalation-rate stop (it runs with `--max-escalation-rate none`).
+  `ccxcheapfirst` output is unchanged (#370).
+- Evaluation (#371): `scripts/eval/round2_tasks.py select` no longer stops once B has 60 and C has 24 tasks; it
+  walks on in the same order and picks the round-2 development tasks the pre-registration asks for: the next 4
+  B-size commits for B, then the next 2 C-size commits for C, under the same hidden-test rule and the same
+  repository caps (a group's development tasks count toward that group's cap). They go into a separate `dev`
+  field (`{"B": [...], "C": [...]}`, each task, check and exclusion of that phase marked `"dev": true`) with
+  `dev_shortfall`, so the selection JSON
+  and its manifest freeze them with the final tasks; the final B and C lists are unchanged. The command prints the
+  development counts and, when commits run out, how many development tasks to author; that shortfall does not
+  change the exit code. `env-check` and `leak` now cover the development tasks too.
+- Fixed (#373): `scripts/eval/common.map_stopping` could leave the run hanging after Ctrl+C. Its wait loop polled with
+  `concurrent.futures.wait`, which takes each future's lock; a Ctrl+C landing while the main thread held that lock left
+  it held for good, the worker finishing that future blocked in `set_result`, and the executor's `shutdown(wait=True)`
+  (the `with` block's exit, the interpreter's exit) never returned. Each item now marks itself ended in the worker and
+  the loop waits in `time.sleep`, holding no lock while it waits; submitting is inside the `try`, so a Ctrl+C while
+  submitting also drops the queue and calls `stop_running()`. This is what held
+  `test_map_stopping_gets_ctrl_c_while_workers_run` for hours (once locally, the Windows 3.11 job of PR #372's first
+  CI run and the Windows 3.12 job of main's run 43945032561). The test now bounds the executor's shutdown (a stuck
+  worker fails it with every thread's stack), and a new test sends Ctrl+C at random moments of the wait loop (a
+  probabilistic check: the old loop failed it in some runs on Windows, the new one passed every run, also under full
+  CPU load).
+- CI: the test job has `timeout-minutes: 90` (it had GitHub's 6-hour default) and runs pytest with
+  `-o faulthandler_timeout=600`, so a test running over 10 minutes prints every thread's stack into the log.
+- Fixed (#374): `ccx autonomy merge` (and the L2 auto-merge after a run) named a resumed run's branch
+  `ccx/<its own run_id>`, but a resume works in the first run's worktree, whose branch is `ccx/<first run_id>`:
+  the dry run found nothing to count and `--apply` failed, for `--base head` and `--base upstream` runs alike. The
+  branch is now the one the worktree has checked out, accepted only when it is `ccx/<id>` of the run or of a run up
+  its resume chain; a worktree that is detached or was moved to another branch is refused (`the worktree is on X,
+  not ccx/<id> ...`) instead of committing to one branch and merging another. Runs that were never resumed merge as
+  before.
+- Fixed (#384): `ccx q accept` merged the branch name the queue noted when a piece's run ended. A detached worktree
+  was noted as the literal `HEAD`, so accept merged `HEAD` into the project itself ("Already up to date") and
+  marked the piece accepted with nothing landed; a worktree moved to another branch got its edits committed there
+  while the old branch was merged; a resumed piece with no noted branch tried `ccx/<its own run_id>`, which does not
+  exist. Accept now uses the same check as `ccx autonomy merge` (#374, `autonomy.run_branch`): it merges the branch
+  the worktree has checked out, only when that is `ccx/<id>` of the piece's run or of a run up its resume chain,
+  and refuses a detached or moved worktree with the reason and what to do (switch it back with
+  `git -C <worktree> switch ccx/<id>` and accept again, or merge by hand and `ccx q done <id> --ok 1`); a worktree
+  that moves between those checks and the merge is refused too, with what waits on it. A piece noted as `HEAD` is no longer taken for already
+  landed. Pieces on their own run's branch (`--base head` or upstream) land as before.
+- Evaluation: `scripts/eval/long_check.py` `check_tree()` now runs pytest through `common.run_tree`, so a timeout ends the whole process tree, not only the direct child (#391). New `timeout` parameter (default 120 s, unchanged). `run_tree` reads text, so on Windows CRLF in pytest's output becomes LF: the `raw` record's `sha256` and `bytes` change for output that contains CRLF, and the raw file written to disk is LF instead of CRLF. Records written earlier are not touched. The timeout tests of #359 and #391 share `tests/_hang_tree.py`.
+- Eval clean room (#396): on Windows `preflight.kill()` no longer sleeps a fixed 0.5 s and then looks the pid up with
+  `tasklist` (TerminateProcess is asynchronous and a pid can be reused, so a slow-exiting or reused-pid process was
+  reported in `unkilled`). It opens a SYNCHRONIZE handle before `taskkill` and waits on it for up to 10 s, sharing the
+  wait helper with `Job.close()` (#362); a process `OpenProcess` cannot open is checked by pid (only error 87 means
+  gone), and all handles are closed in a `finally`. POSIX behaviour and the callers' use of `unkilled` are unchanged.
+  All handles are opened before the first `taskkill`, so a child that dies with its parent cannot have its pid
+  reused and hit by a later kill. Timing: normally faster than the old 0.5 s sleep; a process that really cannot be
+  killed costs up to 10 s per call (about 20 s at worst in `after_unit`).
+- Evaluation (#397): `scripts/eval/round2_tasks.py repos` no longer takes a funding link
+  (`github.com/sponsors/<user>`, and other known GitHub paths that are not an owner) as a package's source
+  repository; it uses the next real repository link. A repository shared by several packages is kept once, at its
+  best rank (identity: `owner/name` case-folded, so same-named repositories of different owners stay separate);
+  later rows are excluded with "same repository as rank N (project)". `select` also walks a repository only once
+  if an older list names it twice, so the same commit can no longer be accepted twice. This changes the round-2
+  B/C repository list and order: on the 2026-11-01 snapshot (top 300) 15 high-ranked packages (attrs, starlette,
+  uvicorn, jsonschema, referencing, structlog, virtualenv, authlib, pydantic-settings, hatchling, watchfiles,
+  griffe, ...) now point to their real repositories, 13 duplicate rows are dropped and one package whose only
+  GitHub link was a sponsor page has no source any more (kept 264 -> 250). No task set
+  had been frozen from the old list. The `--ext-cache` key is still the repository name only (#400).
+- eval round 2: the clone cache key of a repository is now `owner/name` (case-folded, file-name safe) instead of the
+  bare name, so `a/utils` and `b/utils` get separate `--ext-cache` folders (`a__utils.git`, `b__utils.git`) (#400).
+  `repo_list` writes `repo` as `owner/name`, and a task id uses the safe key (`r2-a__utils-<sha>`); plain names of
+  frozen tasks (`polyglot`, `boltons`) keep their folder. Old and new formats differ (`boltons` vs `mahmoud/boltons`,
+  ids with and without the owner), so do not mix an old repos list or cache with the new code: an owner/name
+  repository never falls back to an old bare-name clone, and a cache made earlier has to be prepared again (the
+  error of `fetch` says so). `cache_key` rejects malformed input (`/utils`, `a/`, `host/o/n`); `holdout_check`
+  compares repositories by name (`ext_repo.repo_name`), so `boltons` and `mahmoud/boltons` count as one.
+- `ccx q accept` / `ccx q ls`: whether a worktree piece is already in the checked-out branch now looks at the commit
+  its worktree has checked out (and at its run's branch when that exists), not only at `ccx/<run>`: a resumed piece
+  merged by hand no longer shows up as ready again, and new commits on a detached worktree are no longer taken for
+  landed. When the run's branch cannot be named and the worktree is off `ccx/*`, it still reads as not landed.
+  Uncommitted changes are not looked at (squash and cherry-pick merges: see #413); with the worktree gone, the old
+  fallback stays (#402).
+- `ccx q accept` / `ccx q ls`: a worktree piece whose work was landed by squash, cherry-pick or rebase (new commits,
+  so not an ancestor) now counts as already in the checked-out branch, so it no longer shows up as ready again or
+  gets an empty `merge --no-ff`. A branch that is not an ancestor counts when merging it would change nothing
+  (`git merge-tree --write-tree`, git 2.38+); only when that merge conflicts, or with an older git, it counts when
+  every one of its commits has an equal patch there (`git cherry`). A piece only part of whose commits landed, or
+  whose landing was reverted, still reads as not landed; so does a squash whose files changed again so that the merge
+  conflicts (the conservative side). With a git older than 2.38 a squash is not seen (#413).
+- Evaluation (#415): the round-2 task tools give upstream candidates the environment their suites need, so a parent
+  baseline no longer fails only because of how `--ext-python` was filled. `round2_tasks.py prepare` (new
+  `--pypi-meta`, required when kept packages are needed as dependencies) installs a kept package that another
+  repository needs, and pytest, at its highest final release first uploaded before the selection date limit
+  (2026-07-01), with its kept dependencies pinned the same way, never at the latest release; it also downloads the
+  requirements of each repository's `[dependency-groups]` test/tests/testing/dev at the clone's HEAD, retries a
+  failed install file by file, and writes the final `pip list` into its output (now `{"rule", "repos", "pins",
+  "pip_list"}`; the command fails when `pip list` cannot be read). Because release dates alone do not prove a release
+  lacks a change, `select` compares each commit with the installed copy of the task's own package: lines it adds to
+  code files (30+ characters stripped, not comments, found nowhere in the parent's code files) that appear in the
+  installed files exclude it at 2 hits or when all of them hit; an installed package that cannot be compared is
+  excluded as unknown (the rule is in the selection's `rule.installed_overlap`, exclusions carry the installed version
+  and examples). `select --prepare-json` records prepare's SHA-256 and the `--ext-python` version. `select` records on each task the install-time version files its parent's `pyproject.toml` declares
+  (setuptools-scm `version_file` / `write_to`, hatch vcs hook `version-file`; relative paths inside the tree only)
+  and does not contain (`stubs`, written with `ext_repo.VERSION_STUB`) and `pythonutf8: true`; `authored` checks
+  also run with `PYTHONUTF8=1`. Validation (`long_environment`) and the P4 run (`p4_long_session`: start repository,
+  the lead's per-task environment, hidden-test scoring) honor both; a task without `pythonutf8` gets the episode's
+  inherited value back, so nothing carries over to the next task. The selection rules themselves are unchanged.
+- Evaluation (#417): the round-2 task tools now see copies of a kept package that pip, setuptools and other
+  installed packages vendor in `--ext-python` (`_vendor`, `vendor`, `_vendored`, `vendored` folders under
+  site-packages, the user site when enabled and ensurepip's bundled wheels, and inside `.whl` files there such as
+  virtualenv's embedded pip/setuptools wheels; a wheel's own top-level packages count too). Each top-level package or
+  module in such a folder is one copy, named by its folder and by the distributions `*.dist-info` `top_level.txt`
+  maps to it; its version comes from `vendor.txt`, `METADATA` or `__version__`. A copy belongs to a task when one of
+  its names is the task's project or a top-level package of the parent's tree (root or `src/`). `select`'s
+  installed-overlap check compares each commit's new lines with the installed package's files together with these
+  copies, also when the package itself is not installed; a copy with an unreadable file makes the commit unknown; an
+  excluded commit records the copies (`vendored`) and the rule is in `rule.installed_overlap`. Scan errors that belong
+  to no copy (a folder that cannot be listed, a wheel that cannot be read, including `zlib.error`) are cached with
+  the scan, never stop or empty the selection, and are listed once in `vendored_scan_errors`. `env-check` (new
+  optional `--ext-cache`) lists each task's vendored copies with their release date (`after_commit`,
+  `release_unknown`) and `vendored_scan`; the copies do not change `ok`, a failed or incomplete scan does. Read only:
+  nothing in the environment is changed.
+- Evaluation (#424): `scripts/eval/round2_tasks.py select` reads the 10-minute suite limit as a repository condition:
+  the round-2 pre-registration lists it among the repository conditions but says "on the parent", so it is
+  ambiguous; until now each candidate was judged on its own, now the repository's other candidates are excluded
+  after its first candidate whose parent's full suite times out (tasks already taken from it stay). Side effect: a
+  repository whose suite runs close to 10 minutes can lose its other candidates to one slow run. Each task also
+  records `pytest_plugins`, the pytest plugin modules its parent declares (the `--ext-python` pytest11 entry points
+  of distributions named in pyproject dependencies, test/tests/testing/dev extras and dependency groups, setup.cfg
+  and requirements files, plus extras the project asks of itself such as `pkg[cov]` or `-e .[test]`; not the task's
+  own distribution; never pytest-randomly, pytest-random-order, pytest-enabler, pytest-rerunfailures, pytest-retry,
+  flaky or pytest-ignore-flaky), plus the project's own pytest11 entry points, and, when it has version stubs,
+  `stub_version`, the leading version of the nearest parent tag that starts with one (else 0.0). Validation
+  (`long_environment`), the P4 run (lead environment, reset per task) and scoring load those plugins through
+  `PYTEST_PLUGINS` with autoload still off, and write stubs reporting that version (`ext_repo.version_stub`). The
+  selection lists each selected task's plugins (`pytest_plugins_loaded`) and the repositories over the time limit;
+  setup.py, poetry, hatch envs, pdm and tox are not read (written in the selection's rules).
+- Evaluation (#442): `scripts/eval/round2_tasks.py prepare` no longer reports a pinned kept dependency as installed
+  when its download produced no file of the package (it now says `installed: false` with the reason; a pin installed
+  from files an earlier run left after a failed download carries a warning). A run where pytest's pin download failed
+  had shown pytest as installed, and every candidate's baseline then failed with "No module named pytest"; that
+  round-2 B/C selection is void, and prepare and select must be run again. The output gains `runner_missing`, decided
+  by actually importing pytest in `--ext-python` (pip list is only the record); `prepare` exits 1 when it is not
+  empty, and `select` checks the import before it starts. The command also prints how many project downloads,
+  dependency-group requirements and installs failed. pip itself is never pinned or reinstalled (`NEVER_PIN`).
+- p4 evaluation: `--hide PATH` (repeatable) adds another folder, e.g. the everyday development checkout when the run
+  uses an independent clone, to every unit's forbidden list (Claude Read/Edit deny rules and the tool-call audit), in
+  both spellings when a link makes them differ. With `--hide` the audit also flags any mention of the `round2_a` /
+  `round2_bc` task folders and a hidden folder's parent folders named on their own. Missing paths, this checkout and
+  paths holding the work folder, this checkout or `--ext-python` are refused. A round-2 dry run, or any dry run with
+  `--hide`, prints an `isolation` field with the `--hide` paths, every denied folder and the extra audit regexes.
+  Without `--hide` units are isolated and audited as before (#451).
+- Fix: `scripts/eval/round2_tasks.py` `check_authored` now also runs the whole suite on the reference tree (existing tests, with a hidden file of the same name replacing the existing one, plus the hidden tests); a reference that passes the hidden tests but breaks an existing one is invalid and the failing test names are reported. New result fields `reference_full` and `reference_failed`; old fields are kept (#452).
+- strength evaluation (`strength_retest.py` / `strength_runner.py`): every unit is now denied the checkout the run
+  starts from, its `scripts/eval/` and `docs/research/data/`, the `--tasks` file, the person's homes and hub, and each
+  new `--hide PATH` (repeatable; resolved, de-duplicated, a checkout's other git worktrees included, a missing path or
+  one holding the units' Python refused), in every spelling (as given, resolved, 8.3 short name). Claude units get
+  Read/Edit deny rules; Codex units cannot be confined and are audited. Each unit's tool calls are audited
+  (`path_audit`, a best-effort backstop to the deny rules, with the unit's own folder and homes masked: forbidden
+  paths, content patterns such as `round2_a`, a relative `..` path or `cd` landing outside the unit judged from the
+  run's working folder, a `cd` or search on a forbidden path's parent); a hit makes the row invalid or stops the
+  default group. `--out` inside a denied folder or the person's homes/hub, and an `--out` or logged-in home named like a
+  content pattern, are refused. Dry runs with `--tasks` or `--hide` print an `isolation` field. Default behaviour
+  changed: before, units could read the round-2 A tasks' generators and hidden tests (#454).
+- p4 evaluation clean room (#456): on Windows `canon()` no longer reads a single-letter directory after a drive as
+  Git Bash's drive form (`D:/a/x` became `d:a:/x` while `/d/a/x` became `d:/a/x`), so `path_hits` now matches a
+  forbidden path under `D:/a/...` in either spelling; a URL such as `http://a/b` is left alone too. Behaviour off
+  Windows is unchanged.
+- Fix a flaky test: `test_context_share::test_claude_events_and_summary` failed within an hour of midnight, because
+  its events were built relative to the real clock and the summary then added a date prefix. The test now pins the
+  clock, and a new test covers the just-after-midnight case. No product code changed.
+- Internal: `scripts/eval/strength_runner.py` drops its `canon()` wrapper and `_DRIVE_MANGLED` (a workaround for the
+  `D:/a/x` -> `d:a:/x` bug in `preflight.canon`, fixed in #460); call sites use `PF.canon` directly. The one
+  difference: the literal text `d:a:/x` is no longer rewritten to `d:/a/x` (not a real Windows/Git Bash spelling);
+  a test pins it (Fixes #461).
+- Test only: `test_at_start_never_creates_or_updates_the_codex_cache` no longer depends on the clock; the `codex()` helper gives each rewrite of the session file its own mtime. No product change. Fixes #464.
+- relay: each `<packet>.continue-*.json` record now also carries `ended_at` (UTC, same format as `started_at`) whenever a final state is written (exited / no_changes / changes_unknown / quota states / interrupted); a still-running record has none. Fields are only added. `ccx report --daily --quota-events` uses `ended_at` as the continuation end and falls back to the file modification time only for older records without it; this supersedes the "continue record mtime is its end" deviation in `changes/482.decision.md` for new records. (#483)
+- relay：每个 `<packet>.continue-*.json` 记录在写入最终状态时（exited / no_changes / changes_unknown / 额度相关状态 / interrupted）同时写 `ended_at`（UTC，格式同 `started_at`）；还在运行的记录没有。只加字段不改旧字段。`ccx report --daily --quota-events` 优先用 `ended_at` 作接续结束时间，只有没有该字段的旧记录才退回文件修改时间；对新记录，这取代了 `changes/482.decision.md` 里“接续结束时间用修改时间”的偏离。（#483）
+- Fix (#487): `relay continue --launch` records no longer stay `running` when relay's post-child steps (quota-signal parsing, handoff capture, snapshot) raise. The record is finalized as `state=postprocess_error` with a short `error` and `ended_at` (child `exit_code` kept) and the exception is re-raised. The daily quota page judges such a continuation `unknown` (work completion not determinable) rather than failure. Docs: `docs/relay.md`, `docs/relay.zh.md`. No command or option removed.
+- Evaluation (#491): the assertion count of `scripts/eval/round2_tasks.py` (`assertions`, used by the brief
+  check and the trace table) now also counts `eq_()`/`ne_()`/`ok_()` style helpers, `expect_warnings()`,
+  `expect_deprecated()`, `expect_raises*()`, `pytest.deprecated_call()` and the other `with` context managers of
+  that kind (`raises`, `warns` were already counted). The bare helpers `in_()`/`is_()`/`is_not()` count only as
+  plain function calls, because `column.in_(...)` is a SQLAlchemy operator, not a check. Ordinary `assert`
+  statements and every name starting with `assert` (`self.assert*`, `assert_*`, `x.assert_()`) count as before;
+  the new rule only adds, so counts can rise and never fall, and ids of existing checks can shift for files
+  that use the new forms. Frozen task sets keep their hand-completed trace tables.
+- Pre-register the round 2 evaluation (design only, not run; running needs the user's budget approval and a new
+  cumulative cap): new, harder, frozen tasks with leakage checks; one run per task with the task as the unit of
+  analysis; 48 / 48 / 60 / 24 tasks from a power analysis and budget. Each group's CLI follows the question it answers:
+  A shared context and memory on a same-vendor (Claude Haiku) sub-agent plus a Codex replication (two Holm families),
+  B cheap-first v2 within one vendor (`--child-agent claude`, `sensitivity = escalate` + #326 prompt) vs self as
+  correctness non-inferiority plus cost and wall bounds that must also hold on all rows and on a
+  repository-cluster bootstrap, C long tasks to a cross-vendor (Codex) sub-agent, diagnostic.
+  Lead-vendor spend is a secondary metric; conclusions are for a Claude lead only; the default first rung must come
+  from the dry-run and match the ledgers.
+  Remaining script work is tracked in #345, #347, #367 and #371 (`docs/research/prereg/2026-11-16-round2.md`).
+- Docs: round-2 pre-registration change log records the development-unit cost check (A groups, B first and second run,
+  #509/#510 fixes, $13.2 development bound usage) and the #511 finding that A-group `--check` is a scaffold default;
+  `docs/research/strength-tools.md` (and `.zh.md`) gains a section on reading A-group `check_broken`. No frozen
+  threshold, sample, task or SHA-256 changes.
+- Docs (#375): round 2 pre-registration change log (EN + ZH) gets the formal-group PIN entry
+  (`f72eeff2be83a5cf1e9abb9d47f65a492a65aef1` for A1, A2, A1x, A2x and B), with the diff against the development-check
+  versions (A's code unchanged, `preflight.prepare()` not called by A; B only #514 and #515, labels not cost), the answer that the development check need
+  not be redone, and the 2026-11-25 user approval of group B's `--budget 34.5 --max-operational-usd 36`. Appended
+  only; thresholds, samples, task files, budgets and registered SHAs are unchanged.
+- Relay (#523): the session-start hook (`ccx mem delta`, both tools) adds one plain-text line when the workspace has an
+  unfinished relay packet from the other tool (no `continue-*` record yet): packet id, one-line goal, the
+  `ccx relay continue` command and a reminder to confirm the old session is stopped. Read-only; nothing is launched.
+  Off with `relay.enabled` (default false): then, and with no packet, the hook prints nothing extra. Checked against
+  the hooks docs (Claude Code 2.1.316, codex-cli 0.164.0); fake-CLI tests only, no real-run recording yet.
+- Evaluation (#375, B part): 8 final authored B tasks on the `cronlite` starting library, `r2b-cronlite-1` ... `-8`
+  (`source: "authored"`, author model Opus 5.5), in `scripts/eval/round2_bc/cronlite/tasks/`: job tags and pausing
+  kept by the store; `L` for the last day of the month; time windows that honor blackout calendars with a deferral
+  limit; flapping alerts and stricter, calendar-aware missed runs; UTC calendar export and an `ical` command; a
+  registry `check` command with a `retry-overlap` warning; day/weekday full lists following the either rule; load
+  estimates following each job's overlap policy. The starting tree is unchanged and the development task SHAs stay
+  as frozen. Checks in `docs/research/data/round2-bc/b-formal-cronlite-{build,check,native,leak}.json`: two builds
+  give the same SHAs; `build.py check` 8/8 valid (hidden tests fail on start, pass on the reference, the whole suite
+  passes on the reference); P4-native validation 8/8; leak/similarity clean (highest ratio 0.30). The tasks are not
+  merged into a final task file yet. No model was called.
+- Round 2 B: 10 final authored tasks on the tabula library (`r2b-tabula-1` … `r2b-tabula-10`, `source: "authored"`,
+  author model Opus 5.5), each a reference change plus hidden tests under `scripts/eval/round2_bc/tabula/tasks/`:
+  query `in` / `not in` / `between`; joins with differently named keys, `validate` and `indicator`; comment lines in
+  the reader and writer; most-common-value and nearest-rank percentile aggregates, `dropna`, `top_n`; strict diff
+  types, tolerances, ignored columns and a render limit; largest-remainder rounded shares (`stats.apportion`, used by
+  `share` and `pivot(normalize=)`); a `date` column kind across schemas, inference and JSON Lines; flattened /
+  nested records; backward fill, interpolation and a per-run limit; nonnumeric quoting as a typed round trip between
+  writer and reader. Every task is 70–101 implementation lines; builds are byte-identical, `build.py check` and the
+  native P4 check pass 10/10, and the leak check (including the 43 upstream B briefs) is clean (highest ratio
+  0.34). Check outputs in `docs/research/data/round2-bc/b-formal-tabula-*.json`. The tabula starting tree and the
+  development tasks are unchanged. Refs #375.
+- Evaluation (#375): round-2 B authored tasks, stage 0 and 1. `scripts/eval/round2_bc/build.py` builds one bare git
+  repository per authored library (`round2-authored/<lib>`) deterministically (fixed author, committer and dates,
+  no system or user git configuration, text normalized to LF, so the commit SHAs are the same on every machine): the
+  starting tree, then one commit per task on top of it; `build --dev-out` writes the frozen development task file
+  byte for byte, and `check` exports each task in the `round2_tasks.py authored` layout and runs that check. Two
+  standard-library-only starting libraries of about 1500 source lines each (`tabula`, delimited text tables: reading,
+  writing, kinds, queries, joins, grouping, statistics, validation, diffs; `cronlite`, cron schedules: parsing,
+  next runs, a job registry, descriptions, phrases, blackout days, windows, offsets, overlap, run history, alerts,
+  load, lint, storage, iCalendar, a CLI) with their own test suites, and the four B development tasks, frozen in
+  `docs/research/data/round2-bc/b-dev.json` with their check, native validation and leak reports. C is moved to
+  round 3 (maintainer, 2026-11-18).
+- Evaluation (#375): the round-2 B task set is frozen in `docs/research/data/round2-bc/b.json`: 42 upstream tasks
+  (pre-registration section 2, B) and 18 authored ones (`r2b-tabula-1..10`, `r2b-cronlite-1..8`), each with its
+  `source`, plus the four authored development tasks. `selection-b.json` merges the full upstream select of
+  2026-11-18 with its resume over the 51 repositories whose `git log` failed transiently (resume scripts included,
+  replayed candidates listed); one upstream task (networkx Leiden) is marked excluded because its hidden assertions
+  compare partitions from fixed seeds that no brief can cover. `b-upstream-briefs.json` and `b-trace.json` hold the
+  upstream briefs and their per-assertion traces; `b-check.json`, `b-leak.json`, `b-env.json` and
+  `b-manifest.json` are the authored check, leak check, environment check and SHA-256 list; `selection-env/` keeps
+  the top-pypi snapshot, repository list, prepare output and pip list the selection used.
+  `scripts/eval/round2_bc/freeze.py` regenerates the merged selection and the task file. `round2_tasks.py leak` now
+  records the files it left out of the corpus (`excluded_from_corpus`).
+
 ## 0.7.0 — 2026-11-16 (receipts that say what was verified, safer defaults, opt-in experiments)
 - Keep baseline entrypoint provenance when CPython 3.13 removes `__main__.__file__` before exit callbacks,
   using the retained file loader; source-tree entrypoints still yield Unknown.
