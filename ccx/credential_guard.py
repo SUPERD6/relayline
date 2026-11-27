@@ -197,7 +197,7 @@ def protect(cli: str, inv, cfg: dict, project: Path, env: dict) -> dict | None:
         else:
             data = json.loads(inv.argv[i])
     except (ValueError, IndexError, OSError) as e:
-        raise ValueError("credential guard requires inline Claude --settings JSON") from e
+        raise ValueError("credential guard requires inline Claude --settings JSON (or ccx's own settings file)") from e
     if not isinstance(data, dict) or not isinstance(data.get("permissions", {}), dict):
         raise ValueError("credential guard requires a Claude settings object with permissions")
     permissions = data.setdefault("permissions", {})
@@ -223,7 +223,10 @@ def protect(cli: str, inv, cfg: dict, project: Path, env: dict) -> dict | None:
     permissions["deny"] = list(dict.fromkeys(deny))
     from .agents.claude import put_settings
     was = (inv.argv[i], inv.settings_file)
-    put_settings(inv, data)              # inline when short, else the run's settings file (#585)
+    try:
+        put_settings(inv, data)          # inline when short, else the run's settings file (#585)
+    except OSError as e:
+        raise ValueError(f"credential guard could not write the Claude settings file: {e}") from e
     command_units = len(subprocess.list2cmdline(inv.argv).encode("utf-16-le")) // 2
     if (inv.settings_file is None and len(inv.argv[i]) > MAX_SETTINGS_CHARS) or command_units > MAX_COMMAND_CHARS:
         inv.argv[i], inv.settings_file = was

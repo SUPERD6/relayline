@@ -254,7 +254,8 @@ def test_evidence_files_keep_edit_rules(tmp_path, monkeypatch):
     r = PF._rule_path(out.resolve())
     for f in ("manifest.json", "results.jsonl"):
         assert f"Edit({r}/{f})" in deny and f"Read({r}/{f})" in deny
-    assert not any(d.startswith(f"Edit({r}/unit-") for d in deny)
+    # (the settings file's own Edit rule, #585, lies in the unit's own run folder and is no other unit's)
+    assert not any(d.startswith(f"Edit({r}/unit-") and not d.endswith("claude-settings.json)") for d in deny)
 
 
 def test_out_whose_unit_number_falls_past_the_slug_limit_refused(tmp_path):

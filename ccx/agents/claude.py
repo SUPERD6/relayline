@@ -56,9 +56,19 @@ def put_settings(inv: Invocation, data: dict) -> None:
     encoded = json.dumps(data)
     if len(encoded) <= SETTINGS_INLINE_MAX or inv.spill_dir is None:
         inv.argv[i], inv.settings_file = encoded, None
+        if inv.spill_dir is not None:
+            (inv.spill_dir / SETTINGS_FILE_NAME).unlink(missing_ok=True)      # an earlier attempt's, now unused
         return
     inv.spill_dir.mkdir(parents=True, exist_ok=True)
-    path = inv.spill_dir / SETTINGS_FILE_NAME
+    path = (inv.spill_dir / SETTINGS_FILE_NAME).resolve()     # absolute: claude runs in another folder (cwd)
+    # Inline JSON could not be changed once claude had started; a file can. The sub-agent must not read or rewrite
+    # its own deny list (#588 review): the file denies itself, in the forms Claude Code matches.
+    s = str(path).replace("\\", "/")
+    pat = ("//" + s[0].lower() + s[2:]) if s[1:3] == ":/" else s
+    own = [f"Read({pat})", f"Edit({pat})", f"Write({pat})", f"Bash(*{SETTINGS_FILE_NAME}*)"]
+    perms = data.setdefault("permissions", {})
+    perms["deny"] = list(dict.fromkeys([*(perms.get("deny") or []), *own]))
+    encoded = json.dumps(data)
     path.write_text(encoded, encoding="utf-8", newline="")
     inv.argv[i], inv.settings_file = str(path), path
 

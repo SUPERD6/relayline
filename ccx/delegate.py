@@ -1533,8 +1533,8 @@ def env_hint(record: dict) -> str:
                "folder and allow the prompt, or switch Codex to `[windows] sandbox = \"unelevated\"`; keep CODEX_HOME "
                "outside a temp folder")
     elif "ccx launch failed" in why:
-        fix = (f"ccx could not start the `{agent}` process at all (see the error; Windows `[WinError 206]` = a command "
-               "line over 32767 characters): fix that, nothing ran")
+        fix = (f"ccx could not start the `{agent}` process at all (see the error, e.g. Windows `[WinError 206]` = a "
+               "command line over 32767 characters): fix that, nothing ran")
     elif agent == "codex":
         fix = ("run `codex` once yourself in this folder and let it finish setting up its Windows sandbox (error 1223 "
                "means its permission prompt was cancelled; 267, a working folder it cannot use), and keep CODEX_HOME "
