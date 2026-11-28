@@ -89,7 +89,6 @@ _SQLITE = r"[\w.-]+\.sqlite(?:-wal|-shm|-journal)?"
 HOME_START_FILES = ("auth.json", "config.toml", ".credentials.json")
 HOME_VARS = ("CODEX_HOME", "CODEX_SQLITE_HOME", "CLAUDE_CONFIG_DIR")   # set in every unit (unit_env)
 CLAUDE_SLUG_MAX = 200    # Claude Code cuts a longer project folder name and appends a hash (#472 review; not re-checked)
-SETTINGS_MAX_CHARS = 30000    # a Claude unit's --settings JSON; the Windows command line ends at 32767 (#467)
 UNIT_NAME = re.compile(r"^unit-(\d+)$")       # execute() lays units out as <out>/unit-NNNN
 
 
@@ -580,8 +579,9 @@ def slug_problem(out: Path, n_units: int) -> str | None:
 
 
 def last_unit_settings_chars(out: Path, n_units: int, claude_home, hidden) -> int:
-    """The --settings length of the run's last unit (the most earlier units to deny), from the real --out and home
-    spellings: checked before a run starts, so an overflow never stops it half-way (#472 review)."""
+    """The --settings JSON length of the run's last unit (the most earlier units to deny), from the real --out and
+    home spellings. Only reported (dry run): ccx puts a long --settings JSON into a file (#588), so no length stops
+    a run any more (#589)."""
     dest = Path(out) / f"unit-{max(n_units - 1, 0):04d}"
     return len(claude_settings_json(lead_env(), claude_deny(dest, claude_home, unit_hidden(hidden, claude_home))))
 
@@ -650,11 +650,6 @@ def run_unit(unit: dict, kind: str, dest: Path, budget: float, codex_home: Path 
     iso = isolation_unit(dest, dest / "hub", hidden)
     deny = claude_deny(dest, claude_home, hidden) if unit.get("agent") == "claude" else ()
     env = unit_env(unit, dest, codex_home, claude_home, fresh, extra_deny=deny)
-    size = len(env.get("CCX_CLAUDE_SETTINGS", "")) if unit.get("agent") == "claude" else 0
-    if size > SETTINGS_MAX_CHARS:
-        # ccx passes them on the command line (--settings <json>); Windows stops at 32767 characters
-        raise ValueError(f"Claude settings are {size} characters (> {SETTINGS_MAX_CHARS}): the command line would "
-                         "overflow; fewer --hide paths or a shorter --out")
     repo = make_repo(task, dest / "repo")
     if unit.get("agent") == "codex":
         tmp = dest / "tmp"
@@ -766,10 +761,6 @@ def execute(manifest: dict, out: Path, budget: float, unit_budget: float, codex_
         why = slug_problem(out, len(manifest["units"]))
         if why:
             raise ValueError(why + ". Nothing run")
-        size = last_unit_settings_chars(Path(out).absolute(), len(manifest["units"]), claude_home, hidden)
-        if size > SETTINGS_MAX_CHARS:
-            raise ValueError(f"the last unit's Claude settings would be {size} characters (> {SETTINGS_MAX_CHARS}): "
-                             "the command line would overflow; use a shorter --out or fewer --hide paths. Nothing run")
     # A fresh directory prevents accidental cost resets, repeated units and overwriting evidence.
     out.mkdir(parents=True, exist_ok=False)
     frozen_plan = {**manifest, "runtime_budget_usd": budget, "unit_budget_usd": unit_budget,

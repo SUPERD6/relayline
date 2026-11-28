@@ -72,7 +72,7 @@ home 屏蔽规则放过，只有 on 单元读自己的那份不算命中。每�
 `manifest.json`、`results.jsonl`、`report.json`），绝对路径、相对路径、junction、8.3 短名的处理同其他禁读路径；
 `--out` 及其上级目录也算禁读路径的上级目录（`cd` 过去、递归搜索都算）。Claude 单元对这些运行文件和本单元之前的单元
 另有 Read/Edit 拒绝规则，写成少量目录通配（`unit-00*`、`unit-010*`、`unit-0110`）：单元按顺序跑，后面的还不存在；
-每个单元一条规则会撑爆 ccx 传 `--settings` 的命令行（settings 超过 30000 字符的单元在 CLI 启动前就报错）。`--out` 放在登录 home 里面会被拒绝（审计把那个 home 当成单元自己的而屏蔽）；`--out` 也不要放在系统 TEMP 下，那里有别的程序的文件，单元自己的临时文件也会写到那里。读本单元自己的 repo、`shared-context.md` 或记忆都不算命中。
+每个单元一条规则会让 settings 很长；自 #588 起 ccx 把长 `--settings` 写进文件，不再撑爆命令行，也不再因长度拒绝启动（#589）。`--out` 放在登录 home 里面会被拒绝（审计把那个 home 当成单元自己的而屏蔽）；`--out` 也不要放在系统 TEMP 下，那里有别的程序的文件，单元自己的临时文件也会写到那里。读本单元自己的 repo、`shared-context.md` 或记忆都不算命中。
 dry-run 的 `isolation` 字段还列出每个臂的答案级文件（`answer_files`）和每个单元在 `--out` 里被挡住的内容
 （`siblings`），开跑前核对。
 
@@ -95,7 +95,7 @@ headless 运行里的 plan mode 可能受影响），以及本次运行之前单
 这些规则和 `--out` 里其他单元的规则都只加 Read（写进去不会泄题，事后审计兜底），为了让 `--settings` 命令行够短；
 证据文件 `manifest.json`、`results.jsonl` 另外保留 Edit 规则，防止被篡改。`--out` 放在开着 8.3 短名
 的 C 盘 Temp 下时，A2 最后一个单元的 settings 约 19000 到 21500 字符。`execute` 开跑前按真实的 `--out` 和
-`--claude-home` 算出最后一个单元的长度，超过 30000 就拒绝开跑；最后一个单元的编号落在 Claude Code 保留的项目
+`--claude-home` 算出最后一个单元的 settings 长度并报告（不再因长度拒绝开跑，#589）；最后一个单元的编号落在 Claude Code 保留的项目
 目录名前 200 个字符之外时也拒绝开跑；`execute --dry-run` 同时给了这两个参数时会输出它
 （`claude_settings_chars_last_unit`）。Codex 单元只能审计。Codex memories（codex-cli 0.164.0 中
 `features.memories` 为 stable、默认开启）在每个单元里已经关掉（`CCX_CODEX_ISOLATE`），所以不会不经工具调用就
