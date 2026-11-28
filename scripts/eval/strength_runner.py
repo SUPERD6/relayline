@@ -89,7 +89,6 @@ _SQLITE = r"[\w.-]+\.sqlite(?:-wal|-shm|-journal)?"
 HOME_START_FILES = ("auth.json", "config.toml", ".credentials.json")
 HOME_VARS = ("CODEX_HOME", "CODEX_SQLITE_HOME", "CLAUDE_CONFIG_DIR")   # set in every unit (unit_env)
 CLAUDE_SLUG_MAX = 200    # Claude Code cuts a longer project folder name and appends a hash (#472 review; not re-checked)
-SETTINGS_MAX_CHARS = 30000    # a Claude unit's --settings JSON; the Windows command line ends at 32767 (#467)
 UNIT_NAME = re.compile(r"^unit-(\d+)$")       # execute() lays units out as <out>/unit-NNNN
 
 
