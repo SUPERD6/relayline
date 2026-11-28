@@ -32,7 +32,7 @@
 | 实验性：Gemini CLI | 按文档写的适配器，用替身测过，没真跑过；只能当子智能体 | [常见问题](faq.zh.md) |
 | 实验性：真实的额度用完 | 换到另一个工具只用替身测过 | [功能说明](features.zh.md) |
 | 实验性：macOS 和 Linux | 只在 CI 里跑；所有真实运行都在一台 Windows 电脑上 | [README](../README.zh.md) |
-| 实验性：从 GitHub 地址装 Codex 插件 | 按 Codex 插件文档写，只用替身测过 | [安装](install.zh.md) |
+| 实验性：在会话里用 Codex 插件的技能 | 从 GitHub 安装 2026-11-28 真跑过（codex-cli 0.164.0）；会话里使用技能需要登录，未运行 | [安装](install.zh.md) |
 | 实验性：`ccx intake` 对真实 GitHub | 只对替身 `gh` 跑过 | [intake](intake.zh.md) |
 | 没真跑过 | Codex 桌面端窗口里的 `ccx say --now`、`ccx doctor --codex-rule` 生成的 Codex 规则、排队归档后 dsh 应用自己后来的写入、子智能体自己的子智能体上限（F11）、`--review auto` 的触发率、真实会话里 hook 超时、L2 自动合并全流程 | [STATUS](STATUS.zh.md) |
 

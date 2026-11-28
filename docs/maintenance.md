@@ -34,7 +34,7 @@ in [STATUS](STATUS.md).
 | Experimental: Gemini CLI | Adapter written from its docs, tested with a stand-in; never run for real; sub-agent only | [faq](faq.md) |
 | Experimental: a real quota stop | The fallback to the other tool is tested with stand-ins only | [features](features.md) |
 | Experimental: macOS and Linux | CI only; every real run was on one Windows machine | [README](../README.md) |
-| Experimental: Codex plugin from a GitHub address | Follows Codex's plugin docs, tested with a stand-in only | [install](install.md) |
+| Experimental: using the Codex plugin's skills in a session | Install from GitHub ran for real (2026-11-28, codex-cli 0.164.0); a session using the skills needs login, not run | [install](install.md) |
 | Experimental: `ccx intake` against real GitHub | Only against a stand-in `gh` | [intake](intake.md) |
 | Not run live | `ccx say --now` in the Codex desktop app's window, the Codex rule from `ccx doctor --codex-rule`, the dsh app's own later writes after a queued archive, own sub-agent limits (F11), the `--review auto` trigger rate, a hook timeout in a real session, L2 auto-merge end to end | [STATUS](STATUS.md) |
 

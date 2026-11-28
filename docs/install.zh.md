@@ -68,7 +68,7 @@ Claude Code 2.1.316，codex-cli 0.164.0，Windows 11：
 | `codex plugin add relayline@relayline` | 能用：`installed, enabled`，版本 0.8.0，五个技能已在 Codex 的插件缓存里。 |
 | 之后在 Codex / Claude Code 会话里真正*用*这些技能 | 需要登录，未运行。 |
 
-- **`ccx setup` 能替你装 Claude 插件吗？** 技术上能（上面那条命令不需要交互），但目前没做：`ccx setup` 只用 `ccx sync` 接线
+- **`ccx setup` 能替你装 Claude 插件吗？** 目前不能（安装命令本身不需要交互，所以以后可以做）：`ccx setup` 只用 `ccx sync` 接线
   （技能、hook、MCP）。想用插件，请自己运行上面的命令；插件启用后 `ccx sync` 会让开（见下面“不重复接线”）。
   如果这两条命令在你机器上失败，就用 `ccx setup` 的接线，它不依赖插件市场。
 - **Windows 上 `CODEX_HOME` 路径很深：** Codex 在 `<CODEX_HOME>/.tmp/marketplaces/.staging/...` 下克隆仓库，

@@ -75,14 +75,13 @@ credentials, your own config untouched), Claude Code 2.1.316 and codex-cli 0.164
 | `codex plugin add relayline@relayline` | Works: `installed, enabled`, version 0.8.0, the five skills are in Codex's plugin cache. |
 | Codex or Claude Code then *using* the skills in a session | Needs login, not run. |
 
-- **Can `ccx setup` install the Claude plugin for you?** Technically yes (the command above needs no prompt), but
-  today it does not: `ccx setup` only wires with `ccx sync` (skills, hooks, MCP). To use the plugin, run the commands
+- **Can `ccx setup` install the Claude plugin for you?** No, not today (the install command itself needs no prompt, so it could): `ccx setup` only wires with `ccx sync` (skills, hooks, MCP). To use the plugin, run the commands
   above yourself; where the plugin is enabled, `ccx sync` steps aside (see "No double wiring" below). If either
   command fails on your machine, use `ccx setup`'s wiring instead; it needs nothing from the marketplace.
 - **Windows and a deep `CODEX_HOME`:** Codex clones the repository under `<CODEX_HOME>/.tmp/marketplaces/.staging/...`
   and a fresh clone has no long-path support. With a long `CODEX_HOME` (we hit it at about 200 characters of
   prefix) `marketplace add` fails with `Filename too long` after the clone (the repository's deepest file is 96
-  characters). The default `%USERPROFILE%\.codex` is fine (about 85 characters of prefix). If you see that
+  characters, measured with `git ls-files`). The default `%USERPROFILE%\.codex` is fine (about 85 characters of prefix). If you see that
   error, shorten `CODEX_HOME` or run `git config --global core.longpaths true`, then add again.
 - Codex prints a harmless warning about PATH aliases when `CODEX_HOME` is under the system temporary folder.
 
