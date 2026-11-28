@@ -195,9 +195,9 @@ def test_login_and_config_files_of_a_shared_home_are_not_hits(tmp_path):
     assert runner.audit_hits([json.dumps(x) for x in fine], u, (codex, claude)) == []
 
 
-def test_last_unit_settings_size_checked_before_the_run(tmp_path, monkeypatch):
-    """With 8.3 aliases on every path and a long --out, the last A2 unit's Claude settings stay under the limit; a
-    run whose last unit would not fit is refused before anything is written."""
+def test_last_unit_settings_size_is_reported(tmp_path, monkeypatch):
+    """With 8.3 aliases on every path and a long --out, the last A2 unit's Claude settings length can be computed
+    (reported only, #589: no limit)."""
     def fake_short(p):
         p = Path(p).resolve()
         return Path(p.anchor) / Path(*[(x[:6].upper() + "~1") if len(x) > 8 else x for x in p.parts[1:]])
@@ -206,13 +206,7 @@ def test_last_unit_settings_size_checked_before_the_run(tmp_path, monkeypatch):
     out = tmp_path / "an-evaluation-folder-with-a-long-descriptive-name-470" / "r2-a2"
     assert runner.slug_problem(out, 192) is None             # long, but its unit numbers still fit (#472)
     size = runner.last_unit_settings_chars(out, 192, claude, runner.isolation_paths())
-    assert 0 < size <= runner.SETTINGS_MAX_CHARS, size
-    path, sha = memory_file(tmp_path, n=1)
-    data = retest.plan("memory", 1, tasks=path, tasks_sha256=sha, agents=["claude"])
-    monkeypatch.setattr(runner, "SETTINGS_MAX_CHARS", size // 2)
-    with pytest.raises(ValueError, match="characters"):
-        runner.execute(data, out, 0.5, 0.1, None, claude)
-    assert not out.exists()
+    assert size > 0                                          # reported only; ccx writes a long JSON to a file (#589)
 
 
 def test_dry_run_reports_the_last_units_settings_length(tmp_path, capsys):
@@ -221,7 +215,7 @@ def test_dry_run_reports_the_last_units_settings_length(tmp_path, capsys):
     rc = retest.main(["execute", "memory", "--tasks", str(path), "--tasks-sha256", sha, "--reps", "1", "--agents",
                       "claude", "--dry-run", "--claude-home", str(claude), "--out", str(tmp_path / "r2-a2")])
     data = json.loads(capsys.readouterr().out)
-    assert 0 < data["claude_settings_chars_last_unit"] <= runner.SETTINGS_MAX_CHARS and data["within_settings_limit"]
+    assert data["claude_settings_chars_last_unit"] > 0 and "within_settings_limit" not in data
     assert rc == 0 and not (tmp_path / "r2-a2").exists()
 
 

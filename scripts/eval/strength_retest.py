@@ -369,8 +369,8 @@ def main(argv=None):
             data["within_budget"] = data["estimated_usd"] <= data["budget_usd"]
             from strength_runner import needs_claude_home as _claude
             if a.out is not None and a.claude_home and _claude(data["units"]):
-                # #472 review: the last unit's --settings length from the real --out and home, before any run
-                from strength_runner import SETTINGS_MAX_CHARS, isolation_paths, last_unit_settings_chars
+                # the last unit's --settings length from the real --out and home (reported only, #589)
+                from strength_runner import isolation_paths, last_unit_settings_chars
                 hidden = isolation_paths(a.tasks.resolve() if a.tasks is not None else None, resolve_hide(a.hide))
                 size = last_unit_settings_chars(a.out.absolute(), data["n"], Path(a.claude_home).expanduser(), hidden)
                 data["claude_settings_chars_last_unit"] = size

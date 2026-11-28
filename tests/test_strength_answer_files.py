@@ -280,13 +280,16 @@ def test_out_inside_a_logged_in_home_refused(tmp_path):
     runner.check_out(tmp_path / "r2-a1", runner.isolation_paths(), homes=(home,))       # beside it: fine
 
 
-def test_claude_settings_over_the_command_line_limit_refused(tmp_path, monkeypatch):
-    fake_env(monkeypatch, tmp_path)
-    monkeypatch.setattr(runner, "SETTINGS_MAX_CHARS", 100)
-    with pytest.raises(ValueError, match="command line"):        # before the CLI starts; _one records the row
-        runner.run_unit({"task": "mem-errors", "arm": "nomem", **CLAUDE}, "memory", tmp_path / "out" / "unit-0000",
-                        .1, None, claude_home=claude_home(tmp_path))
-    assert not (tmp_path / "calls.jsonl").exists()
+def test_long_claude_settings_no_longer_stop_a_unit(tmp_path, monkeypatch):
+    """#589: ccx spills a long --settings JSON into a file (#588), so the old "command line would overflow" refusal
+    (which measured CCX_CLAUDE_SETTINGS, not what reaches the command line) is gone: a unit with 40000+ characters
+    of deny rules starts, and nothing in the run refuses on length."""
+    log = fake_env(monkeypatch, tmp_path)
+    monkeypatch.setattr(runner, "claude_deny", lambda *a, **k: [f"Read(/hidden-589/{i:05d}/**)" for i in range(2500)])
+    assert not hasattr(runner, "SETTINGS_MAX_CHARS")
+    runner.run_unit({"task": "mem-errors", "arm": "nomem", **CLAUDE}, "memory", tmp_path / "out" / "unit-0000",
+                    .1, None, claude_home=claude_home(tmp_path))
+    assert log.exists()                                          # the fake CLI was reached
 
 
 def test_dry_run_points_to_the_shared_home_sessions(tmp_path):
