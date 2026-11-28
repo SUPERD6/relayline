@@ -54,10 +54,28 @@ python -m venv "$env:USERPROFILE\.relayline"; & "$env:USERPROFILE\.relayline\Scr
 ```bash
 claude plugin install relayline --marketplace SUPERD6/relayline     # Claude Code 2.1.275+，一步装好
 # 旧版 Claude Code：claude plugin marketplace add SUPERD6/relayline && claude plugin install relayline@relayline
-codex plugin marketplace add SUPERD6/relayline && codex plugin add relayline@relayline   # Codex 0.164，实验性
+codex plugin marketplace add SUPERD6/relayline && codex plugin add relayline@relayline   # Codex 0.164
 ```
 
-Claude Code 这条真跑过（用临时配置）。从 GitHub 地址装 Codex 插件是**实验性**的：按 Codex 的插件文档写；测试只检查插件清单文件，安装命令本身没跑过。
+**2026-11-28 实测（T2-3，[#543](https://github.com/SUPERD6/relayline/issues/543)）**：两条都从 GitHub 真装过，
+在隔离的家目录里（临时 `HOME`/`USERPROFILE`、`CLAUDE_CONFIG_DIR`、`CODEX_HOME`；没登录、没用任何凭据、没碰你自己的配置），
+Claude Code 2.1.316，codex-cli 0.164.0，Windows 11：
+
+| 步骤 | 结果 |
+|---|---|
+| `claude plugin install relayline --marketplace SUPERD6/relayline --json` | 能用，非交互，不用登录也不用 `-y`：`relayline@relayline 0.8.0`，作用域 user，已启用。 |
+| `codex plugin marketplace add SUPERD6/relayline` | 能用：加上市场（git 克隆本仓库），读的是同一个 `.claude-plugin/marketplace.json`。 |
+| `codex plugin add relayline@relayline` | 能用：`installed, enabled`，版本 0.8.0，五个技能已在 Codex 的插件缓存里。 |
+| 之后在 Codex / Claude Code 会话里真正*用*这些技能 | 需要登录，未运行。 |
+
+- **`ccx setup` 能替你装 Claude 插件吗？** 目前不能（安装命令本身不需要交互，所以以后可以做）：`ccx setup` 只用 `ccx sync` 接线
+  （技能、hook、MCP）。想用插件，请自己运行上面的命令；插件启用后 `ccx sync` 会让开（见下面“不重复接线”）。
+  如果这两条命令在你机器上失败，就用 `ccx setup` 的接线，它不依赖插件市场。
+- **Windows 上 `CODEX_HOME` 路径很深：** Codex 在 `<CODEX_HOME>/.tmp/marketplaces/.staging/...` 下克隆仓库，
+  新克隆没有长路径支持。`CODEX_HOME` 很长时（我们在前缀约 200 个字符时遇到）`marketplace add` 克隆后报 `Filename too long`
+  失败（仓库里最深的文件路径 96 个字符）。默认的 `%USERPROFILE%\.codex` 没问题（前缀约 85 个字符）。遇到这个错误就缩短
+  `CODEX_HOME`，或运行 `git config --global core.longpaths true` 后重新 add。
+- `CODEX_HOME` 在系统临时目录下时，Codex 会打印一条关于 PATH 别名的无害警告。
 
 - **Claude Code** 得到五个技能（名字是 `relayline:agent-delegate`、`relayline:task-routing`、`relayline:task-split`、
   `relayline:task-checkpoint`、`relayline:project-manager`）和 ccx 的两个 hook：开局的共享记忆增量、每轮的留言板/共享

@@ -213,7 +213,7 @@ there. The task timeline shows which lead worked when.
 
 All "yes" cells ran for real on one Windows machine. **Experimental**, the main ones (not run for real; said so where
 each is described, and STATUS says how each is tested): Gemini CLI, a real quota stop, macOS and Linux (CI only, no real
-agent CLIs), installing the Codex plugin from a GitHub address (not tried live), H11 (`memory.by_kind=false`, off by default; original trial voided), `ccx intake` against real GitHub; the full list is
+agent CLIs), using the skills of the Codex plugin installed from GitHub (the install itself ran for real, 2026-11-28; a session using them needs login, not run), H11 (`memory.by_kind=false`, off by default; original trial voided), `ccx intake` against real GitHub; the full list is
 in STATUS. Still work in progress (the release badge above says which version): what is verified and how is in
 [docs/STATUS.md](https://github.com/SUPERD6/relayline/blob/main/docs/STATUS.md).
 

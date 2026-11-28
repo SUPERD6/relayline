@@ -61,12 +61,29 @@ PATH (putting the whole folder on PATH also puts its `python` and `pip` first).
 ```bash
 claude plugin install relayline --marketplace SUPERD6/relayline     # Claude Code 2.1.275+, one step
 # older Claude Code: claude plugin marketplace add SUPERD6/relayline && claude plugin install relayline@relayline
-codex plugin marketplace add SUPERD6/relayline && codex plugin add relayline@relayline   # Codex 0.164, experimental
+codex plugin marketplace add SUPERD6/relayline && codex plugin add relayline@relayline   # Codex 0.164
 ```
 
-The Claude Code install ran for real (from a temporary config). The Codex install from a GitHub address is
-**experimental**: it follows Codex's plugin docs; the tests check only the plugin manifest, the install command
-itself has never run.
+**Checked 2026-11-28 (T2-3, [#543](https://github.com/SUPERD6/relayline/issues/543))**, both installs run for real from
+GitHub, in an isolated home (temporary `HOME`/`USERPROFILE`, `CLAUDE_CONFIG_DIR`, `CODEX_HOME`; no login, no
+credentials, your own config untouched), Claude Code 2.1.316 and codex-cli 0.164.0, Windows 11:
+
+| Step | Result |
+|---|---|
+| `claude plugin install relayline --marketplace SUPERD6/relayline --json` | Works, non-interactive, no login and no `-y` needed: `relayline@relayline 0.8.0`, scope user, enabled. |
+| `codex plugin marketplace add SUPERD6/relayline` | Works: adds the marketplace (git clone of the repository). It reads the same `.claude-plugin/marketplace.json`. |
+| `codex plugin add relayline@relayline` | Works: `installed, enabled`, version 0.8.0, the five skills are in Codex's plugin cache. |
+| Codex or Claude Code then *using* the skills in a session | Needs login, not run. |
+
+- **Can `ccx setup` install the Claude plugin for you?** No, not today (the install command itself needs no prompt, so it could): `ccx setup` only wires with `ccx sync` (skills, hooks, MCP). To use the plugin, run the commands
+  above yourself; where the plugin is enabled, `ccx sync` steps aside (see "No double wiring" below). If either
+  command fails on your machine, use `ccx setup`'s wiring instead; it needs nothing from the marketplace.
+- **Windows and a deep `CODEX_HOME`:** Codex clones the repository under `<CODEX_HOME>/.tmp/marketplaces/.staging/...`
+  and a fresh clone has no long-path support. With a long `CODEX_HOME` (we hit it at about 200 characters of
+  prefix) `marketplace add` fails with `Filename too long` after the clone (the repository's deepest file is 96
+  characters, measured with `git ls-files`). The default `%USERPROFILE%\.codex` is fine (about 85 characters of prefix). If you see that
+  error, shorten `CODEX_HOME` or run `git config --global core.longpaths true`, then add again.
+- Codex prints a harmless warning about PATH aliases when `CODEX_HOME` is under the system temporary folder.
 
 - **Claude Code** gets the five skills (as `relayline:agent-delegate`, `relayline:task-routing`, `relayline:task-split`,
   `relayline:task-checkpoint`, `relayline:project-manager`) and ccx's two hooks: the start-of-session shared-memory

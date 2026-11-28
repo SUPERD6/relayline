@@ -186,7 +186,7 @@ B3 三组的中位数比分别较低（0.645、0.565、0.538），但配对统�
 | Gemini CLI；经 Claude Code 的 Kimi、GLM、Qwen、OpenRouter | 不能 | 实验性：已适配，没真跑过 |
 
 所有“能”都在一台 Windows 电脑上真跑过。**实验性**的主要几项（没真跑过；各自的说明里都标了，怎么测的见 STATUS）：Gemini CLI、
-真实的额度用完、macOS 和 Linux（只在 CI 里跑，没有真的智能体命令行）、从 GitHub 地址装 Codex 插件（未实测）、H11（`memory.by_kind=false`，默认关；原试用已作废）、`ccx intake` 对真实
+真实的额度用完、macOS 和 Linux（只在 CI 里跑，没有真的智能体命令行）、装好的 Codex 插件在会话里用技能（安装本身 2026-11-28 真跑过；会话里使用需要登录，未运行）、H11（`memory.by_kind=false`，默认关；原试用已作废）、`ccx intake` 对真实
 GitHub；完整清单见 STATUS。
 仍在开发中（版本号看上面的 release 徽章）：哪些验证过、怎么验证的，见 [docs/STATUS.zh.md](docs/STATUS.zh.md)。
 
